@@ -23,7 +23,7 @@ namespace LoopRogue
         private const float CriticalChancePerPotion = 0.02f; // +2%p
 
         private const int BaseCost = 20;
-        private const int CostIncreasePerPurchase = 2; // 구매할 때마다 2골드씩 오름
+        private const int CostIncreasePerPurchase = 5; // 구매할 때마다 5골드씩 오름(2 → 5: 봇 테스트에서 판당 영약 370개 이상이라 올림)
 
         public const int CriticalUnlockStage = 3;
 

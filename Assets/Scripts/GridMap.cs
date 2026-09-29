@@ -12,6 +12,9 @@ namespace LoopRogue
         public int Height { get; }
 
         private readonly Dictionary<Vector2Int, GridActor> _occupancy = new Dictionary<Vector2Int, GridActor>();
+        private readonly HashSet<Vector2Int> _walls = new HashSet<Vector2Int>();
+
+        public IReadOnlyCollection<Vector2Int> Walls => _walls;
 
         public GridMap(int width, int height)
         {
@@ -25,7 +28,12 @@ namespace LoopRogue
         public GridActor GetActorAt(Vector2Int pos) =>
             _occupancy.TryGetValue(pos, out var actor) ? actor : null;
 
-        public bool IsWalkable(Vector2Int pos) => IsInBounds(pos) && !_occupancy.ContainsKey(pos);
+        /// <summary>벽(장애물) 칸 - 아무도 못 지나가고 궁수 화살도 막는다(방 구성 랜덤화에서 깐다).</summary>
+        public bool IsWall(Vector2Int pos) => _walls.Contains(pos);
+
+        public void AddWall(Vector2Int pos) => _walls.Add(pos);
+
+        public bool IsWalkable(Vector2Int pos) => IsInBounds(pos) && !_walls.Contains(pos) && !_occupancy.ContainsKey(pos);
 
         public void PlaceActor(GridActor actor, Vector2Int pos)
         {

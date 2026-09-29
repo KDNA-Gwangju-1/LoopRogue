@@ -98,7 +98,14 @@ namespace LoopRogue
         /// <summary>그 슬롯 현재 상점 레벨의 등급별 확률(%) - UI 확률표 표시용.</summary>
         public static float[] GetGradeChances(ItemSlot slot) => GradeWeightsByLevel[GetShopLevel(slot) - 1];
 
-        public static int GetPullCost(ItemSlot slot) => PullCostByLevel[GetShopLevel(slot) - 1];
+        /// <summary>스테이지가 하나 오를 때마다 뽑기 가격 +25%(스테이지 10 = 3.25배) - 골드 수입은 스테이지마다 1.35배씩
+        /// 늘어나는데 가격만 고정이라 상점 레벨이 일찍 끝나고 중반 이후엔 골드 쓸 곳이 없던 문제 보정.</summary>
+        private const float PricePerStageRate = 0.25f;
+
+        public static float StagePriceMultiplier => 1f + PricePerStageRate * (StageProgress.CurrentStage - 1);
+
+        public static int GetPullCost(ItemSlot slot) =>
+            Mathf.RoundToInt(PullCostByLevel[GetShopLevel(slot) - 1] * StagePriceMultiplier);
 
         /// <summary>10연차 가격 - 누르는 시점의 상점 레벨 가격 기준(도중에 레벨이 올라도 추가 요금 없음).</summary>
         public static int GetMultiPullCost(ItemSlot slot) => GetPullCost(slot) * MultiPullPaidCount;

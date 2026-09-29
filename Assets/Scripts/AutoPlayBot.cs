@@ -26,10 +26,21 @@ namespace LoopRogue
 
         /// <summary>판 수가 많으면 방/레벨업/로비 같은 상세 로그는 끄고 판 결과와 요약만 남긴다(100판이면 파일이 수십 MB).</summary>
         private static readonly bool DetailedLog = RunsPerSession <= 10;
-        private const int MaxTurnsPerAttempt = 3000; // 한 번 시도가 이보다 길면 끼인 걸로 보고 그 판 종료
+        private const int MaxTurnsPerAttempt = 1500; // 한 번 시도가 이보다 길면 끼인 걸로 보고 그 판 종료
+        private const int EventGiveUpTurns = 20;     // 방에 들어와서 이 턴 안에 이벤트 칸을 못 밟으면 그 방에선 포기
 
         private static readonly Vector2Int[] Directions =
             { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+
+        /// <summary>사망 시 로그에 남길 "죽기 직전" 맵 개수(+ 죽은 순간 1장).</summary>
+        private const int MapFramesBeforeDeath = 3;
+
+        /// <summary>방 입장 시 시작 배치 맵도 남길지(상세 로그 모드일 때만).</summary>
+        private const bool LogMapOnRoomStart = true;
+
+        private readonly Queue<string> _recentMaps = new Queue<string>();
+        private readonly Queue<string> _recentDecisions = new Queue<string>(); // 끼임 진단용 - 최근 봇 판단 이유
+        private string _lastDecision;
 
         /// <summary>레벨업 카드 우선순위(앞일수록 선호) - "적당히 괜찮게 고르는 플레이어" 흉내.
         /// 체력이 40% 미만이면 완전 회복을 최우선으로 고른다.</summary>
@@ -54,7 +65,35 @@ namespace LoopRogue
             public readonly int[] StageDeaths = Enumerable.Repeat(-1, StageProgress.MaxStage).ToArray();
             public readonly int[] StageTurns = Enumerable.Repeat(-1, StageProgress.MaxStage).ToArray();
             public readonly int[] StageClearLevel = Enumerable.Repeat(-1, StageProgress.MaxStage).ToArray();
+
+            // 구매/성장 통계
+            public readonly int[] SinglePulls = new int[3];  // ItemSlot 순서, 1회 뽑기 횟수
+            public readonly int[] MultiPulls = new int[3];   // 10연차 횟수
+            public readonly int[] TotalPulls = new int[3];   // 실제 뽑은 장비 수(1회 + 10연차×10)
+            public readonly int[] ShopLevels = new int[3];
+            public readonly int[] Potions = new int[3];      // 공격력/체력/치명타
+            public int GoldSpentGacha;
+            public int GoldSpentPotion;
+            public int GoldLostDeath;
+            public int LevelUps;
+            public int EternalCount;
+            public float FinalAttack;
+            public float FinalMaxHealth;
+            public float FinalCritChance;
+            public float FinalCritMultiplier;
+
+            // 방 랜덤화/보스 패턴/이벤트 통계
+            public int PatternResolves;   // 보스 예고 공격 발동 횟수
+            public int PatternHits;       // 그중 맞은 횟수
+            public int Dodges;            // 봇이 예고 칸에서 피한 횟수
+            public int Waits;             // 봇이 대기한 횟수
+            public readonly int[] Events = new int[4]; // RoomEventType 순서
         }
+
+        private static readonly string[] EventNames = { "보물상자", "회복 샘", "축복 제단", "저주받은 상자" };
+
+        private static readonly PotionType[] PotionOrder = { PotionType.Attack, PotionType.Health, PotionType.Critical };
+        private static readonly string[] SlotNames = { "검", "갑옷", "반지" };
 
         private StreamWriter _log;
         private float _sessionStartTime;
@@ -79,6 +118,7 @@ namespace LoopRogue
         private int _enteredStage;
         private int _lastGold;
         private int _lastKnownLevel = 1;
+        private int _lastEventCount;
 
         // 전체 통계
         private readonly List<RunResult> _results = new List<RunResult>();
@@ -136,6 +176,10 @@ namespace LoopRogue
             SaveReset.ResetAll();
 
             _run = new RunResult { Index = _results.Count + 1 };
+            BossBrain.PatternResolveCount = 0;
+            BossBrain.PatternHitCount = 0;
+            RoomController.EventTriggeredCount = 0;
+            _lastEventCount = 0;
             _runStartTime = Time.realtimeSinceStartup;
             _attemptTurns = 0;
             _roomTurns = 0;
@@ -262,16 +306,35 @@ namespace LoopRogue
             _lastGold = GoldWallet.Gold;
         }
 
-        private static string BuyGacha(ItemSlot slot)
+        private string BuyGacha(ItemSlot slot)
         {
             var name = EquipmentData.Templates[slot].BaseName;
-            if (GoldWallet.Gold >= GachaSystem.GetMultiPullCost(slot))
-                return GachaSystem.PullMulti(slot) != null ? $"{name}10연차" : null;
-            return GachaSystem.Pull(slot) != null ? $"{name}뽑기" : null;
+            var multiCost = GachaSystem.GetMultiPullCost(slot);
+            if (GoldWallet.Gold >= multiCost)
+            {
+                if (GachaSystem.PullMulti(slot) == null)
+                    return null;
+                _run.MultiPulls[(int)slot]++;
+                _run.GoldSpentGacha += multiCost;
+                return $"{name}10연차";
+            }
+
+            var cost = GachaSystem.GetPullCost(slot);
+            if (GachaSystem.Pull(slot) == null)
+                return null;
+            _run.SinglePulls[(int)slot]++;
+            _run.GoldSpentGacha += cost;
+            return $"{name}뽑기";
         }
 
-        private static string BuyPotion(PotionType type, string label) =>
-            StatPotionWallet.IsUnlocked(type) && StatPotionWallet.TryBuy(type) ? label : null;
+        private string BuyPotion(PotionType type, string label)
+        {
+            var cost = StatPotionWallet.GetNextCost(type);
+            if (!StatPotionWallet.IsUnlocked(type) || !StatPotionWallet.TryBuy(type))
+                return null;
+            _run.GoldSpentPotion += cost;
+            return label;
+        }
 
         private static string EquipLine()
         {
@@ -327,6 +390,10 @@ namespace LoopRogue
                     Detail($"  방 클리어: {_lastRoomName} ({_roomTurns}턴, HP {_player.Stats.CurrentHealth:0}/{_player.Stats.MaxHealth:0}, Lv{_player.Levels.Level})");
                 _lastRoomName = _room.RoomName;
                 _roomTurns = 0;
+                _recentMaps.Clear();
+                _recentDecisions.Clear();
+                if (LogMapOnRoomStart && DetailedLog)
+                    Log(RenderMap("방 시작"));
             }
 
             var options = _hud.PendingUpgradeOptions;
@@ -354,12 +421,31 @@ namespace LoopRogue
             if (_attemptTurns >= MaxTurnsPerAttempt)
             {
                 Log($"  !! {_room.RoomName}에서 한 시도가 {MaxTurnsPerAttempt}턴을 넘김 - 끼임 의심 | {StatLine()}");
+                Log(RenderMap("끼인 순간"));
+                Log($"    이벤트 칸: {(_room.Event != null ? $"{_room.Event.DisplayName} ({_room.Event.GridPos.x},{_room.Event.GridPos.y})" : "없음")} | 이 방 턴 {_roomTurns}");
+                Log($"    최근 봇 판단: {string.Join(" → ", _recentDecisions)}");
                 EndRun("한 시도에서 턴 제한 초과(길찾기/진행 막힘 의심)", false);
                 return false;
             }
 
             var dir = ChooseDirection();
-            _player.BotAct(dir);
+            _recentDecisions.Enqueue($"{_lastDecision}@({_player.GridPos.x},{_player.GridPos.y})");
+            while (_recentDecisions.Count > 16)
+                _recentDecisions.Dequeue();
+            if (dir.HasValue)
+                _player.BotAct(dir.Value);
+            else
+            {
+                _player.BotWait(); // 움직일 수 있는 칸이 전부 예고 칸이면 제자리 대기(저격 2발 등)
+                _run.Waits++;
+            }
+            if (RoomController.EventTriggeredCount != _lastEventCount)
+            {
+                _lastEventCount = RoomController.EventTriggeredCount;
+                _run.Events[(int)RoomController.LastEventType]++;
+                Detail($"  이벤트: {EventNames[(int)RoomController.LastEventType]} ({_room.RoomName})");
+            }
+            RememberMap();
             _run.TotalTurns++;
             _attemptTurns++;
             _roomTurns++;
@@ -385,6 +471,7 @@ namespace LoopRogue
             }
 
             var chosen = options[bestIndex].Title;
+            _run.LevelUps++;
             _cardPicks[chosen] = _cardPicks.TryGetValue(chosen, out var c) ? c + 1 : 1;
             Detail($"  레벨업 Lv{_player.Levels.Level}: [{string.Join(" / ", options.Select(o => o.Title))}] → {chosen}");
             _hud.ChooseUpgrade(bestIndex);
@@ -394,6 +481,7 @@ namespace LoopRogue
         {
             _run.TotalDeaths++;
             _stageDeaths++;
+            _run.GoldLostDeath += _hud.LastDeathGoldPenalty;
 
             var bossInfo = string.Empty;
             if (_room.IsBossRoom)
@@ -403,7 +491,8 @@ namespace LoopRogue
                     bossInfo = $" | 보스 남은 HP {boss.Stats.CurrentHealth:0}/{boss.Stats.MaxHealth:0} ({boss.Stats.CurrentHealth / boss.Stats.MaxHealth * 100f:0}%)";
             }
 
-            Detail($"[사망 #{_stageDeaths}] {_room.RoomName} ({_attemptTurns}턴){bossInfo} | {StatLine()}");
+            Detail($"[사망 #{_stageDeaths}] {_room.RoomName} ({_attemptTurns}턴){bossInfo} | 데스 패널티 골드 -{_hud.LastDeathGoldPenalty} | {StatLine()}");
+            LogDeathMaps();
 
             if (_stageDeaths >= MaxDeathsPerStage)
             {
@@ -435,12 +524,38 @@ namespace LoopRogue
             _hud.ConfirmStageClear();
         }
 
-        /// <summary>인접한 적이 있으면 체력이 제일 낮은 적을 때리고, 없으면 BFS로 "적 옆 칸"까지 최단 경로의
-        /// 첫 걸음. 경로가 없으면(다른 적에 막힘) 아무 빈 칸으로.</summary>
-        private Vector2Int ChooseDirection()
+        /// <summary>1) 보스 예고 칸 위에 서 있으면 안전한 옆 칸으로 피한다 2) 인접한 적이 있으면 체력이 제일 낮은 적을
+        /// 때린다 3) 이벤트 칸이 있으면 밟으러 간다(EventGiveUpTurns 안에서만) 4) 없으면 BFS로 "적 옆 칸"까지 최단 경로의 첫 걸음
+        /// (예고 칸은 밟지 않음). 경로가 없으면 아무 빈 칸으로.</summary>
+        private Vector2Int? ChooseDirection()
         {
             var map = _room.Map;
             var start = _player.GridPos;
+            var danger = _room.DangerTiles;
+
+            if (danger.Contains(start))
+            {
+                Vector2Int? safest = null;
+                var fewestAdjacent = int.MaxValue;
+                foreach (var d in Directions)
+                {
+                    var next = start + d;
+                    if (!map.IsWalkable(next) || danger.Contains(next))
+                        continue;
+                    var adjacentEnemies = Directions.Count(dd => map.GetActorAt(next + dd) is EnemyActor);
+                    if (adjacentEnemies < fewestAdjacent)
+                    {
+                        fewestAdjacent = adjacentEnemies;
+                        safest = d;
+                    }
+                }
+                if (safest.HasValue)
+                {
+                    _run.Dodges++;
+                    _lastDecision = "회피";
+                    return safest.Value;
+                }
+            }
 
             EnemyActor target = null;
             var targetDir = Vector2Int.zero;
@@ -454,14 +569,59 @@ namespace LoopRogue
                 }
             }
             if (target != null)
+            {
+                _lastDecision = "공격";
                 return targetDir;
+            }
 
+            // 이벤트 칸 - 옆에 적이 없을 때만, 그리고 이 방에서 EventGiveUpTurns턴 안에 못 밟으면 포기
+            // (몹이 길을 막았다 비켰다 하면 이벤트만 쫓다가 영원히 왔다 갔다 하던 문제).
+            if (_room.Event != null && _roomTurns < EventGiveUpTurns)
+            {
+                var eventPos = _room.Event.GridPos;
+                var step = FirstStepTo(c => c == eventPos, c => c == eventPos || (map.IsWalkable(c) && !danger.Contains(c)));
+                if (step.HasValue)
+                {
+                    _lastDecision = "이벤트로";
+                    return step.Value;
+                }
+                _lastDecision = "이벤트경로없음";
+            }
+
+            // 적에게 가는 길에 이벤트 칸이 있으면 그냥 밟고 지나간다.
+            var eventCell = _room.Event != null ? _room.Event.GridPos : (Vector2Int?)null;
+            var toEnemy = FirstStepTo(
+                c => Directions.Any(d => map.GetActorAt(c + d) is EnemyActor),
+                c => (map.IsWalkable(c) || c == eventCell) && !danger.Contains(c));
+            if (toEnemy.HasValue)
+            {
+                _lastDecision = "적에게";
+                return toEnemy.Value;
+            }
+
+            // 갈 길이 없으면 예고 칸이 아닌 아무 빈 칸으로, 그것도 없으면 대기.
+            foreach (var d in Directions)
+            {
+                if (map.IsWalkable(start + d) && !danger.Contains(start + d))
+                {
+                    _lastDecision = "경로없음-아무데나";
+                    return d;
+                }
+            }
+            _lastDecision = "대기";
+            return null;
+        }
+
+        /// <summary>플레이어 칸에서 passable 칸만 밟는 BFS로, isGoal을 만족하는 가장 가까운 칸까지의 첫 걸음 방향.</summary>
+        private Vector2Int? FirstStepTo(Func<Vector2Int, bool> isGoal, Func<Vector2Int, bool> passable)
+        {
+            var start = _player.GridPos;
             var firstStep = new Dictionary<Vector2Int, Vector2Int>();
             var queue = new Queue<Vector2Int>();
             foreach (var d in Directions)
             {
                 var next = start + d;
-                if (!map.IsWalkable(next))
+                if (!passable(next))
                     continue;
                 firstStep[next] = d;
                 queue.Enqueue(next);
@@ -470,27 +630,79 @@ namespace LoopRogue
             while (queue.Count > 0)
             {
                 var cur = queue.Dequeue();
-                foreach (var d in Directions)
-                {
-                    if (map.GetActorAt(cur + d) is EnemyActor)
-                        return firstStep[cur];
-                }
+                if (isGoal(cur))
+                    return firstStep[cur];
                 foreach (var d in Directions)
                 {
                     var next = cur + d;
-                    if (next == start || firstStep.ContainsKey(next) || !map.IsWalkable(next))
+                    if (next == start || firstStep.ContainsKey(next) || !passable(next))
                         continue;
                     firstStep[next] = firstStep[cur];
                     queue.Enqueue(next);
                 }
             }
+            return null;
+        }
 
-            foreach (var d in Directions)
+        // ===================== 맵 스냅샷 =====================
+
+        /// <summary>매 턴 행동 직후(몹 턴까지 끝난 상태) 맵을 버퍼에 쌓는다 - 사망 시 "죽기 직전 몇 턴"을 보여주기 위해.
+        /// 마지막 한 장은 죽은 순간 그대로라 MapFramesBeforeDeath + 1장을 유지한다.</summary>
+        private void RememberMap()
+        {
+            if (_room == null || _room.Map == null)
+                return;
+            _recentMaps.Enqueue(RenderMap($"턴 {_attemptTurns + 1}"));
+            while (_recentMaps.Count > MapFramesBeforeDeath + 1)
+                _recentMaps.Dequeue();
+        }
+
+        private void LogDeathMaps()
+        {
+            if (_recentMaps.Count == 0)
+                return;
+            Log($"  --- {_run.Index}판 사망 #{_stageDeaths} 직전 맵 ({_room.RoomName}) ---");
+            foreach (var frame in _recentMaps)
+                Log(frame);
+            _recentMaps.Clear();
+        }
+
+        /// <summary>현재 방을 글자로 그린다. 위쪽이 y가 큰 쪽(화면과 같은 방향).
+        /// P 플레이어(!는 예고 칸 위) / M 근접 몹 / A 궁수 / B 보스 / m 졸개 / E 이벤트 / # 벽 / x 보스 예고 칸 / . 빈 칸,
+        /// 아래에 몹별 좌표와 HP.</summary>
+        private string RenderMap(string title)
+        {
+            var map = _room.Map;
+            var sb = new StringBuilder();
+            sb.Append($"  [{title}] {_room.RoomName} | 플레이어 ({_player.GridPos.x},{_player.GridPos.y}) " +
+                      $"HP {_player.Stats.CurrentHealth:0}/{_player.Stats.MaxHealth:0}\n");
+
+            for (var y = map.Height - 1; y >= 0; y--)
             {
-                if (map.IsWalkable(start + d))
-                    return d;
+                sb.Append("    ");
+                for (var x = 0; x < map.Width; x++)
+                {
+                    var cell = new Vector2Int(x, y);
+                    var actor = map.GetActorAt(cell);
+                    var c = actor switch
+                    {
+                        PlayerActor _ => _room.DangerTiles.Contains(cell) ? '!' : 'P',
+                        EnemyActor e when e.IsBoss => 'B',
+                        EnemyActor e when e.IsMinion => 'm',
+                        EnemyActor e when e.Kind == EnemyKind.Ranged => 'A',
+                        EnemyActor _ => 'M',
+                        RoomEventActor _ => 'E',
+                        _ => map.IsWall(cell) ? '#' : _room.DangerTiles.Contains(cell) ? 'x' : '.',
+                    };
+                    sb.Append(c).Append(' ');
+                }
+                sb.Append('\n');
             }
-            return Vector2Int.up;
+
+            var enemies = _room.Enemies.Where(e => e != null && !e.Stats.IsDead)
+                .Select(e => $"{(e.IsBoss ? 'B' : e.Kind == EnemyKind.Ranged ? 'A' : 'M')}({e.GridPos.x},{e.GridPos.y}) HP{e.Stats.CurrentHealth:0}");
+            sb.Append($"    적: {string.Join("  ", enemies)}");
+            return sb.ToString();
         }
 
         private string StatLine()
@@ -514,13 +726,55 @@ namespace LoopRogue
             _run.ReachedStage = StageProgress.CurrentStage;
             _run.FinalLevel = _lastKnownLevel;
             _run.Seconds = Time.realtimeSinceStartup - _runStartTime;
+            CollectFinalState(_run);
             _results.Add(_run);
 
             Debug.Log($"[AutoPlayBot] {_run.Index}/{RunsPerSession}판 종료 - 사망 {_run.TotalDeaths}회");
             Log($"{_run.Index,3}판 종료: {reason} | {_run.Seconds:0.0}초, {_run.TotalTurns}턴, 사망 {_run.TotalDeaths}회, " +
                 $"획득 골드 {_run.GoldEarned}, 최종 Lv{_run.FinalLevel} | 최종 장비: {EquipLine()}");
+            Log($"      {PurchaseLine(_run)}");
 
             _runEnding = true;
+        }
+
+        private void CollectFinalState(RunResult r)
+        {
+            // 판 시작 때 골드 0으로 초기화하므로 "번 골드 = 남은 골드 + 쓴 골드 + 뺏긴 골드"가 정확하다
+            // (프레임 단위 증가 추적은 한 프레임 안에서 벌고 뺏기면 덜 잡힌다).
+            r.GoldEarned = GoldWallet.Gold + r.GoldSpentGacha + r.GoldSpentPotion + r.GoldLostDeath;
+
+            foreach (ItemSlot slot in Enum.GetValues(typeof(ItemSlot)))
+            {
+                var i = (int)slot;
+                r.TotalPulls[i] = GachaSystem.GetPullCount(slot);
+                r.ShopLevels[i] = GachaSystem.GetShopLevel(slot);
+                if (EquipmentWallet.GetEquipped(slot) == ItemGrade.Eternal)
+                    r.EternalCount++;
+            }
+            for (var i = 0; i < PotionOrder.Length; i++)
+                r.Potions[i] = StatPotionWallet.GetCount(PotionOrder[i]);
+
+            r.PatternResolves = BossBrain.PatternResolveCount;
+            r.PatternHits = BossBrain.PatternHitCount;
+
+            if (_player != null && _player.Stats != null)
+            {
+                r.FinalAttack = _player.Stats.AttackPower;
+                r.FinalMaxHealth = _player.Stats.MaxHealth;
+                r.FinalCritChance = _player.Stats.CriticalChanceRate;
+                r.FinalCritMultiplier = _player.Stats.CriticalDamageMultiplier;
+            }
+        }
+
+        private static string PurchaseLine(RunResult r)
+        {
+            var pulls = string.Join(" ", Enumerable.Range(0, 3).Select(i =>
+                $"{SlotNames[i]} {r.TotalPulls[i]}개(1회 {r.SinglePulls[i]}/10연차 {r.MultiPulls[i]}, 상점Lv{r.ShopLevels[i]})"));
+            return $"뽑기: {pulls} | 영약: 공{r.Potions[0]} 체{r.Potions[1]} 치{r.Potions[2]} | 레벨업 {r.LevelUps}회 | " +
+                   $"골드 사용: 뽑기 {r.GoldSpentGacha} / 영약 {r.GoldSpentPotion} / 데스패널티 {r.GoldLostDeath} | " +
+                   $"최종 ATK {r.FinalAttack:0} 최대HP {r.FinalMaxHealth:0} 치명 {r.FinalCritChance * 100f:0}%(배율 {r.FinalCritMultiplier * 100f:0}%) | " +
+                   $"보스 예고공격 {r.PatternResolves}회 중 {r.PatternHits}회 맞음(회피 이동 {r.Dodges}, 대기 {r.Waits}) | " +
+                   $"이벤트: {string.Join(" ", Enumerable.Range(0, 4).Select(i => $"{EventNames[i]} {r.Events[i]}"))}";
         }
 
         private static float Percentile(List<float> values, float p)
@@ -558,6 +812,26 @@ namespace LoopRogue
                 var failed = _results.Where(r => !r.Completed).GroupBy(r => r.EndReason).Select(g => $"{g.Key} x{g.Count()}").ToList();
                 if (failed.Count > 0)
                     Log($"실패 사유: {string.Join(", ", failed)}");
+
+                Log("");
+                Log("--- 구매/성장 평균 (판당) ---");
+                for (var i = 0; i < 3; i++)
+                {
+                    var slot = i;
+                    Log($"{SlotNames[slot]} 뽑기: 장비 {_results.Average(r => r.TotalPulls[slot]):0}개 (1회 {_results.Average(r => r.SinglePulls[slot]):0.0}번, " +
+                        $"10연차 {_results.Average(r => r.MultiPulls[slot]):0.0}번) | 최종 상점Lv {_results.Average(r => r.ShopLevels[slot]):0.0}");
+                }
+                Log($"영약: 공격력 {_results.Average(r => r.Potions[0]):0.0}개 / 체력 {_results.Average(r => r.Potions[1]):0.0}개 / 치명타 {_results.Average(r => r.Potions[2]):0.0}개");
+                Log($"레벨업 {_results.Average(r => r.LevelUps):0.0}회 | 최종 영원 장비 {_results.Average(r => r.EternalCount):0.0}/3개 " +
+                    $"(3개 모두 영원인 판 {_results.Count(r => r.EternalCount == 3)}/{n})");
+                Log($"골드: 획득 {_results.Average(r => r.GoldEarned):0} / 뽑기 사용 {_results.Average(r => r.GoldSpentGacha):0} / " +
+                    $"영약 사용 {_results.Average(r => r.GoldSpentPotion):0} / 데스 패널티로 잃음 {_results.Average(r => r.GoldLostDeath):0}");
+                var resolves = _results.Sum(r => r.PatternResolves);
+                var hits = _results.Sum(r => r.PatternHits);
+                Log($"보스 예고 공격: 판당 {_results.Average(r => r.PatternResolves):0}회 발동, 적중률 {(resolves > 0 ? hits * 100f / resolves : 0f):0}%");
+                Log($"방 이벤트(판당): {string.Join(" / ", Enumerable.Range(0, 4).Select(i => $"{EventNames[i]} {_results.Average(r => r.Events[i]):0.0}"))}");
+                Log($"최종 스탯: ATK {_results.Average(r => r.FinalAttack):0} / 최대HP {_results.Average(r => r.FinalMaxHealth):0} / " +
+                    $"치명 {_results.Average(r => r.FinalCritChance) * 100f:0}% (배율 {_results.Average(r => r.FinalCritMultiplier) * 100f:0}%)");
 
                 Log("");
                 Log("--- 스테이지별 (클리어한 판 기준) ---");

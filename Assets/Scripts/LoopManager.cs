@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace LoopRogue
 {
@@ -18,6 +19,18 @@ namespace LoopRogue
         private PlayerActor _player;
         private GameHUD _hud;
 
+        /// <summary>데스 패널티 - 죽거나(Esc로) 중도 포기하면 "이번 시도에서 번 골드"의 이 비율을 잃는다. 이전에
+        /// 모아둔 골드/레벨/스탯/장비는 그대로. 봇 테스트에서 죽을 때마다 번 골드를 전부 챙겨 가 매 판 영원 장비
+        /// 풀세트가 되고, 많이 죽은 다음 스테이지가 쉬워지는 문제가 있어서 넣었다.</summary>
+        public const float DeathGoldPenaltyRate = 0.4f;
+
+        private int _attemptStartGold; // 이번 시도(Main 입장 또는 방1 재시작) 시작 시점의 골드
+
+        /// <summary>방 이벤트는 시도마다 스테이지당 한 방 - 방 3~9 중 랜덤(방 1~2는 아직 몸풀기, 방 10은 보스 직전).</summary>
+        private const int FirstEventRoomIndex = 2; // 방 3
+        private const int LastEventRoomIndex = 8;  // 방 9
+        private static readonly System.Random Rng = new System.Random();
+
         public void Initialize(RoomController roomController, PlayerActor player, GameHUD hud,
             List<RoomDefinition> rooms, int stage)
         {
@@ -27,15 +40,20 @@ namespace LoopRogue
             _rooms = rooms;
             _stage = stage;
             _roomIndex = 0;
+            RollRoomEvent();
+            StageProgress.BeginAttempt();
 
             _roomController.Initialize(player, this, stage);
             _roomController.LoadRoom(_rooms[_roomIndex]);
             RefreshHudProgress();
+            _attemptStartGold = GoldWallet.Gold;
 
             // Esc 메뉴 - 사망/스테이지 클리어(입력 잠금 중)나 레벨업 카드 선택 중에는 안 열린다.
-            // 로비 이동은 사망/클리어 때와 같은 경로(풀피 + 런 저장 후 이동).
-            _hud.gameObject.AddComponent<PauseMenu>().Setup(SaveProgressAndLoadLobby,
-                () => !_roomController.IsInputLocked && !_player.Levels.IsChoosingUpgrade && !_player.Stats.IsDead);
+            // 중도 포기도 사망과 같은 데스 패널티(안 그러면 죽기 직전에 Esc로 빠져나가 패널티를 피할 수 있다).
+            _hud.gameObject.AddComponent<PauseMenu>().Setup(RetreatToLobby,
+                () => !_roomController.IsInputLocked && !_player.Levels.IsChoosingUpgrade && !_player.Stats.IsDead,
+                lobbyLabel: $"로비로 이동 (이번 시도 골드 {DeathGoldPenaltyRate * 100f:0}% 손실)  [L]",
+                goToTitle: RetreatToTitle);
         }
 
         public void AdvanceToNextRoom()
@@ -51,15 +69,43 @@ namespace LoopRogue
         public void OnPlayerDied()
         {
             _roomController.IsInputLocked = true;
-            _hud.ShowDeathChoice(ContinueAfterDeath, ReturnToLobby);
+            var penalty = ApplyDeathGoldPenalty();
+            _hud.ShowDeathChoice(ContinueAfterDeath, ReturnToLobby, penalty);
+        }
+
+        /// <summary>이번 시도에서 번 골드의 DeathGoldPenaltyRate만큼 뺏고, 뺏은 양을 돌려준다(표시용).</summary>
+        private int ApplyDeathGoldPenalty()
+        {
+            var earned = Mathf.Max(0, GoldWallet.Gold - _attemptStartGold);
+            var penalty = Mathf.RoundToInt(earned * DeathGoldPenaltyRate);
+            GoldWallet.TrySpend(penalty);
+            _attemptStartGold = GoldWallet.Gold;
+            return penalty;
+        }
+
+        private void RetreatToLobby()
+        {
+            ApplyDeathGoldPenalty();
+            SaveProgressAndLoadLobby();
+        }
+
+        /// <summary>Esc 메뉴 → 타이틀. 중도 포기라 로비 이동과 같은 데스 패널티, 런 진행은 저장해서 다시 시작하면 이어진다.</summary>
+        private void RetreatToTitle()
+        {
+            ApplyDeathGoldPenalty();
+            SaveProgress();
+            UnityEngine.SceneManagement.SceneManager.LoadScene("Title");
         }
 
         private void ContinueAfterDeath()
         {
             LoopCount++;
             _roomIndex = 0;
+            RollRoomEvent();
+            StageProgress.BeginAttempt();
             _player.Stats.FullHeal();
             _roomController.LoadRoom(_rooms[_roomIndex]); // IsInputLocked를 다시 false로 풀어준다.
+            _attemptStartGold = GoldWallet.Gold;
             RefreshHudProgress();
             _hud.ShowLoopResetBanner();
         }
@@ -82,10 +128,32 @@ namespace LoopRogue
             // 씬이 넘어가면 플레이어 오브젝트 자체가 통째로 사라지므로, 사라지기 직전에 지금
             // 레벨/경험치/스탯을 RunProgress에 스냅샷으로 남겨서 Main이 다시 뜰 때 복원한다.
             // FullHeal도 같이 - 안 그러면 방금 죽은(혹은 보스전 막판 깎인) 체력이 그대로 저장된다.
-            _player.Stats.FullHeal();
-            RunProgress.Save(_player.Levels, _player.Stats);
+            SaveProgress();
             UnityEngine.SceneManagement.SceneManager.LoadScene("Lobby");
         }
+
+        private void SaveProgress()
+        {
+            _player.Stats.FullHeal();
+            RunProgress.Save(_player.Levels, _player.Stats);
+        }
+
+        /// <summary>이번 시도에서 이벤트가 나올 방 하나와 종류를 새로 뽑는다(나머지 방은 이벤트 없음).</summary>
+        private void RollRoomEvent()
+        {
+            foreach (var room in _rooms)
+                room.HasEvent = false;
+
+            var last = Mathf.Min(LastEventRoomIndex, _rooms.Count - 2); // 보스방 제외
+            if (last < FirstEventRoomIndex)
+                return;
+
+            var index = Rng.Next(FirstEventRoomIndex, last + 1);
+            _rooms[index].HasEvent = true;
+            _rooms[index].EventType = RoomEventActor.RollType();
+        }
+
+        public void ShowMessage(string message) => _hud.ShowMessage(message);
 
         private void RefreshHudProgress() =>
             _hud.RefreshProgress(_stage, _roomIndex + 1, _rooms.Count, LoopCount);

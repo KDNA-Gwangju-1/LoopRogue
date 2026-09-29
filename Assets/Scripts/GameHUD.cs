@@ -44,6 +44,7 @@ namespace LoopRogue
         private Text _victoryText;
         private Action _onStageClearContinue;
         private GameObject _deathPanel;
+        private Text _deathPenaltyText;
         private Action _onContinueAfterDeath;
         private Action _onReturnToLobby;
 
@@ -279,13 +280,19 @@ namespace LoopRogue
             var ratio = stats.MaxHealth > 0f ? Mathf.Clamp01(stats.CurrentHealth / stats.MaxHealth) : 0f;
             _targetFill.anchorMax = new Vector2(ratio, 1f);
             _targetFillImage.color = _target.IsBoss ? new Color(0.85f, 0.35f, 0.1f) : new Color(0.75f, 0.15f, 0.15f);
-            _targetText.text = $"{(_target.IsBoss ? "보스" : "몬스터")}  HP {stats.CurrentHealth:0}/{stats.MaxHealth:0}  (ATK {stats.AttackPower:0})";
+            _targetText.text = $"{_target.DisplayName}  HP {stats.CurrentHealth:0}/{stats.MaxHealth:0}  (ATK {stats.AttackPower:0})";
         }
 
         public void RefreshProgress(int stage, int roomNumber, int roomCount, int loopCount)
         {
-            _progressText.text = $"Stage {stage}/{StageProgress.MaxStage}   Room {roomNumber}/{roomCount}   Attempt {loopCount}";
+            // 시도 횟수는 이 스테이지 누적(로비 왕복 포함) - 반복 보상 감소가 이 숫자로 정해진다.
+            var reward = StageProgress.RepeatRewardMultiplier;
+            var rewardText = reward < 0.999f ? $"   보상 {reward * 100f:0}%" : string.Empty;
+            _progressText.text = $"Stage {stage}/{StageProgress.MaxStage}   Room {roomNumber}/{roomCount}   시도 {StageProgress.AttemptsThisStage}{rewardText}";
         }
+
+        /// <summary>화면 위쪽 배너로 짧은 안내(방 이벤트 결과, 보스 소환 등).</summary>
+        public void ShowMessage(string message) => ShowBanner(message);
 
         public void ShowLoopResetBanner() => ShowBanner("보스에게 당했다... 스탯은 그대로! 방 1부터 다시.");
 
@@ -322,12 +329,19 @@ namespace LoopRogue
 
         /// <summary>LoopManager.OnPlayerDied가 호출 - 선택 전까지는 RoomController.IsInputLocked가
         /// 이미 켜져 있어서 플레이어가 움직일 수 없다.</summary>
-        public void ShowDeathChoice(Action onContinue, Action onLobby)
+        public void ShowDeathChoice(Action onContinue, Action onLobby, int goldPenalty)
         {
             _onContinueAfterDeath = onContinue;
             _onReturnToLobby = onLobby;
+            LastDeathGoldPenalty = goldPenalty;
+            _deathPenaltyText.text = goldPenalty > 0
+                ? $"데스 패널티: 골드 -{goldPenalty} (이번 시도 획득분의 {LoopManager.DeathGoldPenaltyRate * 100f:0}%)"
+                : "데스 패널티: 이번 시도에 번 골드 없음";
             _deathPanel.SetActive(true);
         }
+
+        /// <summary>가장 최근 사망 때 잃은 골드 - 자동 플레이 봇 통계용.</summary>
+        public int LastDeathGoldPenalty { get; private set; }
 
         private static Color CardColor(UpgradeCategory category) => category switch
         {
@@ -407,7 +421,7 @@ namespace LoopRogue
             rect.anchorMin = new Vector2(0f, 1f);
             rect.anchorMax = new Vector2(0f, 1f);
             rect.pivot = new Vector2(0f, 1f);
-            rect.sizeDelta = new Vector2(400f, 120f);
+            rect.sizeDelta = new Vector2(400f, 142f);
             rect.anchoredPosition = new Vector2(16f, -16f);
             panelGo.AddComponent<Image>().color = PanelColor;
 
@@ -419,6 +433,12 @@ namespace LoopRogue
             _progressText.fontSize = 13;
             _hpText = CreateLabel(panelGo.transform, "HP 30/30", new Vector2(10f, -84f), new Vector2(-10f, -64f));
             _expText = CreateLabel(panelGo.transform, "EXP 0/10", new Vector2(10f, -108f), new Vector2(-10f, -88f));
+
+            // 조작 안내 한 줄 - 대기 키(스페이스바)를 모르고 지나치지 않게.
+            var controls = CreateLabel(panelGo.transform, "이동/공격: 방향키·WASD   대기: Space   스탯: Tab   메뉴: Esc",
+                new Vector2(10f, -134f), new Vector2(-10f, -114f));
+            controls.fontSize = 12;
+            controls.color = new Color(0.7f, 0.72f, 0.78f);
         }
 
         private void BuildStatPanel(Transform parent)
@@ -548,11 +568,16 @@ namespace LoopRogue
         {
             _deathPanel = BuildOverlayPanel(parent, "DeathPanel", new Vector2(460f, 200f), active: false);
 
-            var title = CreateLabel(_deathPanel.transform, "사망! (레벨/스탯/골드/장비는 그대로 유지됩니다)",
-                new Vector2(10f, -90f), new Vector2(-10f, -20f));
+            var title = CreateLabel(_deathPanel.transform, "사망! (레벨/스탯/장비는 그대로 유지됩니다)",
+                new Vector2(10f, -70f), new Vector2(-10f, -15f));
             title.alignment = TextAnchor.MiddleCenter;
             title.fontSize = 18;
             title.fontStyle = FontStyle.Bold;
+
+            _deathPenaltyText = CreateLabel(_deathPanel.transform, string.Empty, new Vector2(10f, -105f), new Vector2(-10f, -72f));
+            _deathPenaltyText.alignment = TextAnchor.MiddleCenter;
+            _deathPenaltyText.fontSize = 15;
+            _deathPenaltyText.color = new Color(1f, 0.6f, 0.4f);
 
             var prompt = CreateLabel(_deathPanel.transform, "[Enter] 계속하기 (방1부터 다시)    [L] 로비로 이동",
                 new Vector2(10f, -170f), new Vector2(-10f, -110f));

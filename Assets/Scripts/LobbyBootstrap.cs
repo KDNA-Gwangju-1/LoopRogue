@@ -87,6 +87,10 @@ namespace LoopRogue
 
             if (keyboard.enterKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame)
                 StartRun();
+
+            // Esc = 타이틀로(로비엔 진행 중인 전투가 없어서 확인 없이 바로 이동 - 골드/장비는 전부 영구 저장).
+            if (keyboard.escapeKey.wasPressedThisFrame)
+                SceneManager.LoadScene("Title");
         }
 
         private void HandleMouseClick()

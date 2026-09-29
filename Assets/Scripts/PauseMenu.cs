@@ -26,17 +26,22 @@ namespace LoopRogue
         private readonly List<(RectTransform rect, Action onClick)> _buttons = new List<(RectTransform, Action)>();
 
         private Action _goToLobby;
+        private Action _goToTitle;
         private Func<bool> _canOpen;
         private GameObject _panel;
 
         /// <param name="goToLobby">"로비로 이동"을 눌렀을 때 할 일.</param>
         /// <param name="canOpen">지금 메뉴를 열어도 되는지 - 사망/레벨업/클리어 창이 떠 있을 땐 안 열리게.</param>
         /// <param name="showQuit">"게임 종료" 버튼도 보여줄지(타이틀용).</param>
-        public void Setup(Action goToLobby, Func<bool> canOpen = null, bool showQuit = false)
+        /// <param name="lobbyLabel">"로비로 이동" 버튼 문구(Main은 데스 패널티 안내를 붙인다).</param>
+        /// <param name="goToTitle">있으면 "타이틀로 이동 [T]" 버튼도 보여준다(Main용).</param>
+        public void Setup(Action goToLobby, Func<bool> canOpen = null, bool showQuit = false, string lobbyLabel = null,
+            Action goToTitle = null)
         {
             _goToLobby = goToLobby;
+            _goToTitle = goToTitle;
             _canOpen = canOpen;
-            BuildUI(showQuit);
+            BuildUI(showQuit, lobbyLabel ?? "로비로 이동  [L]");
             SetOpen(false);
         }
 
@@ -70,6 +75,12 @@ namespace LoopRogue
                 return;
             }
 
+            if (_goToTitle != null && keyboard != null && keyboard.tKey.wasPressedThisFrame)
+            {
+                GoToTitle();
+                return;
+            }
+
             var mouse = Mouse.current;
             if (mouse == null || !mouse.leftButton.wasPressedThisFrame)
                 return;
@@ -99,6 +110,12 @@ namespace LoopRogue
             _goToLobby?.Invoke();
         }
 
+        private void GoToTitle()
+        {
+            SetOpen(false);
+            _goToTitle?.Invoke();
+        }
+
         private static void QuitGame()
         {
 #if UNITY_EDITOR
@@ -108,7 +125,7 @@ namespace LoopRogue
 #endif
         }
 
-        private void BuildUI(bool showQuit)
+        private void BuildUI(bool showQuit, string lobbyLabel)
         {
             var canvasGo = new GameObject("PauseMenuCanvas", typeof(RectTransform));
             canvasGo.transform.SetParent(transform, false);
@@ -132,7 +149,12 @@ namespace LoopRogue
             CreateLabel(_panel.transform, "메뉴", 30, FontStyle.Bold, 110f, 400f, 44f);
 
             var y = 40f;
-            CreateButton(_panel.transform, "로비로 이동  [L]", LobbyButtonColor, y, GoToLobby);
+            CreateButton(_panel.transform, lobbyLabel, LobbyButtonColor, y, GoToLobby);
+            if (_goToTitle != null)
+            {
+                y -= 60f;
+                CreateButton(_panel.transform, "타이틀로 이동  [T]", ButtonColor, y, GoToTitle);
+            }
             y -= 60f;
             CreateButton(_panel.transform, "계속하기  [Esc]", ButtonColor, y, () => SetOpen(false));
             if (showQuit)
@@ -174,10 +196,10 @@ namespace LoopRogue
             rect.anchorMin = new Vector2(0.5f, 0.5f);
             rect.anchorMax = new Vector2(0.5f, 0.5f);
             rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(300f, 48f);
+            rect.sizeDelta = new Vector2(420f, 48f);
             rect.anchoredPosition = new Vector2(0f, y);
 
-            var label = CreateLabel(go.transform, content, 20, FontStyle.Normal, 0f, 280f, 48f);
+            var label = CreateLabel(go.transform, content, 18, FontStyle.Normal, 0f, 400f, 48f);
             label.rectTransform.anchoredPosition = Vector2.zero;
 
             _buttons.Add((rect, onClick));

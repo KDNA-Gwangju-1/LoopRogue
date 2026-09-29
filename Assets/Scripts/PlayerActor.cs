@@ -111,14 +111,16 @@ namespace LoopRogue
 
             if (direction.HasValue)
                 TryAct(direction.Value);
+            else if (keyboard.spaceKey.wasPressedThisFrame)
+                Wait(); // 스페이스바 = 제자리 대기(한 턴 넘기기)
         }
 
         private void TryAct(Vector2Int direction)
         {
             var targetPos = GridPos + direction;
 
-            if (!Map.IsInBounds(targetPos))
-                return; // 벽 방향으로 헛눌러도 턴 소모 없음 - 로그라이크 관례.
+            if (!Map.IsInBounds(targetPos) || Map.IsWall(targetPos))
+                return; // 방 끝/벽 방향으로 헛눌러도 턴 소모 없음 - 로그라이크 관례.
 
             var occupant = Map.GetActorAt(targetPos);
 
@@ -140,14 +142,21 @@ namespace LoopRogue
                     // 경험치도 골드처럼 StageScaling 배율을 곱한다(몹은 스테이지마다 세지는데 경험치만
                     // 고정이면 뒤로 갈수록 레벨이 안 오름). 보스 처치 경험치는 스테이지 클리어 화면보다
                     // 먼저 들어가야 해서 NotifyEnemyDefeated(보스면 곧바로 클리어 처리)보다 앞에서 준다.
-                    var baseExp = enemy.IsBoss ? ExpPerBossKill : ExpPerKill;
-                    Levels.AddExp(Mathf.RoundToInt(baseExp * StageScaling.RewardMultiplier(_room.Stage) * (1f + Stats.EffectiveExpBonus)));
+                    var baseExp = enemy.IsMinion ? 0 : enemy.IsBoss ? ExpPerBossKill : ExpPerKill; // 졸개는 경험치 없음
+                    var repeat = enemy.IsBoss ? 1f : StageProgress.RepeatRewardMultiplier; // 반복 보상 감소(보스는 제외)
+                    Levels.AddExp(Mathf.RoundToInt(baseExp * StageScaling.RewardMultiplier(_room.Stage) * (1f + Stats.EffectiveExpBonus) * repeat));
 
                     var roomCleared = _room.NotifyEnemyDefeated(enemy);
 
                     if (roomCleared)
                         return; // 다음 방/승리 전환은 이미 끝났다 - 새 방 몹은 이번 턴엔 안 움직인다.
                 }
+            }
+            else if (occupant is RoomEventActor ev)
+            {
+                // 이벤트 칸 - 발동시키고 그 칸으로 이동(한 턴 소모).
+                _room.TriggerEvent(ev);
+                Map.MoveActor(this, targetPos);
             }
             else if (occupant == null)
             {
@@ -158,7 +167,22 @@ namespace LoopRogue
                 return; // 다른 종류의 점유자는 없다(플레이어는 하나뿐) - 안전망.
             }
 
-            Stats.Heal(Stats.MaxHealth * Stats.RegenPerTurnRate); // 재생 카드 - 행동 1회 = 1턴
+            EndTurn();
+        }
+
+        /// <summary>제자리 대기 - 아무것도 안 하고 한 턴 넘긴다(보스 저격 2발 같은 "움직이면 맞는" 공격 피하기용).</summary>
+        private void Wait() => EndTurn();
+
+        /// <summary>자동 플레이 봇용 - 대기 키를 누른 것과 같다.</summary>
+        public void BotWait()
+        {
+            if (CanAct)
+                Wait();
+        }
+
+        private void EndTurn()
+        {
+            Stats.Heal(Stats.MaxHealth * Stats.RegenPerTurnRate); // 재생 카드 - 행동 1회(대기 포함) = 1턴
             _room.RunEnemyTurns();
         }
 

@@ -17,6 +17,20 @@ namespace LoopRogue
         /// (예: 4 ×1.3 → 5 ×1.0이면 4→5가 1.45/1.3 ≈ 1.12배) 앞에서 많이 죽으며 쌓인 골드까지 겹쳐 봇 테스트에서
         /// 매번 그 다음 스테이지가 "쉬운 골짜기"가 됐다. 계단식으로 바꾸고 대신 적 성장률을 1.45 → 1.41로 낮춰
         /// 스테이지 10 보스는 이전과 거의 같게 맞췄다.</summary>
+        /// <summary>보스 패턴 난이도 보정 - 보스 패턴이 생긴 뒤로는 스탯보다 패턴이 난이도를 정해서(봇 30판: 돌진 0.2회,
+        /// 저격 14회, 십자+저격 21회 사망), 쉬운 패턴 보스는 스탯을 올리고 어려운 패턴 보스는 내린다.
+        /// 계단 보정(ExtraBossMultiplier)과는 별개로 곱한다.</summary>
+        private static float BossPatternBalance(int stage) => stage switch
+        {
+            1 => 1.2f,  // 돌진(가장 쉬움, 입문 보스라 조금만)
+            4 => 1.3f,  // 소환 + 강타
+            6 => 0.75f, // 저격 2연속
+            7 => 1.3f,  // X자
+            8 => 0.85f, // 돌진 + 강타
+            9 => 0.7f,  // 십자 + 저격
+            _ => 1f,    // 2 강타, 3 십자, 5 파동, 10 전부
+        };
+
         private static float ExtraBossMultiplier(int stage) => stage switch
         {
             <= 1 => 1f,
@@ -67,56 +81,53 @@ namespace LoopRogue
                 var hp = (8f + (i - 1) * 2f) * stageMultiplier;
                 var atk = (2f + (i - 1) * 0.4f) * stageMultiplier;
 
-                rooms.Add(MakeRoom($"Stage {stage}-{i}", size, size,
-                    GenerateEnemyPositions(size, size, enemyCount), enemyHp: hp, enemyAtk: atk));
+                var room = MakeRoom($"Stage {stage}-{i}", size, size, enemyCount, enemyHp: hp, enemyAtk: atk);
+                room.EnemyKinds = BuildEnemyKinds(stage, i, enemyCount);
+                rooms.Add(room);
             }
 
             var bossSize = Mathf.Min(9 + stagePower / 2, 14);
-            var extraBoss = ExtraBossMultiplier(stage);
+            var extraBoss = ExtraBossMultiplier(stage) * BossPatternBalance(stage);
             var bossHp = 150f * stageMultiplier * BossStatMultiplier * extraBoss;
             var bossAtk = 12f * stageMultiplier * BossStatMultiplier * extraBoss;
 
-            rooms.Add(MakeRoom($"Stage {stage} Boss", bossSize, bossSize,
-                new List<Vector2Int> { new Vector2Int(bossSize - 2, bossSize - 2) },
-                enemyHp: bossHp, enemyAtk: bossAtk, isBossRoom: true));
+            var bossRoom = MakeRoom($"Stage {stage} Boss", bossSize, bossSize, 1,
+                enemyHp: bossHp, enemyAtk: bossAtk, isBossRoom: true);
+            bossRoom.BossPatterns = BossBrain.StagePatterns(stage);
+            rooms.Add(bossRoom);
 
             return rooms;
         }
 
-        /// <summary>플레이어 시작 칸(0,0)을 피해서, 대각선/반대각선을 번갈아 타고 퍼지는 좌표를
-        /// count개 만든다. 격자가 작아서 반올림 좌표가 겹치면 그 칸부터 오른쪽으로 한 칸씩 밀어서
-        /// 빈 칸을 찾는다(공간이 넉넉한 이 프로젝트 방 크기에서는 몇 칸만 밀면 항상 찾아진다).</summary>
-        private static List<Vector2Int> GenerateEnemyPositions(int width, int height, int count)
+        /// <summary>궁수 배치 - 스테이지 1은 방 6부터 딱 1마리(첫 스테이지가 제일 어려운 벽이 되지 않게 - 봇 30판에서
+        /// 방 3부터 궁수를 넣었더니 스테이지 1 사망이 6.2회로 스테이지 7 수준이었다). 스테이지 2부터는 방마다 몹의
+        /// 1/3(최소 1)이 궁수. 몹 위치는 플레이어에게서 가까운 순으로 놓이므로 목록 끝쪽(먼 쪽)을 궁수로 둔다(뒤에서 쏘게).</summary>
+        private const int FirstRangedRoomInStage1 = 6;
+        private const int MaxRangedInStage1 = 1;
+
+        private static List<EnemyKind> BuildEnemyKinds(int stage, int roomNumber, int enemyCount)
         {
-            var positions = new List<Vector2Int>();
-
-            for (var i = 0; i < count; i++)
-            {
-                var t = (i + 1f) / (count + 1f);
-                var x = Mathf.RoundToInt(t * (width - 1));
-                var yMain = Mathf.RoundToInt(t * (height - 1));
-                var y = i % 2 == 0 ? yMain : height - 1 - yMain;
-                var pos = new Vector2Int(x, y);
-
-                while (pos == Vector2Int.zero || positions.Contains(pos))
-                    pos = new Vector2Int((pos.x + 1) % width, pos.y);
-
-                positions.Add(pos);
-            }
-
-            return positions;
+            var kinds = new List<EnemyKind>(enemyCount);
+            int rangedCount;
+            if (stage == 1)
+                rangedCount = roomNumber < FirstRangedRoomInStage1 ? 0 : MaxRangedInStage1;
+            else
+                rangedCount = Mathf.Max(1, enemyCount / 3);
+            for (var i = 0; i < enemyCount; i++)
+                kinds.Add(i >= enemyCount - rangedCount ? EnemyKind.Ranged : EnemyKind.Melee);
+            return kinds;
         }
 
+        /// <summary>방 청사진 - 실제 배치(크기 ±1, 벽, 몹 위치, 이벤트)는 방을 깔 때마다 RoomLayoutGenerator가 새로 뽑는다.</summary>
         private static RoomDefinition MakeRoom(string name, int width, int height,
-            List<Vector2Int> enemyPositions, float enemyHp, float enemyAtk, bool isBossRoom = false)
+            int enemyCount, float enemyHp, float enemyAtk, bool isBossRoom = false)
         {
             return new RoomDefinition
             {
                 RoomName = name,
                 Width = width,
                 Height = height,
-                PlayerStart = Vector2Int.zero,
-                EnemyPositions = enemyPositions,
+                EnemyCount = enemyCount,
                 EnemyMaxHealth = enemyHp,
                 EnemyAttackPower = enemyAtk,
                 IsBossRoom = isBossRoom,

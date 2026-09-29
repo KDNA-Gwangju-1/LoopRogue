@@ -10,6 +10,16 @@ namespace LoopRogue
     {
         public const int MaxStage = 10;
         private const string StageKey = "LoopRogue_CurrentStage";
+        private const string AttemptsKey = "LoopRogue_StageAttempts";
+
+        /// <summary>반복 보상 감소 - 같은 스테이지를 다시 시도할수록 일반 몹/방 클리어 골드·경험치가 이 비율로 줄고
+        /// (2번째 80%, 3번째 64%...), RepeatRewardFloor 밑으로는 안 내려간다. 어려운 스테이지에서 수십 번 죽으며
+        /// 파밍한 성장으로 다음 스테이지가 공짜가 되던 "쉬운 골짜기"(봇 테스트에서 매번 발생) 대책.
+        /// 보스 처치/방 이벤트 보상은 안 줄이고, 다음 스테이지로 가면 초기화된다.</summary>
+        public const float RepeatRewardDecay = 0.8f;
+        public const float RepeatRewardFloor = 0.25f;
+
+        private static int _attempts;
 
         private static bool _loaded;
 
@@ -36,6 +46,7 @@ namespace LoopRogue
                 return;
 
             _stage = PlayerPrefs.GetInt(StageKey, 1);
+            _attempts = PlayerPrefs.GetInt(AttemptsKey, 0);
             _loaded = true;
         }
 
@@ -45,8 +56,33 @@ namespace LoopRogue
         {
             EnsureLoaded();
             _stage = Mathf.Min(_stage + 1, MaxStage);
+            _attempts = 0;
             PlayerPrefs.SetInt(StageKey, _stage);
+            PlayerPrefs.SetInt(AttemptsKey, _attempts);
             PlayerPrefs.Save();
         }
+
+        /// <summary>지금 스테이지를 몇 번째 시도 중인지(1부터). 로비를 오가도, Play를 껐다 켜도 유지된다.</summary>
+        public static int AttemptsThisStage
+        {
+            get
+            {
+                EnsureLoaded();
+                return Mathf.Max(1, _attempts);
+            }
+        }
+
+        /// <summary>새 시도 시작(Main 입장 또는 사망 후 방1부터 재시작) - LoopManager가 부른다.</summary>
+        public static void BeginAttempt()
+        {
+            EnsureLoaded();
+            _attempts++;
+            PlayerPrefs.SetInt(AttemptsKey, _attempts);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>이번 시도의 일반 몹/방 클리어 보상 배율.</summary>
+        public static float RepeatRewardMultiplier =>
+            Mathf.Max(RepeatRewardFloor, Mathf.Pow(RepeatRewardDecay, AttemptsThisStage - 1));
     }
 }

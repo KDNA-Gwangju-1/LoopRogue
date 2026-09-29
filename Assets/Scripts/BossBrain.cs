@@ -1,0 +1,254 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace LoopRogue
+{
+    public enum BossPatternType
+    {
+        Slam,     // 강타 - 보스 주변 3x3
+        Charge,   // 돌진 - 플레이어 쪽 일직선으로 돌진
+        Cross,    // 십자 - 보스의 가로줄 + 세로줄
+        Summon,   // 소환 - 졸개 소환(예고 없음)
+        Ring,     // 파동 - 거리 2~3 고리(보스 바로 옆은 안전)
+        Snipe,    // 저격 1발 - 플레이어 자리 + 대각선 4칸(X자, 상하좌우로 한 칸 움직이면 피함) → 바로 2발로 이어짐
+        SnipeFollowUp, // 저격 2발 - 그때 플레이어 자리의 상하좌우 4칸(마름모, 가운데는 안전 → 대기하면 피함)
+        Diagonal, // X자 - 대각선 4방향
+    }
+
+    /// <summary>스테이지 보스의 예고 공격 - 몇 턴마다 공격할 칸을 빨갛게 예고하고(그 턴은 안 움직임), 다음 턴에
+    /// 그 칸에 있으면 강한 피해(공격력 × PatternDamageMultiplier). 그 사이 피하면 안 맞는다. 나머지 턴에는 일반
+    /// 근접 몹처럼 포위 이동/공격. 스테이지마다 쓰는 패턴 목록이 다르다(StagePatterns).</summary>
+    public class BossBrain
+    {
+        public const int NormalTurnsBetweenPatterns = 2; // 일반 턴 2번 → 예고 1턴 → 발동 1턴
+        public const float PatternDamageMultiplier = 1.5f;
+        public const int MaxMinions = 2;
+        public const float MinionHealthRatio = 0.06f;
+        public const float MinionAttackRatio = 0.35f;
+
+        /// <summary>자동 플레이 봇 통계용 - 예고 공격이 발동한 횟수 / 그중 플레이어가 맞은 횟수.</summary>
+        public static int PatternResolveCount;
+        public static int PatternHitCount;
+
+        private static readonly Vector2Int[] Directions =
+            { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+
+        private readonly EnemyActor _boss;
+        private readonly List<BossPatternType> _patterns;
+        private int _patternIndex;
+        private int _normalTurns;
+
+        /// <summary>돌진 후 기절 턴 수 - 없으면 돌진으로 방 반대편에 갔다가 걸어 돌아오는 동안 다음 예고가 떠서
+        /// 때릴 틈이 전혀 없었다(봇 30판 중 15판이 스테이지 2 보스에서 서로 한 대도 못 치고 1500턴 반복).</summary>
+        public const int ChargeStunTurns = 2;
+
+        /// <summary>돌진 최대 칸 수 - 방 끝까지 가로지르면 걸어 돌아오는 사이 기절이 풀려 여전히 때릴 틈이 없었다.</summary>
+        public const int MaxChargeDistance = 5;
+
+        private int _stunTurns;
+        private BossPatternType? _pending;
+        private readonly HashSet<Vector2Int> _pendingTiles = new HashSet<Vector2Int>();
+        private Vector2Int _chargeDirection;
+
+        public BossBrain(EnemyActor boss, List<BossPatternType> patterns)
+        {
+            _boss = boss;
+            _patterns = patterns != null && patterns.Count > 0 ? patterns : new List<BossPatternType> { BossPatternType.Slam };
+        }
+
+        /// <summary>스테이지별 패턴 목록 - 1~7은 하나씩, 8~9는 두 개를 번갈아, 10은 전부 돌아가며.</summary>
+        public static List<BossPatternType> StagePatterns(int stage) => stage switch
+        {
+            1 => new List<BossPatternType> { BossPatternType.Charge }, // 1/2 서로 바꿈(사용자 요청) - 돌진이 봇 테스트에서 가장 쉬운 패턴이라 입문용
+            2 => new List<BossPatternType> { BossPatternType.Slam },
+            3 => new List<BossPatternType> { BossPatternType.Cross },
+            4 => new List<BossPatternType> { BossPatternType.Summon, BossPatternType.Slam },
+            5 => new List<BossPatternType> { BossPatternType.Ring },
+            6 => new List<BossPatternType> { BossPatternType.Snipe },
+            7 => new List<BossPatternType> { BossPatternType.Diagonal },
+            8 => new List<BossPatternType> { BossPatternType.Charge, BossPatternType.Slam },
+            9 => new List<BossPatternType> { BossPatternType.Cross, BossPatternType.Snipe },
+            _ => new List<BossPatternType>
+            {
+                BossPatternType.Slam, BossPatternType.Charge, BossPatternType.Cross, BossPatternType.Summon,
+                BossPatternType.Ring, BossPatternType.Snipe, BossPatternType.Diagonal,
+            },
+        };
+
+        public static string PatternName(BossPatternType type) => type switch
+        {
+            BossPatternType.Slam => "강타",
+            BossPatternType.Charge => "돌진",
+            BossPatternType.Cross => "십자 베기",
+            BossPatternType.Summon => "소환",
+            BossPatternType.Ring => "파동",
+            BossPatternType.Snipe => "저격",
+            BossPatternType.SnipeFollowUp => "저격(2발)",
+            _ => "X자 베기",
+        };
+
+        /// <summary>이번 턴 보스 행동. 예고/발동/소환을 했으면 true, 일반 행동을 해야 하면 false.</summary>
+        public bool TakePatternTurn(PlayerActor player, RoomController room)
+        {
+            if (_pending.HasValue)
+            {
+                Resolve(player, room);
+                return true;
+            }
+
+            if (_stunTurns > 0)
+            {
+                _stunTurns--;
+                return true; // 기절 중 - 아무것도 안 함(공격 기회)
+            }
+
+            if (_normalTurns < NormalTurnsBetweenPatterns)
+            {
+                _normalTurns++;
+                return false;
+            }
+
+            _normalTurns = 0;
+            var type = _patterns[_patternIndex];
+            _patternIndex = (_patternIndex + 1) % _patterns.Count;
+
+            if (type == BossPatternType.Summon)
+            {
+                room.SpawnMinions(_boss, MaxMinions);
+                room.ShowMessage($"보스의 {PatternName(type)}!");
+                return true;
+            }
+
+            ComputeTiles(type, player, room.Map);
+            if (_pendingTiles.Count == 0)
+                return false; // 쓸 칸이 없으면(구석 등) 그냥 일반 행동
+
+            _pending = type;
+            room.ShowTelegraph(_pendingTiles);
+            return true;
+        }
+
+        private void Resolve(PlayerActor player, RoomController room)
+        {
+            var type = _pending.Value;
+            _pending = null;
+            room.ClearTelegraph();
+
+            if (type == BossPatternType.Charge)
+            {
+                DoChargeMove(room.Map);
+                _stunTurns = ChargeStunTurns;
+                room.ShowMessage("보스가 돌진 후 비틀거린다!");
+            }
+
+            PatternResolveCount++;
+            if (_pendingTiles.Contains(player.GridPos))
+            {
+                PatternHitCount++;
+                var dealt = player.Stats.TakeIncomingDamage(_boss.Stats.AttackPower * PatternDamageMultiplier);
+                DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.2f, 0.2f), isCritical: true);
+            }
+            _pendingTiles.Clear();
+
+            // 저격은 2연속 - 1발(X자)이 끝나면 곧바로 그 순간 플레이어 자리 기준 마름모를 예고한다.
+            // "상하좌우로 움직여 1발을 피하고 → 대기해서 2발을 피하는" 패턴.
+            if (type == BossPatternType.Snipe && !player.Stats.IsDead)
+            {
+                ComputeTiles(BossPatternType.SnipeFollowUp, player, room.Map);
+                if (_pendingTiles.Count > 0)
+                {
+                    _pending = BossPatternType.SnipeFollowUp;
+                    room.ShowTelegraph(_pendingTiles);
+                }
+            }
+        }
+
+        private void ComputeTiles(BossPatternType type, PlayerActor player, GridMap map)
+        {
+            _pendingTiles.Clear();
+            var origin = _boss.GridPos;
+
+            switch (type)
+            {
+                case BossPatternType.Slam:
+                    AddSquare(map, origin, 1);
+                    break;
+                case BossPatternType.Snipe:
+                    // 3x3이면 한 턴에 한 칸만 움직이는 플레이어가 절대 못 빠져나가서, 플레이어 자리 + 대각선만 친다.
+                    AddTile(map, player.GridPos);
+                    foreach (var d in new[] { new Vector2Int(1, 1), new Vector2Int(1, -1), new Vector2Int(-1, 1), new Vector2Int(-1, -1) })
+                        AddTile(map, player.GridPos + d);
+                    break;
+                case BossPatternType.SnipeFollowUp:
+                    // 마름모 - 상하좌우 4칸만, 가운데(플레이어 자리)는 비워서 대기 키로 피할 수 있게.
+                    foreach (var d in Directions)
+                        AddTile(map, player.GridPos + d);
+                    break;
+                case BossPatternType.Ring:
+                    for (var dx = -3; dx <= 3; dx++)
+                    for (var dy = -3; dy <= 3; dy++)
+                    {
+                        var r = Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy));
+                        if (r >= 2)
+                            AddTile(map, origin + new Vector2Int(dx, dy));
+                    }
+                    break;
+                case BossPatternType.Cross:
+                    foreach (var d in Directions)
+                        AddRay(map, origin, d);
+                    break;
+                case BossPatternType.Diagonal:
+                    foreach (var d in new[] { new Vector2Int(1, 1), new Vector2Int(1, -1), new Vector2Int(-1, 1), new Vector2Int(-1, -1) })
+                        AddRay(map, origin, d);
+                    break;
+                case BossPatternType.Charge:
+                {
+                    var diff = player.GridPos - origin;
+                    _chargeDirection = Mathf.Abs(diff.x) >= Mathf.Abs(diff.y)
+                        ? new Vector2Int(System.Math.Sign(diff.x), 0)
+                        : new Vector2Int(0, System.Math.Sign(diff.y));
+                    if (_chargeDirection == Vector2Int.zero)
+                        _chargeDirection = Vector2Int.left;
+                    AddRay(map, origin, _chargeDirection, MaxChargeDistance);
+                    break;
+                }
+            }
+        }
+
+        /// <summary>돌진 방향으로 벽/다른 캐릭터에 막히기 직전 칸까지 이동(플레이어가 길 위에 있으면 그 앞까지).</summary>
+        private void DoChargeMove(GridMap map)
+        {
+            var pos = _boss.GridPos;
+            for (var i = 0; i < MaxChargeDistance; i++)
+            {
+                var next = pos + _chargeDirection;
+                if (!map.IsWalkable(next))
+                    break;
+                pos = next;
+            }
+            if (pos != _boss.GridPos)
+                map.MoveActor(_boss, pos);
+        }
+
+        private void AddSquare(GridMap map, Vector2Int center, int radius)
+        {
+            for (var dx = -radius; dx <= radius; dx++)
+            for (var dy = -radius; dy <= radius; dy++)
+                AddTile(map, center + new Vector2Int(dx, dy));
+        }
+
+        /// <summary>origin에서 d 방향으로 벽이나 방 끝(또는 maxLength칸)을 만날 때까지(캐릭터는 통과).</summary>
+        private void AddRay(GridMap map, Vector2Int origin, Vector2Int d, int maxLength = int.MaxValue)
+        {
+            var length = 0;
+            for (var p = origin + d; map.IsInBounds(p) && !map.IsWall(p) && length < maxLength; p += d, length++)
+                _pendingTiles.Add(p);
+        }
+
+        private void AddTile(GridMap map, Vector2Int p)
+        {
+            if (map.IsInBounds(p) && !map.IsWall(p) && p != _boss.GridPos)
+                _pendingTiles.Add(p);
+        }
+    }
+}

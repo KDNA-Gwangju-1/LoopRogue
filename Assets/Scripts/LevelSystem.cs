@@ -137,6 +137,13 @@ namespace LoopRogue
             OnExpChanged?.Invoke();
         }
 
+        /// <summary>레벨업 없이 카드 한 번 고르기(축복 제단 이벤트). 이미 고르는 중이면 무시.</summary>
+        public void GrantBonusUpgrade()
+        {
+            if (!IsChoosingUpgrade)
+                PresentUpgradeChoices();
+        }
+
         private void PresentUpgradeChoices()
         {
             IsChoosingUpgrade = true;
