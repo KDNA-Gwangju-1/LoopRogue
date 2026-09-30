@@ -21,7 +21,7 @@ namespace LoopRogue
     {
         public const string EnabledPrefKey = "LoopRogue_AutoPlayBot_Enabled";
 
-        private const int RunsPerSession = 30;
+        private const int RunsPerSession = 100;
         /// <summary>한 프레임에 턴을 몇 개 돌릴지를 개수 대신 시간으로 정한다 - 프레임 자체(에디터 화면 갱신 등)에 드는
         /// 고정 비용을 최대한 많은 턴에 나눠 쓰려는 것. 너무 키우면 에디터가 멈춘 것처럼 보이니 50ms 정도로 둔다.</summary>
         private const double FrameBudgetMs = 50.0;
@@ -94,6 +94,7 @@ namespace LoopRogue
             public int PatternResolves;   // 보스 예고 공격 발동 횟수
             public int PatternHits;       // 그중 맞은 횟수
             public int Dodges;            // 봇이 예고 칸에서 피한 횟수
+            public int CrossfireDetours;  // 궁수 십자포화를 피하려고 최단 경로와 다른 칸으로 간 횟수
             public int Waits;             // 봇이 대기한 횟수
             public readonly int[] Events = new int[4]; // RoomEventType 순서
         }
@@ -121,6 +122,8 @@ namespace LoopRogue
         private RunResult _run;
         private int _attemptTurns;
         private int _roomTurns;
+        private int _turnsSinceProgress; // 적 체력 합이 마지막으로 줄어든 뒤 지난 턴(십자포화 회피 포기 판단용)
+        private float _lastEnemyHealthSum;
         private int _stageDeaths;
         private int _stageTurns;
         private int _enteredStage;
@@ -420,6 +423,8 @@ namespace LoopRogue
                     Detail($"  방 클리어: {_lastRoomName} ({_roomTurns}턴, HP {_player.Stats.CurrentHealth:0}/{_player.Stats.MaxHealth:0}, Lv{_player.Levels.Level})");
                 _lastRoomName = _room.RoomName;
                 _roomTurns = 0;
+                _turnsSinceProgress = 0;
+                _lastEnemyHealthSum = float.MaxValue;
                 _recentMaps.Clear();
                 _recentDecisions.Clear();
                 if (LogMapOnRoomStart && DetailedLog)
@@ -457,6 +462,13 @@ namespace LoopRogue
                 EndRun("한 시도에서 턴 제한 초과(길찾기/진행 막힘 의심)", false);
                 return false;
             }
+
+            var enemyHealthSum = _room.Enemies.Where(e => e != null && !e.Stats.IsDead).Sum(e => e.Stats.CurrentHealth);
+            if (enemyHealthSum < _lastEnemyHealthSum)
+                _turnsSinceProgress = 0;
+            else
+                _turnsSinceProgress++;
+            _lastEnemyHealthSum = enemyHealthSum;
 
             var dir = ChooseDirection();
             _recentDecisions.Enqueue($"{_lastDecision}@({_player.GridPos.x},{_player.GridPos.y})");
@@ -645,14 +657,44 @@ namespace LoopRogue
 
             // 적에게 가는 길에 이벤트 칸이 있으면 그냥 밟고 지나간다.
             var eventCell = _room.Event != null ? _room.Event.GridPos : (Vector2Int?)null;
-            var toEnemy = FirstStepTo(
-                c => Directions.Any(d => map.GetActorAt(c + d) is EnemyActor),
-                c => (map.IsWalkable(c) || c == eventCell) && !danger.Contains(c));
-            if (toEnemy.HasValue)
+            Func<Vector2Int, bool> isEnemyAdjacent = c => Directions.Any(d => map.GetActorAt(c + d) is EnemyActor);
+            Func<Vector2Int, bool> passable = c => (map.IsWalkable(c) || c == eventCell) && !danger.Contains(c);
+
+            // 궁수가 2마리 이상 살아 있으면 "여러 궁수가 동시에 쏠 수 있는 칸"을 비싸게 쳐서 돌아간다(한 줄로 선 궁수
+            // 둘을 정면으로 걸어가다 3턴 연속 두 발씩 맞고 죽던 문제 - 7층/10층 일반 방 사망의 대부분). 궁수 1마리가
+            // 쏘는 칸은 추가 비용 없음 - 1:1이면 맞더라도 그냥 다가가서 때린다(안 그러면 도망 다니는 궁수를 못 잡고 턴 제한에 걸린다).
+            // 비용이지 금지가 아니라서 돌아갈 길이 없으면 맞으면서라도 간다.
+            // 단, 두 경우엔 우회를 포기하고 맞으면서 돌진한다(100판 테스트에서 붙어 다니는 궁수 둘 앞에서 매 턴 경로가 바뀌어
+            // 제자리 왕복하다 93판이 턴 제한에 걸렸다): 1) 궁수들이 한 턴에 주는 피해로 CrossfireDangerTurns턴을 맞아도 안 죽을
+            // 만큼 체력이 넉넉할 때 2) 적 체력이 CrossfireGiveUpTurns턴 동안 전혀 안 줄었을 때(진행이 막힘).
+            var archers = _room.Enemies.Where(e => e != null && !e.Stats.IsDead && e.Kind == EnemyKind.Ranged).ToList();
+            var archerVolley = archers.Select(a => a.Stats.AttackPower).OrderByDescending(a => a).Take(2).Sum();
+            var crossfireDangerous = _player.Stats.CurrentHealth < archerVolley * CrossfireDangerTurns;
+            Vector2Int? toEnemy = null;
+            if (archers.Count >= 2 && crossfireDangerous && _turnsSinceProgress < CrossfireGiveUpTurns)
             {
-                _lastDecision = "적에게";
-                return toEnemy.Value;
+                toEnemy = CheapestFirstStepTo(isEnemyAdjacent, passable, c =>
+                {
+                    var shooters = archers.Count(a => ArcherCanShoot(map, a.GridPos, c));
+                    return shooters >= 2 ? CrossfireStepCost * shooters : 0;
+                });
+                if (toEnemy.HasValue)
+                {
+                    _lastDecision = "적에게(십자포화 고려)";
+                    if (toEnemy != FirstStepTo(isEnemyAdjacent, passable))
+                    {
+                        _run.CrossfireDetours++;
+                        _lastDecision = "적에게(십자포화 우회)";
+                    }
+                }
             }
+            if (!toEnemy.HasValue)
+            {
+                toEnemy = FirstStepTo(isEnemyAdjacent, passable);
+                _lastDecision = "적에게";
+            }
+            if (toEnemy.HasValue)
+                return toEnemy.Value;
 
             // 갈 길이 없으면 예고 칸이 아닌 아무 빈 칸으로, 그것도 없으면 대기.
             foreach (var d in Directions)
@@ -697,6 +739,87 @@ namespace LoopRogue
                 }
             }
             return null;
+        }
+
+        /// <summary>궁수 여러 마리가 동시에 쏠 수 있는 칸을 지날 때 한 칸당 추가 비용(쏠 수 있는 궁수 수만큼 곱함).
+        /// 한 칸 우회가 1이니, 4면 "두 발 맞는 칸 하나 = 8칸 돌아가기"만큼 피한다.</summary>
+        private const int CrossfireStepCost = 4;
+
+        /// <summary>궁수 두 마리의 한 턴 피해 × 이 턴 수보다 체력이 많으면 십자포화를 무시하고 돌진한다.</summary>
+        private const int CrossfireDangerTurns = 4;
+
+        /// <summary>적 체력 합이 이 턴 수 동안 안 줄면 십자포화 회피를 포기하고 돌진한다(제자리 왕복 방지).</summary>
+        private const int CrossfireGiveUpTurns = 12;
+
+        /// <summary>EnemyActor.CanShoot과 같은 규칙 - 같은 줄, 거리 2~RangedAttackRange, 사이에 벽 없음(몹은 통과).</summary>
+        private static bool ArcherCanShoot(GridMap map, Vector2Int from, Vector2Int target)
+        {
+            var diff = target - from;
+            if (diff.x != 0 && diff.y != 0)
+                return false;
+            var dist = Mathf.Abs(diff.x) + Mathf.Abs(diff.y);
+            if (dist < 2 || dist > EnemyActor.RangedAttackRange)
+                return false;
+            var step = new Vector2Int(Math.Sign(diff.x), Math.Sign(diff.y));
+            for (var p = from + step; p != target; p += step)
+            {
+                if (map.IsWall(p))
+                    return false;
+            }
+            return true;
+        }
+
+        /// <summary>FirstStepTo의 가중치 버전(다익스트라) - 칸을 밟을 때마다 1 + extraCost(칸). 방이 최대 14x14라
+        /// 우선순위 큐 없이 매번 최소값을 선형 탐색해도 충분히 빠르다.</summary>
+        private Vector2Int? CheapestFirstStepTo(Func<Vector2Int, bool> isGoal, Func<Vector2Int, bool> passable,
+            Func<Vector2Int, int> extraCost)
+        {
+            var start = _player.GridPos;
+            var cost = new Dictionary<Vector2Int, int>();
+            var firstStep = new Dictionary<Vector2Int, Vector2Int>();
+            var done = new HashSet<Vector2Int>();
+            foreach (var d in Directions)
+            {
+                var next = start + d;
+                if (!passable(next))
+                    continue;
+                cost[next] = 1 + extraCost(next);
+                firstStep[next] = d;
+            }
+
+            while (true)
+            {
+                var found = false;
+                var cur = default(Vector2Int);
+                var best = int.MaxValue;
+                foreach (var pair in cost)
+                {
+                    if (pair.Value < best && !done.Contains(pair.Key))
+                    {
+                        best = pair.Value;
+                        cur = pair.Key;
+                        found = true;
+                    }
+                }
+                if (!found)
+                    return null;
+                if (isGoal(cur))
+                    return firstStep[cur];
+                done.Add(cur);
+
+                foreach (var d in Directions)
+                {
+                    var next = cur + d;
+                    if (next == start || done.Contains(next) || !passable(next))
+                        continue;
+                    var c = best + 1 + extraCost(next);
+                    if (!cost.TryGetValue(next, out var old) || c < old)
+                    {
+                        cost[next] = c;
+                        firstStep[next] = firstStep[cur];
+                    }
+                }
+            }
         }
 
         // ===================== 맵 스냅샷 =====================
@@ -888,6 +1011,7 @@ namespace LoopRogue
                 var resolves = _results.Sum(r => r.PatternResolves);
                 var hits = _results.Sum(r => r.PatternHits);
                 Log($"보스 예고 공격: 판당 {_results.Average(r => r.PatternResolves):0}회 발동, 적중률 {(resolves > 0 ? hits * 100f / resolves : 0f):0}%");
+                Log($"궁수 십자포화 우회: 판당 {_results.Average(r => r.CrossfireDetours):0}회");
                 Log($"방 이벤트(판당): {string.Join(" / ", Enumerable.Range(0, 4).Select(i => $"{EventNames[i]} {_results.Average(r => r.Events[i]):0.0}"))}");
                 Log($"최종 스탯: ATK {_results.Average(r => r.FinalAttack):0} / 최대HP {_results.Average(r => r.FinalMaxHealth):0} / " +
                     $"치명 {_results.Average(r => r.FinalCritChance) * 100f:0}% (배율 {_results.Average(r => r.FinalCritMultiplier) * 100f:0}%)");
