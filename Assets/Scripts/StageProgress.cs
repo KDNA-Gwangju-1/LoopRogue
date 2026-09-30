@@ -13,11 +13,11 @@ namespace LoopRogue
         private const string AttemptsKey = "LoopRogue_StageAttempts";
 
         /// <summary>반복 보상 감소 - 같은 스테이지를 다시 시도할수록 일반 몹/방 클리어 골드·경험치가 이 비율로 줄고
-        /// (2번째 80%, 3번째 64%...), RepeatRewardFloor 밑으로는 안 내려간다. 어려운 스테이지에서 수십 번 죽으며
+        /// (2번째 90%, 3번째 81%...), RepeatRewardFloor 밑으로는 안 내려간다. 어려운 스테이지에서 수십 번 죽으며
         /// 파밍한 성장으로 다음 스테이지가 공짜가 되던 "쉬운 골짜기"(봇 테스트에서 매번 발생) 대책.
         /// 보스 처치/방 이벤트 보상은 안 줄이고, 다음 스테이지로 가면 초기화된다.</summary>
-        public const float RepeatRewardDecay = 0.8f;
-        public const float RepeatRewardFloor = 0.25f;
+        public const float RepeatRewardDecay = 0.9f;
+        public const float RepeatRewardFloor = 0.5f;
 
         private static int _attempts;
 
