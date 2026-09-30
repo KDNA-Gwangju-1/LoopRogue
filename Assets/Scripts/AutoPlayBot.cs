@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -123,6 +124,7 @@ namespace LoopRogue
         private RunResult _run;
         private int _attemptTurns;
         private int _roomTurns;
+        private readonly List<float> _hpHistory = new List<float>(); // 최근 몇 턴 체력(사망 직전 체력 기록용)
         private int _turnsSinceProgress; // 적 체력 합이 마지막으로 줄어든 뒤 지난 턴(십자포화 회피 포기 판단용)
         private float _lastEnemyHealthSum;
         private int _stageDeaths;
@@ -159,6 +161,7 @@ namespace LoopRogue
             Directory.CreateDirectory(dir);
             var path = Path.GetFullPath(Path.Combine(dir, $"bot_{DateTime.Now:yyyyMMdd_HHmmss}.txt"));
             _log = new StreamWriter(path, false, new UTF8Encoding(false)) { AutoFlush = true };
+            _events = new StreamWriter(Path.ChangeExtension(path, null) + "_events.jsonl", false, new UTF8Encoding(false));
             Debug.Log($"[AutoPlayBot] 시작 ({RunsPerSession}판) - 로그: {path}");
 
             DamagePopup.Suppressed = true;
@@ -175,6 +178,68 @@ namespace LoopRogue
         {
             DamagePopup.Suppressed = false;
             _log?.Dispose();
+            _events?.Dispose();
+        }
+
+        // ===================== 이벤트 기록(JSONL) =====================
+        // 텍스트 로그는 판 수가 많으면 상세 내용을 끄지만, 이 파일엔 모든 판의 모든 이벤트를 한 줄에 하나씩 남긴다(분석용).
+        // 모든 줄 공통: ev(종류), run(판), turn(판 누적 턴), stage, try(이 스테이지 시도 번호), room, lv, hp, maxhp, atk, crit, gold.
+        // ev 종류: run_start / lobby(구매 내역 한 번에) / room_clear / levelup / event / death / stage_clear / run_end
+
+        private StreamWriter _events;
+
+        private void Ev(string type, params (string Key, object Value)[] fields)
+        {
+            if (_events == null || _run == null)
+                return;
+            var sb = new StringBuilder(256);
+            sb.Append("{\"ev\":").Append(Json(type));
+            sb.Append(",\"run\":").Append(_run.Index).Append(",\"turn\":").Append(_run.TotalTurns);
+            sb.Append(",\"stage\":").Append(StageProgress.CurrentStage);
+            sb.Append(",\"try\":").Append(StageProgress.AttemptsThisStage);
+            if (_room != null)
+                sb.Append(",\"room\":").Append(Json(_room.RoomName));
+            if (_player != null && _player.Stats != null)
+            {
+                var st = _player.Stats;
+                sb.Append(",\"lv\":").Append(_player.Levels.Level)
+                  .Append(",\"hp\":").Append(Json(st.CurrentHealth)).Append(",\"maxhp\":").Append(Json(st.MaxHealth))
+                  .Append(",\"atk\":").Append(Json(st.AttackPower)).Append(",\"crit\":").Append(Json(st.CriticalChanceRate));
+            }
+            sb.Append(",\"gold\":").Append(GoldWallet.Gold);
+            foreach (var (key, value) in fields)
+                sb.Append(',').Append(Json(key)).Append(':').Append(Json(value));
+            sb.Append('}');
+            _events.WriteLine(sb.ToString());
+        }
+
+        private static string Json(object value)
+        {
+            switch (value)
+            {
+                case null: return "null";
+                case bool b: return b ? "true" : "false";
+                case int i: return i.ToString(CultureInfo.InvariantCulture);
+                case float f: return Math.Round(f, 3).ToString(CultureInfo.InvariantCulture);
+                case double d: return Math.Round(d, 3).ToString(CultureInfo.InvariantCulture);
+                case string str:
+                    return "\"" + str.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n") + "\"";
+                case System.Collections.IDictionary dict:
+                {
+                    var parts = new List<string>();
+                    foreach (System.Collections.DictionaryEntry e in dict)
+                        parts.Add(Json(e.Key.ToString()) + ":" + Json(e.Value));
+                    return "{" + string.Join(",", parts) + "}";
+                }
+                case System.Collections.IEnumerable list:
+                {
+                    var parts = new List<string>();
+                    foreach (var item in list)
+                        parts.Add(Json(item));
+                    return "[" + string.Join(",", parts) + "]";
+                }
+                default: return Json(value.ToString());
+            }
         }
 
         private void Detail(string message)
@@ -212,6 +277,7 @@ namespace LoopRogue
 
             Detail("");
             Detail($"########## {_run.Index}판 시작 (저장 데이터 초기화됨) ##########");
+            Ev("run_start");
 
             if (_results.Count > 0)
             {
@@ -290,10 +356,14 @@ namespace LoopRogue
 
         // ===================== 로비 =====================
 
+        // 이번 로비 방문의 구매 기록(이벤트 로그용) - BuyGacha/BuyPotion이 채운다.
+        private readonly List<Dictionary<string, object>> _purchases = new List<Dictionary<string, object>>();
+
         private void DoShopping()
         {
             var goldBefore = GoldWallet.Gold;
             var bought = new List<string>();
+            _purchases.Clear();
 
             // 가챠(10연차 되면 10연차)와 영약을 번갈아 산다 - 한 바퀴 돌며 아무것도 못 사면 종료.
             var steps = new Func<string>[]
@@ -326,6 +396,34 @@ namespace LoopRogue
             Detail($"       장비: {EquipLine()} | 상점Lv: 검{GachaSystem.GetShopLevel(ItemSlot.Weapon)}/갑옷{GachaSystem.GetShopLevel(ItemSlot.Armor)}/반지{GachaSystem.GetShopLevel(ItemSlot.Accessory)}" +
                 $" | 영약: 공{StatPotionWallet.GetCount(PotionType.Attack)}/체{StatPotionWallet.GetCount(PotionType.Health)}/치{StatPotionWallet.GetCount(PotionType.Critical)}");
             _lastGold = GoldWallet.Gold;
+
+            var equip = new Dictionary<string, object>();
+            var shopLv = new Dictionary<string, object>();
+            foreach (ItemSlot slot in Enum.GetValues(typeof(ItemSlot)))
+            {
+                var g = EquipmentWallet.GetEquipped(slot);
+                equip[slot.ToString()] = g.HasValue ? g.Value.ToString() : null;
+                shopLv[slot.ToString()] = GachaSystem.GetShopLevel(slot);
+            }
+            Ev("lobby", ("gold_before", goldBefore), ("spent", goldBefore - GoldWallet.Gold), ("buys", _purchases.ToList()),
+                ("equip", equip), ("shop_lv", shopLv),
+                ("potions", new Dictionary<string, object>
+                {
+                    { "Attack", StatPotionWallet.GetCount(PotionType.Attack) },
+                    { "Health", StatPotionWallet.GetCount(PotionType.Health) },
+                    { "Critical", StatPotionWallet.GetCount(PotionType.Critical) },
+                }));
+        }
+
+        private void RecordPull(string kind, ItemSlot slot, int cost, IEnumerable<GachaResult> results)
+        {
+            var list = results.ToList();
+            _purchases.Add(new Dictionary<string, object>
+            {
+                { "kind", kind }, { "slot", slot.ToString() }, { "cost", cost },
+                { "grades", list.Select(r => r.Grade.ToString()).ToList() },
+                { "equipped", list.Where(r => r.Equipped).Select(r => r.Grade.ToString()).ToList() },
+            });
         }
 
         private string BuyGacha(ItemSlot slot)
@@ -334,16 +432,20 @@ namespace LoopRogue
             var multiCost = GachaSystem.GetMultiPullCost(slot);
             if (GoldWallet.Gold >= multiCost)
             {
-                if (GachaSystem.PullMulti(slot) == null)
+                var multi = GachaSystem.PullMulti(slot);
+                if (multi == null)
                     return null;
+                RecordPull("multi", slot, multiCost, multi);
                 _run.MultiPulls[(int)slot]++;
                 _run.GoldSpentGacha += multiCost;
                 return $"{name}10연차";
             }
 
             var cost = GachaSystem.GetPullCost(slot);
-            if (GachaSystem.Pull(slot) == null)
+            var single = GachaSystem.Pull(slot);
+            if (single == null)
                 return null;
+            RecordPull("single", slot, cost, new[] { single.Value });
             _run.SinglePulls[(int)slot]++;
             _run.GoldSpentGacha += cost;
             return $"{name}뽑기";
@@ -355,6 +457,10 @@ namespace LoopRogue
             if (!StatPotionWallet.IsUnlocked(type) || !StatPotionWallet.TryBuy(type))
                 return null;
             _run.GoldSpentPotion += cost;
+            _purchases.Add(new Dictionary<string, object>
+            {
+                { "kind", "potion" }, { "type", type.ToString() }, { "cost", cost }, { "count", StatPotionWallet.GetCount(type) },
+            });
             return label;
         }
 
@@ -422,7 +528,10 @@ namespace LoopRogue
             if (_room.RoomName != _lastRoomName)
             {
                 if (_lastRoomName != null && !_player.Stats.IsDead)
+                {
                     Detail($"  방 클리어: {_lastRoomName} ({_roomTurns}턴, HP {_player.Stats.CurrentHealth:0}/{_player.Stats.MaxHealth:0}, Lv{_player.Levels.Level})");
+                    Ev("room_clear", ("cleared", _lastRoomName), ("room_turns", _roomTurns));
+                }
                 _lastRoomName = _room.RoomName;
                 _roomTurns = 0;
                 _turnsSinceProgress = 0;
@@ -488,8 +597,12 @@ namespace LoopRogue
                 _lastEventCount = RoomController.EventTriggeredCount;
                 _run.Events[(int)RoomController.LastEventType]++;
                 Detail($"  이벤트: {EventNames[(int)RoomController.LastEventType]} ({_room.RoomName})");
+                Ev("event", ("type", RoomController.LastEventType.ToString()));
             }
             RememberMap();
+            _hpHistory.Add(_player.Stats.CurrentHealth);
+            if (_hpHistory.Count > 3)
+                _hpHistory.RemoveAt(0);
             _run.TotalTurns++;
             _attemptTurns++;
             _roomTurns++;
@@ -518,6 +631,7 @@ namespace LoopRogue
             _run.LevelUps++;
             _cardPicks[chosen] = _cardPicks.TryGetValue(chosen, out var c) ? c + 1 : 1;
             Detail($"  레벨업 Lv{_player.Levels.Level}: [{string.Join(" / ", options.Select(o => o.Title))}] → {chosen}");
+            Ev("levelup", ("options", options.Select(o => o.Title).ToList()), ("chosen", chosen));
             _hud.ChooseUpgrade(bestIndex);
         }
 
@@ -528,12 +642,26 @@ namespace LoopRogue
             _run.GoldLostDeath += _hud.LastDeathGoldPenalty;
 
             var bossInfo = string.Empty;
+            float? bossHp = null, bossMaxHp = null, bossAtk = null;
             if (_room.IsBossRoom)
             {
                 var boss = _room.Enemies.FirstOrDefault(e => e != null && e.IsBoss);
                 if (boss != null)
+                {
                     bossInfo = $" | 보스 남은 HP {boss.Stats.CurrentHealth:0}/{boss.Stats.MaxHealth:0} ({boss.Stats.CurrentHealth / boss.Stats.MaxHealth * 100f:0}%)";
+                    bossHp = boss.Stats.CurrentHealth;
+                    bossMaxHp = boss.Stats.MaxHealth;
+                    bossAtk = boss.Stats.AttackPower;
+                }
             }
+            var alive = _room.Enemies.Where(e => e != null && !e.Stats.IsDead).ToList();
+            var prevHp = _hpHistory.Count >= 2 ? _hpHistory[_hpHistory.Count - 2] : (float?)null;
+            Ev("death", ("stage_death", _stageDeaths), ("attempt_turns", _attemptTurns), ("room_turns", _roomTurns),
+                ("boss_room", _room.IsBossRoom), ("boss_hp", bossHp), ("boss_maxhp", bossMaxHp), ("boss_atk", bossAtk),
+                ("hp_prev_turn", prevHp), ("penalty", _hud.LastDeathGoldPenalty),
+                ("alive_melee", alive.Count(e => !e.IsBoss && !e.IsMinion && e.Kind == EnemyKind.Melee)),
+                ("alive_ranged", alive.Count(e => e.Kind == EnemyKind.Ranged)),
+                ("alive_minion", alive.Count(e => e.IsMinion)));
 
             Detail($"[사망 #{_stageDeaths}] {_room.RoomName} ({_attemptTurns}턴){bossInfo} | 데스 패널티 골드 -{_hud.LastDeathGoldPenalty} | {StatLine()}");
             LogDeathMaps();
@@ -581,6 +709,8 @@ namespace LoopRogue
             _run.StageTurns[idx] = _stageTurns;
             _run.StageClearLevel[idx] = _player.Levels.Level;
 
+            Ev("stage_clear", ("cleared_stage", stage), ("stage_deaths", _stageDeaths), ("stage_turns", _stageTurns),
+                ("boss_turns", _roomTurns));
             Detail($"[보스 격파] 스테이지 {stage,2}: 사망 {_stageDeaths,2}회, {_stageTurns,5}턴, 클리어 시 Lv{_player.Levels.Level}, " +
                 $"ATK {_player.Stats.AttackPower:0}, 최대HP {_player.Stats.MaxHealth:0}, 보유골드 {GoldWallet.Gold}");
 
@@ -908,6 +1038,9 @@ namespace LoopRogue
             _run.Seconds = Time.realtimeSinceStartup - _runStartTime;
             CollectFinalState(_run);
             _results.Add(_run);
+            Ev("run_end", ("reason", reason), ("completed", completed), ("deaths", _run.TotalDeaths),
+                ("gold_earned", _run.GoldEarned), ("seconds", _run.Seconds));
+            _events?.Flush();
 
             Debug.Log($"[AutoPlayBot] {_run.Index}/{RunsPerSession}판 종료 - 사망 {_run.TotalDeaths}회");
             Log($"{_run.Index,3}판 종료: {reason} | {_run.Seconds:0.0}초, {_run.TotalTurns}턴, 사망 {_run.TotalDeaths}회, " +
