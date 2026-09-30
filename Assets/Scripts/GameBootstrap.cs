@@ -25,10 +25,11 @@ namespace LoopRogue
             1 => 1.2f,  // 돌진(가장 쉬움, 입문 보스라 조금만)
             4 => 1.3f,  // 소환 + 강타
             6 => 0.75f, // 저격 2연속
-            7 => 1.3f,  // X자
+            7 => 1.15f, // X자
             8 => 0.85f, // 돌진 + 강타
             9 => 0.7f,  // 십자 + 저격
-            _ => 1f,    // 2 강타, 3 십자, 5 파동, 10 전부
+            10 => 0.85f, // 전부
+            _ => 1f,    // 2 강타, 3 십자, 5 파동
         };
 
         private static float ExtraBossMultiplier(int stage) => stage switch
