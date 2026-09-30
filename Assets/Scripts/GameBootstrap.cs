@@ -10,6 +10,9 @@ namespace LoopRogue
     public class GameBootstrap : MonoBehaviour
     {
         private const int RoomsPerStage = 10;
+        /// <summary>자동 플레이 봇의 "보스 배율 찾기" 모드 전용 - 보스 HP/ATK에 추가로 곱한다(평소엔 항상 1).</summary>
+        public static float BossScaleForBotTest = 1f;
+
         private const float BossStatMultiplier = 1.92f; // 전 스테이지 보스 HP/ATK에 곱함 - 1.6("보스가 약하다") → ×1.2(봇 5판 결과, 트라이 횟수에 따른 골짜기 보정)
 
         /// <summary>스테이지별 보스 추가 보정 - 한 번 오르면 절대 안 내려가는 계단(2 ×1.1, 3 ×1.2, 4 이후 ×1.3 유지).
@@ -22,14 +25,21 @@ namespace LoopRogue
         /// 계단 보정(ExtraBossMultiplier)과는 별개로 곱한다.</summary>
         private static float BossPatternBalance(int stage) => stage switch
         {
-            1 => 1.2f,  // 돌진(가장 쉬움, 입문 보스라 조금만)
-            4 => 1.3f,  // 소환 + 강타
-            6 => 0.75f, // 저격 2연속
-            7 => 1.15f, // X자
-            8 => 0.85f, // 돌진 + 강타
-            9 => 0.7f,  // 십자 + 저격
-            10 => 0.85f, // 전부
-            _ => 1f,    // 2 강타, 3 십자, 5 파동
+            // "보스 배율 찾기" 봇 모드(층마다 그 층 입장 상태로 보스 세기를 바꿔가며 측정)로 목표 곡선에 맞춘 값.
+            // 목표 리듬(사용자 선택): 5층 중간 보스·10층 최종 보스가 벽, 6층은 숨 돌리기 -
+            // 층별 실제 평균 사망 2:3 3:4 4:5 5:15 6:5 7:8 8:10 9:12 10:20(배율 찾기 1회차 + 일반 모드 실측 곡선으로 직접 보정 2회차). 보스 세기 10% 차이가 사망 수를 약 40% 바꿀 만큼
+            // 민감하니 손으로 크게 건드리지 말 것. 패턴이 어려운 층(6 저격, 7 X자, 8 돌진+강타)은 값이 낮다.
+            1 => 1.2f,
+            2 => 1.0f,
+            3 => 1.0f,
+            4 => 1.16f,
+            5 => 1.14f,
+            6 => 1.06f,
+            7 => 0.82f,
+            8 => 0.82f,
+            9 => 0.68f,
+            10 => 0.78f,
+            _ => 1f,
         };
 
         private static float ExtraBossMultiplier(int stage) => stage switch
@@ -88,7 +98,7 @@ namespace LoopRogue
             }
 
             var bossSize = Mathf.Min(9 + stagePower / 2, 14);
-            var extraBoss = ExtraBossMultiplier(stage) * BossPatternBalance(stage);
+            var extraBoss = ExtraBossMultiplier(stage) * BossPatternBalance(stage) * BossScaleForBotTest;
             var bossHp = 150f * stageMultiplier * BossStatMultiplier * extraBoss;
             var bossAtk = 12f * stageMultiplier * BossStatMultiplier * extraBoss;
 
