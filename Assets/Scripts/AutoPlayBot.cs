@@ -1,10 +1,12 @@
 #if UNITY_EDITOR
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 using UnityEngine.SceneManagement;
 
 namespace LoopRogue
@@ -20,7 +22,13 @@ namespace LoopRogue
         public const string EnabledPrefKey = "LoopRogue_AutoPlayBot_Enabled";
 
         private const int RunsPerSession = 30;
-        private const int ActionsPerFrame = 200;     // 한 프레임에 최대 몇 턴 진행할지(초고속)
+        /// <summary>한 프레임에 턴을 몇 개 돌릴지를 개수 대신 시간으로 정한다 - 프레임 자체(에디터 화면 갱신 등)에 드는
+        /// 고정 비용을 최대한 많은 턴에 나눠 쓰려는 것. 너무 키우면 에디터가 멈춘 것처럼 보이니 50ms 정도로 둔다.</summary>
+        private const double FrameBudgetMs = 50.0;
+
+        /// <summary>사망 시 로비 씬을 실제로 다녀오지 않고 제자리에서 쇼핑 후 방1부터 다시(LobbyTripInPlace).
+        /// 로비/씬 전환 자체를 검증하고 싶을 땐 false로.</summary>
+        private const bool FastDeathLobby = true;
         private const int MaxDeathsPerStage = 40;    // 이보다 많이 죽으면 "벽"으로 보고 그 판 종료
         private const float MaxRealSeconds = 10800f; // 전체 실행 제한(3시간)
 
@@ -120,6 +128,12 @@ namespace LoopRogue
         private int _lastKnownLevel = 1;
         private int _lastEventCount;
 
+        // 속도 측정(요약에 표시)
+        private readonly Stopwatch _frameWatch = new Stopwatch();
+        private double _simMs;
+        private int _simFrames;
+        private int _sceneLoads;
+
         // 전체 통계
         private readonly List<RunResult> _results = new List<RunResult>();
         private readonly Dictionary<string, int> _cardPicks = new Dictionary<string, int>();
@@ -146,6 +160,7 @@ namespace LoopRogue
             DamagePopup.Suppressed = true;
             Application.targetFrameRate = -1;
             QualitySettings.vSyncCount = 0;
+            Application.runInBackground = true; // 에디터 창이 포커스를 잃어도 느려지지 않게
 
             _sessionStartTime = Time.realtimeSinceStartup;
             Log($"=== 자동 플레이 {RunsPerSession}판 연속 시작 ===");
@@ -233,6 +248,8 @@ namespace LoopRogue
                 _room = null;
                 _hud = null;
                 _lastRoomName = null;
+                _sceneLoads++;
+                DisableRendering();
             }
 
             switch (scene)
@@ -369,11 +386,24 @@ namespace LoopRogue
                 Detail($"[입장] 스테이지 {_room.Stage} | {StatLine()}");
             }
 
-            for (var i = 0; i < ActionsPerFrame; i++)
+            _frameWatch.Restart();
+            while (_frameWatch.Elapsed.TotalMilliseconds < FrameBudgetMs)
             {
                 if (!StepMain())
                     break;
             }
+            _simMs += _frameWatch.Elapsed.TotalMilliseconds;
+            _simFrames++;
+        }
+
+        /// <summary>봇은 화면을 안 보니 카메라와 UI 그리기를 끈다(게임 로직/HUD 상태는 GameObject 활성 여부로 돌아가서 영향 없음).
+        /// 씬이 바뀔 때마다 새로 만들어지므로 매번 다시 끈다.</summary>
+        private static void DisableRendering()
+        {
+            foreach (var cam in FindObjectsByType<Camera>(FindObjectsSortMode.None))
+                cam.enabled = false;
+            foreach (var canvas in FindObjectsByType<Canvas>(FindObjectsSortMode.None))
+                canvas.enabled = false;
         }
 
         /// <summary>한 번의 판단/행동. 계속 진행해도 되면 true, 이번 프레임은 그만(씬 전환 등)이면 false.</summary>
@@ -501,7 +531,32 @@ namespace LoopRogue
             }
 
             // 죽으면 항상 로비로 - 어차피 방1부터 다시라서, 번 골드를 바로 쓰는 게 이득.
-            _hud.ChooseDeathLobby();
+            if (FastDeathLobby)
+                LobbyTripInPlace();
+            else
+                _hud.ChooseDeathLobby();
+        }
+
+        /// <summary>사망 → 로비 → Main을 씬 로드 없이 흉내 낸다. 로비에서 하는 일(DoShopping)은 전부 정적 지갑만 건드리고,
+        /// Main이 다시 뜰 때 PlayerActor.Initialize가 하는 일은 "스냅샷 + 그 사이 새로 산 영구 보너스 차이 더하기"라서,
+        /// 그 차이를 지금 플레이어에 직접 더하고 "계속하기"(방1 재시작)를 고르면 결과가 같다.
+        /// 씬 로드 한 번에 약 0.15초라(봇 30판 기준 전체 시간의 90% 이상) 이게 제일 큰 속도 개선이다.</summary>
+        private void LobbyTripInPlace()
+        {
+            var attackBefore = RunProgress.CurrentPermanentAttack();
+            var healthBefore = RunProgress.CurrentPermanentHealth();
+            var criticalBefore = RunProgress.CurrentPermanentCritical();
+
+            DoShopping();
+
+            var stats = _player.Stats;
+            stats.AttackPower += RunProgress.CurrentPermanentAttack() - attackBefore;
+            stats.MaxHealth += RunProgress.CurrentPermanentHealth() - healthBefore;
+            stats.CriticalChanceRate += RunProgress.CurrentPermanentCritical() - criticalBefore;
+
+            _hud.ChooseDeathContinue(); // FullHeal + 방1 다시 로드 + 새 시도 시작(BeginAttempt/이벤트 방 다시 뽑기)
+            _attemptTurns = 0;
+            _lastRoomName = null; // 방1에서 죽었어도 새 방으로 취급(맵 기록/판단 기록 초기화)
         }
 
         private void OnStageClear()
@@ -793,6 +848,10 @@ namespace LoopRogue
             var n = _results.Count;
             Log("");
             Log($"================ 종료: {reason} ({n}판) ================");
+            var totalSec = Time.realtimeSinceStartup - _sessionStartTime;
+            var totalTurns = _results.Sum(r => r.TotalTurns);
+            Log($"속도: 전체 {totalSec:0}초 | 초당 {totalTurns / Mathf.Max(1f, totalSec):0}턴 | 턴 처리에 쓴 시간 {_simMs / 1000.0:0}초({_simMs / 10.0 / Mathf.Max(1f, totalSec):0}%) | " +
+                $"프레임 {_simFrames}개(프레임당 {totalTurns / (float)Mathf.Max(1, _simFrames):0}턴) | 씬 로드 {_sceneLoads}회");
 
             if (n > 0)
             {
