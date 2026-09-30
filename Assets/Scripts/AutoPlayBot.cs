@@ -92,6 +92,7 @@ namespace LoopRogue
 
             // 방 랜덤화/보스 패턴/이벤트 통계
             public int PatternResolves;   // 보스 예고 공격 발동 횟수
+            public int Enrages;           // 보스 광폭화 횟수
             public int PatternHits;       // 그중 맞은 횟수
             public int Dodges;            // 봇이 예고 칸에서 피한 횟수
             public int CrossfireDetours;  // 궁수 십자포화를 피하려고 최단 경로와 다른 칸으로 간 횟수
@@ -195,6 +196,7 @@ namespace LoopRogue
 
             _run = new RunResult { Index = _results.Count + 1 };
             BossBrain.PatternResolveCount = 0;
+            BossBrain.EnrageCount = 0;
             BossBrain.PatternHitCount = 0;
             RoomController.EventTriggeredCount = 0;
             _lastEventCount = 0;
@@ -933,6 +935,7 @@ namespace LoopRogue
                 r.Potions[i] = StatPotionWallet.GetCount(PotionOrder[i]);
 
             r.PatternResolves = BossBrain.PatternResolveCount;
+            r.Enrages = BossBrain.EnrageCount;
             r.PatternHits = BossBrain.PatternHitCount;
 
             if (_player != null && _player.Stats != null)
@@ -1010,7 +1013,7 @@ namespace LoopRogue
                     $"영약 사용 {_results.Average(r => r.GoldSpentPotion):0} / 데스 패널티로 잃음 {_results.Average(r => r.GoldLostDeath):0}");
                 var resolves = _results.Sum(r => r.PatternResolves);
                 var hits = _results.Sum(r => r.PatternHits);
-                Log($"보스 예고 공격: 판당 {_results.Average(r => r.PatternResolves):0}회 발동, 적중률 {(resolves > 0 ? hits * 100f / resolves : 0f):0}%");
+                Log($"보스 예고 공격: 판당 {_results.Average(r => r.PatternResolves):0}회 발동, 적중률 {(resolves > 0 ? hits * 100f / resolves : 0f):0}% | 광폭화 판당 {_results.Average(r => r.Enrages):0}회");
                 Log($"궁수 십자포화 우회: 판당 {_results.Average(r => r.CrossfireDetours):0}회");
                 Log($"방 이벤트(판당): {string.Join(" / ", Enumerable.Range(0, 4).Select(i => $"{EventNames[i]} {_results.Average(r => r.Events[i]):0.0}"))}");
                 Log($"최종 스탯: ATK {_results.Average(r => r.FinalAttack):0} / 최대HP {_results.Average(r => r.FinalMaxHealth):0} / " +
