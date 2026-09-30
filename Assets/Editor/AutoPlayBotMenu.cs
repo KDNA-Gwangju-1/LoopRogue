@@ -12,6 +12,19 @@ namespace LoopRogue.EditorTools
             if (EditorApplication.isPlaying)
                 return;
             EditorPrefs.SetBool(AutoPlayBot.EnabledPrefKey, true);
+            EditorPrefs.SetString(AutoPlayBot.ModePrefKey, "");
+            EditorApplication.isPlaying = true;
+        }
+
+        /// <summary>층별 순수 난이도 측정 - 일반 모드 봇이 마지막으로 남긴 기준 상태(BotLogs/reference_snapshots.tsv)로
+        /// 각 층만 반복한다. 기준 파일이 없으면 바로 멈춘다(일반 모드를 먼저 한 번 돌릴 것).</summary>
+        [MenuItem("LoopRogue/층별 순수 난이도 측정 (봇)")]
+        private static void StartStageTest()
+        {
+            if (EditorApplication.isPlaying)
+                return;
+            EditorPrefs.SetBool(AutoPlayBot.EnabledPrefKey, true);
+            EditorPrefs.SetString(AutoPlayBot.ModePrefKey, AutoPlayBot.StageTestMode);
             EditorApplication.isPlaying = true;
         }
 
@@ -19,6 +32,7 @@ namespace LoopRogue.EditorTools
         private static void StopBot()
         {
             EditorPrefs.SetBool(AutoPlayBot.EnabledPrefKey, false);
+            EditorPrefs.SetString(AutoPlayBot.ModePrefKey, "");
             if (EditorApplication.isPlaying)
                 EditorApplication.isPlaying = false;
         }

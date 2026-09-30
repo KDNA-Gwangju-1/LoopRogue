@@ -23,6 +23,30 @@ namespace LoopRogue
         public const string EnabledPrefKey = "LoopRogue_AutoPlayBot_Enabled";
 
         private const int RunsPerSession = 100;
+
+        /// <summary>"층별 순수 난이도 측정" 모드(EditorPrefs ModePrefKey = StageTestMode) - 일반 모드가 남긴 기준 상태
+        /// (BotLogs/reference_snapshots.tsv, 층마다 "그 층에 들어갈 때 전체 저장 상태"의 중앙값 판)를 불러와서 각 층만
+        /// TrialsPerStage번씩 반복한다. 모든 시도가 같은 상태로 시작하니 이전 층 파밍량과 무관한 그 층 자체의 난이도가 나온다.</summary>
+        public const string ModePrefKey = "LoopRogue_AutoPlayBot_Mode";
+        public const string StageTestMode = "stage_test";
+        private const int TrialsPerStage = 30;
+        private const string ReferenceFileName = "reference_snapshots.tsv";
+
+        private bool _stageTest;
+        private int SessionRuns => _stageTest ? _testCases.Count * TrialsPerStage : RunsPerSession;
+
+        /// <summary>각 층을 "몇 층 입장 상태로" 시험할지 - 0 = 그 층 입장 상태, -1 = 한 층 앞 입장 상태.
+        /// 그 층 입장 상태에는 바로 앞 층에서 죽으며 파밍한 성장이 이미 들어있어서, 앞 층 상태로도 같이 재야
+        /// "앞 층 파밍 덕에 쉬운 건지, 원래 쉬운 층인지"를 구분할 수 있다.</summary>
+        private static readonly int[] TestPowerOffsets = { -1, 0 };
+
+        // 기준 상태: 층 -> (키 -> 값(int 또는 float))
+        private readonly Dictionary<int, Dictionary<string, object>> _reference = new Dictionary<int, Dictionary<string, object>>();
+        private readonly List<(int Stage, int Power)> _testCases = new List<(int, int)>();
+
+        // 일반 모드에서 모은 "층 입장 시 저장 상태"(판, 층, 상태)
+        private readonly List<(int Run, int Stage, Dictionary<string, object> Prefs)> _entrySnapshots =
+            new List<(int, int, Dictionary<string, object>)>();
         /// <summary>한 프레임에 턴을 몇 개 돌릴지를 개수 대신 시간으로 정한다 - 프레임 자체(에디터 화면 갱신 등)에 드는
         /// 고정 비용을 최대한 많은 턴에 나눠 쓰려는 것. 너무 키우면 에디터가 멈춘 것처럼 보이니 50ms 정도로 둔다.</summary>
         private const double FrameBudgetMs = 50.0;
@@ -34,7 +58,7 @@ namespace LoopRogue
         private const float MaxRealSeconds = 10800f; // 전체 실행 제한(3시간)
 
         /// <summary>판 수가 많으면 방/레벨업/로비 같은 상세 로그는 끄고 판 결과와 요약만 남긴다(100판이면 파일이 수십 MB).</summary>
-        private static readonly bool DetailedLog = RunsPerSession <= 10;
+        private static readonly bool DetailedLog = RunsPerSession <= 10; // 층 테스트 모드는 항상 요약만
         private const int MaxTurnsPerAttempt = 1500; // 한 번 시도가 이보다 길면 끼인 걸로 보고 그 판 종료
         private const int EventGiveUpTurns = 20;     // 방에 들어와서 이 턴 안에 이벤트 칸을 못 밟으면 그 방에선 포기
 
@@ -63,6 +87,9 @@ namespace LoopRogue
         private class RunResult
         {
             public int Index;
+            public int TestStage;            // 층 테스트 모드에서 이 시도가 측정한 층
+            public int TestPower;            // 층 테스트 모드 - 몇 층 입장 상태로 시작했는지
+            public int TestBossDeaths;       // 층 테스트 모드 - 그중 보스방 사망
             public string EndReason;
             public bool Completed;
             public int ReachedStage;
@@ -160,9 +187,23 @@ namespace LoopRogue
             var dir = Path.Combine(Application.dataPath, "..", "BotLogs");
             Directory.CreateDirectory(dir);
             var path = Path.GetFullPath(Path.Combine(dir, $"bot_{DateTime.Now:yyyyMMdd_HHmmss}.txt"));
+            _stageTest = UnityEditor.EditorPrefs.GetString(ModePrefKey, "") == StageTestMode;
+            if (_stageTest)
+            {
+                path = Path.Combine(Path.GetDirectoryName(path), "stagetest_" + Path.GetFileName(path).Substring(4));
+                if (!LoadReference(Path.Combine(dir, ReferenceFileName)))
+                {
+                    Debug.LogError($"[AutoPlayBot] 기준 상태 파일({ReferenceFileName})이 없습니다 - 일반 모드 봇을 먼저 한 번 돌리세요.");
+                    _sessionFinished = true;
+                    UnityEditor.EditorPrefs.SetBool(EnabledPrefKey, false);
+                    UnityEditor.EditorPrefs.SetString(ModePrefKey, "");
+                    UnityEditor.EditorApplication.isPlaying = false;
+                    return;
+                }
+            }
             _log = new StreamWriter(path, false, new UTF8Encoding(false)) { AutoFlush = true };
             _events = new StreamWriter(Path.ChangeExtension(path, null) + "_events.jsonl", false, new UTF8Encoding(false));
-            Debug.Log($"[AutoPlayBot] 시작 ({RunsPerSession}판) - 로그: {path}");
+            Debug.Log($"[AutoPlayBot] 시작 ({(_stageTest ? "층별 순수 난이도 측정, " : "")}{SessionRuns}판) - 로그: {path}");
 
             DamagePopup.Suppressed = true;
             Application.targetFrameRate = -1;
@@ -170,7 +211,9 @@ namespace LoopRogue
             Application.runInBackground = true; // 에디터 창이 포커스를 잃어도 느려지지 않게
 
             _sessionStartTime = Time.realtimeSinceStartup;
-            Log($"=== 자동 플레이 {RunsPerSession}판 연속 시작 ===");
+            Log(_stageTest
+                ? $"=== 층별 순수 난이도 측정: {_testCases.Count}조합(층 × 시작 상태) × {TrialsPerStage}회 (기준 상태에서 시작, 그 층 보스를 잡으면 종료) ==="
+                : $"=== 자동 플레이 {RunsPerSession}판 연속 시작 ===");
             BeginRun();
         }
 
@@ -279,11 +322,135 @@ namespace LoopRogue
             Detail($"########## {_run.Index}판 시작 (저장 데이터 초기화됨) ##########");
             Ev("run_start");
 
+            if (_stageTest)
+            {
+                var testCase = _testCases[Mathf.Min(_results.Count / TrialsPerStage, _testCases.Count - 1)];
+                _run.TestStage = testCase.Stage;
+                _run.TestPower = testCase.Power;
+                ApplyPrefs(_reference[testCase.Power], testCase.Stage);
+                _enteredStage = StageProgress.CurrentStage;
+                _lastGold = GoldWallet.Gold;
+                if (_results.Count > 0)
+                {
+                    _lastScene = null;
+                    SceneManager.LoadScene("Main");
+                }
+                return;
+            }
+
             if (_results.Count > 0)
             {
                 _lastScene = null;
                 SceneManager.LoadScene("Title");
             }
+        }
+
+        // ===================== 층 입장 상태 저장/불러오기 =====================
+
+        private static IEnumerable<(string Key, bool IsFloat)> SaveKeys()
+        {
+            foreach (var k in new[] { "Gold", "CurrentStage", "StageAttempts", "Run_HasSaved", "Run_Level", "Run_Exp", "Run_ExpToNext",
+                         "Potion_AttackCount", "Potion_HealthCount", "Potion_CriticalCount" })
+                yield return ("LoopRogue_" + k, false);
+            foreach (ItemSlot slot in Enum.GetValues(typeof(ItemSlot)))
+            {
+                yield return ($"LoopRogue_Equip_{slot}", false);
+                yield return ($"LoopRogue_GachaPulls_{slot}", false);
+            }
+            foreach (var k in new[] { "AttackPower", "MaxHealth", "CurrentHealth", "CriticalChance", "PermAttack", "PermHealth", "PermCritical",
+                         "DamageReduction", "LifeSteal", "Regen", "KillHeal", "ExpBonus", "GoldBonus" })
+                yield return ("LoopRogue_Run_" + k, true);
+        }
+
+        private static Dictionary<string, object> CapturePrefs()
+        {
+            PlayerPrefs.Save();
+            var d = new Dictionary<string, object>();
+            foreach (var (key, isFloat) in SaveKeys())
+            {
+                if (!PlayerPrefs.HasKey(key))
+                    continue;
+                d[key] = isFloat ? (object)PlayerPrefs.GetFloat(key) : PlayerPrefs.GetInt(key);
+            }
+            return d;
+        }
+
+        /// <summary>저장을 전부 지우고 기준 상태를 써넣은 뒤 각 저장 클래스가 다시 읽게 한다(SaveReset.ResetAll과 같은 순서).</summary>
+        private static void ApplyPrefs(Dictionary<string, object> prefs, int stage)
+        {
+            PlayerPrefs.DeleteAll();
+            foreach (var pair in prefs)
+            {
+                if (pair.Value is float f)
+                    PlayerPrefs.SetFloat(pair.Key, f);
+                else
+                    PlayerPrefs.SetInt(pair.Key, (int)pair.Value);
+            }
+            PlayerPrefs.SetInt("LoopRogue_StageAttempts", 0);
+            PlayerPrefs.SetInt("LoopRogue_CurrentStage", stage); // 한 층 앞 상태로 시험할 땐 층만 바꿔 끼운다
+            PlayerPrefs.Save();
+            GoldWallet.Reload();
+            EquipmentWallet.Reload();
+            StatPotionWallet.Reload();
+            StageProgress.Reload();
+            GachaSystem.Reload();
+            RunProgress.Reload();
+        }
+
+        private static float Stat(Dictionary<string, object> prefs, string key) =>
+            prefs.TryGetValue("LoopRogue_Run_" + key, out var v) ? (float)v : 0f;
+
+        /// <summary>일반 모드 종료 시 - 층마다 입장 상태들 중 전투력(공격력 × 최대체력) 중앙값인 판 하나를 기준으로 저장.</summary>
+        private void WriteReference()
+        {
+            var lines = new List<string>();
+            foreach (var group in _entrySnapshots.GroupBy(e => e.Stage).OrderBy(g => g.Key))
+            {
+                var sorted = group.ToList();
+                var byAtk = sorted.OrderBy(e => Stat(e.Prefs, "AttackPower")).Select(e => e.Run).ToList();
+                var byHp = sorted.OrderBy(e => Stat(e.Prefs, "MaxHealth")).Select(e => e.Run).ToList();
+                var mid = sorted.Count / 2;
+                var pick = sorted.OrderBy(e => Math.Abs(byAtk.IndexOf(e.Run) - mid) + Math.Abs(byHp.IndexOf(e.Run) - mid)).First();
+                if (pick.Prefs.Count == 0)
+                    lines.Add($"{group.Key}\t-\t-\t-"); // 1층 = 완전히 새로 시작한 상태(저장된 키가 하나도 없음)
+                foreach (var pair in pick.Prefs)
+                    lines.Add($"{group.Key}\t{pair.Key}\t{(pair.Value is float ? "f" : "i")}\t{Convert.ToString(pair.Value, CultureInfo.InvariantCulture)}");
+                Log($"기준 상태 {group.Key}층: {pick.Run}판 입장 시점(입장 {sorted.Count}판 중 공격력·최대HP 순위가 둘 다 중앙에 가장 가까운 판) - " +
+                    $"Lv{PrefText(pick.Prefs, "LoopRogue_Run_Level")} 공격력 {PrefText(pick.Prefs, "LoopRogue_Run_AttackPower")} " +
+                    $"최대HP {PrefText(pick.Prefs, "LoopRogue_Run_MaxHealth")}");
+            }
+            var dir = Path.Combine(Application.dataPath, "..", "BotLogs");
+            File.WriteAllLines(Path.Combine(dir, ReferenceFileName), lines, new UTF8Encoding(false));
+        }
+
+        private static string PrefText(Dictionary<string, object> prefs, string key) =>
+            prefs.TryGetValue(key, out var v) ? Convert.ToString(v, CultureInfo.InvariantCulture) : "-";
+
+        private bool LoadReference(string file)
+        {
+            if (!File.Exists(file))
+                return false;
+            foreach (var line in File.ReadAllLines(file))
+            {
+                var parts = line.Split('\t');
+                if (parts.Length != 4)
+                    continue;
+                var stage = int.Parse(parts[0], CultureInfo.InvariantCulture);
+                if (!_reference.TryGetValue(stage, out var d))
+                    _reference[stage] = d = new Dictionary<string, object>();
+                if (parts[1] == "-")
+                    continue;
+                d[parts[1]] = parts[2] == "f"
+                    ? (object)float.Parse(parts[3], CultureInfo.InvariantCulture)
+                    : int.Parse(parts[3], CultureInfo.InvariantCulture);
+            }
+            foreach (var stage in _reference.Keys.OrderBy(k => k))
+            foreach (var offset in TestPowerOffsets)
+            {
+                if (_reference.ContainsKey(stage + offset))
+                    _testCases.Add((stage, stage + offset));
+            }
+            return _testCases.Count > 0;
         }
 
         private void Update()
@@ -294,7 +461,7 @@ namespace LoopRogue
             if (_runEnding)
             {
                 _runEnding = false;
-                if (_results.Count >= RunsPerSession)
+                if (_results.Count >= SessionRuns)
                     FinishSession("요청한 판 수 완료");
                 else
                     BeginRun();
@@ -329,7 +496,7 @@ namespace LoopRogue
                     if (!_sceneHandled)
                     {
                         _sceneHandled = true;
-                        SceneManager.LoadScene("Lobby");
+                        SceneManager.LoadScene(_stageTest ? "Main" : "Lobby");
                     }
                     break;
                 case "Lobby":
@@ -337,6 +504,13 @@ namespace LoopRogue
                     {
                         _sceneHandled = true;
                         DoShopping();
+                        // 사망은 제자리 쇼핑(LobbyTripInPlace)이라 실제 로비는 판 시작/스테이지 클리어 직후 = 새 층 입장 때뿐.
+                        if (!_stageTest)
+                        {
+                            var prefs = CapturePrefs();
+                            _entrySnapshots.Add((_run.Index, StageProgress.CurrentStage, prefs));
+                            Ev("stage_enter", ("prefs", prefs));
+                        }
                         SceneManager.LoadScene("Main");
                     }
                     break;
@@ -656,6 +830,8 @@ namespace LoopRogue
             }
             var alive = _room.Enemies.Where(e => e != null && !e.Stats.IsDead).ToList();
             var prevHp = _hpHistory.Count >= 2 ? _hpHistory[_hpHistory.Count - 2] : (float?)null;
+            if (_room.IsBossRoom)
+                _run.TestBossDeaths++;
             Ev("death", ("stage_death", _stageDeaths), ("attempt_turns", _attemptTurns), ("room_turns", _roomTurns),
                 ("boss_room", _room.IsBossRoom), ("boss_hp", bossHp), ("boss_maxhp", bossMaxHp), ("boss_atk", bossAtk),
                 ("hp_prev_turn", prevHp), ("penalty", _hud.LastDeathGoldPenalty),
@@ -713,6 +889,12 @@ namespace LoopRogue
                 ("boss_turns", _roomTurns));
             Detail($"[보스 격파] 스테이지 {stage,2}: 사망 {_stageDeaths,2}회, {_stageTurns,5}턴, 클리어 시 Lv{_player.Levels.Level}, " +
                 $"ATK {_player.Stats.AttackPower:0}, 최대HP {_player.Stats.MaxHealth:0}, 보유골드 {GoldWallet.Gold}");
+
+            if (_stageTest)
+            {
+                EndRun($"{stage}층 보스 격파", true);
+                return;
+            }
 
             if (stage >= StageProgress.MaxStage)
             {
@@ -1042,7 +1224,7 @@ namespace LoopRogue
                 ("gold_earned", _run.GoldEarned), ("seconds", _run.Seconds));
             _events?.Flush();
 
-            Debug.Log($"[AutoPlayBot] {_run.Index}/{RunsPerSession}판 종료 - 사망 {_run.TotalDeaths}회");
+            Debug.Log($"[AutoPlayBot] {_run.Index}/{SessionRuns}판 종료 - 사망 {_run.TotalDeaths}회");
             Log($"{_run.Index,3}판 종료: {reason} | {_run.Seconds:0.0}초, {_run.TotalTurns}턴, 사망 {_run.TotalDeaths}회, " +
                 $"획득 골드 {_run.GoldEarned}, 최종 Lv{_run.FinalLevel} | 최종 장비: {EquipLine()}");
             Log($"      {PurchaseLine(_run)}");
@@ -1098,6 +1280,20 @@ namespace LoopRogue
             return sorted[idx];
         }
 
+        private void LogStageTestSummary()
+        {
+            Log("층 | 시작 상태 | 시도 | 클리어 | 사망 평균 | 중앙값 | 상위10% | 무사망 클리어 | 보스방 사망 비율 | 턴 평균");
+            foreach (var group in _results.GroupBy(r => (r.TestStage, r.TestPower)).OrderBy(g => g.Key.TestStage).ThenBy(g => g.Key.TestPower))
+            {
+                var list = group.ToList();
+                var deaths = list.Select(r => (float)r.TotalDeaths).ToList();
+                var total = list.Sum(r => r.TotalDeaths);
+                Log($"{group.Key.TestStage,2} | {group.Key.TestPower,2}층 입장 | {list.Count,3} | {list.Count(r => r.Completed),3} | {deaths.Average(),6:0.0} | {Percentile(deaths, 0.5f),4:0} | " +
+                    $"{Percentile(deaths, 0.9f),4:0} | {list.Count(r => r.Completed && r.TotalDeaths == 0),3} | " +
+                    $"{(total > 0 ? list.Sum(r => r.TestBossDeaths) * 100f / total : 0f),4:0}% | {list.Average(r => r.TotalTurns),6:0}");
+            }
+        }
+
         private void FinishSession(string reason)
         {
             if (_sessionFinished)
@@ -1107,6 +1303,17 @@ namespace LoopRogue
             var n = _results.Count;
             Log("");
             Log($"================ 종료: {reason} ({n}판) ================");
+            if (_stageTest)
+            {
+                LogStageTestSummary();
+                _events?.Flush();
+                Debug.Log($"[AutoPlayBot] 층별 순수 난이도 측정 종료 ({n}회)");
+                UnityEditor.EditorPrefs.SetBool(EnabledPrefKey, false);
+                UnityEditor.EditorPrefs.SetString(ModePrefKey, "");
+                UnityEditor.EditorApplication.isPlaying = false;
+                return;
+            }
+            WriteReference();
             var totalSec = Time.realtimeSinceStartup - _sessionStartTime;
             var totalTurns = _results.Sum(r => r.TotalTurns);
             Log($"속도: 전체 {totalSec:0}초 | 초당 {totalTurns / Mathf.Max(1f, totalSec):0}턴 | 턴 처리에 쓴 시간 {_simMs / 1000.0:0}초({_simMs / 10.0 / Mathf.Max(1f, totalSec):0}%) | " +
