@@ -39,6 +39,10 @@ namespace LoopRogue
         private const int GoldPerBossKill = 40;
         private const int GoldPerRoomClear = 10;
 
+        /// <summary>일반 방을 클리어하면 최대체력의 이 비율만큼 회복 - 방 사이 회복이 전혀 없어서 한 스테이지 뒤쪽 방(7~10)으로
+        /// 갈수록 깎인 체력을 그대로 들고 싸우다 죽던 문제(봇 100판에서 10층 일반 방 사망이 보스 사망의 약 30%) 대책.</summary>
+        private const float RoomClearHealRate = 0.1f;
+
         private static readonly System.Random Rng = new System.Random();
         private static readonly Color TelegraphColor = new Color(1f, 0.15f, 0.15f, 0.45f);
         private static readonly Color WallColor = new Color(0.38f, 0.36f, 0.34f);
@@ -292,7 +296,10 @@ namespace LoopRogue
                 return false;
 
             if (!_current.IsBossRoom)
+            {
                 GoldWallet.Add(Mathf.RoundToInt(GoldPerRoomClear * stageMultiplier * goldBonus * repeat));
+                _player.Stats.Heal(_player.Stats.MaxHealth * RoomClearHealRate);
+            }
 
             if (_current.IsBossRoom)
                 _loopManager.OnBossDefeated();
