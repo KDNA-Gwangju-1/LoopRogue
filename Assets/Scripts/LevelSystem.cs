@@ -58,30 +58,32 @@ namespace LoopRogue
         /// <summary>모든 카드가 "얻는 것 + 잃는 것" 구조("모든 선택지를 도박처럼" 요청). 얻는 쪽을 잃는 쪽보다
         /// 크게 잡아서 순이익은 항상 플러스. 손해는 항상 가지고 있는 스탯(공격력/최대체력/현재체력/받는 피해/
         /// 골드·경험치 보너스)에서만 깎는다 - 처음엔 0인 치명타/흡혈 등을 깎으면 사실상 손해 없는 카드가 된다.
-        /// 도박 분류는 "크게 얻고 크게 잃는" 카드로 남겨 일반 카드와 구분한다.</summary>
+        /// 도박 분류는 "크게 얻고 크게 잃는" 카드로 남겨 일반 카드와 구분한다.
+        /// 최대체력 %감소는 장비/영약으로 쌓은 체력 전체를 깎아서(봇 한 판 기준 카드만으로 최대체력 약 -52%) 광폭화(도박)와
+        /// 공격력 강화(-3%로 절반)에만 남기고 나머지는 다른 스탯으로 옮겼다.</summary>
         private static readonly List<UpgradeOption> Pool = new List<UpgradeOption>
         {
             // 기본
             new UpgradeOption { Category = UpgradeCategory.Basic, Title = "균형 성장", Description = "최대체력 +12, 공격력 +3 / 현재 체력 -20%",
                 Apply = s => { s.IncreaseMaxHealth(12f, true); s.AttackPower += 3f; s.LoseCurrentHealthPercent(0.2f); } },
-            new UpgradeOption { Category = UpgradeCategory.Basic, Title = "힘", Description = "공격력 +6 / 최대체력 -5%",
-                Apply = s => { s.AttackPower += 6f; s.MultiplyMaxHealth(0.95f); } },
+            new UpgradeOption { Category = UpgradeCategory.Basic, Title = "힘", Description = "공격력 +6 / 받는 피해 +2%",
+                Apply = s => { s.AttackPower += 6f; s.DamageReductionRate -= 0.02f; } },
             new UpgradeOption { Category = UpgradeCategory.Basic, Title = "체력", Description = "최대체력 +25 / 공격력 -3%",
                 Apply = s => { s.IncreaseMaxHealth(25f, true); s.AttackPower *= 0.97f; } },
             new UpgradeOption { Category = UpgradeCategory.Basic, Title = "완전 회복", Description = "체력 전부 회복 / 공격력 -2%",
                 Apply = s => { s.FullHeal(); s.AttackPower *= 0.98f; } },
 
             // 성장
-            new UpgradeOption { Category = UpgradeCategory.Growth, Title = "공격력 강화", Description = "공격력 +12% / 최대체력 -6%",
-                Apply = s => { s.AttackPower *= 1.12f; s.MultiplyMaxHealth(0.94f); } },
+            new UpgradeOption { Category = UpgradeCategory.Growth, Title = "공격력 강화", Description = "공격력 +12% / 최대체력 -3%",
+                Apply = s => { s.AttackPower *= 1.12f; s.MultiplyMaxHealth(0.97f); } },
             new UpgradeOption { Category = UpgradeCategory.Growth, Title = "체력 강화", Description = "최대체력 +15% / 공격력 -5%",
                 Apply = s => { s.IncreaseMaxHealth(s.MaxHealth * 0.15f, true); s.AttackPower *= 0.95f; } },
             new UpgradeOption { Category = UpgradeCategory.Growth, Title = "날카로움", Description = "치명타 +5%p / 공격력 -4%",
                 Apply = s => { s.CriticalChanceRate += 0.05f; s.AttackPower *= 0.96f; } },
 
             // 특수
-            new UpgradeOption { Category = UpgradeCategory.Special, Title = "흡혈", Description = "흡혈 +8% / 최대체력 -5%",
-                Apply = s => { s.LifeStealRate += 0.08f; s.MultiplyMaxHealth(0.95f); } },
+            new UpgradeOption { Category = UpgradeCategory.Special, Title = "흡혈", Description = "흡혈 +8% / 공격력 -3%",
+                Apply = s => { s.LifeStealRate += 0.08f; s.AttackPower *= 0.97f; } },
             new UpgradeOption { Category = UpgradeCategory.Special, Title = "방어", Description = "받는 피해 -2% (최대 30%) / 골드 -5%",
                 Apply = s => { s.DamageReductionRate += 0.02f; s.GoldBonusRate -= 0.05f; } },
             new UpgradeOption { Category = UpgradeCategory.Special, Title = "재생", Description = "매 턴 최대체력 1.5% 회복 / 받는 피해 +2%",
@@ -92,8 +94,8 @@ namespace LoopRogue
             // 경제
             new UpgradeOption { Category = UpgradeCategory.Economy, Title = "학습", Description = "경험치 +25% / 받는 피해 +3%",
                 Apply = s => { s.ExpBonusRate += 0.25f; s.DamageReductionRate -= 0.03f; } },
-            new UpgradeOption { Category = UpgradeCategory.Economy, Title = "수집", Description = "골드 +20% / 최대체력 -5%",
-                Apply = s => { s.GoldBonusRate += 0.2f; s.MultiplyMaxHealth(0.95f); } },
+            new UpgradeOption { Category = UpgradeCategory.Economy, Title = "수집", Description = "골드 +20% / 경험치 -10%",
+                Apply = s => { s.GoldBonusRate += 0.2f; s.ExpBonusRate -= 0.1f; } },
 
             // 도박 - 크게 얻고 크게 잃는다.
             new UpgradeOption { Category = UpgradeCategory.Gamble, Title = "[도박] 광폭화", Description = "공격력 +20% / 최대체력 -10%",
