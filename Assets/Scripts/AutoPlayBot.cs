@@ -29,11 +29,35 @@ namespace LoopRogue
         /// TrialsPerStage번씩 반복한다. 모든 시도가 같은 상태로 시작하니 이전 층 파밍량과 무관한 그 층 자체의 난이도가 나온다.</summary>
         public const string ModePrefKey = "LoopRogue_AutoPlayBot_Mode";
         public const string StageTestMode = "stage_test";
+
+        /// <summary>"보스 배율 찾기" 모드 - 층마다 그 층 입장 상태(실제 플레이어가 들어오는 상태, 일반 모드가 남긴 기준 파일)로
+        /// 시작해서 보스 세기를 SweepScales만큼 바꿔가며 재고, 목표 사망 수(TargetDeaths)에 맞는 배율을 보간해서 새
+        /// BossPatternBalance 값을 제안한다. 값을 바꾸면 다음 층들 입장 상태도 바뀌므로 "배율 찾기 → 일반 모드"를 몇 번 반복한다.
+        /// (처음엔 한 층 앞 입장 상태로 쟀는데, 실제 게임은 앞 층에서 파밍한 상태로 들어와서 곡선이 목표와 크게 어긋났다.)</summary>
+        public const string BossSweepMode = "boss_sweep";
+        private static readonly float[] SweepScales = { 0.7f, 0.85f, 1f, 1.2f, 1.45f };
+        private const int SweepTrials = 20;
+
+        /// <summary>목표 층별 평균 사망(실제 게임 곡선 = 그 층 입장 상태로 시작) - 사용자가 고른 리듬
+        /// "5층·10층이 벽": 2~4층 완만 → 5층 중간 보스 → 6층 숨 돌리기 → 다시 오르다 10층 최종 보스.</summary>
+        private static readonly Dictionary<int, float> TargetDeaths = new Dictionary<int, float>
+        {
+            { 2, 3 }, { 3, 4 }, { 4, 5 }, { 5, 15 }, { 6, 5 }, { 7, 8 }, { 8, 10 }, { 9, 12 }, { 10, 20 },
+        };
+
+        /// <summary>GameBootstrap.BossPatternBalance의 현재 값(제안값 계산용 - 바꾸면 여기도 같이).</summary>
+        private static readonly Dictionary<int, float> CurrentBossBalance = new Dictionary<int, float>
+        {
+            { 1, 1.2f }, { 2, 1f }, { 3, 1f }, { 4, 1.16f }, { 5, 1.14f }, { 6, 1.06f }, { 7, 0.82f }, { 8, 0.82f }, { 9, 0.68f }, { 10, 0.78f },
+        };
+
+        private bool _sweep;
         private const int TrialsPerStage = 30;
         private const string ReferenceFileName = "reference_snapshots.tsv";
 
         private bool _stageTest;
-        private int SessionRuns => _stageTest ? _testCases.Count * TrialsPerStage : RunsPerSession;
+        private int TrialsPerCase => _sweep ? SweepTrials : TrialsPerStage;
+        private int SessionRuns => _stageTest ? _testCases.Count * TrialsPerCase : RunsPerSession;
 
         /// <summary>각 층을 "몇 층 입장 상태로" 시험할지 - 0 = 그 층 입장 상태, -1 = 한 층 앞 입장 상태.
         /// 그 층 입장 상태에는 바로 앞 층에서 죽으며 파밍한 성장이 이미 들어있어서, 앞 층 상태로도 같이 재야
@@ -42,7 +66,7 @@ namespace LoopRogue
 
         // 기준 상태: 층 -> (키 -> 값(int 또는 float))
         private readonly Dictionary<int, Dictionary<string, object>> _reference = new Dictionary<int, Dictionary<string, object>>();
-        private readonly List<(int Stage, int Power)> _testCases = new List<(int, int)>();
+        private readonly List<(int Stage, int Power, float Scale)> _testCases = new List<(int, int, float)>();
 
         // 일반 모드에서 모은 "층 입장 시 저장 상태"(판, 층, 상태)
         private readonly List<(int Run, int Stage, Dictionary<string, object> Prefs)> _entrySnapshots =
@@ -89,6 +113,7 @@ namespace LoopRogue
             public int Index;
             public int TestStage;            // 층 테스트 모드에서 이 시도가 측정한 층
             public int TestPower;            // 층 테스트 모드 - 몇 층 입장 상태로 시작했는지
+            public float TestScale = 1f;     // 보스 배율 찾기 모드 - 보스 세기에 곱한 값
             public int TestBossDeaths;       // 층 테스트 모드 - 그중 보스방 사망
             public string EndReason;
             public bool Completed;
@@ -187,10 +212,12 @@ namespace LoopRogue
             var dir = Path.Combine(Application.dataPath, "..", "BotLogs");
             Directory.CreateDirectory(dir);
             var path = Path.GetFullPath(Path.Combine(dir, $"bot_{DateTime.Now:yyyyMMdd_HHmmss}.txt"));
-            _stageTest = UnityEditor.EditorPrefs.GetString(ModePrefKey, "") == StageTestMode;
+            var mode = UnityEditor.EditorPrefs.GetString(ModePrefKey, "");
+            _sweep = mode == BossSweepMode;
+            _stageTest = mode == StageTestMode || _sweep;
             if (_stageTest)
             {
-                path = Path.Combine(Path.GetDirectoryName(path), "stagetest_" + Path.GetFileName(path).Substring(4));
+                path = Path.Combine(Path.GetDirectoryName(path), (_sweep ? "bosssweep_" : "stagetest_") + Path.GetFileName(path).Substring(4));
                 if (!LoadReference(Path.Combine(dir, ReferenceFileName)))
                 {
                     Debug.LogError($"[AutoPlayBot] 기준 상태 파일({ReferenceFileName})이 없습니다 - 일반 모드 봇을 먼저 한 번 돌리세요.");
@@ -212,7 +239,7 @@ namespace LoopRogue
 
             _sessionStartTime = Time.realtimeSinceStartup;
             Log(_stageTest
-                ? $"=== 층별 순수 난이도 측정: {_testCases.Count}조합(층 × 시작 상태) × {TrialsPerStage}회 (기준 상태에서 시작, 그 층 보스를 잡으면 종료) ==="
+                ? $"=== {(_sweep ? "보스 배율 찾기" : "층별 순수 난이도 측정")}: {_testCases.Count}조합 × {TrialsPerCase}회 (기준 상태에서 시작, 그 층 보스를 잡으면 종료) ==="
                 : $"=== 자동 플레이 {RunsPerSession}판 연속 시작 ===");
             BeginRun();
         }
@@ -324,9 +351,11 @@ namespace LoopRogue
 
             if (_stageTest)
             {
-                var testCase = _testCases[Mathf.Min(_results.Count / TrialsPerStage, _testCases.Count - 1)];
+                var testCase = _testCases[Mathf.Min(_results.Count / TrialsPerCase, _testCases.Count - 1)];
                 _run.TestStage = testCase.Stage;
                 _run.TestPower = testCase.Power;
+                _run.TestScale = testCase.Scale;
+                GameBootstrap.BossScaleForBotTest = testCase.Scale;
                 ApplyPrefs(_reference[testCase.Power], testCase.Stage);
                 _enteredStage = StageProgress.CurrentStage;
                 _lastGold = GoldWallet.Gold;
@@ -445,10 +474,20 @@ namespace LoopRogue
                     : int.Parse(parts[3], CultureInfo.InvariantCulture);
             }
             foreach (var stage in _reference.Keys.OrderBy(k => k))
-            foreach (var offset in TestPowerOffsets)
             {
-                if (_reference.ContainsKey(stage + offset))
-                    _testCases.Add((stage, stage + offset));
+                if (_sweep)
+                {
+                    if (!TargetDeaths.ContainsKey(stage))
+                        continue;
+                    foreach (var scale in SweepScales)
+                        _testCases.Add((stage, stage, scale));
+                    continue;
+                }
+                foreach (var offset in TestPowerOffsets)
+                {
+                    if (_reference.ContainsKey(stage + offset))
+                        _testCases.Add((stage, stage + offset, 1f));
+                }
             }
             return _testCases.Count > 0;
         }
@@ -1282,15 +1321,53 @@ namespace LoopRogue
 
         private void LogStageTestSummary()
         {
-            Log("층 | 시작 상태 | 시도 | 클리어 | 사망 평균 | 중앙값 | 상위10% | 무사망 클리어 | 보스방 사망 비율 | 턴 평균");
-            foreach (var group in _results.GroupBy(r => (r.TestStage, r.TestPower)).OrderBy(g => g.Key.TestStage).ThenBy(g => g.Key.TestPower))
+            Log("층 | 시작 상태 | 보스 배율 | 시도 | 클리어 | 사망 평균 | 중앙값 | 상위10% | 무사망 클리어 | 보스방 사망 비율 | 턴 평균");
+            foreach (var group in _results.GroupBy(r => (r.TestStage, r.TestPower, r.TestScale))
+                         .OrderBy(g => g.Key.TestStage).ThenBy(g => g.Key.TestPower).ThenBy(g => g.Key.TestScale))
             {
                 var list = group.ToList();
                 var deaths = list.Select(r => (float)r.TotalDeaths).ToList();
                 var total = list.Sum(r => r.TotalDeaths);
-                Log($"{group.Key.TestStage,2} | {group.Key.TestPower,2}층 입장 | {list.Count,3} | {list.Count(r => r.Completed),3} | {deaths.Average(),6:0.0} | {Percentile(deaths, 0.5f),4:0} | " +
+                Log($"{group.Key.TestStage,2} | {group.Key.TestPower,2}층 입장 | ×{group.Key.TestScale:0.00} | {list.Count,3} | {list.Count(r => r.Completed),3} | {deaths.Average(),6:0.0} | {Percentile(deaths, 0.5f),4:0} | " +
                     $"{Percentile(deaths, 0.9f),4:0} | {list.Count(r => r.Completed && r.TotalDeaths == 0),3} | " +
                     $"{(total > 0 ? list.Sum(r => r.TestBossDeaths) * 100f / total : 0f),4:0}% | {list.Average(r => r.TotalTurns),6:0}");
+            }
+        }
+
+        private void LogSweepRecommendation()
+        {
+            Log("");
+            Log("--- 목표 사망 수에 맞는 보스 배율 (BossPatternBalance 제안값) ---");
+            Log("층 | 목표 사망 | 측정(배율:사망) | 찾은 배율 | 현재 값 → 제안 값");
+            foreach (var group in _results.GroupBy(r => r.TestStage).OrderBy(g => g.Key))
+            {
+                var stage = group.Key;
+                var points = group.GroupBy(r => r.TestScale).OrderBy(g => g.Key)
+                    .Select(g => (Scale: g.Key, Deaths: (float)g.Average(r => r.TotalDeaths))).ToList();
+                var target = TargetDeaths[stage];
+                float found;
+                if (target <= points[0].Deaths)
+                    found = points[0].Scale;           // 가장 약하게 해도 목표보다 많이 죽음(범위 밖)
+                else if (target >= points[points.Count - 1].Deaths)
+                    found = points[points.Count - 1].Scale; // 가장 세게 해도 목표보다 적게 죽음(범위 밖)
+                else
+                {
+                    found = points[0].Scale;
+                    for (var i = 0; i < points.Count - 1; i++)
+                    {
+                        var (s0, d0) = points[i];
+                        var (s1, d1) = points[i + 1];
+                        if (target < Mathf.Min(d0, d1) || target > Mathf.Max(d0, d1) || Mathf.Approximately(d0, d1))
+                            continue;
+                        var t = (target - d0) / (d1 - d0);
+                        found = Mathf.Exp(Mathf.Lerp(Mathf.Log(s0), Mathf.Log(s1), t));
+                        break;
+                    }
+                }
+                var edge = found <= points[0].Scale || found >= points[points.Count - 1].Scale ? " (측정 범위 끝 - 범위 넓혀 재측정 필요)" : "";
+                var current = CurrentBossBalance[stage];
+                Log($"{stage,2} | {target,4:0} | {string.Join(" ", points.Select(p => $"{p.Scale:0.00}:{p.Deaths:0.0}"))} | ×{found:0.00} | " +
+                    $"{current:0.00} → {current * found:0.00}{edge}");
             }
         }
 
@@ -1306,6 +1383,9 @@ namespace LoopRogue
             if (_stageTest)
             {
                 LogStageTestSummary();
+                if (_sweep)
+                    LogSweepRecommendation();
+                GameBootstrap.BossScaleForBotTest = 1f;
                 _events?.Flush();
                 Debug.Log($"[AutoPlayBot] 층별 순수 난이도 측정 종료 ({n}회)");
                 UnityEditor.EditorPrefs.SetBool(EnabledPrefKey, false);

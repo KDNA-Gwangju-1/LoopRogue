@@ -18,6 +18,17 @@ namespace LoopRogue.EditorTools
 
         /// <summary>층별 순수 난이도 측정 - 일반 모드 봇이 마지막으로 남긴 기준 상태(BotLogs/reference_snapshots.tsv)로
         /// 각 층만 반복한다. 기준 파일이 없으면 바로 멈춘다(일반 모드를 먼저 한 번 돌릴 것).</summary>
+        /// <summary>보스 배율 찾기 - 층마다 보스 세기를 바꿔가며 재서, 목표 사망 수에 맞는 BossPatternBalance 값을 로그에 제안한다.</summary>
+        [MenuItem("LoopRogue/보스 배율 찾기 (봇)")]
+        private static void StartBossSweep()
+        {
+            if (EditorApplication.isPlaying)
+                return;
+            EditorPrefs.SetBool(AutoPlayBot.EnabledPrefKey, true);
+            EditorPrefs.SetString(AutoPlayBot.ModePrefKey, AutoPlayBot.BossSweepMode);
+            EditorApplication.isPlaying = true;
+        }
+
         [MenuItem("LoopRogue/층별 순수 난이도 측정 (봇)")]
         private static void StartStageTest()
         {
