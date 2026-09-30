@@ -36,13 +36,16 @@ namespace LoopRogue
             {
                 // 로비를 들렀다가 돌아온 경우 - 씬이 새로 뜨면서 이 오브젝트 자체가 완전히 새로
                 // 만들어졌으니(코드로 씬을 구성하는 이 프로젝트 특성상), 넘어가기 직전에 저장해둔
-                // 레벨/경험치/스탯을 그대로 복원한다. 스냅샷 자체가 "장비/영약 포함 최종 수치"라
-                // 장비/영약을 통째로 다시 더하면 중복이고, 스냅샷 이후 로비에서 새로 산 만큼(차이)만 더한다.
-                var addedAttack = RunProgress.CurrentPermanentAttack() - RunProgress.PermanentAttackAtSave;
+                // 레벨/경험치/스탯을 그대로 복원한다. 스냅샷은 "장비/영약 포함 합계"라 저장 시점의 장비/영약 몫을 빼서
+                // 성장 몫을 되살리고, 고정 몫은 지금 장비/영약으로 새로 채운다(그 사이 로비에서 산 것도 자연히 포함).
                 var addedHealth = RunProgress.CurrentPermanentHealth() - RunProgress.PermanentHealthAtSave;
                 var addedCritical = RunProgress.CurrentPermanentCritical() - RunProgress.PermanentCriticalAtSave;
-                Stats = new CharacterStats(RunProgress.MaxHealth + addedHealth, RunProgress.AttackPower + addedAttack)
+                Stats = new CharacterStats(
+                    Mathf.Max(1f, RunProgress.MaxHealth - RunProgress.PermanentHealthAtSave),
+                    Mathf.Max(1f, RunProgress.AttackPower - RunProgress.PermanentAttackAtSave))
                 {
+                    FixedMaxHealth = RunProgress.CurrentPermanentHealth(),
+                    FixedAttack = RunProgress.CurrentPermanentAttack(),
                     CurrentHealth = RunProgress.CurrentHealth + addedHealth,
                     CriticalChanceRate = RunProgress.CriticalChanceRate + addedCritical,
                     DamageReductionRate = RunProgress.DamageReductionRate,
@@ -57,14 +60,15 @@ namespace LoopRogue
             }
             else
             {
-                // 첫 시작(또는 로비를 거치지 않은 평범한 루프 리셋) - 장비 + 영약 보너스를 기본
-                // 스탯 위에 얹는다. 셋 다 GoldWallet처럼 영구 저장이라 매 런 시작마다 다시 적용된다.
-                var baseHealth = 30f + EquipmentWallet.TotalHealthBonus() + StatPotionWallet.TotalHealthBonus();
-                var baseAttack = 6f + EquipmentWallet.TotalAttackBonus() + StatPotionWallet.TotalAttackBonus();
-                Stats = new CharacterStats(maxHealth: baseHealth, attackPower: baseAttack)
+                // 첫 시작(또는 로비를 거치지 않은 평범한 루프 리셋) - 기본 스탯(성장 몫) + 장비/영약(고정 몫).
+                // 장비/영약은 GoldWallet처럼 영구 저장이라 매 런 시작마다 다시 채운다.
+                Stats = new CharacterStats(maxHealth: 30f, attackPower: 6f)
                 {
+                    FixedMaxHealth = RunProgress.CurrentPermanentHealth(),
+                    FixedAttack = RunProgress.CurrentPermanentAttack(),
                     CriticalChanceRate = StatPotionWallet.TotalCriticalChanceBonus(),
                 };
+                Stats.FullHeal();
                 Levels = new LevelSystem(Stats);
             }
 

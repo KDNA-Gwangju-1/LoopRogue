@@ -907,8 +907,8 @@ namespace LoopRogue
             DoShopping();
 
             var stats = _player.Stats;
-            stats.AttackPower += RunProgress.CurrentPermanentAttack() - attackBefore;
-            stats.MaxHealth += RunProgress.CurrentPermanentHealth() - healthBefore;
+            stats.FixedAttack += RunProgress.CurrentPermanentAttack() - attackBefore;
+            stats.FixedMaxHealth += RunProgress.CurrentPermanentHealth() - healthBefore;
             stats.CriticalChanceRate += RunProgress.CurrentPermanentCritical() - criticalBefore;
 
             _hud.ChooseDeathContinue(); // FullHeal + 방1 다시 로드 + 새 시도 시작(BeginAttempt/이벤트 방 다시 뽑기)

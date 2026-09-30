@@ -227,8 +227,8 @@ namespace LoopRogue
 
             sb.AppendLine("<b><color=#FFD966>[기본]</color></b>");
             sb.AppendLine($"레벨  Lv.{levels.Level}  (EXP {levels.Exp}/{levels.ExpToNext})");
-            sb.AppendLine($"체력  {s.CurrentHealth:0} / {s.MaxHealth:0}");
-            sb.AppendLine($"공격력  {s.AttackPower:0.#}");
+            sb.AppendLine($"체력  {s.CurrentHealth:0} / {s.MaxHealth:0}  (장비·영약 {s.FixedMaxHealth:0})");
+            sb.AppendLine($"공격력  {s.AttackPower:0.#}  (장비·영약 {s.FixedAttack:0.#})");
             sb.AppendLine($"치명타  {s.EffectiveCriticalChance * 100f:0.#}%  (피해 {s.CriticalDamageMultiplier * 100f:0.#}%)");
             if (s.CriticalChanceRate > CharacterStats.MaxCriticalChance)
                 sb.AppendLine($"   초과 치명타 {(s.CriticalChanceRate - CharacterStats.MaxCriticalChance) * 100f:0.#}%p → 피해로 전환");

@@ -18,9 +18,16 @@ namespace LoopRogue
 
         private static readonly System.Random Rng = new System.Random();
 
-        public float MaxHealth;
+        /// <summary>최대체력/공격력 = 성장 몫(Base: 기본 + 레벨업 카드) + 고정 몫(Fixed: 장비 + 영약). 레벨업 카드의
+        /// %증감은 성장 몫에만 걸린다 - 예전엔 합계에 곱해서 장비/영약으로 얻은 스탯까지 카드 손해로 깎였고, 같은 장비도
+        /// 카드보다 먼저 샀는지 나중에 샀는지에 따라 실제로 오르는 양이 달랐다. 몹은 고정 몫이 항상 0.</summary>
+        public float BaseMaxHealth;
+        public float FixedMaxHealth;
+        public float BaseAttack;
+        public float FixedAttack;
+        public float MaxHealth => BaseMaxHealth + FixedMaxHealth;
+        public float AttackPower => BaseAttack + FixedAttack;
         public float CurrentHealth;
-        public float AttackPower;
 
         /// <summary>0~1 확률 - 기본 0(치명타 없음), 치명타 영약/레벨업 카드로 오른다.</summary>
         public float CriticalChanceRate;
@@ -42,8 +49,8 @@ namespace LoopRogue
 
         public CharacterStats(float maxHealth, float attackPower)
         {
-            MaxHealth = maxHealth;
-            AttackPower = attackPower;
+            BaseMaxHealth = maxHealth;
+            BaseAttack = attackPower;
             CurrentHealth = maxHealth;
         }
 
@@ -80,10 +87,10 @@ namespace LoopRogue
             CurrentHealth = Mathf.Min(MaxHealth, CurrentHealth + amount);
         }
 
-        /// <summary>도박 카드의 "최대체력 -N%"용 - 최대체력을 배율로 바꾸고 현재 체력이 넘치면 잘라낸다.</summary>
+        /// <summary>카드의 "최대체력 ±N%"용 - 성장 몫만 배율로 바꾸고(장비/영약 몫은 그대로) 현재 체력이 넘치면 잘라낸다.</summary>
         public void MultiplyMaxHealth(float factor)
         {
-            MaxHealth = Mathf.Max(1f, MaxHealth * factor);
+            BaseMaxHealth = Mathf.Max(1f, BaseMaxHealth * factor);
             CurrentHealth = Mathf.Min(CurrentHealth, MaxHealth);
         }
 
@@ -101,7 +108,7 @@ namespace LoopRogue
         /// <summary>레벨업 업그레이드 카드 전용 - 최대체력을 올리고, healToo면 그만큼 즉시 회복도 준다.</summary>
         public void IncreaseMaxHealth(float amount, bool healToo)
         {
-            MaxHealth += amount;
+            BaseMaxHealth += amount;
             if (healToo)
                 CurrentHealth = Mathf.Min(MaxHealth, CurrentHealth + amount);
         }
