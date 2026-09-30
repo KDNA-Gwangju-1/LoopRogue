@@ -9,10 +9,10 @@ namespace LoopRogue
         Charge,   // 돌진 - 플레이어 쪽 일직선으로 돌진
         Cross,    // 십자 - 보스의 가로줄 + 세로줄
         Summon,   // 소환 - 졸개 소환(예고 없음)
-        Ring,     // 파동 - 거리 2~3 고리(보스 바로 옆은 안전)
+        Ring,     // 파동 - 보스 주변 거리 1과 3(거리 2는 안전)
         Snipe,    // 저격 1발 - 플레이어 자리 + 대각선 4칸(X자, 상하좌우로 한 칸 움직이면 피함) → 바로 2발로 이어짐
         SnipeFollowUp, // 저격 2발 - 그때 플레이어 자리의 상하좌우 4칸(마름모, 가운데는 안전 → 대기하면 피함)
-        Diagonal, // X자 - 대각선 4방향
+        Diagonal, // X자 - 플레이어 자리 기준 대각선 4줄(저격처럼 조준)
     }
 
     /// <summary>스테이지 보스의 예고 공격 - 몇 턴마다 공격할 칸을 빨갛게 예고하고(그 턴은 안 움직임), 다음 턴에
@@ -230,11 +230,14 @@ namespace LoopRogue
                         AddTile(map, player.GridPos + d);
                     break;
                 case BossPatternType.Ring:
+                    // 거리 1과 3을 치고 그 사이 거리 2는 안전 - 보스 옆에서 때리다 예고가 뜨면 한 칸 물러나서 피한다.
+                    // 예전(거리 2~3, 바로 옆 안전)은 옆에 붙어 계속 때리면 절대 안 맞아서 패턴이 보스의 공격 턴만 버리게
+                    // 만들었다(봇 100판: 5층 81판 무사망). 1~2칸 전부 치면 예고 후 한 칸 이동으로는 못 빠져나간다.
                     for (var dx = -3; dx <= 3; dx++)
                     for (var dy = -3; dy <= 3; dy++)
                     {
                         var r = Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy));
-                        if (r >= 2)
+                        if (r == 1 || r == 3)
                             AddTile(map, origin + new Vector2Int(dx, dy));
                     }
                     break;
@@ -243,8 +246,11 @@ namespace LoopRogue
                         AddRay(map, origin, d);
                     break;
                 case BossPatternType.Diagonal:
+                    // 저격처럼 플레이어 자리를 조준 - 플레이어 자리 + 거기서 뻗는 대각선 4줄(상하좌우로 한 칸 움직이면 피함).
+                    // 예전엔 보스 기준 대각선이라 보스 상하좌우(공격하는 자리)가 항상 안전했다(봇 100판: 7층 사망 2.4회).
+                    AddTile(map, player.GridPos);
                     foreach (var d in new[] { new Vector2Int(1, 1), new Vector2Int(1, -1), new Vector2Int(-1, 1), new Vector2Int(-1, -1) })
-                        AddRay(map, origin, d);
+                        AddRay(map, player.GridPos, d);
                     break;
                 case BossPatternType.Charge:
                 {
