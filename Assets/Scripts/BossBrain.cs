@@ -20,7 +20,24 @@ namespace LoopRogue
     /// 근접 몹처럼 포위 이동/공격. 스테이지마다 쓰는 패턴 목록이 다르다(StagePatterns).</summary>
     public class BossBrain
     {
-        public const int NormalTurnsBetweenPatterns = 2; // 일반 턴 2번 → 예고 1턴 → 발동 1턴
+        /// <summary>예고 공격 사이 일반 턴 수(최소~최대, 매 사이클 랜덤) - 예전엔 모든 보스가 "일반 2턴 → 예고 → 발동"으로
+        /// 고정이라 몇 번 해보면 박자를 외울 수 있었다. 보스마다 범위를 다르게 두고 매번 그 안에서 굴린다.</summary>
+        private static (int Min, int Max) NormalTurnRange(int stage) => stage switch
+        {
+            1 => (2, 3), // 입문 - 느리고 거의 일정
+            2 => (2, 3),
+            3 => (1, 3),
+            4 => (2, 4), // 소환 + 강타 - 졸개가 있어서 느리게
+            5 => (1, 2), // 파동 - 빠른 박자
+            6 => (2, 3), // 저격은 2연속이라 사이를 넉넉히
+            7 => (1, 3),
+            8 => (1, 3),
+            9 => (1, 2),
+            _ => (1, 3), // 10 - 전부
+        };
+
+        /// <summary>광폭화 - 보스 HP가 이 비율 이하가 되면 일반 턴 수가 1 줄어든다(최소 1, 예고 없는 연속 패턴은 안 됨).</summary>
+        public const float EnrageHealthRatio = 0.5f;
         public const float PatternDamageMultiplier = 1.5f;
         public const int MaxMinions = 2;
         public const float MinionHealthRatio = 0.06f;
@@ -29,6 +46,7 @@ namespace LoopRogue
         /// <summary>자동 플레이 봇 통계용 - 예고 공격이 발동한 횟수 / 그중 플레이어가 맞은 횟수.</summary>
         public static int PatternResolveCount;
         public static int PatternHitCount;
+        public static int EnrageCount;
 
         private static readonly Vector2Int[] Directions =
             { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
@@ -37,6 +55,10 @@ namespace LoopRogue
         private readonly List<BossPatternType> _patterns;
         private int _patternIndex;
         private int _normalTurns;
+        private int _normalTurnsThisCycle;
+        private readonly int _stage;
+        private bool _enraged;
+        private static readonly System.Random Rng = new System.Random();
 
         /// <summary>돌진 후 기절 턴 수 - 없으면 돌진으로 방 반대편에 갔다가 걸어 돌아오는 동안 다음 예고가 떠서
         /// 때릴 틈이 전혀 없었다(봇 30판 중 15판이 스테이지 2 보스에서 서로 한 대도 못 치고 1500턴 반복).</summary>
@@ -50,10 +72,23 @@ namespace LoopRogue
         private readonly HashSet<Vector2Int> _pendingTiles = new HashSet<Vector2Int>();
         private Vector2Int _chargeDirection;
 
-        public BossBrain(EnemyActor boss, List<BossPatternType> patterns)
+        public BossBrain(EnemyActor boss, List<BossPatternType> patterns, int stage)
         {
             _boss = boss;
             _patterns = patterns != null && patterns.Count > 0 ? patterns : new List<BossPatternType> { BossPatternType.Slam };
+            _stage = stage;
+            RollNormalTurns();
+        }
+
+        private void RollNormalTurns()
+        {
+            var (min, max) = NormalTurnRange(_stage);
+            if (_enraged)
+            {
+                min = Mathf.Max(1, min - 1);
+                max = Mathf.Max(1, max - 1);
+            }
+            _normalTurnsThisCycle = Rng.Next(min, max + 1);
         }
 
         /// <summary>스테이지별 패턴 목록 - 1~7은 하나씩, 8~9는 두 개를 번갈아, 10은 전부 돌아가며.</summary>
@@ -102,13 +137,23 @@ namespace LoopRogue
                 return true; // 기절 중 - 아무것도 안 함(공격 기회)
             }
 
-            if (_normalTurns < NormalTurnsBetweenPatterns)
+            if (!_enraged && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * EnrageHealthRatio)
+            {
+                _enraged = true;
+                EnrageCount++;
+                _boss.MarkEnraged();
+                room.ShowMessage("보스가 광폭화했다! 공격이 잦아진다!");
+                _normalTurnsThisCycle = Mathf.Min(_normalTurnsThisCycle, Mathf.Max(1, NormalTurnRange(_stage).Max - 1));
+            }
+
+            if (_normalTurns < _normalTurnsThisCycle)
             {
                 _normalTurns++;
                 return false;
             }
 
             _normalTurns = 0;
+            RollNormalTurns();
             var type = _patterns[_patternIndex];
             _patternIndex = (_patternIndex + 1) % _patterns.Count;
 

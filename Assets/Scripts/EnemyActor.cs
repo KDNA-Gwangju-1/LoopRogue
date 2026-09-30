@@ -41,7 +41,15 @@ namespace LoopRogue
         public string DisplayName => IsBoss ? "보스" : IsMinion ? "졸개" : Kind == EnemyKind.Ranged ? "궁수" : "몬스터";
 
         /// <summary>보스 전용 - 스테이지별 예고 공격 패턴을 붙인다.</summary>
-        public void SetupBossPatterns(List<BossPatternType> patterns) => _brain = new BossBrain(this, patterns);
+        public void SetupBossPatterns(List<BossPatternType> patterns, int stage) => _brain = new BossBrain(this, patterns, stage);
+
+        /// <summary>보스 광폭화 표시 - 붉게 물들인다(BossBrain이 HP 절반 이하가 되는 순간 한 번 부른다).</summary>
+        public void MarkEnraged()
+        {
+            var renderer = GetComponent<SpriteRenderer>();
+            if (renderer != null)
+                renderer.color = new Color(1f, 0.25f, 0.2f);
+        }
 
         /// <summary>보스 소환 졸개로 표시 - 색을 어둡게 해서 일반 몹과 구분.</summary>
         public void MarkAsMinion()

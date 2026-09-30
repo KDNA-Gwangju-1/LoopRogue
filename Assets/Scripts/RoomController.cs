@@ -117,7 +117,7 @@ namespace LoopRogue
             var atk = def.EnemyAttackPower * (ranged ? RangedAttackRatio : 1f);
             enemy.Initialize(hp, atk, def.IsBossRoom, ranged ? EnemyKind.Ranged : EnemyKind.Melee);
             if (def.IsBossRoom)
-                enemy.SetupBossPatterns(def.BossPatterns);
+                enemy.SetupBossPatterns(def.BossPatterns, _stage);
             Map.PlaceActor(enemy, pos);
             _enemies.Add(enemy);
         }
