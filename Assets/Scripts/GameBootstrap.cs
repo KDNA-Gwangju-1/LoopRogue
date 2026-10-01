@@ -77,6 +77,11 @@ namespace LoopRogue
         /// 곱해져서 스테이지마다 세진다 - "벽" 컨셉은 그대로라 어떤 스테이지든 그 스테이지 보스는
         /// 루프(사망 리셋)가 돌아도 안 세지고, 오직 스테이지를 올려야만(=격파해야만) 다음 단계의 더
         /// 강한 벽을 만난다.</summary>
+        /// <summary>플레이어 스킬(대시/회전 베기)을 넣으면서 사용자 요청으로 일반 방 몹 수를 1.5배로("스킬이 사기니 그만큼 몹 수를
+        /// 늘리자"). 방 크기는 그대로라 더 빽빽해진다 - 회전 베기로 여러 마리를 한 번에 치는 상황이 자주 나오게.</summary>
+        private const float EnemyCountMultiplier = 1.5f;
+        private const int MaxEnemiesPerRoom = 12;
+
         private static List<RoomDefinition> BuildStageRooms(int stage)
         {
             var stagePower = stage - 1; // 0-based - 방 크기/몹 수 가산에 그대로 씀.
@@ -88,7 +93,7 @@ namespace LoopRogue
                 // 크기/몹 수는 배율을 안 곱한다 - 격자가 지수적으로 커지면 방이 순식간에 감당 안
                 // 될 만큼 거대해진다. 이 둘은 예전처럼 스테이지당 고정폭으로만 커진다.
                 var size = Mathf.Min(6 + stagePower + (i - 1) / 2, 14);
-                var enemyCount = Mathf.Min(2 + stagePower + (i - 1) / 2, 8);
+                var enemyCount = Mathf.Min(Mathf.RoundToInt((2 + stagePower + (i - 1) / 2) * EnemyCountMultiplier), MaxEnemiesPerRoom);
                 var hp = (8f + (i - 1) * 2f) * stageMultiplier;
                 var atk = (2f + (i - 1) * 0.4f) * stageMultiplier;
 
