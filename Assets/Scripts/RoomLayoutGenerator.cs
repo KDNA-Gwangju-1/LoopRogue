@@ -66,10 +66,7 @@ namespace LoopRogue
             {
                 var density = def.IsBossRoom ? BossWallDensity : NormalWallDensity;
                 var wallCount = Mathf.RoundToInt(layout.Width * layout.Height * density);
-                var cells = AllCells(layout).Where(c => !reserved.Contains(c)).ToList();
-                Shuffle(cells, rng);
-                foreach (var c in cells.Take(wallCount))
-                    layout.Walls.Add(c);
+                PlaceWallShapes(layout, reserved, wallCount, def.IsBossRoom, rng);
 
                 if (!AllFloorConnected(layout))
                     return null;
@@ -114,6 +111,71 @@ namespace LoopRogue
             }
 
             return layout;
+        }
+
+        /// <summary>벽을 한 칸씩 흩뿌리는 대신 모양 있는 덩어리로 깐다(사용자: "갇히는 것 없이 기둥이 생기는 것도 좋다") -
+        /// 2x2 기둥, 3~5칸 일자 벽, ㄱ자 벽. 덩어리끼리는 한 칸 이상 띄워서(대각선 포함) 통로가 막히지 않게 하고,
+        /// 그래도 갇힌 칸이 생기면 호출부의 연결 검사가 방 전체를 다시 뽑는다. 보스방은 패턴 피할 엄폐물이라 2x2 기둥만.</summary>
+        private static void PlaceWallShapes(RoomLayout layout, HashSet<Vector2Int> reserved, int targetCount, bool bossRoom, System.Random rng)
+        {
+            for (var tries = 0; tries < 300 && layout.Walls.Count < targetCount; tries++)
+            {
+                var shape = RandomShape(bossRoom, rng);
+                var origin = new Vector2Int(rng.Next(layout.Width), rng.Next(layout.Height));
+                var cells = shape.Select(o => origin + o).ToList();
+
+                var ok = cells.All(c => c.x >= 0 && c.y >= 0 && c.x < layout.Width && c.y < layout.Height && !reserved.Contains(c));
+                if (ok)
+                {
+                    foreach (var c in cells)
+                    {
+                        for (var dx = -1; dx <= 1 && ok; dx++)
+                        for (var dy = -1; dy <= 1 && ok; dy++)
+                        {
+                            if (layout.Walls.Contains(c + new Vector2Int(dx, dy)))
+                                ok = false;
+                        }
+                    }
+                }
+                if (!ok)
+                    continue;
+
+                foreach (var c in cells)
+                    layout.Walls.Add(c);
+            }
+        }
+
+        private static List<Vector2Int> RandomShape(bool bossRoom, System.Random rng)
+        {
+            var shape = new List<Vector2Int>();
+            var roll = bossRoom ? 0 : rng.Next(100);
+            if (roll < 40)
+            {
+                // 2x2 기둥
+                shape.Add(new Vector2Int(0, 0));
+                shape.Add(new Vector2Int(1, 0));
+                shape.Add(new Vector2Int(0, 1));
+                shape.Add(new Vector2Int(1, 1));
+            }
+            else if (roll < 75)
+            {
+                // 일자 벽 3~5칸(가로/세로)
+                var length = rng.Next(3, 6);
+                var horizontal = rng.Next(2) == 0;
+                for (var i = 0; i < length; i++)
+                    shape.Add(horizontal ? new Vector2Int(i, 0) : new Vector2Int(0, i));
+            }
+            else
+            {
+                // ㄱ자 벽(3칸 + 꺾여서 2칸), 네 방향 중 하나로 뒤집기
+                var sx = rng.Next(2) == 0 ? 1 : -1;
+                var sy = rng.Next(2) == 0 ? 1 : -1;
+                for (var i = 0; i < 3; i++)
+                    shape.Add(new Vector2Int(i * sx, 0));
+                shape.Add(new Vector2Int(0, sy));
+                shape.Add(new Vector2Int(0, 2 * sy));
+            }
+            return shape;
         }
 
         private static IEnumerable<Vector2Int> AllCells(RoomLayout layout)
