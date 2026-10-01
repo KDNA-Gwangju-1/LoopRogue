@@ -121,6 +121,7 @@ namespace LoopRogue
 
             Map.PlaceActor(_player, layout.PlayerStart);
             PositionCamera(layout);
+            FogOfWar.Create(this, _player, layout, _roomObjects);
 
             for (var i = 0; i < layout.EnemyPositions.Count; i++)
             {
