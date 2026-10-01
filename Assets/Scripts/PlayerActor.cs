@@ -37,6 +37,19 @@ namespace LoopRogue
         /// <summary>Q를 눌러 대시 방향을 고르는 중(다음 방향키 = 대시, Q 다시 = 취소).</summary>
         public bool IsAimingDash { get; private set; }
 
+        /// <summary>거미줄 속박 - 0보다 크면 이동·대시 불가(공격/회전 베기/대기는 가능). 행동 1번마다 1씩 준다.</summary>
+        public int RootedTurns { get; private set; }
+
+        /// <summary>방패병 정면을 때려서 피해가 줄어든 누적 횟수(봇 통계용).</summary>
+        public static int ShieldBlockCount;
+
+        /// <summary>거미줄에 맞았을 때(EnemyActor 거미가 부른다).</summary>
+        public void ApplyRoot(int turns)
+        {
+            RootedTurns = Mathf.Max(RootedTurns, turns);
+            IsAimingDash = false;
+        }
+
         public LevelSystem Levels { get; private set; }
 
         /// <summary>적을 때릴 때마다(데미지 적용 직후) 그 적을 알린다 - GameHUD가 상단 타겟 체력바에 쓴다.</summary>
@@ -138,6 +151,8 @@ namespace LoopRogue
             {
                 if (IsAimingDash)
                     IsAimingDash = false;
+                else if (RootedTurns > 0)
+                    _room.ShowMessage("거미줄에 묶여 대시할 수 없다!");
                 else if (DashCooldown > 0)
                     _room.ShowMessage($"대시는 {DashCooldown}턴 뒤에 쓸 수 있다");
                 else
@@ -181,6 +196,12 @@ namespace LoopRogue
 
             var occupant = Map.GetActorAt(targetPos);
 
+            if (RootedTurns > 0 && !(occupant is EnemyActor))
+            {
+                _room.ShowMessage("거미줄에 묶여 움직일 수 없다! (공격·회전 베기·대기는 가능)");
+                return; // 턴 소모 없음
+            }
+
             if (occupant is EnemyActor enemy)
             {
                 BeginAction();
@@ -210,12 +231,19 @@ namespace LoopRogue
 
         /// <summary>몹 하나를 공격력 × damageRate로 때린다(치명타/흡혈/처치 보상 포함). 그 처치로 방이 넘어갔으면 true -
         /// 호출부는 곧바로 끝내야 한다(새 방 몹이 이번 턴에 움직이면 안 됨).</summary>
-        private bool StrikeEnemy(EnemyActor enemy, Vector2Int direction, float damageRate)
+        /// 방패병 정면(지금 서 있는 칸이 방패가 보는 칸)이면 피해가 ShieldFrontDamageRate배 - 회전 베기만 ignoreShield로 무시한다.
+        private bool StrikeEnemy(EnemyActor enemy, Vector2Int direction, float damageRate, bool ignoreShield = false)
         {
             var damage = Stats.RollAttackDamage(out var isCritical) * damageRate;
+            var blocked = !ignoreShield && enemy.IsShieldFront(GridPos);
+            if (blocked)
+            {
+                damage *= EnemyActor.ShieldFrontDamageRate;
+                ShieldBlockCount++;
+            }
             enemy.Stats.TakeDamage(damage);
-            DamagePopup.Spawn(enemy.transform.position, damage, Color.white, isCritical);
-            HitFeedback.OnPlayerHitEnemy(this, enemy, direction, isCritical);
+            DamagePopup.Spawn(enemy.transform.position, damage, blocked ? new Color(0.6f, 0.65f, 0.75f) : Color.white, isCritical && !blocked);
+            HitFeedback.OnPlayerHitEnemy(this, enemy, direction, isCritical, blocked);
             OnAttackedEnemy?.Invoke(enemy);
             Stats.Heal(damage * Stats.EffectiveLifeSteal); // 흡혈 카드(최대 50%)
 
@@ -264,7 +292,7 @@ namespace LoopRogue
         /// <summary>Q 대시 - 한 턴에 최대 3칸 이동, 가는 길에 몹이 있으면 그 앞까지 가서 한 대. 쓸 수 없으면 false(턴 소모 없음).</summary>
         private bool TryDash(Vector2Int dir)
         {
-            if (DashCooldown > 0 || !PreviewDash(dir, out var landing, out var hit))
+            if (DashCooldown > 0 || RootedTurns > 0 || !PreviewDash(dir, out var landing, out var hit))
                 return false;
 
             BeginAction();
@@ -317,7 +345,7 @@ namespace LoopRogue
             {
                 if (enemy == null || enemy.Stats.IsDead)
                     continue;
-                if (StrikeEnemy(enemy, offset, SpinDamageRate))
+                if (StrikeEnemy(enemy, offset, SpinDamageRate, ignoreShield: true))
                     return true; // 방 전환 - 남은 대상은 이미 정리됐다
             }
 
@@ -325,9 +353,11 @@ namespace LoopRogue
             return true;
         }
 
-        /// <summary>행동 하나(이동/공격/대기/스킬)가 확정될 때 - 스킬 쿨타임을 1 줄인다.</summary>
+        /// <summary>행동 하나(이동/공격/대기/스킬)가 확정될 때 - 스킬 쿨타임과 거미줄 속박을 1 줄인다.</summary>
         private void BeginAction()
         {
+            if (RootedTurns > 0)
+                RootedTurns--;
             if (DashCooldown > 0)
                 DashCooldown--;
             if (SpinCooldown > 0)

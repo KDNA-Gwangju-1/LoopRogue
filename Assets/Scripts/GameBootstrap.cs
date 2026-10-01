@@ -121,16 +121,38 @@ namespace LoopRogue
         private const int FirstRangedRoomInStage1 = 6;
         private const int MaxRangedInStage1 = 1;
 
+        /// <summary>방패병/거미 등장 - 새 몹은 한 층 늦게 하나씩 소개한다. 방패병: 2층 방 4부터 1마리, 3층부터 몹의 1/4(최소 1).
+        /// 거미: 3층 방 4부터 1마리, 4층부터 몹의 1/5(최소 1). 가까운 순 목록에서 방패병은 맨 앞(앞줄에서 막게),
+        /// 그다음 근접, 거미, 궁수가 맨 뒤.</summary>
+        private const int NewEnemyFirstRoom = 4;
+
         private static List<EnemyKind> BuildEnemyKinds(int stage, int roomNumber, int enemyCount)
         {
-            var kinds = new List<EnemyKind>(enemyCount);
             int rangedCount;
             if (stage == 1)
                 rangedCount = roomNumber < FirstRangedRoomInStage1 ? 0 : MaxRangedInStage1;
             else
                 rangedCount = Mathf.Max(1, enemyCount / 3);
-            for (var i = 0; i < enemyCount; i++)
-                kinds.Add(i >= enemyCount - rangedCount ? EnemyKind.Ranged : EnemyKind.Melee);
+
+            var shieldCount = stage < 2 ? 0
+                : stage == 2 ? (roomNumber >= NewEnemyFirstRoom ? 1 : 0)
+                : Mathf.Max(1, enemyCount / 4);
+            var spiderCount = stage < 3 ? 0
+                : stage == 3 ? (roomNumber >= NewEnemyFirstRoom ? 1 : 0)
+                : Mathf.Max(1, enemyCount / 5);
+
+            // 근접이 최소 1마리는 남게 - 몹이 적은 방에서 특수 몹만 남지 않도록 거미 → 방패병 순으로 줄인다.
+            while (shieldCount + spiderCount + rangedCount > enemyCount - 1 && spiderCount > 0)
+                spiderCount--;
+            while (shieldCount + spiderCount + rangedCount > enemyCount - 1 && shieldCount > 0)
+                shieldCount--;
+            var meleeCount = Mathf.Max(0, enemyCount - shieldCount - spiderCount - rangedCount);
+
+            var kinds = new List<EnemyKind>(enemyCount);
+            for (var i = 0; i < shieldCount; i++) kinds.Add(EnemyKind.Shield);
+            for (var i = 0; i < meleeCount; i++) kinds.Add(EnemyKind.Melee);
+            for (var i = 0; i < spiderCount; i++) kinds.Add(EnemyKind.Spider);
+            while (kinds.Count < enemyCount) kinds.Add(EnemyKind.Ranged);
             return kinds;
         }
 

@@ -153,6 +153,9 @@ namespace LoopRogue
             public int Spins;             // 회전 베기 사용
             public int DashStrikes;       // 대시로 몹에게 붙어 때린 횟수
             public int DashDodges;        // 한 칸 이동으로는 예고 칸을 못 벗어나 대시로 피한 횟수
+            public int RootedTurns;       // 거미줄에 묶여 보낸 턴
+            public int ShieldFlanks;      // 방패 정면을 피해 옆으로 돌아간 이동
+            public int ShieldBlocks;      // 방패 정면을 때려 피해가 줄어든 횟수
             public readonly int[] Events = new int[4]; // RoomEventType 순서
         }
 
@@ -188,6 +191,7 @@ namespace LoopRogue
         private int _lastGold;
         private int _lastKnownLevel = 1;
         private int _lastEventCount;
+        private int _lastShieldBlocks;
 
         // 속도 측정(요약에 표시)
         private readonly Stopwatch _frameWatch = new Stopwatch();
@@ -798,7 +802,15 @@ namespace LoopRogue
             _lastEnemyHealthSum = enemyHealthSum;
 
             var decisionPos = _player.GridPos;
-            if (!TryUseSkill())
+            if (_player.RootedTurns > 0)
+            {
+                // 거미줄 속박 중엔 이동/대시가 안 된다(BotAct가 아무것도 안 하고 끝나서 같은 판단만 반복하게 됨) -
+                // 회전 베기 > 붙은 몹 공격 > 대기.
+                _run.RootedTurns++;
+                if (!TryUseSkill())
+                    ActWhileRooted();
+            }
+            else if (!TryUseSkill())
             {
                 var dir = ChooseDirection();
                 if (dir.HasValue)
@@ -819,6 +831,8 @@ namespace LoopRogue
                 Detail($"  이벤트: {EventNames[(int)RoomController.LastEventType]} ({_room.RoomName})");
                 Ev("event", ("type", RoomController.LastEventType.ToString()));
             }
+            _run.ShieldBlocks += PlayerActor.ShieldBlockCount - _lastShieldBlocks;
+            _lastShieldBlocks = PlayerActor.ShieldBlockCount;
             RememberMap();
             _hpHistory.Add(_player.Stats.CurrentHealth);
             if (_hpHistory.Count > 3)
@@ -883,6 +897,8 @@ namespace LoopRogue
                 ("hp_prev_turn", prevHp), ("penalty", _hud.LastDeathGoldPenalty),
                 ("alive_melee", alive.Count(e => !e.IsBoss && !e.IsMinion && e.Kind == EnemyKind.Melee)),
                 ("alive_ranged", alive.Count(e => e.Kind == EnemyKind.Ranged)),
+                ("alive_shield", alive.Count(e => e.Kind == EnemyKind.Shield)),
+                ("alive_spider", alive.Count(e => e.Kind == EnemyKind.Spider)),
                 ("alive_minion", alive.Count(e => e.IsMinion)));
 
             Detail($"[사망 #{_stageDeaths}] {_room.RoomName} ({_attemptTurns}턴){bossInfo} | 데스 패널티 골드 -{_hud.LastDeathGoldPenalty} | {StatLine()}");
@@ -992,7 +1008,7 @@ namespace LoopRogue
                 foreach (var d in Directions)
                 {
                     if (_player.PreviewDash(d, out var landing, out var hit) && hit != null && landing != start &&
-                        !danger.Contains(landing) && _player.BotDash(d))
+                        !danger.Contains(landing) && !hit.IsShieldFront(landing) && _player.BotDash(d))
                     {
                         _run.DashStrikes++;
                         _lastDecision = "대시 공격";
@@ -1001,6 +1017,28 @@ namespace LoopRogue
                 }
             }
             return false;
+        }
+
+        /// <summary>속박 중 행동 - 붙은 몹 중 방패 정면이 아닌 쪽 우선, 체력 낮은 순으로 공격. 없으면 대기.</summary>
+        private void ActWhileRooted()
+        {
+            var map = _room.Map;
+            var start = _player.GridPos;
+            var best = Directions
+                .Select(d => (Dir: d, Enemy: map.GetActorAt(start + d) as EnemyActor))
+                .Where(t => t.Enemy != null && !t.Enemy.Stats.IsDead)
+                .OrderBy(t => t.Enemy.IsShieldFront(start) ? 1 : 0)
+                .ThenBy(t => t.Enemy.Stats.CurrentHealth)
+                .FirstOrDefault();
+            if (best.Enemy != null)
+            {
+                _lastDecision = "속박-공격";
+                _player.BotAct(best.Dir);
+                return;
+            }
+            _lastDecision = "속박-대기";
+            _player.BotWait();
+            _run.Waits++;
         }
 
         private Vector2Int? ChooseDirection()
@@ -1033,20 +1071,41 @@ namespace LoopRogue
                 }
             }
 
+            // 방패병: 정면(피해 20%)은 피하고 옆/뒤로 돌아 들어간다. 붙어 있는 동안 방패병은 못 돌기 때문에 옆에 붙기만 하면 된다.
+            // 적 체력이 CrossfireGiveUpTurns턴 동안 안 줄면(돌아갈 자리가 없는 좁은 방 등) 그냥 정면을 때린다.
+            var giveUpFlank = _turnsSinceProgress >= CrossfireGiveUpTurns;
+            Func<Vector2Int, bool> walkableSafe = c => map.IsWalkable(c) && !danger.Contains(c);
+
             EnemyActor target = null;
             var targetDir = Vector2Int.zero;
+            var targetFront = false;
             foreach (var d in Directions)
             {
-                if (map.GetActorAt(start + d) is EnemyActor e && !e.Stats.IsDead &&
-                    (target == null || e.Stats.CurrentHealth < target.Stats.CurrentHealth))
+                if (!(map.GetActorAt(start + d) is EnemyActor e) || e.Stats.IsDead)
+                    continue;
+                var front = e.IsShieldFront(start);
+                var better = target == null || (targetFront && !front) ||
+                             (front == targetFront && e.Stats.CurrentHealth < target.Stats.CurrentHealth);
+                if (better)
                 {
                     target = e;
                     targetDir = d;
+                    targetFront = front;
+                }
+            }
+            if (target != null && targetFront && !giveUpFlank)
+            {
+                var flank = FirstStepTo(c => Directions.Any(d => map.GetActorAt(c + d) is EnemyActor e2 && !e2.IsShieldFront(c)), walkableSafe);
+                if (flank.HasValue)
+                {
+                    _run.ShieldFlanks++;
+                    _lastDecision = "방패 옆으로";
+                    return flank.Value;
                 }
             }
             if (target != null)
             {
-                _lastDecision = "공격";
+                _lastDecision = targetFront ? "공격(방패 정면)" : "공격";
                 return targetDir;
             }
 
@@ -1066,7 +1125,10 @@ namespace LoopRogue
 
             // 적에게 가는 길에 이벤트 칸이 있으면 그냥 밟고 지나간다.
             var eventCell = _room.Event != null ? _room.Event.GridPos : (Vector2Int?)null;
-            Func<Vector2Int, bool> isEnemyAdjacent = c => Directions.Any(d => map.GetActorAt(c + d) is EnemyActor);
+            Func<Vector2Int, bool> isEnemyAdjacentAny = c => Directions.Any(d => map.GetActorAt(c + d) is EnemyActor);
+            Func<Vector2Int, bool> isEnemyAdjacent = giveUpFlank
+                ? isEnemyAdjacentAny
+                : c => Directions.Any(d => map.GetActorAt(c + d) is EnemyActor e && !e.IsShieldFront(c));
             Func<Vector2Int, bool> passable = c => (map.IsWalkable(c) || c == eventCell) && !danger.Contains(c);
 
             // 궁수가 2마리 이상 살아 있으면 "여러 궁수가 동시에 쏠 수 있는 칸"을 비싸게 쳐서 돌아간다(한 줄로 선 궁수
@@ -1101,6 +1163,11 @@ namespace LoopRogue
             {
                 toEnemy = FirstStepTo(isEnemyAdjacent, passable);
                 _lastDecision = "적에게";
+            }
+            if (!toEnemy.HasValue && !giveUpFlank)
+            {
+                toEnemy = FirstStepTo(isEnemyAdjacentAny, passable); // 방패 옆자리가 다 막혔으면 정면이라도
+                _lastDecision = "적에게(방패 정면)";
             }
             if (toEnemy.HasValue)
                 return toEnemy.Value;
@@ -1277,6 +1344,8 @@ namespace LoopRogue
                         EnemyActor e when e.IsBoss => 'B',
                         EnemyActor e when e.IsMinion => 'm',
                         EnemyActor e when e.Kind == EnemyKind.Ranged => 'A',
+                        EnemyActor e when e.Kind == EnemyKind.Shield => 'S',
+                        EnemyActor e when e.Kind == EnemyKind.Spider => 'W',
                         EnemyActor _ => 'M',
                         RoomEventActor _ => 'E',
                         _ => map.IsWall(cell) ? '#' : _room.DangerTiles.Contains(cell) ? 'x' : '.',
@@ -1287,7 +1356,7 @@ namespace LoopRogue
             }
 
             var enemies = _room.Enemies.Where(e => e != null && !e.Stats.IsDead)
-                .Select(e => $"{(e.IsBoss ? 'B' : e.Kind == EnemyKind.Ranged ? 'A' : 'M')}({e.GridPos.x},{e.GridPos.y}) HP{e.Stats.CurrentHealth:0}");
+                .Select(e => $"{(e.IsBoss ? 'B' : e.Kind == EnemyKind.Ranged ? 'A' : e.Kind == EnemyKind.Shield ? 'S' : e.Kind == EnemyKind.Spider ? 'W' : 'M')}({e.GridPos.x},{e.GridPos.y}) HP{e.Stats.CurrentHealth:0}");
             sb.Append($"    적: {string.Join("  ", enemies)}");
             return sb.ToString();
         }
@@ -1492,6 +1561,7 @@ namespace LoopRogue
                 Log($"보스 예고 공격: 판당 {_results.Average(r => r.PatternResolves):0}회 발동, 적중률 {(resolves > 0 ? hits * 100f / resolves : 0f):0}% | 광폭화 판당 {_results.Average(r => r.Enrages):0}회");
                 Log($"궁수 십자포화 우회: 판당 {_results.Average(r => r.CrossfireDetours):0}회");
                 Log($"스킬(판당): 회전 베기 {_results.Average(r => r.Spins):0}회 / 대시 공격 {_results.Average(r => r.DashStrikes):0}회 / 대시 회피 {_results.Average(r => r.DashDodges):0.0}회");
+                Log($"새 몹(판당): 거미줄 속박 {_results.Average(r => r.RootedTurns):0}턴 / 방패 옆으로 돌기 {_results.Average(r => r.ShieldFlanks):0}회 / 방패 정면 타격 {_results.Average(r => r.ShieldBlocks):0}회");
                 Log($"방 이벤트(판당): {string.Join(" / ", Enumerable.Range(0, 4).Select(i => $"{EventNames[i]} {_results.Average(r => r.Events[i]):0.0}"))}");
                 Log($"최종 스탯: ATK {_results.Average(r => r.FinalAttack):0} / 최대HP {_results.Average(r => r.FinalMaxHealth):0} / " +
                     $"치명 {_results.Average(r => r.FinalCritChance) * 100f:0}% (배율 {_results.Average(r => r.FinalCritMultiplier) * 100f:0}%)");

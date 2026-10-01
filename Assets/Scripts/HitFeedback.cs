@@ -13,13 +13,21 @@ namespace LoopRogue
         public static bool Enabled => !DamagePopup.Suppressed;
 
         /// <summary>플레이어가 몹을 때렸을 때(죽었든 아니든 먼저 부른다).</summary>
-        public static void OnPlayerHitEnemy(PlayerActor player, EnemyActor enemy, Vector2Int direction, bool isCritical)
+        public static void OnPlayerHitEnemy(PlayerActor player, EnemyActor enemy, Vector2Int direction, bool isCritical, bool blocked = false)
         {
             if (!Enabled)
                 return;
 
             ActorJuice.Get(player).Bump(direction, BumpDistance);
             var juice = ActorJuice.Get(enemy);
+            if (blocked)
+            {
+                // 방패에 막힘 - 번쩍임 대신 살짝만 찌그러지고 "깡" 소리.
+                juice.Squish(0.06f);
+                CameraShake.Shake(0.03f, 0.06f);
+                SfxPlayer.Play(Sfx.Block);
+                return;
+            }
             juice.Flash(Color.white);
             juice.Squish(isCritical ? 0.3f : 0.18f);
 
@@ -68,6 +76,17 @@ namespace LoopRogue
             ActorJuice.Get(player).Flash(PlayerHurtTint);
             CameraShake.Shake(attacker != null && attacker.IsBoss ? 0.14f : 0.08f, 0.12f);
             SfxPlayer.Play(Sfx.Hurt);
+        }
+
+        /// <summary>거미줄에 맞았을 때 - 하얗게 번쩍이고 끈적한 소리.</summary>
+        public static void OnPlayerWebbed(PlayerActor player)
+        {
+            if (!Enabled)
+                return;
+
+            ActorJuice.Get(player).Flash(new Color(0.85f, 0.8f, 1f));
+            CameraShake.Shake(0.05f, 0.1f);
+            SfxPlayer.Play(Sfx.Web);
         }
 
         /// <summary>보스 예고 공격이 발동하는 순간 - 피했어도 "쾅" 하는 느낌은 주고, 맞았으면 훨씬 크게.</summary>

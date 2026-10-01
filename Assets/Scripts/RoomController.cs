@@ -35,6 +35,12 @@ namespace LoopRogue
         private const float RangedHealthRatio = 0.6f;
         private const float RangedAttackRatio = 0.8f;
 
+        /// <summary>방패병은 단단하고(정면은 피해 80% 감소) 조금 약하게 때린다. 거미는 궁수처럼 약한 대신 거미줄로 묶는다.</summary>
+        private const float ShieldHealthRatio = 1.3f;
+        private const float ShieldAttackRatio = 0.9f;
+        private const float SpiderHealthRatio = 0.7f;
+        private const float SpiderAttackRatio = 0.8f;
+
         private const int GoldPerKill = 4;       // "쓸 곳은 많은데 수급이 부족하다" 피드백으로 전부 2배(2/20/5 → 4/40/10)
         private const int GoldPerBossKill = 40;
         private const int GoldPerRoomClear = 10;
@@ -108,17 +114,24 @@ namespace LoopRogue
 
         private void SpawnEnemy(Vector2Int pos, RoomDefinition def, EnemyKind kind)
         {
-            var ranged = !def.IsBossRoom && kind == EnemyKind.Ranged;
-            var go = new GameObject(def.IsBossRoom ? "Boss" : ranged ? "Archer" : "Enemy");
+            if (def.IsBossRoom)
+                kind = EnemyKind.Melee;
+            var go = new GameObject(def.IsBossRoom ? "Boss" : kind == EnemyKind.Melee ? "Enemy" : kind.ToString());
             go.transform.SetParent(transform, false);
 
+            var (hpRatio, atkRatio) = kind switch
+            {
+                EnemyKind.Ranged => (RangedHealthRatio, RangedAttackRatio),
+                EnemyKind.Shield => (ShieldHealthRatio, ShieldAttackRatio),
+                EnemyKind.Spider => (SpiderHealthRatio, SpiderAttackRatio),
+                _ => (1f, 1f),
+            };
             var enemy = go.AddComponent<EnemyActor>();
-            var hp = def.EnemyMaxHealth * (ranged ? RangedHealthRatio : 1f);
-            var atk = def.EnemyAttackPower * (ranged ? RangedAttackRatio : 1f);
-            enemy.Initialize(hp, atk, def.IsBossRoom, ranged ? EnemyKind.Ranged : EnemyKind.Melee);
+            enemy.Initialize(def.EnemyMaxHealth * hpRatio, def.EnemyAttackPower * atkRatio, def.IsBossRoom, kind);
             if (def.IsBossRoom)
                 enemy.SetupBossPatterns(def.BossPatterns, _stage);
             Map.PlaceActor(enemy, pos);
+            enemy.FaceToward(_player.GridPos); // 방패병은 입장한 플레이어 쪽을 보고 시작
             _enemies.Add(enemy);
         }
 
@@ -324,7 +337,7 @@ namespace LoopRogue
             var claimedSlots = new HashSet<Vector2Int>();
             foreach (var enemy in snapshot)
             {
-                if (enemy.Kind == EnemyKind.Melee && enemy.IsAdjacentTo(playerPos))
+                if (enemy.Kind != EnemyKind.Ranged && enemy.IsAdjacentTo(playerPos))
                     claimedSlots.Add(enemy.GridPos);
             }
 

@@ -193,9 +193,11 @@ namespace LoopRogue
             _hpText.text = $"HP {stats.CurrentHealth:0}/{stats.MaxHealth:0}";
             _levelText.text = $"Lv.{levels.Level}  (ATK {stats.AttackPower:0})";
             _expText.text = $"EXP {levels.Exp}/{levels.ExpToNext}";
-            _skillText.text = _player.IsAimingDash
-                ? "<color=#7FD4FF>[Q] 대시 - 방향키로 방향 선택 (Q: 취소)</color>"
-                : $"{SkillLabel("Q", "대시", _player.DashCooldown)}    {SkillLabel("E", "회전 베기", _player.SpinCooldown)}";
+            _skillText.text = _player.RootedTurns > 0
+                ? "<color=#D9B3FF>거미줄에 묶임! 이동·대시 불가 (공격·E·Space 가능)</color>"
+                : _player.IsAimingDash
+                    ? "<color=#7FD4FF>[Q] 대시 - 방향키로 방향 선택 (Q: 취소)</color>"
+                    : $"{SkillLabel("Q", "대시", _player.DashCooldown)}    {SkillLabel("E", "회전 베기", _player.SpinCooldown)}";
 
             RefreshTarget();
 

@@ -24,6 +24,36 @@ namespace LoopRogue
             return _cachedSquareSprite;
         }
 
+        private static Sprite _cachedTriangleSprite;
+
+        /// <summary>위쪽을 가리키는 이등변 삼각형(방패병) - 32x32 텍스처에 직접 칠한다. 회전으로 방향을 표시한다.</summary>
+        private static Sprite GetTriangleSprite()
+        {
+            if (_cachedTriangleSprite != null)
+                return _cachedTriangleSprite;
+
+            const int size = 32;
+            var tex = new Texture2D(size, size) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            for (var y = 0; y < size; y++)
+            for (var x = 0; x < size; x++)
+            {
+                // 아래 변(y=0) 전체 폭 → 꼭대기(y=size-1) 한 점으로 좁아진다.
+                var halfWidth = (size - 1 - y) * 0.5f;
+                var inside = Mathf.Abs(x + 0.5f - size * 0.5f) <= halfWidth + 0.5f;
+                tex.SetPixel(x, y, inside ? Color.white : Color.clear);
+            }
+            tex.Apply();
+            _cachedTriangleSprite = Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f), size);
+            return _cachedTriangleSprite;
+        }
+
+        public static SpriteRenderer CreateTriangleVisual(GameObject owner, Color color, float size, int sortingOrder)
+        {
+            var renderer = CreateSquareVisual(owner, color, size, sortingOrder);
+            renderer.sprite = GetTriangleSprite();
+            return renderer;
+        }
+
         public static SpriteRenderer CreateSquareVisual(GameObject owner, Color color, float size, int sortingOrder)
         {
             var renderer = owner.GetComponent<SpriteRenderer>();

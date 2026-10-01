@@ -3,11 +3,13 @@ using UnityEngine;
 
 namespace LoopRogue
 {
-    /// <summary>적 종류 - 근접(기본)/원거리(궁수).</summary>
+    /// <summary>적 종류 - 근접(기본)/원거리(궁수)/방패병(정면 공격 80% 감소, 삼각형)/거미(거미줄로 1턴 속박).</summary>
     public enum EnemyKind
     {
         Melee,
         Ranged,
+        Shield,
+        Spider,
     }
 
     /// <summary>일반 몹/보스 공통 - 턴제라 실시간 이동 대신 TurnManager 역할을 하는
@@ -29,6 +31,23 @@ namespace LoopRogue
 
         private int _retreatCooldown;
 
+        /// <summary>방패병: 정면(바라보는 칸)에서 들어오는 공격·대시 피해 배율. 회전 베기는 방향 무시.</summary>
+        public const float ShieldFrontDamageRate = 0.2f;
+
+        /// <summary>방패병은 두 턴에 한 번만 90도씩 돌 수 있다 - 옆/뒤로 돌아 들어가면 때릴 틈이 생기게.
+        /// 도는 턴엔 공격/이동을 안 한다.</summary>
+        private const int ShieldTurnCooldown = 1;
+        private int _shieldTurnCooldown;
+
+        /// <summary>거미: 같은 줄 2~4칸이면 거미줄(공격력 50% + 1턴 속박 = 이동·대시 불가), 쏜 뒤 이 턴 수 동안 다시 못 쏜다.</summary>
+        public const int WebRange = 4;
+        private const int WebCooldownTurns = 4;
+        private const float WebDamageRate = 0.5f;
+        private int _webCooldown;
+
+        /// <summary>방패병이 바라보는 방향(상하좌우). 다른 몹은 의미 없음.</summary>
+        public Vector2Int Facing { get; private set; } = Vector2Int.left;
+
         private static readonly Vector2Int[] Directions =
             { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
 
@@ -38,7 +57,47 @@ namespace LoopRogue
 
         private BossBrain _brain;
 
-        public string DisplayName => IsBoss ? "보스" : IsMinion ? "졸개" : Kind == EnemyKind.Ranged ? "궁수" : "몬스터";
+        public string DisplayName => IsBoss ? "보스" : IsMinion ? "졸개" : Kind switch
+        {
+            EnemyKind.Ranged => "궁수",
+            EnemyKind.Shield => "방패병",
+            EnemyKind.Spider => "거미",
+            _ => "몬스터",
+        };
+
+        /// <summary>attackerPos에서 때리면 방패 정면인지(방패병만).</summary>
+        public bool IsShieldFront(Vector2Int attackerPos) => Kind == EnemyKind.Shield && attackerPos == GridPos + Facing;
+
+        /// <summary>방패병 방향을 target 쪽으로 즉시 맞춘다(방에 처음 놓일 때).</summary>
+        public void FaceToward(Vector2Int target)
+        {
+            if (Kind != EnemyKind.Shield)
+                return;
+            Facing = DirectionToward(target, Facing);
+            ApplyFacingVisual();
+        }
+
+        /// <summary>target 쪽 상하좌우 방향 - 더 먼 축 기준, 같으면 지금 방향이 그중 하나면 유지.</summary>
+        private Vector2Int DirectionToward(Vector2Int target, Vector2Int current)
+        {
+            var diff = target - GridPos;
+            var horizontal = new Vector2Int(System.Math.Sign(diff.x), 0);
+            var vertical = new Vector2Int(0, System.Math.Sign(diff.y));
+            if (Mathf.Abs(diff.x) > Mathf.Abs(diff.y))
+                return horizontal;
+            if (Mathf.Abs(diff.y) > Mathf.Abs(diff.x))
+                return vertical;
+            if (diff == Vector2Int.zero)
+                return current;
+            return current == vertical ? vertical : horizontal;
+        }
+
+        /// <summary>삼각형 꼭짓점이 바라보는 방향을 가리키게 돌린다(스프라이트는 위쪽을 가리키게 그려져 있음).</summary>
+        private void ApplyFacingVisual()
+        {
+            var angle = Mathf.Atan2(Facing.y, Facing.x) * Mathf.Rad2Deg - 90f;
+            transform.rotation = Quaternion.Euler(0f, 0f, angle);
+        }
 
         /// <summary>보스 전용 - 스테이지별 예고 공격 패턴을 붙인다.</summary>
         public void SetupBossPatterns(List<BossPatternType> patterns, int stage) => _brain = new BossBrain(this, patterns, stage);
@@ -78,6 +137,18 @@ namespace LoopRogue
                 color = new Color(0.35f, 0.8f, 0.35f); // 궁수는 초록색 - 한눈에 구분되게
                 scale = GridConstants.CellSize * 0.5f;
             }
+            else if (Kind == EnemyKind.Shield)
+            {
+                // 방패병은 삼각형(사용자 요청) - 꼭짓점이 방패 정면.
+                VisualUtil.CreateTriangleVisual(gameObject, new Color(0.55f, 0.65f, 0.85f), GridConstants.CellSize * 0.75f, sortingOrder: 0);
+                ApplyFacingVisual();
+                return;
+            }
+            else if (Kind == EnemyKind.Spider)
+            {
+                color = new Color(0.6f, 0.3f, 0.85f); // 거미는 보라색
+                scale = GridConstants.CellSize * 0.5f;
+            }
             else
             {
                 color = new Color(0.8f, 0.2f, 0.2f);
@@ -101,8 +172,54 @@ namespace LoopRogue
 
             if (Kind == EnemyKind.Ranged)
                 TakeRangedTurn(player);
+            else if (Kind == EnemyKind.Shield)
+                TakeShieldTurn(player, claimedSlots);
+            else if (Kind == EnemyKind.Spider)
+                TakeSpiderTurn(player, claimedSlots);
             else
                 TakeMeleeTurn(player, claimedSlots);
+        }
+
+        /// <summary>방패병: 플레이어와 붙어 있는 동안은 방향을 못 돌리고 그냥 때린다 - 옆/뒤로 돌아 붙으면 계속 옆을 때릴 수 있다
+        /// (매 턴 돌 수 있게 했다면 플레이어가 옆 칸에 도착하자마자 돌아서 영원히 정면만 때리게 된다).
+        /// 떨어져 있을 땐 플레이어 쪽을 안 보고 있고 돌 수 있으면(두 턴에 한 번) 90도 돈다(그 턴은 끝). 아니면 근접 몹처럼 다가간다.</summary>
+        private void TakeShieldTurn(PlayerActor player, HashSet<Vector2Int> claimedSlots)
+        {
+            var canTurn = _shieldTurnCooldown == 0;
+            if (_shieldTurnCooldown > 0)
+                _shieldTurnCooldown--;
+
+            var desired = DirectionToward(player.GridPos, Facing);
+            if (canTurn && desired != Facing && !IsAdjacentTo(player.GridPos))
+            {
+                // 반대편이면 90도만(시계 방향) - 한 번에 뒤돌지 못한다.
+                Facing = desired == -Facing ? new Vector2Int(Facing.y, -Facing.x) : desired;
+                _shieldTurnCooldown = ShieldTurnCooldown;
+                ApplyFacingVisual();
+                return;
+            }
+
+            TakeMeleeTurn(player, claimedSlots);
+        }
+
+        /// <summary>거미: 붙어 있으면 근접 공격, 같은 줄 2~4칸이고 거미줄이 준비됐으면 거미줄, 아니면 근접 몹처럼 다가간다.</summary>
+        private void TakeSpiderTurn(PlayerActor player, HashSet<Vector2Int> claimedSlots)
+        {
+            if (_webCooldown > 0)
+                _webCooldown--;
+
+            if (!IsAdjacentTo(player.GridPos) && _webCooldown == 0 && CanShoot(player.GridPos, WebRange))
+            {
+                _webCooldown = WebCooldownTurns;
+                SpawnLineVisual(player.transform.position, new Color(0.95f, 0.95f, 1f, 0.9f), 0.12f, 0.25f);
+                var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower * WebDamageRate);
+                DamagePopup.Spawn(player.transform.position, dealt, new Color(0.85f, 0.7f, 1f));
+                player.ApplyRoot(1);
+                HitFeedback.OnPlayerWebbed(player);
+                return;
+            }
+
+            TakeMeleeTurn(player, claimedSlots);
         }
 
         /// <summary>근접 포위: 붙어 있으면 공격. 아니면 플레이어 상하좌우 중 비어 있고 아직 예약 안 된 칸들 가운데
@@ -214,7 +331,7 @@ namespace LoopRogue
                 return;
             }
 
-            if (CanShoot(player.GridPos))
+            if (CanShoot(player.GridPos, RangedAttackRange))
             {
                 SpawnArrowVisual(player.transform.position);
                 HitPlayer(player);
@@ -224,14 +341,14 @@ namespace LoopRogue
             TryMoveToBestSpot(player, mustIncreaseDistance: false);
         }
 
-        private bool CanShoot(Vector2Int target)
+        private bool CanShoot(Vector2Int target, int range)
         {
             var diff = target - GridPos;
             if (diff.x != 0 && diff.y != 0)
                 return false;
 
             var dist = Mathf.Abs(diff.x) + Mathf.Abs(diff.y);
-            if (dist < 2 || dist > RangedAttackRange)
+            if (dist < 2 || dist > range)
                 return false;
 
             // 화살은 아군(다른 몹)은 통과하고 플레이어만 맞히지만, 벽에는 막힌다.
@@ -301,20 +418,24 @@ namespace LoopRogue
         }
 
         /// <summary>궁수 → 플레이어로 가는 가는 노란 선을 잠깐 보여준다(화살 느낌만, 투사체 이동은 없음).</summary>
-        private void SpawnArrowVisual(Vector3 targetWorld)
+        private void SpawnArrowVisual(Vector3 targetWorld) =>
+            SpawnLineVisual(targetWorld, new Color(1f, 0.9f, 0.3f, 0.9f), 0.08f, 0.15f);
+
+        /// <summary>이 몹 → targetWorld로 가는 선을 잠깐 보여준다(화살/거미줄 - 투사체 이동은 없음).</summary>
+        private void SpawnLineVisual(Vector3 targetWorld, Color color, float thickness, float lifetime)
         {
             if (DamagePopup.Suppressed)
                 return; // 봇 초고속 실행 중엔 생략
 
             var from = transform.position;
-            var go = new GameObject("Arrow");
-            var renderer = VisualUtil.CreateSquareVisual(go, new Color(1f, 0.9f, 0.3f), 1f, sortingOrder: 5);
+            var go = new GameObject("Line");
+            var renderer = VisualUtil.CreateSquareVisual(go, color, 1f, sortingOrder: 5);
             var delta = targetWorld - from;
             go.transform.position = (from + targetWorld) * 0.5f + new Vector3(0f, 0f, -0.5f);
-            go.transform.localScale = new Vector3(Mathf.Max(0.05f, delta.magnitude), 0.08f, 1f);
+            go.transform.localScale = new Vector3(Mathf.Max(0.05f, delta.magnitude), thickness, 1f);
             go.transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg);
-            renderer.color = new Color(1f, 0.9f, 0.3f, 0.9f);
-            Destroy(go, 0.15f);
+            renderer.color = color;
+            Destroy(go, lifetime);
         }
     }
 }
