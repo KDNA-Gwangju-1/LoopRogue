@@ -297,6 +297,7 @@ namespace LoopRogue
         {
             var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower);
             DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.35f, 0.35f));
+            HitFeedback.OnPlayerHurt(player, this);
         }
 
         /// <summary>궁수 → 플레이어로 가는 가는 노란 선을 잠깐 보여준다(화살 느낌만, 투사체 이동은 없음).</summary>

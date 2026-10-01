@@ -180,6 +180,7 @@ namespace LoopRogue
         public void ShowTelegraph(IEnumerable<Vector2Int> tiles)
         {
             ClearTelegraph();
+            HitFeedback.OnTelegraph();
             foreach (var t in tiles)
             {
                 _dangerTiles.Add(t);
@@ -239,6 +240,7 @@ namespace LoopRogue
             cam.transform.rotation = Quaternion.identity;
             cam.orthographic = true;
             cam.orthographicSize = Mathf.Max(layout.Width, layout.Height) * GridConstants.CellSize * 0.6f;
+            CameraShake.ResetOffset(cam); // 흔들리던 중 방이 바뀌면 새 위치에서 이전 흔들림을 빼지 않게
         }
 
         private void ClearRoom()

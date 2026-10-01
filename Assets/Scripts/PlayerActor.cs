@@ -134,11 +134,13 @@ namespace LoopRogue
                 var damage = Stats.RollAttackDamage(out var isCritical);
                 enemy.Stats.TakeDamage(damage);
                 DamagePopup.Spawn(enemy.transform.position, damage, Color.white, isCritical);
+                HitFeedback.OnPlayerHitEnemy(this, enemy, direction, isCritical);
                 OnAttackedEnemy?.Invoke(enemy);
                 Stats.Heal(damage * Stats.LifeStealRate); // 흡혈 카드
 
                 if (enemy.Stats.IsDead)
                 {
+                    HitFeedback.OnEnemyKilled(enemy);
                     Map.RemoveActor(enemy);
                     Destroy(enemy.gameObject);
                     Stats.Heal(Stats.MaxHealth * Stats.KillHealRate); // 처치 회복 카드
