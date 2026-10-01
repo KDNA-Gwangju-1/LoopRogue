@@ -52,6 +52,9 @@ namespace LoopRogue
         /// 갈수록 깎인 체력을 그대로 들고 싸우다 죽던 문제(봇 100판에서 10층 일반 방 사망이 보스 사망의 약 30%) 대책.</summary>
         private const float RoomClearHealRate = 0.1f;
 
+        /// <summary>카메라에 보이는 높이의 절반(칸) - 화면 세로로 약 11칸. 시야(FogOfWar.VisionRadius 4.5칸)보다 조금 넓게.</summary>
+        private const float CameraViewHalfHeightCells = 5.5f;
+
         private static readonly System.Random Rng = new System.Random();
         private static readonly Color TelegraphColor = new Color(1f, 0.15f, 0.15f, 0.45f);
         private static readonly Color WallColor = new Color(0.38f, 0.36f, 0.34f);
@@ -115,9 +118,9 @@ namespace LoopRogue
                 Map.AddWall(wall);
 
             BuildFloor(layout, def.IsBossRoom);
-            PositionCamera(layout);
 
             Map.PlaceActor(_player, layout.PlayerStart);
+            PositionCamera(layout);
 
             for (var i = 0; i < layout.EnemyPositions.Count; i++)
             {
@@ -340,19 +343,20 @@ namespace LoopRogue
 
         /// <summary>방마다 크기가 달라서(보스방은 더 큼) 매 방 로드 시 카메라를 방 중앙으로 다시
         /// 맞춘다 - 2D라 회전 없이 Z축 뒤로 물러나서 보는 표준 카메라.</summary>
-        private static void PositionCamera(RoomLayout layout)
+        private void PositionCamera(RoomLayout layout)
         {
             var cam = Camera.main;
             if (cam == null)
                 return;
 
-            var centerX = (layout.Width - 1) * GridConstants.CellSize * 0.5f;
-            var centerY = (layout.Height - 1) * GridConstants.CellSize * 0.5f;
-            cam.transform.position = new Vector3(centerX, centerY, -10f);
+            // 방 전체가 아니라 플레이어 주변만 보이게 당기고(사용자: "시야가 너무 넓다") 플레이어를 따라간다.
+            // 방 경계 바깥은 한 칸까지만 비친다.
             cam.transform.rotation = Quaternion.identity;
             cam.orthographic = true;
-            cam.orthographicSize = Mathf.Max(layout.Width, layout.Height) * GridConstants.CellSize * 0.6f;
-            CameraShake.ResetOffset(cam); // 흔들리던 중 방이 바뀌면 새 위치에서 이전 흔들림을 빼지 않게
+            cam.orthographicSize = CameraViewHalfHeightCells * GridConstants.CellSize;
+            var cs = GridConstants.CellSize;
+            var bounds = Rect.MinMaxRect(-1.5f * cs, -1.5f * cs, (layout.Width + 0.5f) * cs, (layout.Height + 0.5f) * cs);
+            CameraShake.Follow(cam, _player, bounds);
         }
 
         private void ClearRoom()
