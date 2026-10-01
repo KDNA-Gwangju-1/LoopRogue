@@ -25,6 +25,8 @@ namespace LoopRogue
         private SpriteRenderer[,] _cells;
         private bool[,] _explored;
         private readonly HashSet<Vector2Int> _visible = new HashSet<Vector2Int>();
+        private SpriteRenderer _exitTracked;
+        private bool _exitSeen;
 
         /// <summary>방을 깔 때마다 새로 만든다(덮개 오브젝트는 방 오브젝트 목록에 넣어 방과 같이 지워지게).</summary>
         public static FogOfWar Create(RoomController room, PlayerActor player, RoomLayout layout, List<GameObject> roomObjects)
@@ -86,6 +88,20 @@ namespace LoopRogue
                 if (danger.Contains(p))
                     alpha = Mathf.Min(alpha, DangerMaxAlpha);
                 _cells[x, y].color = new Color(0f, 0f, 0f, alpha);
+            }
+
+            // 출구 - 생긴 뒤 시야에 한 번이라도 들어와야 보인다. 그 전엔 이미 지나가서 어둡게 기억된 칸에 생겨도 비쳐 보이지 않게.
+            var exit = _room.ExitRenderer;
+            if (exit != _exitTracked)
+            {
+                _exitTracked = exit;
+                _exitSeen = false;
+            }
+            if (exit != null && _room.ExitPosition.HasValue)
+            {
+                if (_visible.Contains(_room.ExitPosition.Value))
+                    _exitSeen = true;
+                exit.enabled = _exitSeen;
             }
 
             foreach (var enemy in _room.Enemies)

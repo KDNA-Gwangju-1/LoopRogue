@@ -220,6 +220,8 @@ namespace LoopRogue
             {
                 BeginAction();
                 Map.MoveActor(this, targetPos);
+                if (_room.TryUseExit(targetPos))
+                    return; // 다음 방으로 넘어감 - 새 방 몹은 이번 턴에 안 움직인다
             }
             else
             {
@@ -310,6 +312,8 @@ namespace LoopRogue
             if (landing != GridPos)
                 Map.MoveActor(this, landing);
             HitFeedback.OnDash(this, from);
+            if (hit == null && _room.TryUseExit(landing))
+                return true;
 
             if (hit != null)
             {

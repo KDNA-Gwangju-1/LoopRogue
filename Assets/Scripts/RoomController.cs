@@ -82,6 +82,14 @@ namespace LoopRogue
         public static string LastClearedRoom;
         public static bool LastClearedWasBoss;
         public static float LastClearHpFraction;
+        public static int ExitUseCount;
+
+        private static readonly Color ExitColor = new Color(0.3f, 0.75f, 1f, 0.9f);
+
+        /// <summary>몹을 다 잡은 일반 방의 출구 칸 - 없으면 null.</summary>
+        public Vector2Int? ExitPosition { get; private set; }
+        /// <summary>출구 칸 그림 - 안개(FogOfWar)가 직접 본 뒤에만 보이게 켜고 끈다.</summary>
+        public SpriteRenderer ExitRenderer { get; private set; }
         public static int BombPlayerHitCount;
         private RoomEventActor _event;
         private PlayerActor _player;
@@ -375,6 +383,8 @@ namespace LoopRogue
                 if (go != null)
                     Destroy(go);
             _roomObjects.Clear();
+            ExitPosition = null;
+            ExitRenderer = null;
 
             ClearAllTelegraphs();
         }
@@ -436,7 +446,14 @@ namespace LoopRogue
             if (_current.IsBossRoom)
                 _loopManager.OnBossDefeated();
             else
-                _loopManager.AdvanceToNextRoom();
+                SpawnExit();
+        }
+
+        private const int ExitMinDistance = 6;
+
+        /// <summary>일반 방을 비우면 바로 넘어가지 않고 출구 칸을 연다(사용자 요청) - 플레이어에게서 떨어진 랜덤 빈 칸.
+        /// 플레이어가 그 칸을 밟으면(이동/대시) TryUseExit이 다음 방으로 보낸다. 출구는 안개에 가려 있어서 직접 찾아야 한다(메시지로만 알림).</summary>
+        private void SpawnExit()
         }
 
         public void RunEnemyTurns()

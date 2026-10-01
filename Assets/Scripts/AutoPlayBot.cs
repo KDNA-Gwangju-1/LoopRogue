@@ -1222,6 +1222,13 @@ namespace LoopRogue
                 toEnemy = FirstStepTo(isEnemyAdjacentAny, passable); // 방패 옆자리가 다 막혔으면 정면이라도
                 _lastDecision = "적에게(방패 정면)";
             }
+            if (!toEnemy.HasValue && _room.ExitPosition.HasValue)
+            {
+                // 몹을 다 잡으면 출구 칸이 열린다 - 그 칸까지 걸어간다(이벤트는 위에서 먼저 챙겼다).
+                var exit = _room.ExitPosition.Value;
+                toEnemy = FirstStepTo(c => c == exit, passable);
+                _lastDecision = "출구로";
+            }
             if (toEnemy.HasValue)
                 return toEnemy.Value;
 
