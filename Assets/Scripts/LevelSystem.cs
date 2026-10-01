@@ -178,8 +178,12 @@ namespace LoopRogue
             OnUpgradeChoicesReady?.Invoke(picks);
         }
 
+        /// <summary>마지막으로 카드를 고른 프레임 - 같은 숫자키가 퀵슬롯으로 한 번 더 읽히는 걸 막는다(PlayerActor).</summary>
+        public int LastChoiceFrame { get; private set; } = -1;
+
         public void ChooseUpgrade(UpgradeOption option)
         {
+            LastChoiceFrame = UnityEngine.Time.frameCount;
             option.Apply(_stats);
             IsChoosingUpgrade = false;
             OnExpChanged?.Invoke();

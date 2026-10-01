@@ -51,7 +51,7 @@ namespace LoopRogue
             // Esc 메뉴 - 사망/스테이지 클리어(입력 잠금 중)나 레벨업 카드 선택 중에는 안 열린다.
             // 중도 포기도 사망과 같은 데스 패널티(안 그러면 죽기 직전에 Esc로 빠져나가 패널티를 피할 수 있다).
             _hud.gameObject.AddComponent<PauseMenu>().Setup(RetreatToLobby,
-                () => !_roomController.IsInputLocked && !_player.Levels.IsChoosingUpgrade && !_player.Stats.IsDead,
+                () => !_roomController.IsInputLocked && !_player.Levels.IsChoosingUpgrade && !_player.Stats.IsDead && !InventoryUI.IsOpen,
                 lobbyLabel: $"로비로 이동 (이번 시도 골드 {DeathGoldPenaltyRate * 100f:0}% 손실)  [L]",
                 goToTitle: RetreatToTitle);
         }
@@ -69,6 +69,7 @@ namespace LoopRogue
         public void OnPlayerDied()
         {
             _roomController.IsInputLocked = true;
+            Inventory.LoseAll(); // 죽으면 들고 있던 아이템 전부 잃음(사용자 결정)
             var penalty = ApplyDeathGoldPenalty();
             _hud.ShowDeathChoice(ContinueAfterDeath, ReturnToLobby, penalty);
         }
@@ -86,6 +87,7 @@ namespace LoopRogue
         private void RetreatToLobby()
         {
             ApplyDeathGoldPenalty();
+            Inventory.LoseAll(); // 중도 포기도 사망과 같다
             SaveProgressAndLoadLobby();
         }
 
@@ -93,6 +95,7 @@ namespace LoopRogue
         private void RetreatToTitle()
         {
             ApplyDeathGoldPenalty();
+            Inventory.LoseAll();
             SaveProgress();
             UnityEngine.SceneManagement.SceneManager.LoadScene("Title");
         }
@@ -138,7 +141,10 @@ namespace LoopRogue
             RunProgress.Save(_player.Levels, _player.Stats);
         }
 
-        /// <summary>이번 시도에서 이벤트가 나올 방 하나와 종류를 새로 뽑는다(나머지 방은 이벤트 없음).</summary>
+        /// <summary>시도마다 방 이벤트를 새로 뽑는다(사용자 결정): 보물상자(아이템)는 층마다 반드시 1개, 그 밖의 이벤트(회복 샘/축복 제단/
+        /// 저주받은 상자)는 OtherEventChance 확률로 1개 - 둘은 서로 다른 방(방 3~9 중).</summary>
+        private const float OtherEventChance = 0.75f;
+
         private void RollRoomEvent()
         {
             foreach (var room in _rooms)
@@ -148,9 +154,18 @@ namespace LoopRogue
             if (last < FirstEventRoomIndex)
                 return;
 
-            var index = Rng.Next(FirstEventRoomIndex, last + 1);
-            _rooms[index].HasEvent = true;
-            _rooms[index].EventType = RoomEventActor.RollType();
+            var chestIndex = Rng.Next(FirstEventRoomIndex, last + 1);
+            _rooms[chestIndex].HasEvent = true;
+            _rooms[chestIndex].EventType = RoomEventType.TreasureChest;
+
+            if (Rng.NextDouble() >= OtherEventChance || last == FirstEventRoomIndex)
+                return;
+            int otherIndex;
+            do
+                otherIndex = Rng.Next(FirstEventRoomIndex, last + 1);
+            while (otherIndex == chestIndex);
+            _rooms[otherIndex].HasEvent = true;
+            _rooms[otherIndex].EventType = RoomEventActor.RollNonChestType();
         }
 
         public void ShowMessage(string message) => _hud.ShowMessage(message);

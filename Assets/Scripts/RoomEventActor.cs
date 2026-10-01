@@ -51,6 +51,9 @@ namespace LoopRogue
 
         public static RoomEventType RollType() => (RoomEventType)Rng.Next(4);
 
+        /// <summary>보물상자를 뺀 나머지 셋 중 하나(보물상자는 층마다 따로 1개 확정).</summary>
+        public static RoomEventType RollNonChestType() => (RoomEventType)(1 + Rng.Next(3));
+
         /// <summary>플레이어가 밟았을 때. 결과 안내 문구를 돌려준다.</summary>
         public string Trigger(PlayerActor player, int roomClearGold)
         {
@@ -60,7 +63,10 @@ namespace LoopRogue
                 {
                     var gold = roomClearGold * TreasureGoldMultiplier;
                     GoldWallet.Add(gold);
-                    return $"보물상자! 골드 +{gold}";
+                    var item = Inventory.GiveRandomMissing(); // 없는 아이템 중 하나
+                    return item.HasValue
+                        ? $"보물상자! 골드 +{gold}, {ItemInfo.Name(item.Value)} 획득"
+                        : $"보물상자! 골드 +{gold} (아이템은 이미 다 있다)";
                 }
                 case RoomEventType.HealingSpring:
                     player.Stats.FullHeal();

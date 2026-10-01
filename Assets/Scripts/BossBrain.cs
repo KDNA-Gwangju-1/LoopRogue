@@ -123,6 +123,14 @@ namespace LoopRogue
         };
 
         /// <summary>이번 턴 보스 행동. 예고/발동/소환을 했으면 true, 일반 행동을 해야 하면 false.</summary>
+        /// <summary>섬광탄 - 예고해둔 공격(저격 후속 포함)을 없던 일로.</summary>
+        public void CancelPending(RoomController room)
+        {
+            _pending = null;
+            _pendingTiles.Clear();
+            room.ClearTelegraph();
+        }
+
         public bool TakePatternTurn(PlayerActor player, RoomController room)
         {
             if (_pending.HasValue)
@@ -191,8 +199,20 @@ namespace LoopRogue
             if (_pendingTiles.Contains(player.GridPos))
             {
                 PatternHitCount++;
-                var dealt = player.Stats.TakeIncomingDamage(_boss.Stats.AttackPower * PatternDamageMultiplier);
-                DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.2f, 0.2f), isCritical: true);
+                if (player.TryConsumeReflect())
+                {
+                    // 반사 부적 - 플레이어는 안 맞고 보스가 최대 체력의 일정 비율을 맞는다.
+                    var reflected = _boss.Stats.MaxHealth * ItemInfo.ReflectBossDamageRate;
+                    _boss.Stats.TakeDamage(reflected);
+                    DamagePopup.Spawn(_boss.transform.position, reflected, new Color(0.6f, 0.9f, 1f), isCritical: true);
+                    room.ShowMessage("반사 부적! 보스의 공격을 되돌렸다");
+                    room.HandleBossDamagedByItem(_boss);
+                }
+                else
+                {
+                    var dealt = player.Stats.TakeIncomingDamage(_boss.Stats.AttackPower * PatternDamageMultiplier);
+                    DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.2f, 0.2f), isCritical: true);
+                }
             }
             _pendingTiles.Clear();
 

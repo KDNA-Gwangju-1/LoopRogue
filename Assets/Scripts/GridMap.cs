@@ -33,6 +33,9 @@ namespace LoopRogue
 
         public void AddWall(Vector2Int pos) => _walls.Add(pos);
 
+        /// <summary>폭탄 아이템으로 벽을 부술 때.</summary>
+        public void RemoveWall(Vector2Int pos) => _walls.Remove(pos);
+
         public bool IsWalkable(Vector2Int pos) => IsInBounds(pos) && !_walls.Contains(pos) && !_occupancy.ContainsKey(pos);
 
         public void PlaceActor(GridActor actor, Vector2Int pos)

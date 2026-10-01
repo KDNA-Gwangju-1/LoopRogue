@@ -154,6 +154,8 @@ namespace LoopRogue
             public int DashStrikes;       // 대시로 몹에게 붙어 때린 횟수
             public int DashDodges;        // 한 칸 이동으로는 예고 칸을 못 벗어나 대시로 피한 횟수
             public int RootedTurns;       // 거미줄에 묶여 보낸 턴
+            public int[] ItemObtained = new int[ItemInfo.Count];
+            public int[] ItemUsed = new int[ItemInfo.Count];
             public int ShieldFlanks;      // 방패 정면을 피해 옆으로 돌아간 이동
             public int ShieldBlocks;      // 방패 정면을 때려 피해가 줄어든 횟수
             public int BombExplosions;    // 폭발병 폭발
@@ -344,6 +346,8 @@ namespace LoopRogue
         private void BeginRun()
         {
             SaveReset.ResetAll();
+            System.Array.Clear(Inventory.ObtainedCount, 0, ItemInfo.Count);
+            System.Array.Clear(Inventory.UsedCount, 0, ItemInfo.Count);
 
             _run = new RunResult { Index = _results.Count + 1 };
             BossBrain.PatternResolveCount = 0;
@@ -822,7 +826,11 @@ namespace LoopRogue
             _lastEnemyHealthSum = enemyHealthSum;
 
             var decisionPos = _player.GridPos;
-            if (_player.RootedTurns > 0)
+            if (TryUseItemBot())
+            {
+                // 아이템을 썼다(턴 소모)
+            }
+            else if (_player.RootedTurns > 0)
             {
                 // 거미줄 속박 중엔 이동/대시가 안 된다(BotAct가 아무것도 안 하고 끝나서 같은 판단만 반복하게 됨) -
                 // 회전 베기 > 붙은 몹 공격 > 대기.
@@ -1067,6 +1075,71 @@ namespace LoopRogue
                         _lastDecision = "대시 공격";
                         return true;
                     }
+                }
+            }
+            return false;
+        }
+
+        /// <summary>아이템 사용 규칙(단순하게). 횃불(시야는 봇에게 의미 없음)과 반사 부적(봇은 예고 칸을 항상 피해서 쓸 일이 없음)은 안 쓴다.
+        /// 썼으면 true.</summary>
+        private bool TryUseItemBot()
+        {
+            var map = _room.Map;
+            var start = _player.GridPos;
+            var danger = _room.DangerTiles;
+            var hpRate = _player.Stats.CurrentHealth / Mathf.Max(1f, _player.Stats.MaxHealth);
+            var boss = _room.Enemies.FirstOrDefault(e => e != null && e.IsBoss && !e.Stats.IsDead);
+            var adjacent = Directions.Count(d => map.GetActorAt(start + d) is EnemyActor);
+            var near = _room.EnemiesWithin(start, 3).Count;
+
+            bool Use(ItemType type, Vector2Int? dir, string why)
+            {
+                if (!Inventory.Has(type) || !_player.BotUseItem(type, dir))
+                    return false;
+                _lastDecision = $"아이템:{ItemInfo.Name(type)}({why})";
+                return true;
+            }
+
+            if (_player.RootedTurns > 0 && danger.Contains(start) && Use(ItemType.Cleanse, null, "묶인 채 예고 칸"))
+                return true;
+            if (boss != null && !_player.Stats.BlockNextHit && Use(ItemType.Barrier, null, "보스전"))
+                return true;
+            if (boss != null && danger.Count > 0 && hpRate < 0.5f && Use(ItemType.Flash, null, "보스 예고+체력 낮음"))
+                return true;
+            if (boss != null && Mathf.Abs(boss.GridPos.x - start.x) + Mathf.Abs(boss.GridPos.y - start.y) == 1 && Use(ItemType.Weakness, null, "보스 옆"))
+                return true;
+            if (boss == null && near >= 4 && Use(ItemType.Weakness, null, "몹 4+"))
+                return true;
+            if (hpRate < 0.3f && near >= 2 && Use(ItemType.Smoke, null, "체력 낮음"))
+                return true;
+
+            if (Inventory.Has(ItemType.Decoy) && (adjacent >= 3 || (hpRate < 0.35f && adjacent >= 2)))
+            {
+                foreach (var d in Directions)
+                    if (_room.CanPlaceAt(start + d) && Use(ItemType.Decoy, d, "포위"))
+                        return true;
+            }
+
+            if (Inventory.Has(ItemType.Bomb))
+            {
+                foreach (var d in Directions)
+                {
+                    if (!_player.PreviewBomb(d, out var target))
+                        continue;
+                    var hits = _room.EnemiesWithin(target, 1);
+                    if ((hits.Count >= 3 || hits.Any(e => e.IsBoss)) && Use(ItemType.Bomb, d, $"{hits.Count}마리"))
+                        return true;
+                }
+            }
+
+            if (boss != null && Inventory.Has(ItemType.Trap))
+            {
+                var diff = boss.GridPos - start;
+                if (Mathf.Abs(diff.x) + Mathf.Abs(diff.y) >= 3)
+                {
+                    var d = Mathf.Abs(diff.x) >= Mathf.Abs(diff.y) ? new Vector2Int(System.Math.Sign(diff.x), 0) : new Vector2Int(0, System.Math.Sign(diff.y));
+                    if (_room.CanPlaceAt(start + d) && Use(ItemType.Trap, d, "보스 길목"))
+                        return true;
                 }
             }
             return false;
@@ -1459,6 +1532,8 @@ namespace LoopRogue
 
         private void CollectFinalState(RunResult r)
         {
+            r.ItemObtained = (int[])Inventory.ObtainedCount.Clone();
+            r.ItemUsed = (int[])Inventory.UsedCount.Clone();
             // 판 시작 때 골드 0으로 초기화하므로 "번 골드 = 남은 골드 + 쓴 골드 + 뺏긴 골드"가 정확하다
             // (프레임 단위 증가 추적은 한 프레임 안에서 벌고 뺏기면 덜 잡힌다).
             r.GoldEarned = GoldWallet.Gold + r.GoldSpentGacha + r.GoldSpentPotion + r.GoldLostDeath;
@@ -1624,7 +1699,9 @@ namespace LoopRogue
                 Log($"스킬(판당): 회전 베기 {_results.Average(r => r.Spins):0}회 / 대시 공격 {_results.Average(r => r.DashStrikes):0}회 / 대시 회피 {_results.Average(r => r.DashDodges):0.0}회");
                 Log($"새 몹(판당): 거미줄 속박 {_results.Average(r => r.RootedTurns):0}턴 / 방패 옆으로 돌기 {_results.Average(r => r.ShieldFlanks):0}회 / 방패 정면 타격 {_results.Average(r => r.ShieldBlocks):0}회");
                 var bombs = _results.Sum(r => r.BombExplosions);
-                Log($"폭발병(판당): 폭발 {_results.Average(r => r.BombExplosions):0.0}회, 플레이어 적중 {(bombs > 0 ? _results.Sum(r => r.BombHits) * 100f / bombs : 0f):0}%");
+                Log($"아이템(판당): 얻음 {_results.Average(r => r.ItemObtained.Sum()):0.0}개 / 씀 {_results.Average(r => r.ItemUsed.Sum()):0.0}개 | 종류별 씀(전체) " +
+                string.Join(" ", Enumerable.Range(0, ItemInfo.Count).Select(i => $"{ItemInfo.Name((ItemType)i)} {_results.Sum(r => r.ItemUsed[i])}")));
+            Log($"폭발병(판당): 폭발 {_results.Average(r => r.BombExplosions):0.0}회, 플레이어 적중 {(bombs > 0 ? _results.Sum(r => r.BombHits) * 100f / bombs : 0f):0}%");
                 Log($"방 이벤트(판당): {string.Join(" / ", Enumerable.Range(0, 4).Select(i => $"{EventNames[i]} {_results.Average(r => r.Events[i]):0.0}"))}");
                 Log($"최종 스탯: ATK {_results.Average(r => r.FinalAttack):0} / 최대HP {_results.Average(r => r.FinalMaxHealth):0} / " +
                     $"치명 {_results.Average(r => r.FinalCritChance) * 100f:0}% (배율 {_results.Average(r => r.FinalCritMultiplier) * 100f:0}%)");

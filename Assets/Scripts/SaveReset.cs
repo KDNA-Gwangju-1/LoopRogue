@@ -17,6 +17,7 @@ namespace LoopRogue
             StatPotionWallet.Reload();
             StageProgress.Reload();
             GachaSystem.Reload();
+            Inventory.Reload();
             RunProgress.Reload(); // 기본값 계산에 위 지갑들을 쓰므로 마지막에.
         }
     }

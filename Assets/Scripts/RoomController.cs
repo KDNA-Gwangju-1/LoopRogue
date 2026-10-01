@@ -90,6 +90,16 @@ namespace LoopRogue
         public Vector2Int? ExitPosition { get; private set; }
         /// <summary>출구 칸 그림 - 안개(FogOfWar)가 직접 본 뒤에만 보이게 켜고 끈다.</summary>
         public SpriteRenderer ExitRenderer { get; private set; }
+
+        // ---- 아이템이 방에 남기는 것 ----
+        /// <summary>미끼(허수아비) - 있으면 몹들이 플레이어 대신 노린다.</summary>
+        public DecoyActor ActiveDecoy { get; private set; }
+        private readonly List<Vector2Int> _torches = new List<Vector2Int>();
+        public IReadOnlyList<Vector2Int> Torches => _torches;
+        private readonly Dictionary<Vector2Int, GameObject> _traps = new Dictionary<Vector2Int, GameObject>();
+        private readonly List<(Vector2Int Center, List<GameObject> Objects)> _playerBombs = new List<(Vector2Int, List<GameObject>)>();
+        private readonly Dictionary<Vector2Int, GameObject> _wallObjects = new Dictionary<Vector2Int, GameObject>();
+        private static readonly Color PlayerBombColor = new Color(1f, 0.85f, 0.2f, 0.4f);
         public static int BombPlayerHitCount;
         private RoomEventActor _event;
         private PlayerActor _player;
@@ -347,6 +357,7 @@ namespace LoopRogue
                 VisualUtil.CreateSquareVisual(go, WallColor, GridConstants.CellSize, sortingOrder: -8);
                 go.transform.position = new Vector3(wall.x * GridConstants.CellSize, wall.y * GridConstants.CellSize, 0f);
                 _roomObjects.Add(go);
+                _wallObjects[wall] = go;
             }
         }
 
@@ -385,6 +396,13 @@ namespace LoopRogue
             _roomObjects.Clear();
             ExitPosition = null;
             ExitRenderer = null;
+            if (ActiveDecoy != null)
+                Destroy(ActiveDecoy.gameObject);
+            ActiveDecoy = null;
+            _torches.Clear();
+            _traps.Clear();
+            _playerBombs.Clear();
+            _wallObjects.Clear();
 
             ClearAllTelegraphs();
         }
@@ -454,13 +472,56 @@ namespace LoopRogue
         /// <summary>일반 방을 비우면 바로 넘어가지 않고 출구 칸을 연다(사용자 요청) - 플레이어에게서 떨어진 랜덤 빈 칸.
         /// 플레이어가 그 칸을 밟으면(이동/대시) TryUseExit이 다음 방으로 보낸다. 출구는 안개에 가려 있어서 직접 찾아야 한다(메시지로만 알림).</summary>
         private void SpawnExit()
+        {
+            // 위치는 랜덤(사용자 요청) - 단 플레이어 바로 옆이면 찾는 재미가 없으니 ExitMinDistance칸 이상 떨어진 빈 칸 중에서
+            // 고르고, 그런 칸이 없으면 아무 빈 칸.
+            var player = _player.GridPos;
+            var far = new List<Vector2Int>();
+            var any = new List<Vector2Int>();
+            for (var x = 0; x < Map.Width; x++)
+            for (var y = 0; y < Map.Height; y++)
+            {
+                var p = new Vector2Int(x, y);
+                if (!Map.IsWalkable(p))
+                    continue;
+                any.Add(p);
+                if (Mathf.Abs(p.x - player.x) + Mathf.Abs(p.y - player.y) >= ExitMinDistance)
+                    far.Add(p);
+            }
+            var pool = far.Count > 0 ? far : any;
+            Vector2Int? best = pool.Count > 0 ? pool[Rng.Next(pool.Count)] : (Vector2Int?)null;
+            if (!best.HasValue)
+            {
+                _loopManager.AdvanceToNextRoom(); // 안전망 - 빈 칸이 하나도 없으면 예전처럼 바로 이동
+                return;
+            }
+
+            ExitPosition = best.Value;
+            var go = new GameObject("Exit");
+            go.transform.SetParent(transform, false);
+            ExitRenderer = VisualUtil.CreateSquareVisual(go, ExitColor, GridConstants.CellSize * 0.85f, sortingOrder: -6);
+            go.transform.position = new Vector3(best.Value.x * GridConstants.CellSize, best.Value.y * GridConstants.CellSize, 0f);
+            go.AddComponent<ExitMarker>();
+            _roomObjects.Add(go);
+            ShowMessage("출구가 열렸다! (파란 칸)");
+        }
+
+        /// <summary>플레이어가 pos로 막 옮겨왔을 때 - 출구면 다음 방으로 보내고 true(호출부는 이번 턴을 그대로 끝낸다).</summary>
+        public bool TryUseExit(Vector2Int pos)
+        {
+            if (!ExitPosition.HasValue || ExitPosition.Value != pos)
+                return false;
+            ExitPosition = null;
+            ExitUseCount++;
+            _loopManager.AdvanceToNextRoom();
+            return true;
         }
 
         public void RunEnemyTurns()
         {
             // 스냅샷을 떠서 순회한다 - 턴 도중 죽거나 소환돼서 리스트가 바뀌어도 이번 순회엔 영향 없게.
             // 플레이어에게 가까운 몹부터 움직여서 가까운 몹이 가까운 옆 칸을 먼저 예약하게 한다(포위 AI).
-            var playerPos = _player.GridPos;
+            var playerPos = ActiveDecoy != null ? ActiveDecoy.GridPos : _player.GridPos; // 미끼가 있으면 미끼 기준으로 포위
             var snapshot = _enemies
                 .Where(e => e != null)
                 .OrderBy(e => Mathf.Abs(e.GridPos.x - playerPos.x) + Mathf.Abs(e.GridPos.y - playerPos.y))
@@ -480,6 +541,7 @@ namespace LoopRogue
                     continue;
 
                 enemy.TakeTurn(_player, claimedSlots, this);
+                CheckTrap(enemy);
 
                 if (_player.Stats.IsDead)
                 {
@@ -488,6 +550,145 @@ namespace LoopRogue
                     return;
                 }
             }
+
+            EndOfEnemyTurns();
         }
+
+        /// <summary>몹 턴이 다 끝난 뒤 - 던져둔 폭탄이 터지고, 미끼 남은 턴이 준다.</summary>
+        private void EndOfEnemyTurns()
+        {
+            if (ActiveDecoy != null && ActiveDecoy.Tick())
+            {
+                Map.RemoveActor(ActiveDecoy);
+                Destroy(ActiveDecoy.gameObject);
+                ActiveDecoy = null;
+            }
+
+            if (_playerBombs.Count == 0)
+                return;
+            var bombs = _playerBombs.ToArray();
+            _playerBombs.Clear();
+            foreach (var bomb in bombs)
+            {
+                foreach (var go in bomb.Objects)
+                    if (go != null)
+                        Destroy(go);
+                if (ExplodePlayerBomb(bomb.Center))
+                    return; // 방 전환
+            }
+        }
+
+        // ===================== 아이템이 방에 하는 일 =====================
+
+        public bool CanPlaceAt(Vector2Int pos) => Map.IsWalkable(pos) && ExitPosition != pos;
+
+        public void PlaceTorch(Vector2Int pos)
+        {
+            _torches.Add(pos);
+            var go = new GameObject("Torch");
+            go.transform.SetParent(transform, false);
+            VisualUtil.CreateSquareVisual(go, new Color(1f, 0.7f, 0.2f), GridConstants.CellSize * 0.3f, sortingOrder: -6);
+            go.transform.position = new Vector3(pos.x * GridConstants.CellSize, pos.y * GridConstants.CellSize, 0f);
+            go.transform.rotation = Quaternion.Euler(0f, 0f, 45f);
+            _roomObjects.Add(go);
+        }
+
+        public void PlaceTrap(Vector2Int pos)
+        {
+            var go = new GameObject("Trap");
+            go.transform.SetParent(transform, false);
+            VisualUtil.CreateSquareVisual(go, new Color(0.55f, 0.55f, 0.6f, 0.9f), GridConstants.CellSize * 0.5f, sortingOrder: -6);
+            go.transform.position = new Vector3(pos.x * GridConstants.CellSize, pos.y * GridConstants.CellSize, 0f);
+            _roomObjects.Add(go);
+            _traps[pos] = go;
+        }
+
+        private void CheckTrap(EnemyActor enemy)
+        {
+            if (enemy == null || enemy.Stats.IsDead || !_traps.TryGetValue(enemy.GridPos, out var go))
+                return;
+            _traps.Remove(enemy.GridPos);
+            if (go != null)
+                Destroy(go);
+            enemy.Stun(ItemInfo.TrapStunTurns);
+            ShowMessage($"{enemy.DisplayName}이(가) 덫에 걸렸다! ({ItemInfo.TrapStunTurns}턴 기절)");
+        }
+
+        public void PlaceDecoy(Vector2Int pos)
+        {
+            if (ActiveDecoy != null)
+            {
+                Map.RemoveActor(ActiveDecoy);
+                Destroy(ActiveDecoy.gameObject);
+            }
+            var go = new GameObject("Decoy");
+            go.transform.SetParent(transform, false);
+            ActiveDecoy = go.AddComponent<DecoyActor>();
+            ActiveDecoy.Initialize(ItemInfo.DecoyTurns);
+            Map.PlaceActor(ActiveDecoy, pos);
+        }
+
+        /// <summary>폭탄을 던져둔다 - 이번 몹 턴이 끝나면(다음 턴) 터진다. 노란 예고는 표시만(플레이어는 안 맞음).</summary>
+        public void ThrowBomb(Vector2Int center)
+        {
+            var objects = new List<GameObject>();
+            foreach (var t in BlastArea(center))
+                objects.Add(SpawnTelegraphTile(t, PlayerBombColor, -4));
+            _playerBombs.Add((center, objects));
+        }
+
+        private IEnumerable<Vector2Int> BlastArea(Vector2Int center)
+        {
+            for (var dx = -1; dx <= 1; dx++)
+            for (var dy = -1; dy <= 1; dy++)
+            {
+                var p = center + new Vector2Int(dx, dy);
+                if (Map.IsInBounds(p))
+                    yield return p;
+            }
+        }
+
+        /// <summary>플레이어 폭탄 폭발 - 3x3 안 몹에게 피해(방패 무시, 약점 표식 적용), 벽은 부순다. 방이 넘어가면 true.</summary>
+        private bool ExplodePlayerBomb(Vector2Int center)
+        {
+            var area = BlastArea(center).ToList();
+            HitFeedback.OnExplosion(new Vector3(center.x * GridConstants.CellSize, center.y * GridConstants.CellSize, 0f));
+
+            foreach (var t in area)
+            {
+                if (!Map.IsWall(t))
+                    continue;
+                Map.RemoveWall(t);
+                if (_wallObjects.TryGetValue(t, out var wallGo))
+                {
+                    _wallObjects.Remove(t);
+                    if (wallGo != null)
+                        Destroy(wallGo);
+                }
+            }
+
+            var damage = _player.Stats.AttackPower * ItemInfo.BombDamageRate;
+            foreach (var enemy in _enemies.Where(e => e != null && !e.Stats.IsDead && area.Contains(e.GridPos)).ToArray())
+            {
+                var dealt = damage * enemy.DamageTakenMultiplier;
+                enemy.Stats.TakeDamage(dealt);
+                DamagePopup.Spawn(enemy.transform.position, dealt, new Color(1f, 0.85f, 0.3f));
+                if (enemy.Stats.IsDead && _player.ClaimKill(enemy))
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>반사 부적 등 아이템으로 보스가 깎였을 때 - 죽었으면 처치 처리.</summary>
+        public void HandleBossDamagedByItem(EnemyActor boss)
+        {
+            if (boss != null && boss.Stats.IsDead)
+                _player.ClaimKill(boss);
+        }
+
+        /// <summary>주변(체비쇼프 반경) 살아있는 몹 - 연막탄/섬광탄/약점 표식용.</summary>
+        public List<EnemyActor> EnemiesWithin(Vector2Int center, int radius) =>
+            _enemies.Where(e => e != null && !e.Stats.IsDead &&
+                                Mathf.Max(Mathf.Abs(e.GridPos.x - center.x), Mathf.Abs(e.GridPos.y - center.y)) <= radius).ToList();
     }
 }

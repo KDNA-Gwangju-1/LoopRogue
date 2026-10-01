@@ -56,6 +56,22 @@ namespace LoopRogue
         private bool _fuseLit;
         public bool IsFuseLit => _fuseLit;
 
+        /// <summary>이번 턴에 노리는 칸(플레이어 또는 미끼)과 미끼.</summary>
+        private Vector2Int _tp;
+        private DecoyActor _decoyTarget;
+
+        /// <summary>남은 기절 턴(섬광탄/연막탄/덫) - 그동안 아무 행동도 안 한다.</summary>
+        public int StunTurns { get; private set; }
+        public void Stun(int turns) => StunTurns = Mathf.Max(StunTurns, turns);
+
+        /// <summary>약점 표식 - 남은 턴 동안 받는 피해 증가.</summary>
+        public int VulnerableTurns { get; private set; }
+        public void MarkVulnerable(int turns) => VulnerableTurns = Mathf.Max(VulnerableTurns, turns);
+        public float DamageTakenMultiplier => VulnerableTurns > 0 ? ItemInfo.WeaknessDamageMultiplier : 1f;
+
+        /// <summary>섬광탄 - 보스가 예고해둔 공격을 취소한다.</summary>
+        public void CancelBossPattern(RoomController room) => _brain?.CancelPending(room);
+
         /// <summary>방패병이 바라보는 방향(상하좌우). 다른 몹은 의미 없음.</summary>
         public Vector2Int Facing { get; private set; } = Vector2Int.left;
 
@@ -197,6 +213,18 @@ namespace LoopRogue
             if (Stats.IsDead)
                 return;
 
+            if (VulnerableTurns > 0)
+                VulnerableTurns--;
+            if (StunTurns > 0)
+            {
+                StunTurns--; // 기절(섬광탄/연막탄/덫) - 아무것도 안 함
+                return;
+            }
+
+            // 미끼가 있으면 플레이어 대신 미끼를 노린다(보스 예고 패턴만은 플레이어 기준 그대로).
+            _decoyTarget = room.ActiveDecoy;
+            _tp = _decoyTarget != null ? _decoyTarget.GridPos : player.GridPos;
+
             // 보스는 예고/발동/소환 턴이면 그걸로 끝, 아니면 일반 근접 행동.
             if (_brain != null && _brain.TakePatternTurn(player, room))
                 return;
@@ -223,7 +251,7 @@ namespace LoopRogue
                 return;
             }
 
-            if (IsAdjacentTo(player.GridPos))
+            if (IsAdjacentTo(_tp))
             {
                 _fuseLit = true;
                 var renderer = GetComponent<SpriteRenderer>();
@@ -246,8 +274,8 @@ namespace LoopRogue
             if (_shieldTurnCooldown > 0)
                 _shieldTurnCooldown--;
 
-            var desired = DirectionToward(player.GridPos, Facing);
-            if (canTurn && desired != Facing && !IsAdjacentTo(player.GridPos))
+            var desired = DirectionToward(_tp, Facing);
+            if (canTurn && desired != Facing && !IsAdjacentTo(_tp))
             {
                 // 반대편이면 90도만(시계 방향) - 한 번에 뒤돌지 못한다.
                 Facing = desired == -Facing ? new Vector2Int(Facing.y, -Facing.x) : desired;
@@ -256,9 +284,9 @@ namespace LoopRogue
                 return;
             }
 
-            if (IsAdjacentTo(player.GridPos))
+            if (IsAdjacentTo(_tp))
             {
-                HitPlayer(player); // 공격은 매 턴
+                HitTarget(player); // 공격은 매 턴
                 return;
             }
 
@@ -279,10 +307,15 @@ namespace LoopRogue
             if (_webCooldown > 0)
                 _webCooldown--;
 
-            if (!IsAdjacentTo(player.GridPos) && _webCooldown == 0 && CanShoot(player.GridPos, WebRange))
+            if (!IsAdjacentTo(_tp) && _webCooldown == 0 && CanShoot(_tp, WebRange))
             {
                 _webCooldown = WebCooldownTurns;
-                SpawnLineVisual(player.transform.position, new Color(0.95f, 0.95f, 1f, 0.9f), 0.12f, 0.25f);
+                SpawnLineVisual(TargetWorld(player), new Color(0.95f, 0.95f, 1f, 0.9f), 0.12f, 0.25f);
+                if (_decoyTarget != null)
+                {
+                    _decoyTarget.TakeHit(this, Stats.AttackPower * WebDamageRate);
+                    return;
+                }
                 var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower * WebDamageRate);
                 DamagePopup.Spawn(player.transform.position, dealt, new Color(0.85f, 0.7f, 1f));
                 player.ApplyRoot(1);
@@ -298,16 +331,16 @@ namespace LoopRogue
         /// 돌아 들어온다. 갈 칸이 없으면(다 찼거나 막힘) 플레이어 쪽으로 그리디하게 한 칸.</summary>
         private void TakeMeleeTurn(PlayerActor player, HashSet<Vector2Int> claimedSlots)
         {
-            if (IsAdjacentTo(player.GridPos))
+            if (IsAdjacentTo(_tp))
             {
-                HitPlayer(player);
+                HitTarget(player);
                 return;
             }
 
             var slots = new HashSet<Vector2Int>();
             foreach (var d in Directions)
             {
-                var slot = player.GridPos + d;
+                var slot = _tp + d;
                 if (Map.IsWalkable(slot) && !claimedSlots.Contains(slot))
                     slots.Add(slot);
             }
@@ -319,7 +352,7 @@ namespace LoopRogue
                 return;
             }
 
-            StepGreedilyToward(player.GridPos);
+            StepGreedilyToward(_tp);
         }
 
         /// <summary>현재 칸에서 빈 칸만 밟는 BFS로 targets 중 가장 가까운 칸을 찾는다. 찾으면 그 칸과 첫 걸음을 돌려준다.</summary>
@@ -389,7 +422,7 @@ namespace LoopRogue
         /// 3) 그 외엔 "줄이 맞고 선호 거리에 가까운" 칸으로 한 칸 이동. 이동(물러나기 포함)은 RetreatCooldownTurns마다 한 번만.</summary>
         private void TakeRangedTurn(PlayerActor player)
         {
-            var diff = player.GridPos - GridPos;
+            var diff = _tp - GridPos;
             var dist = Mathf.Abs(diff.x) + Mathf.Abs(diff.y);
             if (_retreatCooldown > 0)
                 _retreatCooldown--;
@@ -398,14 +431,14 @@ namespace LoopRogue
             {
                 // 물러날 수 있으면(쿨타임 끝) 한 칸 물러나고, 아니면 그 자리에서 근접 공격.
                 if (!TryMoveToBestSpot(player, mustIncreaseDistance: true))
-                    HitPlayer(player);
+                    HitTarget(player);
                 return;
             }
 
-            if (CanShoot(player.GridPos, RangedAttackRange))
+            if (CanShoot(_tp, RangedAttackRange))
             {
-                SpawnArrowVisual(player.transform.position);
-                HitPlayer(player);
+                SpawnArrowVisual(TargetWorld(player));
+                HitTarget(player);
                 return;
             }
 
@@ -436,11 +469,11 @@ namespace LoopRogue
         /// 점수: 줄 어긋남(작을수록 좋음)이 최우선, 플레이어에게 붙는 칸(거리 1)은 금지, 그다음 선호 거리와의 차이.</summary>
         private bool TryMoveToBestSpot(PlayerActor player, bool mustIncreaseDistance)
         {
-            var currentDist = Distance(GridPos, player.GridPos);
+            var currentDist = Distance(GridPos, _tp);
             if (_retreatCooldown > 0)
                 return false; // 궁수는 두 턴에 한 번만 이동
 
-            var bestScore = mustIncreaseDistance ? int.MaxValue : SpotScore(GridPos, player.GridPos);
+            var bestScore = mustIncreaseDistance ? int.MaxValue : SpotScore(GridPos, _tp);
             Vector2Int? best = null;
 
             foreach (var d in Directions)
@@ -448,11 +481,11 @@ namespace LoopRogue
                 var p = GridPos + d;
                 if (!Map.IsWalkable(p))
                     continue;
-                var newDist = Distance(p, player.GridPos);
+                var newDist = Distance(p, _tp);
                 if (mustIncreaseDistance && newDist <= currentDist)
                     continue;
 
-                var score = SpotScore(p, player.GridPos);
+                var score = SpotScore(p, _tp);
                 if (score < bestScore)
                 {
                     bestScore = score;
@@ -480,6 +513,19 @@ namespace LoopRogue
         }
 
         private static int Distance(Vector2Int a, Vector2Int b) => Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
+
+        private Vector3 TargetWorld(PlayerActor player) => _decoyTarget != null ? _decoyTarget.transform.position : player.transform.position;
+
+        /// <summary>노리는 대상을 때린다 - 미끼면 미끼가 맞고, 아니면 플레이어.</summary>
+        private void HitTarget(PlayerActor player)
+        {
+            if (_decoyTarget != null)
+            {
+                _decoyTarget.TakeHit(this, Stats.AttackPower);
+                return;
+            }
+            HitPlayer(player);
+        }
 
         private void HitPlayer(PlayerActor player)
         {

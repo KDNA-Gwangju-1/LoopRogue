@@ -69,6 +69,8 @@ namespace LoopRogue
 
             _visible.Clear();
             ComputeVisible(_room.Map, _player.GridPos, VisionRadius);
+            foreach (var torch in _room.Torches)
+                ComputeVisible(_room.Map, torch, ItemInfo.TorchRadius); // 횃불 주변도 밝게
             var danger = _room.DangerTiles;
 
             for (var x = 0; x < _width; x++)

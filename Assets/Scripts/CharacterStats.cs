@@ -79,8 +79,16 @@ namespace LoopRogue
         /// <summary>플레이어가 받은 피해 누적(TakeIncomingDamage는 플레이어만 쓴다) - 봇의 방당 받은 피해 측정용.</summary>
         public static double IncomingDamageTotal;
 
+        /// <summary>보호막 아이템 - 다음 피해 1회 무효.</summary>
+        public bool BlockNextHit;
+
         public float TakeIncomingDamage(float rawDamage)
         {
+            if (BlockNextHit)
+            {
+                BlockNextHit = false;
+                return 0f;
+            }
             var reduction = Mathf.Clamp(DamageReductionRate, -MaxDamageReduction, MaxDamageReduction);
             var damage = rawDamage * (1f - reduction);
             TakeDamage(damage);

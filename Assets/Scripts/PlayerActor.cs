@@ -43,12 +43,164 @@ namespace LoopRogue
         /// <summary>방패병 정면을 때려서 피해가 줄어든 누적 횟수(봇 통계용).</summary>
         public static int ShieldBlockCount;
 
-        /// <summary>거미줄에 맞았을 때(EnemyActor 거미가 부른다).</summary>
+        /// <summary>거미줄에 맞았을 때(EnemyActor 거미가 부른다). 정화제 효과 중엔 무시.</summary>
         public void ApplyRoot(int turns)
         {
+            if (WebImmuneTurns > 0)
+                return;
             RootedTurns = Mathf.Max(RootedTurns, turns);
             IsAimingDash = false;
+            AimingItem = null;
         }
+
+        // ---- 아이템 ----
+        /// <summary>방향을 고르는 중인 아이템(퀵슬롯/인벤토리에서 고른 횃불·폭탄·미끼·덫). 다음 방향키 = 사용, 같은 키 = 취소.</summary>
+        public ItemType? AimingItem { get; private set; }
+        /// <summary>정화제 - 남은 턴 동안 거미줄 무시.</summary>
+        public int WebImmuneTurns { get; private set; }
+        /// <summary>반사 부적 - 남은 턴 안에 맞는 보스 예고 공격 1회를 되돌린다.</summary>
+        public int ReflectTurns { get; private set; }
+
+        private static readonly System.Random ItemRng = new System.Random();
+
+        /// <summary>보스 예고 공격에 맞는 순간 BossBrain이 부른다 - 반사 부적이 켜져 있으면 써버리고 true.</summary>
+        public bool TryConsumeReflect()
+        {
+            if (ReflectTurns <= 0)
+                return false;
+            ReflectTurns = 0;
+            return true;
+        }
+
+        /// <summary>아이템 쓰기 - 방향이 필요한 아이템은 dir가 있어야 한다. 쓸 수 없으면 false(턴 소모 없음, 아이템 그대로).</summary>
+        public bool TryUseItem(ItemType type, Vector2Int? dir)
+        {
+            if (!Inventory.Has(type) || !Inventory.IsInQuickSlot(type))
+                return false; // 퀵슬롯에 등록된 것만 쓸 수 있다
+            if (ItemInfo.NeedsDirection(type) && !dir.HasValue)
+                return false;
+
+            Vector2Int target = default;
+            if (type == ItemType.Bomb)
+            {
+                if (!PreviewBomb(dir.Value, out target))
+                    return false;
+            }
+            else if (ItemInfo.NeedsDirection(type))
+            {
+                target = GridPos + dir.Value;
+                if (!_room.CanPlaceAt(target))
+                    return false;
+            }
+            else if (type == ItemType.Cleanse && RootedTurns <= 0 && WebImmuneTurns > 0)
+            {
+                return false;
+            }
+
+            BeginAction();
+            Inventory.Consume(type);
+            ApplyItem(type, target);
+            EndTurn();
+            return true;
+        }
+
+        private void ApplyItem(ItemType type, Vector2Int target)
+        {
+            switch (type)
+            {
+                case ItemType.Torch:
+                    _room.PlaceTorch(target);
+                    _room.ShowMessage("횃불을 놓았다");
+                    break;
+                case ItemType.Bomb:
+                    _room.ThrowBomb(target);
+                    _room.ShowMessage("폭탄을 던졌다! 다음 턴에 터진다");
+                    break;
+                case ItemType.Decoy:
+                    _room.PlaceDecoy(target);
+                    _room.ShowMessage($"미끼! {ItemInfo.DecoyTurns}턴 동안 몹들이 허수아비를 노린다");
+                    break;
+                case ItemType.Trap:
+                    _room.PlaceTrap(target);
+                    _room.ShowMessage("덫을 놓았다");
+                    break;
+                case ItemType.Smoke:
+                    foreach (var e in _room.EnemiesWithin(GridPos, ItemInfo.SmokeRadius))
+                        e.Stun(ItemInfo.SmokeStunTurns);
+                    _room.ShowMessage($"연막! 주변 몹이 {ItemInfo.SmokeStunTurns}턴 동안 플레이어를 못 찾는다");
+                    break;
+                case ItemType.Cleanse:
+                    RootedTurns = 0;
+                    WebImmuneTurns = ItemInfo.CleanseImmuneTurns;
+                    _room.ShowMessage("정화제! 거미줄이 풀렸다");
+                    break;
+                case ItemType.Flash:
+                {
+                    foreach (var e in _room.Enemies.Where(b => b != null && b.IsBoss && !b.Stats.IsDead))
+                    {
+                        e.CancelBossPattern(_room);
+                        e.Stun(ItemInfo.FlashBossStunTurns);
+                    }
+                    foreach (var e in _room.EnemiesWithin(GridPos, ItemInfo.FlashRadius).Where(m => !m.IsBoss))
+                        e.Stun(ItemInfo.FlashEnemyStunTurns);
+                    _room.ShowMessage("섬광탄! 보스의 공격이 취소됐다");
+                    break;
+                }
+                case ItemType.Reflect:
+                    ReflectTurns = ItemInfo.ReflectTurns;
+                    _room.ShowMessage($"반사 부적! {ItemInfo.ReflectTurns}턴 안에 맞는 보스 공격을 되돌린다");
+                    break;
+                case ItemType.Weakness:
+                    foreach (var e in _room.EnemiesWithin(GridPos, ItemInfo.WeaknessRadius))
+                        e.MarkVulnerable(ItemInfo.WeaknessTurns);
+                    foreach (var e in _room.Enemies.Where(b => b != null && b.IsBoss && !b.Stats.IsDead))
+                        e.MarkVulnerable(ItemInfo.WeaknessTurns);
+                    _room.ShowMessage("약점 표식! 받는 피해가 늘어난다");
+                    break;
+                case ItemType.Barrier:
+                    Stats.BlockNextHit = true;
+                    _room.ShowMessage("보호막! 다음 피해 1회 무효");
+                    break;
+            }
+        }
+
+        /// <summary>폭탄이 떨어질 칸 - 최대 BombRange칸 앞, 벽/몹 앞에서 멈춘다(몹 바로 앞에 떨어짐). 한 칸도 못 가면 막힌 옆 칸
+        /// 자체에 터뜨린다(벽 부수기용). 방 밖이면 false. 봇도 같은 계산을 쓴다.</summary>
+        public bool PreviewBomb(Vector2Int dir, out Vector2Int target)
+        {
+            target = GridPos;
+            for (var i = 0; i < ItemInfo.BombRange; i++)
+            {
+                var next = target + dir;
+                if (!Map.IsInBounds(next) || Map.IsWall(next) || Map.GetActorAt(next) != null)
+                {
+                    if (target == GridPos && Map.IsInBounds(next))
+                        target = next;
+                    break;
+                }
+                target = next;
+            }
+            return target != GridPos;
+        }
+
+        /// <summary>퀵슬롯/인벤토리에서 아이템을 골랐을 때 - 방향이 필요하면 고르기 모드, 아니면 바로 쓴다.</summary>
+        public void SelectItem(ItemType type)
+        {
+            if (!CanAct || !Inventory.Has(type))
+                return;
+            IsAimingDash = false;
+            if (ItemInfo.NeedsDirection(type))
+            {
+                AimingItem = AimingItem == type ? (ItemType?)null : type;
+                return;
+            }
+            AimingItem = null;
+            if (!TryUseItem(type, null))
+                _room.ShowMessage("지금은 쓸 수 없다");
+        }
+
+        /// <summary>자동 플레이 봇용.</summary>
+        public bool BotUseItem(ItemType type, Vector2Int? dir = null) => CanAct && TryUseItem(type, dir);
 
         public LevelSystem Levels { get; private set; }
 
@@ -119,7 +271,7 @@ namespace LoopRogue
         }
 
         /// <summary>지금 이동/공격 입력을 받을 수 있는 상태인지(키 입력과 자동 플레이 봇이 같은 조건을 쓴다).</summary>
-        public bool CanAct => _room != null && !_room.IsInputLocked && !Levels.IsChoosingUpgrade && !Stats.IsDead && !PauseMenu.BlocksInput;
+        public bool CanAct => _room != null && !_room.IsInputLocked && !Levels.IsChoosingUpgrade && !Stats.IsDead && !PauseMenu.BlocksInput && !InventoryUI.IsOpen;
 
         /// <summary>자동 플레이 봇용 - 방향키 한 번 누른 것과 똑같이 한 턴 행동한다.</summary>
         public void BotAct(Vector2Int direction)
@@ -146,6 +298,40 @@ namespace LoopRogue
                 direction = Vector2Int.left;
             else if (keyboard.dKey.wasPressedThisFrame || keyboard.rightArrowKey.wasPressedThisFrame)
                 direction = Vector2Int.right;
+
+            if (InventoryUI.LastCloseFrame == Time.frameCount)
+                return; // 인벤토리를 닫은 키가 이동/대기로 또 읽히지 않게
+
+            // 레벨업 카드를 숫자키로 고른 바로 그 프레임엔 같은 키가 퀵슬롯으로도 읽히지 않게.
+            var choseCardThisFrame = Levels.LastChoiceFrame == Time.frameCount;
+            for (var slot = 0; slot < Inventory.QuickSlotCount && !choseCardThisFrame; slot++)
+            {
+                var key = slot == 0 ? keyboard.digit1Key : slot == 1 ? keyboard.digit2Key : keyboard.digit3Key;
+                if (!key.wasPressedThisFrame)
+                    continue;
+                var item = Inventory.QuickSlot(slot);
+                if (item.HasValue && Inventory.Has(item.Value))
+                    SelectItem(item.Value);
+                else
+                    _room.ShowMessage($"퀵슬롯 {slot + 1}이 비어 있다 (I: 인벤토리)");
+                return;
+            }
+
+            if (AimingItem.HasValue)
+            {
+                if (keyboard.qKey.wasPressedThisFrame || keyboard.eKey.wasPressedThisFrame)
+                    AimingItem = null; // 스킬 키를 누르면 아이템 고르기 취소(아래에서 스킬 처리)
+                else if (direction.HasValue)
+                {
+                    var item = AimingItem.Value;
+                    AimingItem = null;
+                    if (!TryUseItem(item, direction.Value))
+                        _room.ShowMessage("그쪽으로는 쓸 수 없다");
+                    return;
+                }
+                else
+                    return; // 방향 고르는 중
+            }
 
             if (keyboard.qKey.wasPressedThisFrame)
             {
@@ -238,7 +424,7 @@ namespace LoopRogue
         /// 일반 방에서 맞는 만큼 회복해 버렸다).
         private bool StrikeEnemy(EnemyActor enemy, Vector2Int direction, float damageRate, bool ignoreShield = false, bool isSkill = false)
         {
-            var damage = Stats.RollAttackDamage(out var isCritical) * damageRate;
+            var damage = Stats.RollAttackDamage(out var isCritical) * damageRate * enemy.DamageTakenMultiplier;
             var blocked = !ignoreShield && enemy.IsShieldFront(GridPos);
             if (blocked)
             {
@@ -258,10 +444,17 @@ namespace LoopRogue
             return ClaimKill(enemy);
         }
 
-        /// <summary>죽은 몹을 플레이어가 잡은 것으로 처리(제거 + 처치 회복 + 경험치 + 골드/방 전환). 방이 넘어갔으면 true.</summary>
-        private bool ClaimKill(EnemyActor enemy)
+        /// <summary>죽은 몹을 플레이어가 잡은 것으로 처리(제거 + 처치 회복 + 경험치 + 골드/방 전환 + 가끔 아이템). 직접 때린 경우와
+        /// 폭탄/반사 부적 공통. 방이 넘어갔으면 true.</summary>
+        public bool ClaimKill(EnemyActor enemy)
         {
             HitFeedback.OnEnemyKilled(enemy);
+            if (!enemy.IsBoss && !enemy.IsMinion && ItemRng.NextDouble() < ItemInfo.MobDropChance)
+            {
+                var drop = Inventory.GiveRandomMissing();
+                if (drop.HasValue)
+                    _room.ShowMessage($"{enemy.DisplayName}이(가) {ItemInfo.Name(drop.Value)}을(를) 떨어뜨렸다!");
+            }
             Map.RemoveActor(enemy);
             Destroy(enemy.gameObject);
             Stats.Heal(Stats.MaxHealth * Stats.KillHealRate); // 처치 회복 카드
@@ -371,6 +564,10 @@ namespace LoopRogue
         {
             if (RootedTurns > 0)
                 RootedTurns--;
+            if (WebImmuneTurns > 0)
+                WebImmuneTurns--;
+            if (ReflectTurns > 0)
+                ReflectTurns--;
             if (DashCooldown > 0)
                 DashCooldown--;
             if (SpinCooldown > 0)
