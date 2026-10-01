@@ -72,10 +72,9 @@ namespace LoopRogue
 
         private static readonly Color BombTelegraphColor = new Color(1f, 0.6f, 0.1f, 0.45f);
 
-        /// <summary>자동 플레이 봇 통계용 - 폭발 횟수, 그중 플레이어 적중, 폭발로 죽은 다른 몹.</summary>
+        /// <summary>자동 플레이 봇 통계용 - 폭발 횟수, 그중 플레이어 적중.</summary>
         public static int BombExplosionCount;
         public static int BombPlayerHitCount;
-        public static int BombEnemyKillCount;
         private RoomEventActor _event;
         private PlayerActor _player;
         private LoopManager _loopManager;
@@ -277,8 +276,8 @@ namespace LoopRogue
             RebuildDangerTiles();
         }
 
-        /// <summary>폭발병이 터진다 - 예고했던 3x3 안의 플레이어와 다른 몹 모두에게 damage. 폭발병 자신은 보상 없이 사라지고,
-        /// 폭발로 죽은 몹은 플레이어가 잡은 것처럼 보상(경험치/골드)을 준다. 몹 턴 도중에 방이 비면 여기서 바로 다음 방으로 넘어간다
+        /// <summary>폭발병이 터진다 - 예고했던 3x3 안에 플레이어가 있으면 damage(다른 몹은 안 맞음). 폭발병 자신은 보상 없이
+        /// 사라진다. 그게 마지막 몹이었으면 몹 턴 도중이라도 여기서 바로 다음 방으로 넘어간다
         /// (RunEnemyTurns의 남은 순회는 이미 죽은 옛 몹들이라 건너뛴다).</summary>
         public void ResolveExplosion(EnemyActor bomber, float damage)
         {
@@ -304,17 +303,7 @@ namespace LoopRogue
             if (_player.Stats.IsDead)
                 return; // RunEnemyTurns가 사망 처리
 
-            foreach (var victim in _enemies.Where(e => e != null && !e.Stats.IsDead && tiles.Contains(e.GridPos)).ToArray())
-            {
-                victim.Stats.TakeDamage(damage);
-                DamagePopup.Spawn(victim.transform.position, damage, new Color(1f, 0.6f, 0.2f));
-                if (!victim.Stats.IsDead)
-                    continue;
-                BombEnemyKillCount++;
-                if (_player.ClaimKill(victim))
-                    return; // 방 전환됨
-            }
-
+            // 다른 몹은 안 맞는다(사용자 결정) - 맞게 했더니 판당 73마리를 대신 잡아주는 청소부가 됐다.
             if (_enemies.Count == 0)
                 FinishRoomCleared();
         }

@@ -158,7 +158,6 @@ namespace LoopRogue
             public int ShieldBlocks;      // 방패 정면을 때려 피해가 줄어든 횟수
             public int BombExplosions;    // 폭발병 폭발
             public int BombHits;          // 그중 플레이어가 맞은 횟수
-            public int BombKills;         // 폭발에 휘말려 죽은 다른 몹
             public readonly int[] Events = new int[4]; // RoomEventType 순서
         }
 
@@ -195,7 +194,7 @@ namespace LoopRogue
         private int _lastKnownLevel = 1;
         private int _lastEventCount;
         private int _lastShieldBlocks;
-        private int _lastBombExplosions, _lastBombHits, _lastBombKills;
+        private int _lastBombExplosions, _lastBombHits;
 
         // 속도 측정(요약에 표시)
         private readonly Stopwatch _frameWatch = new Stopwatch();
@@ -839,10 +838,8 @@ namespace LoopRogue
             _lastShieldBlocks = PlayerActor.ShieldBlockCount;
             _run.BombExplosions += RoomController.BombExplosionCount - _lastBombExplosions;
             _run.BombHits += RoomController.BombPlayerHitCount - _lastBombHits;
-            _run.BombKills += RoomController.BombEnemyKillCount - _lastBombKills;
             _lastBombExplosions = RoomController.BombExplosionCount;
             _lastBombHits = RoomController.BombPlayerHitCount;
-            _lastBombKills = RoomController.BombEnemyKillCount;
             RememberMap();
             _hpHistory.Add(_player.Stats.CurrentHealth);
             if (_hpHistory.Count > 3)
@@ -1575,7 +1572,7 @@ namespace LoopRogue
                 Log($"스킬(판당): 회전 베기 {_results.Average(r => r.Spins):0}회 / 대시 공격 {_results.Average(r => r.DashStrikes):0}회 / 대시 회피 {_results.Average(r => r.DashDodges):0.0}회");
                 Log($"새 몹(판당): 거미줄 속박 {_results.Average(r => r.RootedTurns):0}턴 / 방패 옆으로 돌기 {_results.Average(r => r.ShieldFlanks):0}회 / 방패 정면 타격 {_results.Average(r => r.ShieldBlocks):0}회");
                 var bombs = _results.Sum(r => r.BombExplosions);
-                Log($"폭발병(판당): 폭발 {_results.Average(r => r.BombExplosions):0.0}회, 플레이어 적중 {(bombs > 0 ? _results.Sum(r => r.BombHits) * 100f / bombs : 0f):0}%, 휘말려 죽은 몹 {_results.Average(r => r.BombKills):0.0}마리");
+                Log($"폭발병(판당): 폭발 {_results.Average(r => r.BombExplosions):0.0}회, 플레이어 적중 {(bombs > 0 ? _results.Sum(r => r.BombHits) * 100f / bombs : 0f):0}%");
                 Log($"방 이벤트(판당): {string.Join(" / ", Enumerable.Range(0, 4).Select(i => $"{EventNames[i]} {_results.Average(r => r.Events[i]):0.0}"))}");
                 Log($"최종 스탯: ATK {_results.Average(r => r.FinalAttack):0} / 최대HP {_results.Average(r => r.FinalMaxHealth):0} / " +
                     $"치명 {_results.Average(r => r.FinalCritChance) * 100f:0}% (배율 {_results.Average(r => r.FinalCritMultiplier) * 100f:0}%)");

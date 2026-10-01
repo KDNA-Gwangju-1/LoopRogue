@@ -51,7 +51,7 @@ namespace LoopRogue
         private int _webCooldown;
 
         /// <summary>폭발병: 플레이어 옆에 붙으면 공격 대신 도화선에 불을 붙이고(주변 3x3 예고), 자기 다음 턴에 터진다.
-        /// 폭발은 플레이어와 다른 몹을 가리지 않고 공격력 × 이 배율. 터지기 전에 잡으면 불발.</summary>
+        /// 폭발은 플레이어만 맞는다(공격력 × 이 배율, 다른 몹은 안 맞음). 터지기 전에 잡으면 불발.</summary>
         public const float BlastDamageRate = 3f;
         private bool _fuseLit;
         public bool IsFuseLit => _fuseLit;
