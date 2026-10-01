@@ -83,7 +83,7 @@ namespace LoopRogue
 
         /// <summary>판 수가 많으면 방/레벨업/로비 같은 상세 로그는 끄고 판 결과와 요약만 남긴다(100판이면 파일이 수십 MB).</summary>
         private static readonly bool DetailedLog = RunsPerSession <= 10; // 층 테스트 모드는 항상 요약만
-        private const int MaxTurnsPerAttempt = 1500; // 한 번 시도가 이보다 길면 끼인 걸로 보고 그 판 종료
+        private const int MaxTurnsPerAttempt = 3000; // 한 번 시도가 이보다 길면 끼인 걸로 보고 그 판 종료(방을 키우면서 1500 -> 3000)
         private const int EventGiveUpTurns = 20;     // 방에 들어와서 이 턴 안에 이벤트 칸을 못 밟으면 그 방에선 포기
 
         private static readonly Vector2Int[] Directions =

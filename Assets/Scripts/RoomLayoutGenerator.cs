@@ -20,10 +20,10 @@ namespace LoopRogue
     public static class RoomLayoutGenerator
     {
         private const int MinSize = 5;
-        private const int MaxSize = 14;
+        private const int MaxSize = 18;
         private const float NormalWallDensity = 0.08f; // 일반 방 면적의 8%
         private const float BossWallDensity = 0.04f;   // 보스방은 기둥 몇 개만(패턴 피할 엄폐물)
-        private const int MinEnemyDistance = 3;        // 시작 칸에서 몹까지 최소 거리(맨해튼)
+        private const int MinEnemyDistance = 5;        // 시작 칸에서 몹까지 최소 거리(맨해튼) - 방을 키우면서 3 -> 5(입장하자마자 시야 안에 몰려 있지 않게)
         private const int MaxTries = 30;
 
         private static readonly Vector2Int[] Directions =

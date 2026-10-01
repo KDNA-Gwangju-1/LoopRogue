@@ -119,7 +119,8 @@ namespace LoopRogue
             {
                 // 크기/몹 수는 배율을 안 곱한다 - 격자가 지수적으로 커지면 방이 순식간에 감당 안
                 // 될 만큼 거대해진다. 이 둘은 예전처럼 스테이지당 고정폭으로만 커진다.
-                var size = Mathf.Min(6 + stagePower + (i - 1) / 2, 14);
+                // 방 크기 +4(사용자: "맵이 작아서 불합리한 느낌" - 카메라를 당기고 시야를 줄이면서 같이 키움), 최대 14 -> 18.
+                var size = Mathf.Min(10 + stagePower + (i - 1) / 2, 18);
                 var enemyCount = Mathf.Min(Mathf.RoundToInt((2 + stagePower + (i - 1) / 2) * EnemyCountMultiplier), MaxEnemiesPerRoom);
                 var hp = (8f + (i - 1) * 2f) * stageMultiplier * RoomEnemyHealthScale(stage);
                 var atk = (2f + (i - 1) * 0.4f) * stageMultiplier * RoomEnemyAttackScale(stage);
@@ -129,7 +130,7 @@ namespace LoopRogue
                 rooms.Add(room);
             }
 
-            var bossSize = Mathf.Min(9 + stagePower / 2, 14);
+            var bossSize = Mathf.Min(12 + stagePower / 2, 18);
             var extraBoss = ExtraBossMultiplier(stage) * BossPatternBalance(stage) * BossScaleForBotTest;
             var bossHp = 150f * stageMultiplier * BossStatMultiplier * extraBoss;
             var bossAtk = 12f * stageMultiplier * BossStatMultiplier * extraBoss;
