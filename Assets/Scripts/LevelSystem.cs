@@ -85,7 +85,7 @@ namespace LoopRogue
                 Apply = s => { s.CriticalChanceRate += 0.05f; s.BaseAttack *= 0.96f; } },
 
             // 특수
-            new UpgradeOption { Category = UpgradeCategory.Special, Title = "흡혈", Description = "흡혈 +8% (최대 50%) / 공격력 -3%",
+            new UpgradeOption { Category = UpgradeCategory.Special, Title = "흡혈", Description = "흡혈 +8% (일반 공격만, 최대 50%) / 공격력 -3%",
                 Apply = s => { s.LifeStealRate = Math.Min(CharacterStats.MaxLifeSteal, s.LifeStealRate + 0.08f); s.BaseAttack *= 0.97f; },
                 IsAvailable = s => s.LifeStealRate < CharacterStats.MaxLifeSteal },
             new UpgradeOption { Category = UpgradeCategory.Special, Title = "방어", Description = "받는 피해 -2% (최대 30%) / 골드 -5%",

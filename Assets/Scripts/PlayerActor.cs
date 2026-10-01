@@ -232,7 +232,9 @@ namespace LoopRogue
         /// <summary>몹 하나를 공격력 × damageRate로 때린다(치명타/흡혈/처치 보상 포함). 그 처치로 방이 넘어갔으면 true -
         /// 호출부는 곧바로 끝내야 한다(새 방 몹이 이번 턴에 움직이면 안 됨).</summary>
         /// 방패병 정면(지금 서 있는 칸이 방패가 보는 칸)이면 피해가 ShieldFrontDamageRate배 - 회전 베기만 ignoreShield로 무시한다.
-        private bool StrikeEnemy(EnemyActor enemy, Vector2Int direction, float damageRate, bool ignoreShield = false)
+        /// 흡혈은 일반 공격(방향키로 때리기)에만 - 스킬(대시/회전 베기)은 흡혈 없음(사용자 결정: 회전 베기가 몹마다 흡혈해서
+        /// 일반 방에서 맞는 만큼 회복해 버렸다).
+        private bool StrikeEnemy(EnemyActor enemy, Vector2Int direction, float damageRate, bool ignoreShield = false, bool isSkill = false)
         {
             var damage = Stats.RollAttackDamage(out var isCritical) * damageRate;
             var blocked = !ignoreShield && enemy.IsShieldFront(GridPos);
@@ -245,7 +247,8 @@ namespace LoopRogue
             DamagePopup.Spawn(enemy.transform.position, damage, blocked ? new Color(0.6f, 0.65f, 0.75f) : Color.white, isCritical && !blocked);
             HitFeedback.OnPlayerHitEnemy(this, enemy, direction, isCritical, blocked);
             OnAttackedEnemy?.Invoke(enemy);
-            Stats.Heal(damage * Stats.EffectiveLifeSteal); // 흡혈 카드(최대 50%)
+            if (!isSkill)
+                Stats.Heal(damage * Stats.EffectiveLifeSteal); // 흡혈 카드(최대 50%)
 
             if (!enemy.Stats.IsDead)
                 return false;
@@ -253,9 +256,8 @@ namespace LoopRogue
             return ClaimKill(enemy);
         }
 
-        /// <summary>죽은 몹을 플레이어가 잡은 것으로 처리(제거 + 처치 회복 + 경험치 + 골드/방 전환) - 직접 때린 경우와
-        /// 폭발병 폭발에 휘말려 죽은 경우 공통. 방이 넘어갔으면 true.</summary>
-        public bool ClaimKill(EnemyActor enemy)
+        /// <summary>죽은 몹을 플레이어가 잡은 것으로 처리(제거 + 처치 회복 + 경험치 + 골드/방 전환). 방이 넘어갔으면 true.</summary>
+        private bool ClaimKill(EnemyActor enemy)
         {
             HitFeedback.OnEnemyKilled(enemy);
             Map.RemoveActor(enemy);
@@ -312,7 +314,7 @@ namespace LoopRogue
             if (hit != null)
             {
                 PlayAttackFlash();
-                if (StrikeEnemy(hit, dir, 1f))
+                if (StrikeEnemy(hit, dir, 1f, isSkill: true))
                     return true;
             }
 
@@ -352,7 +354,7 @@ namespace LoopRogue
             {
                 if (enemy == null || enemy.Stats.IsDead)
                     continue;
-                if (StrikeEnemy(enemy, offset, SpinDamageRate, ignoreShield: true))
+                if (StrikeEnemy(enemy, offset, SpinDamageRate, ignoreShield: true, isSkill: true))
                     return true; // 방 전환 - 남은 대상은 이미 정리됐다
             }
 
