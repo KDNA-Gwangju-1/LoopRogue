@@ -48,7 +48,7 @@ namespace LoopRogue
         /// <summary>GameBootstrap.BossPatternBalance의 현재 값(제안값 계산용 - 바꾸면 여기도 같이).</summary>
         private static readonly Dictionary<int, float> CurrentBossBalance = new Dictionary<int, float>
         {
-            { 1, 1.49f }, { 2, 1.24f }, { 3, 1.14f }, { 4, 1.24f }, { 5, 1.19f }, { 6, 0.82f }, { 7, 0.74f }, { 8, 0.83f }, { 9, 0.63f }, { 10, 0.77f },
+            { 1, 1.49f }, { 2, 1.24f }, { 3, 1.14f }, { 4, 1.24f }, { 5, 1.19f }, { 6, 0.88f }, { 7, 0.74f }, { 8, 0.83f }, { 9, 0.63f }, { 10, 0.77f },
         };
 
         private bool _sweep;
@@ -78,7 +78,7 @@ namespace LoopRogue
         /// <summary>사망 시 로비 씬을 실제로 다녀오지 않고 제자리에서 쇼핑 후 방1부터 다시(LobbyTripInPlace).
         /// 로비/씬 전환 자체를 검증하고 싶을 땐 false로.</summary>
         private const bool FastDeathLobby = true;
-        private const int MaxDeathsPerStage = 40;    // 이보다 많이 죽으면 "벽"으로 보고 그 판 종료
+        private const int MaxDeathsPerStage = 60;    // 이보다 많이 죽으면 "벽"으로 보고 그 판 종료(40이었는데 10층 목표가 평균 약 31회라 운 나쁜 판이 걸려서 사용자 결정으로 60)
         private const float MaxRealSeconds = 10800f; // 전체 실행 제한(3시간)
 
         /// <summary>판 수가 많으면 방/레벨업/로비 같은 상세 로그는 끄고 판 결과와 요약만 남긴다(100판이면 파일이 수십 MB).</summary>
