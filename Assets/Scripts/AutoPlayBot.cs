@@ -48,7 +48,7 @@ namespace LoopRogue
         /// <summary>GameBootstrap.BossPatternBalance의 현재 값(제안값 계산용 - 바꾸면 여기도 같이).</summary>
         private static readonly Dictionary<int, float> CurrentBossBalance = new Dictionary<int, float>
         {
-            { 1, 1.15f }, { 2, 0.95f }, { 3, 0.91f }, { 4, 1.1f }, { 5, 1f }, { 6, 0.86f }, { 7, 0.74f }, { 8, 0.75f }, { 9, 0.65f }, { 10, 0.68f },
+            { 1, 1.15f }, { 2, 0.95f }, { 3, 0.91f }, { 4, 1.1f }, { 5, 1f }, { 6, 0.86f }, { 7, 0.74f }, { 8, 0.75f }, { 9, 0.58f }, { 10, 0.66f },
         };
 
         private bool _sweep;
