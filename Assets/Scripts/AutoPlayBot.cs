@@ -150,6 +150,9 @@ namespace LoopRogue
             public int Dodges;            // 봇이 예고 칸에서 피한 횟수
             public int CrossfireDetours;  // 궁수 십자포화를 피하려고 최단 경로와 다른 칸으로 간 횟수
             public int Waits;             // 봇이 대기한 횟수
+            public int Spins;             // 회전 베기 사용
+            public int DashStrikes;       // 대시로 몹에게 붙어 때린 횟수
+            public int DashDodges;        // 한 칸 이동으로는 예고 칸을 못 벗어나 대시로 피한 횟수
             public readonly int[] Events = new int[4]; // RoomEventType 순서
         }
 
@@ -794,17 +797,21 @@ namespace LoopRogue
                 _turnsSinceProgress++;
             _lastEnemyHealthSum = enemyHealthSum;
 
-            var dir = ChooseDirection();
-            _recentDecisions.Enqueue($"{_lastDecision}@({_player.GridPos.x},{_player.GridPos.y})");
+            var decisionPos = _player.GridPos;
+            if (!TryUseSkill())
+            {
+                var dir = ChooseDirection();
+                if (dir.HasValue)
+                    _player.BotAct(dir.Value);
+                else
+                {
+                    _player.BotWait(); // 움직일 수 있는 칸이 전부 예고 칸이면 제자리 대기(저격 2발 등)
+                    _run.Waits++;
+                }
+            }
+            _recentDecisions.Enqueue($"{_lastDecision}@({decisionPos.x},{decisionPos.y})");
             while (_recentDecisions.Count > 16)
                 _recentDecisions.Dequeue();
-            if (dir.HasValue)
-                _player.BotAct(dir.Value);
-            else
-            {
-                _player.BotWait(); // 움직일 수 있는 칸이 전부 예고 칸이면 제자리 대기(저격 2발 등)
-                _run.Waits++;
-            }
             if (RoomController.EventTriggeredCount != _lastEventCount)
             {
                 _lastEventCount = RoomController.EventTriggeredCount;
@@ -947,6 +954,55 @@ namespace LoopRogue
         /// <summary>1) 보스 예고 칸 위에 서 있으면 안전한 옆 칸으로 피한다 2) 인접한 적이 있으면 체력이 제일 낮은 적을
         /// 때린다 3) 이벤트 칸이 있으면 밟으러 간다(EventGiveUpTurns 안에서만) 4) 없으면 BFS로 "적 옆 칸"까지 최단 경로의 첫 걸음
         /// (예고 칸은 밟지 않음). 경로가 없으면 아무 빈 칸으로.</summary>
+        /// <summary>스킬 사용 규칙(단순하게): 1) 예고 칸 위인데 한 칸 이동으로 안전한 칸이 없으면 대시로 탈출
+        /// 2) 주변 8칸에 몹 2마리 이상이면 회전 베기 3) 붙어 있는 몹이 없고 대시 경로 끝에 몹이 있으면(착지 칸이 안전할 때) 대시로 붙어서 한 대.
+        /// 썼으면 true(이번 턴 행동 끝).</summary>
+        private bool TryUseSkill()
+        {
+            var map = _room.Map;
+            var start = _player.GridPos;
+            var danger = _room.DangerTiles;
+
+            if (danger.Contains(start))
+            {
+                var canStepOut = Directions.Any(d => map.IsWalkable(start + d) && !danger.Contains(start + d));
+                if (canStepOut || _player.DashCooldown > 0)
+                    return false; // 평소처럼 한 칸 회피(ChooseDirection)
+                foreach (var d in Directions)
+                {
+                    if (_player.PreviewDash(d, out var landing, out _) && landing != start && !danger.Contains(landing) && _player.BotDash(d))
+                    {
+                        _run.DashDodges++;
+                        _lastDecision = "대시 회피";
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            if (_player.SpinCooldown == 0 && _player.CountSpinTargets() >= 2 && _player.BotSpin())
+            {
+                _run.Spins++;
+                _lastDecision = "회전 베기";
+                return true;
+            }
+
+            if (_player.DashCooldown == 0 && !Directions.Any(d => map.GetActorAt(start + d) is EnemyActor))
+            {
+                foreach (var d in Directions)
+                {
+                    if (_player.PreviewDash(d, out var landing, out var hit) && hit != null && landing != start &&
+                        !danger.Contains(landing) && _player.BotDash(d))
+                    {
+                        _run.DashStrikes++;
+                        _lastDecision = "대시 공격";
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         private Vector2Int? ChooseDirection()
         {
             var map = _room.Map;
@@ -1435,6 +1491,7 @@ namespace LoopRogue
                 var hits = _results.Sum(r => r.PatternHits);
                 Log($"보스 예고 공격: 판당 {_results.Average(r => r.PatternResolves):0}회 발동, 적중률 {(resolves > 0 ? hits * 100f / resolves : 0f):0}% | 광폭화 판당 {_results.Average(r => r.Enrages):0}회");
                 Log($"궁수 십자포화 우회: 판당 {_results.Average(r => r.CrossfireDetours):0}회");
+                Log($"스킬(판당): 회전 베기 {_results.Average(r => r.Spins):0}회 / 대시 공격 {_results.Average(r => r.DashStrikes):0}회 / 대시 회피 {_results.Average(r => r.DashDodges):0.0}회");
                 Log($"방 이벤트(판당): {string.Join(" / ", Enumerable.Range(0, 4).Select(i => $"{EventNames[i]} {_results.Average(r => r.Events[i]):0.0}"))}");
                 Log($"최종 스탯: ATK {_results.Average(r => r.FinalAttack):0} / 최대HP {_results.Average(r => r.FinalMaxHealth):0} / " +
                     $"치명 {_results.Average(r => r.FinalCritChance) * 100f:0}% (배율 {_results.Average(r => r.FinalCritMultiplier) * 100f:0}%)");

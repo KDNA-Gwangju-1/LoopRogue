@@ -43,6 +43,23 @@ namespace LoopRogue
             popBurst._color = new Color(1f, 1f, 1f, 0.8f);
         }
 
+        /// <summary>대시 잔상 - 원래 스프라이트 모양 그대로 반투명하게 남았다가 줄어들며 사라진다.</summary>
+        public static void SpawnGhost(Sprite sprite, Vector3 position, float size, Color color)
+        {
+            var go = new GameObject("DashGhost");
+            var renderer = sprite != null
+                ? VisualUtil.CreateSpriteVisual(go, sprite, size, sortingOrder: 0)
+                : VisualUtil.CreateSquareVisual(go, color, size, sortingOrder: 0);
+            renderer.color = color;
+            go.transform.position = position + new Vector3(0f, 0f, 0.1f);
+
+            var ghost = go.AddComponent<DeathBurst>();
+            ghost._velocity = Vector3.zero;
+            ghost._startSize = size;
+            ghost._renderer = renderer;
+            ghost._color = color;
+        }
+
         private void Update()
         {
             _elapsed += Time.deltaTime;

@@ -20,6 +20,7 @@ namespace LoopRogue
         private Text _progressText;
         private Text _hpText;
         private Text _expText;
+        private Text _skillText;
 
         // 상단 중앙 타겟 체력바 - 마지막으로 때린 적 하나만 보여준다. 그 적이 죽어서 Destroy되면
         // (Unity의 파괴된 오브젝트 == null) 자동으로 숨는다(방 전환으로 몹이 전부 지워질 때도 동일).
@@ -192,6 +193,9 @@ namespace LoopRogue
             _hpText.text = $"HP {stats.CurrentHealth:0}/{stats.MaxHealth:0}";
             _levelText.text = $"Lv.{levels.Level}  (ATK {stats.AttackPower:0})";
             _expText.text = $"EXP {levels.Exp}/{levels.ExpToNext}";
+            _skillText.text = _player.IsAimingDash
+                ? "<color=#7FD4FF>[Q] 대시 - 방향키로 방향 선택 (Q: 취소)</color>"
+                : $"{SkillLabel("Q", "대시", _player.DashCooldown)}    {SkillLabel("E", "회전 베기", _player.SpinCooldown)}";
 
             RefreshTarget();
 
@@ -421,7 +425,7 @@ namespace LoopRogue
             rect.anchorMin = new Vector2(0f, 1f);
             rect.anchorMax = new Vector2(0f, 1f);
             rect.pivot = new Vector2(0f, 1f);
-            rect.sizeDelta = new Vector2(400f, 142f);
+            rect.sizeDelta = new Vector2(400f, 166f);
             rect.anchoredPosition = new Vector2(16f, -16f);
             panelGo.AddComponent<Image>().color = PanelColor;
 
@@ -435,11 +439,18 @@ namespace LoopRogue
             _expText = CreateLabel(panelGo.transform, "EXP 0/10", new Vector2(10f, -108f), new Vector2(-10f, -88f));
 
             // 조작 안내 한 줄 - 대기 키(스페이스바)를 모르고 지나치지 않게.
+            _skillText = CreateLabel(panelGo.transform, "", new Vector2(10f, -134f), new Vector2(-10f, -114f));
+            _skillText.fontSize = 14;
+            _skillText.supportRichText = true;
+
             var controls = CreateLabel(panelGo.transform, "이동/공격: 방향키·WASD   대기: Space   스탯: Tab   메뉴: Esc",
-                new Vector2(10f, -134f), new Vector2(-10f, -114f));
+                new Vector2(10f, -158f), new Vector2(-10f, -138f));
             controls.fontSize = 12;
             controls.color = new Color(0.7f, 0.72f, 0.78f);
         }
+
+        private static string SkillLabel(string key, string name, int cooldown) =>
+            cooldown > 0 ? $"<color=#777777>[{key}] {name} {cooldown}턴</color>" : $"<color=#7FD4FF>[{key}] {name} 준비</color>";
 
         private void BuildStatPanel(Transform parent)
         {

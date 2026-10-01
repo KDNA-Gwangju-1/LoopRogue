@@ -1,5 +1,7 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -15,6 +17,25 @@ namespace LoopRogue
         private const float AttackFlashDuration = 0.18f;
         private const int ExpPerKill = 8;       // 스테이지 배율 곱하기 전 기본값
         private const int ExpPerBossKill = 80;  // 골드처럼 일반 몹의 10배
+
+        // ---- 스킬(처음부터 보유, 턴 쿨타임) - Q 대시, E 회전 베기 ----
+        public const int DashRange = 3;
+        public const int DashCooldownTurns = 5;
+        public const int SpinCooldownTurns = 6;
+        public const float SpinDamageRate = 0.8f;
+
+        private static readonly Vector2Int[] SpinOffsets =
+        {
+            new Vector2Int(-1, -1), new Vector2Int(0, -1), new Vector2Int(1, -1),
+            new Vector2Int(-1, 0), new Vector2Int(1, 0),
+            new Vector2Int(-1, 1), new Vector2Int(0, 1), new Vector2Int(1, 1),
+        };
+
+        /// <summary>남은 쿨타임(행동 횟수). 0이면 사용 가능. 스킬을 쓰면 N이 되고 이후 행동(이동/공격/대기/스킬) 1번마다 1씩 준다.</summary>
+        public int DashCooldown { get; private set; }
+        public int SpinCooldown { get; private set; }
+        /// <summary>Q를 눌러 대시 방향을 고르는 중(다음 방향키 = 대시, Q 다시 = 취소).</summary>
+        public bool IsAimingDash { get; private set; }
 
         public LevelSystem Levels { get; private set; }
 
@@ -113,6 +134,38 @@ namespace LoopRogue
             else if (keyboard.dKey.wasPressedThisFrame || keyboard.rightArrowKey.wasPressedThisFrame)
                 direction = Vector2Int.right;
 
+            if (keyboard.qKey.wasPressedThisFrame)
+            {
+                if (IsAimingDash)
+                    IsAimingDash = false;
+                else if (DashCooldown > 0)
+                    _room.ShowMessage($"대시는 {DashCooldown}턴 뒤에 쓸 수 있다");
+                else
+                    IsAimingDash = true;
+                return;
+            }
+
+            if (keyboard.eKey.wasPressedThisFrame)
+            {
+                IsAimingDash = false;
+                if (SpinCooldown > 0)
+                    _room.ShowMessage($"회전 베기는 {SpinCooldown}턴 뒤에 쓸 수 있다");
+                else if (!TrySpin())
+                    _room.ShowMessage("주변에 적이 없다");
+                return;
+            }
+
+            if (IsAimingDash)
+            {
+                if (direction.HasValue)
+                {
+                    IsAimingDash = false;
+                    if (!TryDash(direction.Value))
+                        _room.ShowMessage("그쪽으로는 대시할 수 없다");
+                }
+                return; // 방향 고르는 중엔 대기 키도 무시
+            }
+
             if (direction.HasValue)
                 TryAct(direction.Value);
             else if (keyboard.spaceKey.wasPressedThisFrame)
@@ -130,42 +183,21 @@ namespace LoopRogue
 
             if (occupant is EnemyActor enemy)
             {
+                BeginAction();
                 PlayAttackFlash();
-                var damage = Stats.RollAttackDamage(out var isCritical);
-                enemy.Stats.TakeDamage(damage);
-                DamagePopup.Spawn(enemy.transform.position, damage, Color.white, isCritical);
-                HitFeedback.OnPlayerHitEnemy(this, enemy, direction, isCritical);
-                OnAttackedEnemy?.Invoke(enemy);
-                Stats.Heal(damage * Stats.LifeStealRate); // 흡혈 카드
-
-                if (enemy.Stats.IsDead)
-                {
-                    HitFeedback.OnEnemyKilled(enemy);
-                    Map.RemoveActor(enemy);
-                    Destroy(enemy.gameObject);
-                    Stats.Heal(Stats.MaxHealth * Stats.KillHealRate); // 처치 회복 카드
-
-                    // 경험치도 골드처럼 StageScaling 배율을 곱한다(몹은 스테이지마다 세지는데 경험치만
-                    // 고정이면 뒤로 갈수록 레벨이 안 오름). 보스 처치 경험치는 스테이지 클리어 화면보다
-                    // 먼저 들어가야 해서 NotifyEnemyDefeated(보스면 곧바로 클리어 처리)보다 앞에서 준다.
-                    var baseExp = enemy.IsMinion ? 0 : enemy.IsBoss ? ExpPerBossKill : ExpPerKill; // 졸개는 경험치 없음
-                    var repeat = enemy.IsBoss ? 1f : StageProgress.RepeatRewardMultiplier; // 반복 보상 감소(보스는 제외)
-                    Levels.AddExp(Mathf.RoundToInt(baseExp * StageScaling.RewardMultiplier(_room.Stage) * (1f + Stats.EffectiveExpBonus) * repeat));
-
-                    var roomCleared = _room.NotifyEnemyDefeated(enemy);
-
-                    if (roomCleared)
-                        return; // 다음 방/승리 전환은 이미 끝났다 - 새 방 몹은 이번 턴엔 안 움직인다.
-                }
+                if (StrikeEnemy(enemy, direction, 1f))
+                    return; // 다음 방/승리 전환은 이미 끝났다 - 새 방 몹은 이번 턴엔 안 움직인다.
             }
             else if (occupant is RoomEventActor ev)
             {
                 // 이벤트 칸 - 발동시키고 그 칸으로 이동(한 턴 소모).
+                BeginAction();
                 _room.TriggerEvent(ev);
                 Map.MoveActor(this, targetPos);
             }
             else if (occupant == null)
             {
+                BeginAction();
                 Map.MoveActor(this, targetPos);
             }
             else
@@ -176,8 +208,138 @@ namespace LoopRogue
             EndTurn();
         }
 
+        /// <summary>몹 하나를 공격력 × damageRate로 때린다(치명타/흡혈/처치 보상 포함). 그 처치로 방이 넘어갔으면 true -
+        /// 호출부는 곧바로 끝내야 한다(새 방 몹이 이번 턴에 움직이면 안 됨).</summary>
+        private bool StrikeEnemy(EnemyActor enemy, Vector2Int direction, float damageRate)
+        {
+            var damage = Stats.RollAttackDamage(out var isCritical) * damageRate;
+            enemy.Stats.TakeDamage(damage);
+            DamagePopup.Spawn(enemy.transform.position, damage, Color.white, isCritical);
+            HitFeedback.OnPlayerHitEnemy(this, enemy, direction, isCritical);
+            OnAttackedEnemy?.Invoke(enemy);
+            Stats.Heal(damage * Stats.LifeStealRate); // 흡혈 카드
+
+            if (!enemy.Stats.IsDead)
+                return false;
+
+            HitFeedback.OnEnemyKilled(enemy);
+            Map.RemoveActor(enemy);
+            Destroy(enemy.gameObject);
+            Stats.Heal(Stats.MaxHealth * Stats.KillHealRate); // 처치 회복 카드
+
+            // 경험치도 골드처럼 StageScaling 배율을 곱한다(몹은 스테이지마다 세지는데 경험치만
+            // 고정이면 뒤로 갈수록 레벨이 안 오름). 보스 처치 경험치는 스테이지 클리어 화면보다
+            // 먼저 들어가야 해서 NotifyEnemyDefeated(보스면 곧바로 클리어 처리)보다 앞에서 준다.
+            var baseExp = enemy.IsMinion ? 0 : enemy.IsBoss ? ExpPerBossKill : ExpPerKill; // 졸개는 경험치 없음
+            var repeat = enemy.IsBoss ? 1f : StageProgress.RepeatRewardMultiplier; // 반복 보상 감소(보스는 제외)
+            Levels.AddExp(Mathf.RoundToInt(baseExp * StageScaling.RewardMultiplier(_room.Stage) * (1f + Stats.EffectiveExpBonus) * repeat));
+
+            return _room.NotifyEnemyDefeated(enemy);
+        }
+
+        /// <summary>대시 미리보기 - dir 방향으로 최대 DashRange칸, 벽/방 끝/이벤트 칸 앞에서 멈추고, 몹을 만나면 그 앞에서
+        /// 멈춰 그 몹을 때린다. 한 칸도 못 가고 때릴 몹도 없으면 false(봇도 같은 계산을 쓴다).</summary>
+        public bool PreviewDash(Vector2Int dir, out Vector2Int landing, out EnemyActor hit)
+        {
+            landing = GridPos;
+            hit = null;
+            for (var i = 0; i < DashRange; i++)
+            {
+                var next = landing + dir;
+                if (!Map.IsInBounds(next) || Map.IsWall(next))
+                    break;
+                var occupant = Map.GetActorAt(next);
+                if (occupant is EnemyActor e && !e.Stats.IsDead)
+                {
+                    hit = e;
+                    break;
+                }
+                if (occupant != null)
+                    break;
+                landing = next;
+            }
+            return landing != GridPos || hit != null;
+        }
+
+        /// <summary>Q 대시 - 한 턴에 최대 3칸 이동, 가는 길에 몹이 있으면 그 앞까지 가서 한 대. 쓸 수 없으면 false(턴 소모 없음).</summary>
+        private bool TryDash(Vector2Int dir)
+        {
+            if (DashCooldown > 0 || !PreviewDash(dir, out var landing, out var hit))
+                return false;
+
+            BeginAction();
+            DashCooldown = DashCooldownTurns;
+            var from = transform.position;
+            if (landing != GridPos)
+                Map.MoveActor(this, landing);
+            HitFeedback.OnDash(this, from);
+
+            if (hit != null)
+            {
+                PlayAttackFlash();
+                if (StrikeEnemy(hit, dir, 1f))
+                    return true;
+            }
+
+            EndTurn();
+            return true;
+        }
+
+        /// <summary>회전 베기 대상 수(주변 8칸의 살아있는 몹) - 봇 판단용.</summary>
+        public int CountSpinTargets()
+        {
+            var count = 0;
+            foreach (var offset in SpinOffsets)
+                if (Map.GetActorAt(GridPos + offset) is EnemyActor e && !e.Stats.IsDead)
+                    count++;
+            return count;
+        }
+
+        /// <summary>E 회전 베기 - 주변 8칸 몹 전체를 공격력의 80%로(치명타는 몹마다 따로). 주변에 몹이 없으면 false(턴 소모 없음).</summary>
+        private bool TrySpin()
+        {
+            if (SpinCooldown > 0)
+                return false;
+
+            var targets = new List<(EnemyActor Enemy, Vector2Int Offset)>();
+            foreach (var offset in SpinOffsets)
+                if (Map.GetActorAt(GridPos + offset) is EnemyActor e && !e.Stats.IsDead)
+                    targets.Add((e, offset));
+            if (targets.Count == 0)
+                return false;
+
+            BeginAction();
+            SpinCooldown = SpinCooldownTurns;
+            PlayAttackFlash();
+            HitFeedback.OnSpin(this);
+            // 보스를 맨 뒤에 - 보스가 먼저 죽으면 남은 졸개가 같이 치워져서 그 뒤 타격이 의미 없어진다.
+            foreach (var (enemy, offset) in targets.OrderBy(t => t.Enemy.IsBoss))
+            {
+                if (enemy == null || enemy.Stats.IsDead)
+                    continue;
+                if (StrikeEnemy(enemy, offset, SpinDamageRate))
+                    return true; // 방 전환 - 남은 대상은 이미 정리됐다
+            }
+
+            EndTurn();
+            return true;
+        }
+
+        /// <summary>행동 하나(이동/공격/대기/스킬)가 확정될 때 - 스킬 쿨타임을 1 줄인다.</summary>
+        private void BeginAction()
+        {
+            if (DashCooldown > 0)
+                DashCooldown--;
+            if (SpinCooldown > 0)
+                SpinCooldown--;
+        }
+
         /// <summary>제자리 대기 - 아무것도 안 하고 한 턴 넘긴다(보스 저격 2발 같은 "움직이면 맞는" 공격 피하기용).</summary>
-        private void Wait() => EndTurn();
+        private void Wait()
+        {
+            BeginAction();
+            EndTurn();
+        }
 
         /// <summary>자동 플레이 봇용 - 대기 키를 누른 것과 같다.</summary>
         public void BotWait()
@@ -185,6 +347,12 @@ namespace LoopRogue
             if (CanAct)
                 Wait();
         }
+
+        /// <summary>자동 플레이 봇용 - Q+방향키와 같다. 못 쓰면 false.</summary>
+        public bool BotDash(Vector2Int direction) => CanAct && TryDash(direction);
+
+        /// <summary>자동 플레이 봇용 - E와 같다. 못 쓰면 false.</summary>
+        public bool BotSpin() => CanAct && TrySpin();
 
         private void EndTurn()
         {

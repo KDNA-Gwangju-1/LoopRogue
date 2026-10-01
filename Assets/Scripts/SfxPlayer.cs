@@ -11,6 +11,8 @@ namespace LoopRogue
         Hurt,
         Slam,
         Warning,
+        Dash,
+        Spin,
     }
 
     /// <summary>효과음 - 음원 파일 없이 사인파/사각파/노이즈를 코드로 합성해 AudioClip을 만든다(처음 쓸 때 한 번).
@@ -95,6 +97,10 @@ namespace LoopRogue
                 Sfx.Slam => Build("sfx_slam", 0.3f, p => (a.Sine(Mathf.Lerp(90f, 45f, p)) * 0.9f + Noise() * 0.6f * Decay(p, 10f)) * Decay(p, 3f)),
                 // 예고 경고음 - 삑삑 두 번
                 Sfx.Warning => Build("sfx_warning", 0.2f, p => a.Square(880f) * 0.18f * (p < 0.4f || (p > 0.55f && p < 0.95f) ? 1f : 0f)),
+                // 대시 - 바람 가르는 "쉭"(노이즈가 점점 커졌다 빠짐)
+                Sfx.Dash => Build("sfx_dash", 0.14f, p => Noise() * 0.5f * Mathf.Sin(p * Mathf.PI) + a.Sine(Mathf.Lerp(300f, 700f, p)) * 0.12f * (1f - p)),
+                // 회전 베기 - 올라갔다 내려오는 휘두름
+                Sfx.Spin => Build("sfx_spin", 0.2f, p => (Noise() * 0.4f + a.Sine(500f + 300f * Mathf.Sin(p * Mathf.PI)) * 0.25f) * Mathf.Sin(p * Mathf.PI)),
                 _ => Build("sfx_none", 0.01f, p => 0f),
             };
         }

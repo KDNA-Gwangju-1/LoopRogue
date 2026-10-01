@@ -11,6 +11,7 @@ namespace LoopRogue
         private const float FlashDuration = 0.09f;
         private const float SquishDuration = 0.14f;
         private const float BumpDuration = 0.12f;
+        private const float SpinDuration = 0.18f;
 
         private GridActor _actor;
         private SpriteRenderer _renderer;
@@ -21,6 +22,7 @@ namespace LoopRogue
         private Coroutine _flashRoutine;
         private Coroutine _squishRoutine;
         private Coroutine _bumpRoutine;
+        private Coroutine _spinRoutine;
 
         public static ActorJuice Get(GridActor actor)
         {
@@ -87,6 +89,25 @@ namespace LoopRogue
             }
             transform.localScale = _baseScale;
             _squishRoutine = null;
+        }
+
+        /// <summary>한 바퀴 빙글(회전 베기).</summary>
+        public void Spin()
+        {
+            if (_spinRoutine != null)
+                StopCoroutine(_spinRoutine);
+            _spinRoutine = StartCoroutine(SpinRoutine());
+        }
+
+        private IEnumerator SpinRoutine()
+        {
+            for (var t = 0f; t < SpinDuration; t += Time.deltaTime)
+            {
+                transform.rotation = Quaternion.Euler(0f, 0f, -360f * (t / SpinDuration));
+                yield return null;
+            }
+            transform.rotation = Quaternion.identity;
+            _spinRoutine = null;
         }
 
         public void Bump(Vector2Int direction, float distanceInCells)

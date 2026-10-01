@@ -89,6 +89,39 @@ namespace LoopRogue
             }
         }
 
+        /// <summary>대시 직후(이미 새 칸으로 옮긴 뒤) - 지나온 길에 잔상을 남긴다.</summary>
+        public static void OnDash(PlayerActor player, Vector3 from)
+        {
+            if (!Enabled)
+                return;
+
+            var to = player.GridWorldPosition;
+            var renderer = player.GetComponent<SpriteRenderer>();
+            if (renderer != null && (to - from).sqrMagnitude > 0.01f)
+            {
+                const int ghosts = 4;
+                for (var i = 0; i < ghosts; i++)
+                {
+                    var pos = Vector3.Lerp(from, to, (float)i / ghosts);
+                    DeathBurst.SpawnGhost(renderer.sprite, pos, player.transform.localScale.x, new Color(0.5f, 0.8f, 1f, 0.15f + 0.1f * i));
+                }
+            }
+            CameraShake.Shake(0.05f, 0.08f);
+            SfxPlayer.Play(Sfx.Dash);
+        }
+
+        /// <summary>회전 베기 - 플레이어가 한 바퀴 돌고 주변으로 파편이 퍼진다(타격 연출은 몹마다 OnPlayerHitEnemy가 따로).</summary>
+        public static void OnSpin(PlayerActor player)
+        {
+            if (!Enabled)
+                return;
+
+            ActorJuice.Get(player).Spin();
+            DeathBurst.Spawn(player.transform.position, new Color(0.7f, 0.9f, 1f), count: 16, speed: 7f, size: 0.12f);
+            CameraShake.Shake(0.1f, 0.12f);
+            SfxPlayer.Play(Sfx.Spin);
+        }
+
         /// <summary>보스가 예고 칸을 깔 때 - 짧은 경고음.</summary>
         public static void OnTelegraph()
         {
