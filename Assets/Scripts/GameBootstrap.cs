@@ -116,8 +116,8 @@ namespace LoopRogue
         }
 
         /// <summary>궁수 배치 - 스테이지 1은 방 6부터 딱 1마리(첫 스테이지가 제일 어려운 벽이 되지 않게 - 봇 30판에서
-        /// 방 3부터 궁수를 넣었더니 스테이지 1 사망이 6.2회로 스테이지 7 수준이었다). 스테이지 2부터는 방마다 몹의
-        /// 1/3(최소 1)이 궁수. 몹 위치는 플레이어에게서 가까운 순으로 놓이므로 목록 끝쪽(먼 쪽)을 궁수로 둔다(뒤에서 쏘게).</summary>
+        /// 방 3부터 궁수를 넣었더니 스테이지 1 사망이 6.2회로 스테이지 7 수준이었다). 스테이지 2는 방마다 몹의
+        /// 1/3(최소 1), 3층부터는 1/4(최소 1)이 궁수. 몹 위치는 플레이어에게서 가까운 순으로 놓이므로 목록 끝쪽(먼 쪽)을 궁수로 둔다(뒤에서 쏘게).</summary>
         private const int FirstRangedRoomInStage1 = 6;
         private const int MaxRangedInStage1 = 1;
 
@@ -131,8 +131,12 @@ namespace LoopRogue
             int rangedCount;
             if (stage == 1)
                 rangedCount = roomNumber < FirstRangedRoomInStage1 ? 0 : MaxRangedInStage1;
-            else
+            else if (stage == 2)
                 rangedCount = Mathf.Max(1, enemyCount / 3);
+            else
+                // 방패병/거미가 같이 나오는 3층부터는 1/4 - 1/3이던 때 9·10층 일반 방 사망이 급증했다(봇 100판: 10층 방
+                // 판당 10.5회, 죽을 때 남은 몹 평균 궁수 3.6). 방패병 뒤에 숨은 궁수 그림은 유지하고 뒤쪽 화력만 줄인다.
+                rangedCount = Mathf.Max(1, enemyCount / 4);
 
             var shieldCount = stage < 2 ? 0
                 : stage == 2 ? (roomNumber >= NewEnemyFirstRoom ? 1 : 0)
