@@ -20,6 +20,8 @@ namespace LoopRogue
         public string Description;
         public UpgradeCategory Category;
         public Action<CharacterStats> Apply;
+        /// <summary>지금 이 카드를 보기에 넣어도 되는지 - 없으면 항상 가능(흡혈은 상한에 닿으면 빠진다).</summary>
+        public Func<CharacterStats, bool> IsAvailable;
 
         /// <summary>뽑힐 상대 가중치 - 기본 카드가 제일 흔하고 도박 카드가 제일 드물다.</summary>
         public int Weight => Category switch
@@ -83,8 +85,9 @@ namespace LoopRogue
                 Apply = s => { s.CriticalChanceRate += 0.05f; s.BaseAttack *= 0.96f; } },
 
             // 특수
-            new UpgradeOption { Category = UpgradeCategory.Special, Title = "흡혈", Description = "흡혈 +8% / 공격력 -3%",
-                Apply = s => { s.LifeStealRate += 0.08f; s.BaseAttack *= 0.97f; } },
+            new UpgradeOption { Category = UpgradeCategory.Special, Title = "흡혈", Description = "흡혈 +8% (최대 50%) / 공격력 -3%",
+                Apply = s => { s.LifeStealRate = Math.Min(CharacterStats.MaxLifeSteal, s.LifeStealRate + 0.08f); s.BaseAttack *= 0.97f; },
+                IsAvailable = s => s.LifeStealRate < CharacterStats.MaxLifeSteal },
             new UpgradeOption { Category = UpgradeCategory.Special, Title = "방어", Description = "받는 피해 -2% (최대 30%) / 골드 -5%",
                 Apply = s => { s.DamageReductionRate += 0.02f; s.GoldBonusRate -= 0.05f; } },
             new UpgradeOption { Category = UpgradeCategory.Special, Title = "재생", Description = "매 턴 최대체력 1.5% 회복 / 받는 피해 +2%",
@@ -152,7 +155,7 @@ namespace LoopRogue
             IsChoosingUpgrade = true;
 
             // 가중치 랜덤으로 서로 다른 3장 - 뽑힌 카드는 후보에서 빼고 다시 굴린다.
-            var pool = new List<UpgradeOption>(Pool);
+            var pool = Pool.FindAll(o => o.IsAvailable == null || o.IsAvailable(_stats));
             var picks = new List<UpgradeOption>();
             for (var i = 0; i < 3 && pool.Count > 0; i++)
             {

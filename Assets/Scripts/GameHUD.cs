@@ -243,7 +243,7 @@ namespace LoopRogue
             sb.AppendLine(reduction >= 0f
                 ? $"받는 피해  -{reduction * 100f:0.#}%  (최대 {CharacterStats.MaxDamageReduction * 100f:0}%)"
                 : $"받는 피해  <color=#FF7070>+{-reduction * 100f:0.#}%</color>");
-            sb.AppendLine($"흡혈  {s.LifeStealRate * 100f:0.#}%");
+            sb.AppendLine($"흡혈  {s.EffectiveLifeSteal * 100f:0.#}%{(s.LifeStealRate >= CharacterStats.MaxLifeSteal ? " (최대)" : "")}");
             sb.AppendLine($"재생  턴당 {s.RegenPerTurnRate * 100f:0.#}%  (≈{s.MaxHealth * s.RegenPerTurnRate:0.#} HP)");
             sb.AppendLine($"처치 회복  {s.KillHealRate * 100f:0.#}%  (≈{s.MaxHealth * s.KillHealRate:0.#} HP)");
 

@@ -37,6 +37,10 @@ namespace LoopRogue
         public const float MaxDamageReduction = 0.3f;
         public float DamageReductionRate;
         public float LifeStealRate;    // 준 피해 대비 회복 비율
+        /// <summary>흡혈 상한(사용자 결정 50%) - 봇 100판에서 흡혈 카드가 판당 중앙 11장(88%), 최대 20장(160%)까지 쌓였다.
+        /// 상한에 닿으면 흡혈 카드는 더 이상 안 나온다(LevelSystem). 상한 도입 전 저장된 판도 적용은 이 값까지만.</summary>
+        public const float MaxLifeSteal = 0.5f;
+        public float EffectiveLifeSteal => Mathf.Clamp(LifeStealRate, 0f, MaxLifeSteal);
         public float RegenPerTurnRate; // 매 턴 최대체력 대비 회복 비율
         public float KillHealRate;     // 적 처치 시 최대체력 대비 회복 비율
         public float ExpBonusRate;     // 획득 경험치 +%

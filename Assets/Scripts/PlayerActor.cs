@@ -217,7 +217,7 @@ namespace LoopRogue
             DamagePopup.Spawn(enemy.transform.position, damage, Color.white, isCritical);
             HitFeedback.OnPlayerHitEnemy(this, enemy, direction, isCritical);
             OnAttackedEnemy?.Invoke(enemy);
-            Stats.Heal(damage * Stats.LifeStealRate); // 흡혈 카드
+            Stats.Heal(damage * Stats.EffectiveLifeSteal); // 흡혈 카드(최대 50%)
 
             if (!enemy.Stats.IsDead)
                 return false;
