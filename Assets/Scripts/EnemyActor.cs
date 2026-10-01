@@ -39,6 +39,10 @@ namespace LoopRogue
         private const int ShieldTurnCooldown = 1;
         private int _shieldTurnCooldown;
 
+        /// <summary>방패병은 한 번 움직이면 다음 턴은 못 움직인다(공격은 가능) - 옆으로 비켜선 다음 턴에 못 따라와야 옆을 잡을 수 있다.</summary>
+        private const int ShieldMoveCooldown = 1;
+        private int _shieldMoveCooldown;
+
         /// <summary>거미: 같은 줄 2~4칸이면 거미줄(공격력 50% + 1턴 속박 = 이동·대시 불가), 쏜 뒤 이 턴 수 동안 다시 못 쏜다.</summary>
         public const int WebRange = 4;
         private const int WebCooldownTurns = 4;
@@ -199,6 +203,20 @@ namespace LoopRogue
                 return;
             }
 
+            if (IsAdjacentTo(player.GridPos))
+            {
+                HitPlayer(player); // 공격은 매 턴
+                return;
+            }
+
+            // 이동은 두 턴에 한 번(무거운 방패) - 매 턴 따라오면 플레이어가 옆으로 비킬 때마다 방향은 그대로 둔 채
+            // 옆으로 따라붙어서 다시 정면이 됐다(봇 로그: 비켜섰다 돌아오기를 반복하다 뒤의 궁수에게 맞아 죽음).
+            if (_shieldMoveCooldown > 0)
+            {
+                _shieldMoveCooldown--;
+                return;
+            }
+            _shieldMoveCooldown = ShieldMoveCooldown;
             TakeMeleeTurn(player, claimedSlots);
         }
 
