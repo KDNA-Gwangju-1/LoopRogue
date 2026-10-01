@@ -15,6 +15,8 @@ namespace LoopRogue
         Spin,
         Block,
         Web,
+        Fuse,
+        Explosion,
     }
 
     /// <summary>효과음 - 음원 파일 없이 사인파/사각파/노이즈를 코드로 합성해 AudioClip을 만든다(처음 쓸 때 한 번).
@@ -107,6 +109,10 @@ namespace LoopRogue
                 Sfx.Block => Build("sfx_block", 0.18f, p => (a.Sine(1250f) * 0.35f + b.Sine(1870f) * 0.25f + Noise() * 0.3f * Decay(p, 25f)) * Decay(p, 7f)),
                 // 거미줄 - 낮게 떨리는 "뿌직"
                 Sfx.Web => Build("sfx_web", 0.18f, p => (a.Square(Mathf.Lerp(220f, 120f, p)) * 0.2f * (Mathf.Sin(p * 60f) > 0f ? 1f : 0.3f) + Noise() * 0.25f) * Decay(p, 4f)),
+                // 도화선 - 점점 커지는 "치이익"
+                Sfx.Fuse => Build("sfx_fuse", 0.3f, p => Noise() * 0.35f * p * (0.7f + 0.3f * Mathf.Sin(p * 90f))),
+                // 폭발 - 길게 울리는 저음 쾅 + 노이즈
+                Sfx.Explosion => Build("sfx_explosion", 0.55f, p => (a.Sine(Mathf.Lerp(80f, 30f, p)) * 0.9f + Noise() * 0.8f * Decay(p, 5f)) * Decay(p, 3f)),
                 _ => Build("sfx_none", 0.01f, p => 0f),
             };
         }

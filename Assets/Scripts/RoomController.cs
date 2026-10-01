@@ -40,6 +40,9 @@ namespace LoopRogue
         private const float ShieldAttackRatio = 0.9f;
         private const float SpiderHealthRatio = 0.7f;
         private const float SpiderAttackRatio = 0.8f;
+        /// <summary>폭발병은 약간 약한 대신 폭발(공격력 ×3)이 아프다.</summary>
+        private const float BomberHealthRatio = 0.8f;
+        private const float BomberAttackRatio = 1f;
 
         private const int GoldPerKill = 4;       // "쓸 곳은 많은데 수급이 부족하다" 피드백으로 전부 2배(2/20/5 → 4/40/10)
         private const int GoldPerBossKill = 40;
@@ -60,7 +63,19 @@ namespace LoopRogue
         private readonly List<EnemyActor> _enemies = new List<EnemyActor>();
         private readonly List<GameObject> _roomObjects = new List<GameObject>();     // 바닥/벽
         private readonly List<GameObject> _telegraphObjects = new List<GameObject>();
+        private readonly HashSet<Vector2Int> _bossDangerTiles = new HashSet<Vector2Int>();
+        /// <summary>불 붙은 폭발병마다 예고 칸 - 보스 예고와 따로 지운다(보스 예고 발동이 폭발 예고를 지우면 안 됨).</summary>
+        private readonly Dictionary<EnemyActor, (List<Vector2Int> Tiles, List<GameObject> Objects)> _bombs =
+            new Dictionary<EnemyActor, (List<Vector2Int>, List<GameObject>)>();
+        /// <summary>보스 예고 + 폭발 예고 합집합(봇 회피/맵 표시용).</summary>
         private readonly HashSet<Vector2Int> _dangerTiles = new HashSet<Vector2Int>();
+
+        private static readonly Color BombTelegraphColor = new Color(1f, 0.6f, 0.1f, 0.45f);
+
+        /// <summary>자동 플레이 봇 통계용 - 폭발 횟수, 그중 플레이어 적중, 폭발로 죽은 다른 몹.</summary>
+        public static int BombExplosionCount;
+        public static int BombPlayerHitCount;
+        public static int BombEnemyKillCount;
         private RoomEventActor _event;
         private PlayerActor _player;
         private LoopManager _loopManager;
@@ -72,7 +87,7 @@ namespace LoopRogue
         public string RoomName => _current?.RoomName;
         public bool IsBossRoom => _current != null && _current.IsBossRoom;
 
-        /// <summary>보스가 예고해둔 공격 칸(다음 보스 턴에 발동) - 비어 있으면 예고 중인 공격 없음.</summary>
+        /// <summary>예고된 공격 칸(보스 예고 + 불 붙은 폭발병 3x3, 다음 그 몹 턴에 발동) - 비어 있으면 예고 중인 공격 없음.</summary>
         public IReadOnlyCollection<Vector2Int> DangerTiles => _dangerTiles;
 
         /// <summary>이 방에 아직 안 밟은 이벤트 칸이 있으면 그 액터.</summary>
@@ -124,6 +139,7 @@ namespace LoopRogue
                 EnemyKind.Ranged => (RangedHealthRatio, RangedAttackRatio),
                 EnemyKind.Shield => (ShieldHealthRatio, ShieldAttackRatio),
                 EnemyKind.Spider => (SpiderHealthRatio, SpiderAttackRatio),
+                EnemyKind.Bomber => (BomberHealthRatio, BomberAttackRatio),
                 _ => (1f, 1f),
             };
             var enemy = go.AddComponent<EnemyActor>();
@@ -196,22 +212,111 @@ namespace LoopRogue
             HitFeedback.OnTelegraph();
             foreach (var t in tiles)
             {
-                _dangerTiles.Add(t);
-                var go = new GameObject("Telegraph");
-                go.transform.SetParent(transform, false);
-                VisualUtil.CreateSquareVisual(go, TelegraphColor, GridConstants.CellSize * 0.95f, sortingOrder: -5);
-                go.transform.position = new Vector3(t.x * GridConstants.CellSize, t.y * GridConstants.CellSize, 0f);
-                _telegraphObjects.Add(go);
+                _bossDangerTiles.Add(t);
+                _telegraphObjects.Add(SpawnTelegraphTile(t, TelegraphColor, -5));
             }
+            RebuildDangerTiles();
         }
 
+        /// <summary>보스 예고만 지운다(폭발병 예고는 그대로).</summary>
         public void ClearTelegraph()
         {
             foreach (var go in _telegraphObjects)
                 if (go != null)
                     Destroy(go);
             _telegraphObjects.Clear();
+            _bossDangerTiles.Clear();
+            RebuildDangerTiles();
+        }
+
+        /// <summary>보스 예고 + 폭발 예고 전부 - 방을 비우거나 플레이어가 죽을 때.</summary>
+        private void ClearAllTelegraphs()
+        {
+            foreach (var bomb in _bombs.Values)
+                foreach (var go in bomb.Objects)
+                    if (go != null)
+                        Destroy(go);
+            _bombs.Clear();
+            ClearTelegraph();
+        }
+
+        private GameObject SpawnTelegraphTile(Vector2Int t, Color color, int sortingOrder)
+        {
+            var go = new GameObject("Telegraph");
+            go.transform.SetParent(transform, false);
+            VisualUtil.CreateSquareVisual(go, color, GridConstants.CellSize * 0.95f, sortingOrder);
+            go.transform.position = new Vector3(t.x * GridConstants.CellSize, t.y * GridConstants.CellSize, 0f);
+            return go;
+        }
+
+        private void RebuildDangerTiles()
+        {
             _dangerTiles.Clear();
+            _dangerTiles.UnionWith(_bossDangerTiles);
+            foreach (var bomb in _bombs.Values)
+                _dangerTiles.UnionWith(bomb.Tiles);
+        }
+
+        /// <summary>폭발병이 불을 붙였을 때 - 3x3 주황 예고.</summary>
+        public void ShowBombTelegraph(EnemyActor bomber, List<Vector2Int> tiles)
+        {
+            ClearBombTelegraph(bomber);
+            var objects = tiles.Select(t => SpawnTelegraphTile(t, BombTelegraphColor, -4)).ToList();
+            _bombs[bomber] = (tiles, objects);
+            RebuildDangerTiles();
+        }
+
+        private void ClearBombTelegraph(EnemyActor bomber)
+        {
+            if (!_bombs.TryGetValue(bomber, out var bomb))
+                return;
+            foreach (var go in bomb.Objects)
+                if (go != null)
+                    Destroy(go);
+            _bombs.Remove(bomber);
+            RebuildDangerTiles();
+        }
+
+        /// <summary>폭발병이 터진다 - 예고했던 3x3 안의 플레이어와 다른 몹 모두에게 damage. 폭발병 자신은 보상 없이 사라지고,
+        /// 폭발로 죽은 몹은 플레이어가 잡은 것처럼 보상(경험치/골드)을 준다. 몹 턴 도중에 방이 비면 여기서 바로 다음 방으로 넘어간다
+        /// (RunEnemyTurns의 남은 순회는 이미 죽은 옛 몹들이라 건너뛴다).</summary>
+        public void ResolveExplosion(EnemyActor bomber, float damage)
+        {
+            var tiles = _bombs.TryGetValue(bomber, out var bomb) ? bomb.Tiles : bomber.BlastTiles();
+            ClearBombTelegraph(bomber);
+            BombExplosionCount++;
+            HitFeedback.OnExplosion(bomber.transform.position);
+
+            if (tiles.Contains(_player.GridPos))
+            {
+                BombPlayerHitCount++;
+                var dealt = _player.Stats.TakeIncomingDamage(damage);
+                DamagePopup.Spawn(_player.transform.position, dealt, new Color(1f, 0.5f, 0.1f), isCritical: true);
+                HitFeedback.OnPlayerHurt(_player, null);
+            }
+
+            // 폭발병 자신 - 죽음 표시만 하고 보상 없이 제거(방 비었는지는 맨 끝에서 한 번만 본다).
+            bomber.Stats.TakeDamage(bomber.Stats.CurrentHealth + 1f);
+            Map.RemoveActor(bomber);
+            _enemies.Remove(bomber);
+            Destroy(bomber.gameObject);
+
+            if (_player.Stats.IsDead)
+                return; // RunEnemyTurns가 사망 처리
+
+            foreach (var victim in _enemies.Where(e => e != null && !e.Stats.IsDead && tiles.Contains(e.GridPos)).ToArray())
+            {
+                victim.Stats.TakeDamage(damage);
+                DamagePopup.Spawn(victim.transform.position, damage, new Color(1f, 0.6f, 0.2f));
+                if (!victim.Stats.IsDead)
+                    continue;
+                BombEnemyKillCount++;
+                if (_player.ClaimKill(victim))
+                    return; // 방 전환됨
+            }
+
+            if (_enemies.Count == 0)
+                FinishRoomCleared();
         }
 
         private void BuildFloor(RoomLayout layout, bool isBossRoom)
@@ -272,7 +377,7 @@ namespace LoopRogue
                     Destroy(go);
             _roomObjects.Clear();
 
-            ClearTelegraph();
+            ClearAllTelegraphs();
         }
 
         /// <summary>적 하나가 죽은 직후 호출 - 목록에서 빼고, 방이 비었으면 다음 방/승리로 진행한다.
@@ -284,6 +389,7 @@ namespace LoopRogue
             var goldBonus = 1f + _player.Stats.EffectiveGoldBonus; // 골드 증감 카드(하한 -50%)
             // 반복 보상 감소는 일반 몹/방 클리어에만(보스 처치는 항상 100%).
             var repeat = StageProgress.RepeatRewardMultiplier;
+            ClearBombTelegraph(enemy); // 불 붙은 폭발병을 잡으면 불발
             if (!enemy.IsMinion)
             {
                 var killGold = enemy.IsBoss
@@ -310,9 +416,17 @@ namespace LoopRogue
             if (_enemies.Count > 0)
                 return false;
 
+            FinishRoomCleared();
+            return true;
+        }
+
+        /// <summary>방의 몹이 전부 사라졌을 때 - 일반 방은 클리어 골드 + 회복 후 다음 방, 보스방은 스테이지 클리어.</summary>
+        private void FinishRoomCleared()
+        {
             if (!_current.IsBossRoom)
             {
-                GoldWallet.Add(Mathf.RoundToInt(GoldPerRoomClear * stageMultiplier * goldBonus * repeat));
+                var goldBonus = 1f + _player.Stats.EffectiveGoldBonus;
+                GoldWallet.Add(Mathf.RoundToInt(GoldPerRoomClear * StageScaling.RewardMultiplier(_stage) * goldBonus * StageProgress.RepeatRewardMultiplier));
                 _player.Stats.Heal(_player.Stats.MaxHealth * RoomClearHealRate);
             }
 
@@ -320,7 +434,6 @@ namespace LoopRogue
                 _loopManager.OnBossDefeated();
             else
                 _loopManager.AdvanceToNextRoom();
-            return true;
         }
 
         public void RunEnemyTurns()
@@ -350,7 +463,7 @@ namespace LoopRogue
 
                 if (_player.Stats.IsDead)
                 {
-                    ClearTelegraph();
+                    ClearAllTelegraphs();
                     _loopManager.OnPlayerDied();
                     return;
                 }

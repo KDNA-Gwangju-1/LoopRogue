@@ -144,17 +144,25 @@ namespace LoopRogue
             var spiderCount = stage < 3 ? 0
                 : stage == 3 ? (roomNumber >= NewEnemyFirstRoom ? 1 : 0)
                 : Mathf.Max(1, enemyCount / 5);
+            // 폭발병: 4층 방 4부터 1마리, 5층부터 몹의 1/6(최소 1). 근접 바로 뒤 - 앞줄이 붙어 있을 때 파고들어 터지게.
+            var bomberCount = stage < 4 ? 0
+                : stage == 4 ? (roomNumber >= NewEnemyFirstRoom ? 1 : 0)
+                : Mathf.Max(1, enemyCount / 6);
 
-            // 근접이 최소 1마리는 남게 - 몹이 적은 방에서 특수 몹만 남지 않도록 거미 → 방패병 순으로 줄인다.
-            while (shieldCount + spiderCount + rangedCount > enemyCount - 1 && spiderCount > 0)
+            // 근접이 최소 1마리는 남게 - 몹이 적은 방에서 특수 몹만 남지 않도록 폭발병 → 거미 → 방패병 순으로 줄인다.
+            int Special() => shieldCount + spiderCount + bomberCount + rangedCount;
+            while (Special() > enemyCount - 1 && bomberCount > 0)
+                bomberCount--;
+            while (Special() > enemyCount - 1 && spiderCount > 0)
                 spiderCount--;
-            while (shieldCount + spiderCount + rangedCount > enemyCount - 1 && shieldCount > 0)
+            while (Special() > enemyCount - 1 && shieldCount > 0)
                 shieldCount--;
-            var meleeCount = Mathf.Max(0, enemyCount - shieldCount - spiderCount - rangedCount);
+            var meleeCount = Mathf.Max(0, enemyCount - Special());
 
             var kinds = new List<EnemyKind>(enemyCount);
             for (var i = 0; i < shieldCount; i++) kinds.Add(EnemyKind.Shield);
             for (var i = 0; i < meleeCount; i++) kinds.Add(EnemyKind.Melee);
+            for (var i = 0; i < bomberCount; i++) kinds.Add(EnemyKind.Bomber);
             for (var i = 0; i < spiderCount; i++) kinds.Add(EnemyKind.Spider);
             while (kinds.Count < enemyCount) kinds.Add(EnemyKind.Ranged);
             return kinds;

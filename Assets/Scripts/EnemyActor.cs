@@ -10,6 +10,7 @@ namespace LoopRogue
         Ranged,
         Shield,
         Spider,
+        Bomber,
     }
 
     /// <summary>일반 몹/보스 공통 - 턴제라 실시간 이동 대신 TurnManager 역할을 하는
@@ -49,6 +50,12 @@ namespace LoopRogue
         private const float WebDamageRate = 0.5f;
         private int _webCooldown;
 
+        /// <summary>폭발병: 플레이어 옆에 붙으면 공격 대신 도화선에 불을 붙이고(주변 3x3 예고), 자기 다음 턴에 터진다.
+        /// 폭발은 플레이어와 다른 몹을 가리지 않고 공격력 × 이 배율. 터지기 전에 잡으면 불발.</summary>
+        public const float BlastDamageRate = 3f;
+        private bool _fuseLit;
+        public bool IsFuseLit => _fuseLit;
+
         /// <summary>방패병이 바라보는 방향(상하좌우). 다른 몹은 의미 없음.</summary>
         public Vector2Int Facing { get; private set; } = Vector2Int.left;
 
@@ -66,8 +73,23 @@ namespace LoopRogue
             EnemyKind.Ranged => "궁수",
             EnemyKind.Shield => "방패병",
             EnemyKind.Spider => "거미",
+            EnemyKind.Bomber => "폭발병",
             _ => "몬스터",
         };
+
+        /// <summary>폭발 범위 - 자기 칸 포함 주변 3x3 중 방 안이고 벽이 아닌 칸.</summary>
+        public List<Vector2Int> BlastTiles()
+        {
+            var tiles = new List<Vector2Int>();
+            for (var dx = -1; dx <= 1; dx++)
+            for (var dy = -1; dy <= 1; dy++)
+            {
+                var p = GridPos + new Vector2Int(dx, dy);
+                if (Map.IsInBounds(p) && !Map.IsWall(p))
+                    tiles.Add(p);
+            }
+            return tiles;
+        }
 
         /// <summary>attackerPos에서 때리면 방패 정면인지(방패병만).</summary>
         public bool IsShieldFront(Vector2Int attackerPos) => Kind == EnemyKind.Shield && attackerPos == GridPos + Facing;
@@ -153,6 +175,11 @@ namespace LoopRogue
                 color = new Color(0.6f, 0.3f, 0.85f); // 거미는 보라색
                 scale = GridConstants.CellSize * 0.5f;
             }
+            else if (Kind == EnemyKind.Bomber)
+            {
+                color = new Color(1f, 0.55f, 0.1f); // 폭발병은 주황색(불 붙으면 노랗게)
+                scale = GridConstants.CellSize * 0.55f;
+            }
             else
             {
                 color = new Color(0.8f, 0.2f, 0.2f);
@@ -180,8 +207,34 @@ namespace LoopRogue
                 TakeShieldTurn(player, claimedSlots);
             else if (Kind == EnemyKind.Spider)
                 TakeSpiderTurn(player, claimedSlots);
+            else if (Kind == EnemyKind.Bomber)
+                TakeBomberTurn(player, claimedSlots, room);
             else
                 TakeMeleeTurn(player, claimedSlots);
+        }
+
+        /// <summary>폭발병: 불이 붙어 있으면 터진다(그 자리에서 - 플레이어가 도망갔어도). 붙어 있으면 불을 붙인다(공격 안 함).
+        /// 아니면 근접 몹처럼 다가간다.</summary>
+        private void TakeBomberTurn(PlayerActor player, HashSet<Vector2Int> claimedSlots, RoomController room)
+        {
+            if (_fuseLit)
+            {
+                room.ResolveExplosion(this, Stats.AttackPower * BlastDamageRate);
+                return;
+            }
+
+            if (IsAdjacentTo(player.GridPos))
+            {
+                _fuseLit = true;
+                var renderer = GetComponent<SpriteRenderer>();
+                if (renderer != null)
+                    renderer.color = new Color(1f, 0.95f, 0.3f);
+                room.ShowBombTelegraph(this, BlastTiles());
+                HitFeedback.OnFuseLit(this);
+                return;
+            }
+
+            TakeMeleeTurn(player, claimedSlots);
         }
 
         /// <summary>방패병: 플레이어와 붙어 있는 동안은 방향을 못 돌리고 그냥 때린다 - 옆/뒤로 돌아 붙으면 계속 옆을 때릴 수 있다

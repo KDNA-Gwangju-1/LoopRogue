@@ -78,6 +78,27 @@ namespace LoopRogue
             SfxPlayer.Play(Sfx.Hurt);
         }
 
+        /// <summary>폭발병이 불을 붙였을 때 - 치익.</summary>
+        public static void OnFuseLit(EnemyActor bomber)
+        {
+            if (!Enabled)
+                return;
+
+            ActorJuice.Get(bomber).Squish(0.25f);
+            SfxPlayer.Play(Sfx.Fuse);
+        }
+
+        /// <summary>폭발 - 주황 파편 크게 + 화면 크게 흔들림 + 쾅.</summary>
+        public static void OnExplosion(Vector3 position)
+        {
+            if (!Enabled)
+                return;
+
+            DeathBurst.Spawn(position, new Color(1f, 0.6f, 0.15f), count: 22, speed: 8f, size: 0.25f);
+            CameraShake.Shake(0.3f, 0.3f);
+            SfxPlayer.Play(Sfx.Explosion);
+        }
+
         /// <summary>거미줄에 맞았을 때 - 하얗게 번쩍이고 끈적한 소리.</summary>
         public static void OnPlayerWebbed(PlayerActor player)
         {

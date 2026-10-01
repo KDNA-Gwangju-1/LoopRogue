@@ -250,6 +250,13 @@ namespace LoopRogue
             if (!enemy.Stats.IsDead)
                 return false;
 
+            return ClaimKill(enemy);
+        }
+
+        /// <summary>죽은 몹을 플레이어가 잡은 것으로 처리(제거 + 처치 회복 + 경험치 + 골드/방 전환) - 직접 때린 경우와
+        /// 폭발병 폭발에 휘말려 죽은 경우 공통. 방이 넘어갔으면 true.</summary>
+        public bool ClaimKill(EnemyActor enemy)
+        {
             HitFeedback.OnEnemyKilled(enemy);
             Map.RemoveActor(enemy);
             Destroy(enemy.gameObject);
