@@ -194,6 +194,12 @@ namespace LoopRogue
         private int _lastKnownLevel = 1;
         private int _lastEventCount;
         private int _lastShieldBlocks;
+        private int _lastRoomClearCount;
+        private double _roomDamageStart;
+        private readonly Dictionary<int, List<float>> _firstTryRoomDamage = new Dictionary<int, List<float>>();
+        private readonly Dictionary<int, List<float>> _firstTryEndHp = new Dictionary<int, List<float>>();
+        private readonly Dictionary<int, int> _roomDeathsByStage = new Dictionary<int, int>();
+        private readonly Dictionary<int, HashSet<int>> _runsReachedStage = new Dictionary<int, HashSet<int>>();
         private int _lastBombExplosions, _lastBombHits;
 
         // 속도 측정(요약에 표시)
@@ -748,8 +754,19 @@ namespace LoopRogue
 
             _lastKnownLevel = _player.Levels.Level;
 
+            if (!_runsReachedStage.TryGetValue(StageProgress.CurrentStage, out var reached))
+                _runsReachedStage[StageProgress.CurrentStage] = reached = new HashSet<int>();
+            reached.Add(_run.Index);
+
+            if (RoomController.RoomClearCount != _lastRoomClearCount)
+            {
+                _lastRoomClearCount = RoomController.RoomClearCount;
+                OnRoomCleared();
+            }
+
             if (_room.RoomName != _lastRoomName)
             {
+                _roomDamageStart = CharacterStats.IncomingDamageTotal;
                 if (_lastRoomName != null && !_player.Stats.IsDead)
                 {
                     Detail($"  방 클리어: {_lastRoomName} ({_roomTurns}턴, HP {_player.Stats.CurrentHealth:0}/{_player.Stats.MaxHealth:0}, Lv{_player.Levels.Level})");
@@ -876,8 +893,36 @@ namespace LoopRogue
             _hud.ChooseUpgrade(bestIndex);
         }
 
+        /// <summary>일반 방 난이도 측정 - 각 층 첫 시도에서 방마다 받은 피해(최대 체력 대비)와, 마지막 방(10번)을 끝낸 순간
+        /// 체력(클리어 회복 전). 목표(사용자 선택 "중간"): 마지막 방을 끝낼 때 체력 약 50%, 일반 방 사망 층마다 1~2회.</summary>
+        private void OnRoomCleared()
+        {
+            var damage = (float)((CharacterStats.IncomingDamageTotal - _roomDamageStart) / Mathf.Max(1f, _player.Stats.MaxHealth));
+            _roomDamageStart = CharacterStats.IncomingDamageTotal;
+            if (RoomController.LastClearedWasBoss)
+                return;
+
+            var stage = StageProgress.CurrentStage;
+            var firstTry = StageProgress.AttemptsThisStage <= 1;
+            var lastRoom = RoomController.LastClearedRoom != null && RoomController.LastClearedRoom.EndsWith("-10");
+            Ev("room_end", ("cleared", RoomController.LastClearedRoom), ("hp_pre_heal", RoomController.LastClearHpFraction), ("damage_frac", damage), ("first_try", firstTry));
+            if (!firstTry)
+                return;
+            if (!_firstTryRoomDamage.TryGetValue(stage, out var list))
+                _firstTryRoomDamage[stage] = list = new List<float>();
+            list.Add(damage);
+            if (lastRoom)
+            {
+                if (!_firstTryEndHp.TryGetValue(stage, out var end))
+                    _firstTryEndHp[stage] = end = new List<float>();
+                end.Add(RoomController.LastClearHpFraction);
+            }
+        }
+
         private void OnDeath()
         {
+            if (!_room.IsBossRoom)
+                _roomDeathsByStage[StageProgress.CurrentStage] = _roomDeathsByStage.TryGetValue(StageProgress.CurrentStage, out var rd) ? rd + 1 : 1;
             _run.TotalDeaths++;
             _stageDeaths++;
             _run.GoldLostDeath += _hud.LastDeathGoldPenalty;
@@ -1591,6 +1636,21 @@ namespace LoopRogue
                     var sd = cleared.Select(r => (float)r.StageDeaths[i]).ToList();
                     Log($"   {i + 1,2}    | {cleared.Count,3}/{n} | {sd.Average(),4:0.0} ({sd.Min():0}~{sd.Max():0})" +
                         $"      | {Percentile(sd, 0.5f),4:0} | {Percentile(sd, 0.9f),4:0} | {cleared.Average(r => r.StageTurns[i]),5:0} | Lv{cleared.Average(r => r.StageClearLevel[i]):0.0}");
+                }
+
+                Log("");
+                Log("--- 일반 방 - 목표: 그 층에 간 판당 일반 방 사망 1~2회 ---");
+                Log("스테이지 | 일반 방 사망(그 층에 간 판당) | 첫 시도 마지막 방 끝낼 때 체력(회복 전) 평균 / 하위10% | 첫 시도 방당 받은 피해(최대체력 대비)");
+                for (var s = 1; s <= StageProgress.MaxStage; s++)
+                {
+                    var end = _firstTryEndHp.TryGetValue(s, out var e) ? e : new List<float>();
+                    var dmg = _firstTryRoomDamage.TryGetValue(s, out var d) ? d : new List<float>();
+                    var roomDeaths = _roomDeathsByStage.TryGetValue(s, out var rd) ? rd : 0;
+                    var reachedRuns = _runsReachedStage.TryGetValue(s, out var rr) ? rr.Count : 0;
+                    var endText = end.Count > 0 ? $"{end.Average() * 100f,3:0}% / {Percentile(end, 0.1f) * 100f,3:0}% ({end.Count}판)" : "-  (첫 시도에 마지막 방까지 못 감)";
+                    var dmgText = dmg.Count > 0 ? $"{dmg.Average() * 100f:0}%" : "-";
+                    var deathText = reachedRuns > 0 ? $"{(float)roomDeaths / reachedRuns,4:0.0} ({reachedRuns}판)" : "-";
+                    Log($"   {s,2}    | {deathText} | {endText} | {dmgText}");
                 }
             }
 

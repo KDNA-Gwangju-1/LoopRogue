@@ -76,11 +76,15 @@ namespace LoopRogue
         }
 
         /// <summary>적의 공격처럼 "받는 피해"는 이걸로 - 피해 감소를 적용한 실제 피해량을 돌려준다(팝업 표시용).</summary>
+        /// <summary>플레이어가 받은 피해 누적(TakeIncomingDamage는 플레이어만 쓴다) - 봇의 방당 받은 피해 측정용.</summary>
+        public static double IncomingDamageTotal;
+
         public float TakeIncomingDamage(float rawDamage)
         {
             var reduction = Mathf.Clamp(DamageReductionRate, -MaxDamageReduction, MaxDamageReduction);
             var damage = rawDamage * (1f - reduction);
             TakeDamage(damage);
+            IncomingDamageTotal += damage;
             return damage;
         }
 

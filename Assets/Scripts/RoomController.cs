@@ -74,6 +74,11 @@ namespace LoopRogue
 
         /// <summary>자동 플레이 봇 통계용 - 폭발 횟수, 그중 플레이어 적중.</summary>
         public static int BombExplosionCount;
+        /// <summary>봇 통계용 - 방 클리어 횟수와 마지막 클리어 방, 그 순간 체력 비율(클리어 회복 받기 전).</summary>
+        public static int RoomClearCount;
+        public static string LastClearedRoom;
+        public static bool LastClearedWasBoss;
+        public static float LastClearHpFraction;
         public static int BombPlayerHitCount;
         private RoomEventActor _event;
         private PlayerActor _player;
@@ -412,6 +417,10 @@ namespace LoopRogue
         /// <summary>방의 몹이 전부 사라졌을 때 - 일반 방은 클리어 골드 + 회복 후 다음 방, 보스방은 스테이지 클리어.</summary>
         private void FinishRoomCleared()
         {
+            RoomClearCount++;
+            LastClearedRoom = _current.RoomName;
+            LastClearedWasBoss = _current.IsBossRoom;
+            LastClearHpFraction = _player.Stats.CurrentHealth / Mathf.Max(1f, _player.Stats.MaxHealth); // 클리어 회복 전
             if (!_current.IsBossRoom)
             {
                 var goldBonus = 1f + _player.Stats.EffectiveGoldBonus;
