@@ -27,18 +27,18 @@ namespace LoopRogue
         {
             // "보스 배율 찾기" 봇 모드(층마다 그 층 입장 상태로 보스 세기를 바꿔가며 측정)로 목표 곡선에 맞춘 값.
             // 목표 리듬(사용자 선택): 5층 중간 보스·10층 최종 보스가 벽, 6층은 숨 돌리기 -
-            // 층별 실제 평균 사망 2:3 3:4 4:5 5:15 6:5 7:8 8:10 9:12 10:20(배율 찾기 1회차 + 일반 모드 실측 곡선으로 직접 보정 2~11회차, 4회차부터 장비/영약 고정 이후, 8회차부터 스킬·몹 1.5배·흡혈 상한 이후). 보스 세기 10% 차이가 사망 수를 약 40% 바꿀 만큼
+            // 층별 실제 평균 사망 2:3 3:4 4:5 5:15 6:5 7:8 8:10 9:12 10:20(배율 찾기 1회차 + 일반 모드 실측 곡선으로 직접 보정 2~14회차, 4회차부터 장비/영약 고정 이후, 8회차부터 스킬·몹 1.5배·흡혈 상한 이후, 12회차부터 일반 방 몹 강화 이후 - 보스 목표는 일반 방 사망과 별개로 이 값). 보스 세기 10% 차이가 사망 수를 약 40% 바꿀 만큼
             // 민감하니 손으로 크게 건드리지 말 것. 패턴이 어려운 층(6 저격, 7 X자, 8 돌진+강타)은 값이 낮다.
-            1 => 1.32f,
+            1 => 1.49f,
             2 => 1.24f,
-            3 => 0.99f,
-            4 => 1.33f,
-            5 => 1.27f,
-            6 => 0.84f,
-            7 => 0.72f,
-            8 => 0.82f,
-            9 => 0.54f,
-            10 => 0.62f,
+            3 => 1.14f,
+            4 => 1.24f,
+            5 => 1.19f,
+            6 => 0.82f,
+            7 => 0.74f,
+            8 => 0.83f,
+            9 => 0.63f,
+            10 => 0.77f,
             _ => 1f,
         };
 
@@ -82,6 +82,33 @@ namespace LoopRogue
         private const float EnemyCountMultiplier = 1.5f;
         private const int MaxEnemiesPerRoom = 12;
 
+        /// <summary>일반 방 몹 세기 보정(보스방 제외) - 봇 측정에서 2층부터 첫 시도에도 방을 체력 거의 100%로 끝냈다(상점·뽑기·영약
+        /// 성장이 방 몹 성장보다 빠름). 목표(사용자 선택 "중간"): 일반 방 사망 층마다 1~2회, 단 8~10층은 연달아 빡센 구간으로 6~10회.
+        /// 봇 요약의 "일반 방" 표로 맞춘다. 실측 결과 흡혈·처치 회복이 커서 체력은 거의 항상 가득 차 있다가 한꺼번에 무너지는 식이라
+        /// "남은 체력"보다 "그 층에 간 판당 일반 방 사망"(목표 1~2회)을 기준으로 맞춘다.
+        /// 1차(1층 1.3, 2층+ 공격력 2.5/체력 1.5): 그 층에 간 판당 일반 방 사망 1.1/0.9/0.4/1.3/1.7/0.7/7.0/25.0/27.3/38.8 - 7층부터 급증. 2차(7층 1.8, 8~9층 1.9, 10층 1.8, 7층+ 체력 1.2~1.3): 1.3/0.9/1.4/1.1/0.9/0.9/0.6/7.2/7.6/28.3 - 10층만 방7~9에 몰려 죽음(남은 몹 궁수 2.9·방패병 1.9·거미 1.2).</summary>
+        private static float RoomEnemyAttackScale(int stage) => stage switch
+        {
+            1 => 1.3f,
+            2 => 2.8f,
+            3 => 3f,
+            4 => 2.6f,
+            5 => 2.8f,
+            6 => 2.4f,
+            7 => 2f,
+            8 => 1.95f,
+            9 => 1.83f,
+            _ => 1.5f, // 8~10층은 갈수록 빡센 마지막 고비(사용자: "후반으로 갈수록 더 어려워져야" - 일반 방 사망 목표 8층 약 7, 9층 약 9, 10층 약 11)
+        };
+
+        private static float RoomEnemyHealthScale(int stage) => stage switch
+        {
+            1 => 1f,
+            <= 6 => 1.5f,
+            7 => 1.2f,
+            _ => 1.3f,
+        };
+
         private static List<RoomDefinition> BuildStageRooms(int stage)
         {
             var stagePower = stage - 1; // 0-based - 방 크기/몹 수 가산에 그대로 씀.
@@ -94,8 +121,8 @@ namespace LoopRogue
                 // 될 만큼 거대해진다. 이 둘은 예전처럼 스테이지당 고정폭으로만 커진다.
                 var size = Mathf.Min(6 + stagePower + (i - 1) / 2, 14);
                 var enemyCount = Mathf.Min(Mathf.RoundToInt((2 + stagePower + (i - 1) / 2) * EnemyCountMultiplier), MaxEnemiesPerRoom);
-                var hp = (8f + (i - 1) * 2f) * stageMultiplier;
-                var atk = (2f + (i - 1) * 0.4f) * stageMultiplier;
+                var hp = (8f + (i - 1) * 2f) * stageMultiplier * RoomEnemyHealthScale(stage);
+                var atk = (2f + (i - 1) * 0.4f) * stageMultiplier * RoomEnemyAttackScale(stage);
 
                 var room = MakeRoom($"Stage {stage}-{i}", size, size, enemyCount, enemyHp: hp, enemyAtk: atk);
                 room.EnemyKinds = BuildEnemyKinds(stage, i, enemyCount);
