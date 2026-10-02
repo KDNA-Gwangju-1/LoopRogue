@@ -125,7 +125,19 @@ namespace LoopRogue
             _stage = stage;
         }
 
+        /// <summary>봇 속도 측정용 - 몹 턴 전체 / 방 생성에 쓴 시간 누적.</summary>
+        public static readonly System.Diagnostics.Stopwatch EnemyTurnWatch = new System.Diagnostics.Stopwatch();
+        public static readonly System.Diagnostics.Stopwatch LoadRoomWatch = new System.Diagnostics.Stopwatch();
+
         public void LoadRoom(RoomDefinition def)
+        {
+            var nested = LoadRoomWatch.IsRunning;
+            LoadRoomWatch.Start();
+            try { LoadRoomCore(def); }
+            finally { if (!nested) LoadRoomWatch.Stop(); }
+        }
+
+        private void LoadRoomCore(RoomDefinition def)
         {
             _current = def;
             ClearRoom();
@@ -521,6 +533,14 @@ namespace LoopRogue
         }
 
         public void RunEnemyTurns()
+        {
+            var nested = EnemyTurnWatch.IsRunning;
+            EnemyTurnWatch.Start();
+            try { RunEnemyTurnsCore(); }
+            finally { if (!nested) EnemyTurnWatch.Stop(); }
+        }
+
+        private void RunEnemyTurnsCore()
         {
             // 스냅샷을 떠서 순회한다 - 턴 도중 죽거나 소환돼서 리스트가 바뀌어도 이번 순회엔 영향 없게.
             // 플레이어에게 가까운 몹부터 움직여서 가까운 몹이 가까운 옆 칸을 먼저 예약하게 한다(포위 AI).

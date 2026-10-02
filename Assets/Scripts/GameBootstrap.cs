@@ -50,7 +50,40 @@ namespace LoopRogue
             _ => 1.3f,
         };
 
+        private static GameBootstrap _instance;
+        private readonly HashSet<GameObject> _sceneRoots = new HashSet<GameObject>();
+
         private void Awake()
+        {
+            _instance = this;
+            foreach (var go in gameObject.scene.GetRootGameObjects())
+                _sceneRoots.Add(go); // 씬 파일에 원래 있던 것(카메라 등) - 다시 지을 때 남긴다
+            Build();
+        }
+
+        /// <summary>자동 플레이 봇 전용 - Main 씬을 다시 로드하는 대신, 런타임에 만든 루트 오브젝트를 전부 지우고 다음 프레임에
+        /// Awake와 같은 순서로 다시 짓는다. 에디터에서 씬 로드 한 번이 약 0.28초라 봇 시간의 40%가 씬 로드였다.
+        /// 저장(RunProgress 등)은 전부 정적/PlayerPrefs라 씬 로드와 결과가 같다.</summary>
+        public static void RebuildInPlace()
+        {
+            if (_instance == null)
+            {
+                UnityEngine.SceneManagement.SceneManager.LoadScene("Main");
+                return;
+            }
+            foreach (var go in _instance.gameObject.scene.GetRootGameObjects())
+                if (!_instance._sceneRoots.Contains(go))
+                    Destroy(go);
+            _instance.StartCoroutine(_instance.BuildNextFrame());
+        }
+
+        private System.Collections.IEnumerator BuildNextFrame()
+        {
+            yield return null; // Destroy가 끝난 뒤에 짓는다(옛 오브젝트와 한 프레임 겹치지 않게)
+            Build();
+        }
+
+        private void Build()
         {
             StageProgress.EnsureLoaded();
             var stage = StageProgress.CurrentStage;

@@ -95,7 +95,7 @@ namespace LoopRogue
         /// <summary>방 입장 시 시작 배치 맵도 남길지(상세 로그 모드일 때만).</summary>
         private const bool LogMapOnRoomStart = true;
 
-        private readonly Queue<string> _recentMaps = new Queue<string>();
+        private readonly Queue<MapFrame> _recentMaps = new Queue<MapFrame>(); // 글자로는 사망 때만 그린다(매 턴 문자열 만들던 게 봇 시간을 많이 먹었다)
         private readonly Queue<string> _recentDecisions = new Queue<string>(); // 끼임 진단용 - 최근 봇 판단 이유
         private string _lastDecision;
 
@@ -227,6 +227,10 @@ namespace LoopRogue
 
         private void Start()
         {
+            SceneManager.sceneLoaded += OnSceneLoaded;
+            LoopManager.SkipLobbyAfterStageClear = true;
+            RoomController.EnemyTurnWatch.Reset();
+            RoomController.LoadRoomWatch.Reset();
             var dir = Path.Combine(Application.dataPath, "..", "BotLogs");
             Directory.CreateDirectory(dir);
             var path = Path.GetFullPath(Path.Combine(dir, $"bot_{DateTime.Now:yyyyMMdd_HHmmss}.txt"));
@@ -267,6 +271,8 @@ namespace LoopRogue
         {
             DamagePopup.Suppressed = false;
             GameHUD.AutoPlayActive = false;
+            LoopManager.SkipLobbyAfterStageClear = false;
+            SceneManager.sceneLoaded -= OnSceneLoaded;
             _log?.Dispose();
             _events?.Dispose();
         }
@@ -581,6 +587,9 @@ namespace LoopRogue
             }
         }
 
+        /// <summary>스테이지 클리어 후 Main → Main으로 바로 다시 띄우면 씬 이름이 안 바뀌어서, 로드 이벤트로 "새 씬"을 알린다.</summary>
+        private void OnSceneLoaded(Scene scene, LoadSceneMode mode) => _lastScene = null;
+
         private void TrackGold()
         {
             var gold = GoldWallet.Gold;
@@ -721,6 +730,7 @@ namespace LoopRogue
                 _hud = FindFirstObjectByType<GameHUD>();
                 if (_player == null || _room == null || _hud == null || _player.Stats == null)
                     return;
+                DisableRendering(); // GameBootstrap.RebuildInPlace로 씬 로드 없이 다시 지은 경우에도
 
                 if (_room.Stage != _enteredStage)
                 {
@@ -1027,7 +1037,14 @@ namespace LoopRogue
                 return;
             }
 
-            _hud.ConfirmStageClear();
+            // 로비 씬을 건너뛴다(LoopManager.SkipLobbyAfterStageClear) - 저장은 ConfirmStageClear 안에서, Main 로드는 프레임 끝이라
+            // 지금 쇼핑하면 로비를 거칠 때와 순서가 같다(저장 → 쇼핑 → 새 Main이 지갑을 읽음).
+            _hud.ConfirmStageClear(); // → LoopManager가 저장 후 GameBootstrap.RebuildInPlace(씬 로드 없이 다음 프레임에 다시 짓기)
+            _lastScene = null; // 씬 전환과 같은 상태 초기화(다음 Update)
+            DoShopping();
+            var prefs = CapturePrefs();
+            _entrySnapshots.Add((_run.Index, StageProgress.CurrentStage, prefs));
+            Ev("stage_enter", ("prefs", prefs));
         }
 
         /// <summary>1) 보스 예고 칸 위에 서 있으면 안전한 옆 칸으로 피한다 2) 인접한 적이 있으면 체력이 제일 낮은 적을
@@ -1204,6 +1221,25 @@ namespace LoopRogue
             var giveUpFlank = _turnsSinceProgress >= CrossfireGiveUpTurns;
             Func<Vector2Int, bool> walkableSafe = c => map.IsWalkable(c) && !danger.Contains(c);
 
+            // "몹 옆 칸" 목표 집합을 몹 쪽에서 한 번만 만든다 - 예전엔 BFS가 칸을 꺼낼 때마다 LINQ로 이웃 4칸을 봐서
+            // 18x18 방에서 봇 판단 시간의 대부분을 먹었다(결과와 탐색 순서는 같음).
+            var adjacentAny = AdjacentAnyBuffer;
+            var adjacentFlank = AdjacentFlankBuffer;
+            adjacentAny.Clear();
+            adjacentFlank.Clear();
+            foreach (var e in _room.Enemies)
+            {
+                if (e == null || !ReferenceEquals(map.GetActorAt(e.GridPos), e))
+                    continue;
+                foreach (var d in Directions)
+                {
+                    var c = e.GridPos + d;
+                    adjacentAny.Add(c);
+                    if (!e.IsShieldFront(c))
+                        adjacentFlank.Add(c);
+                }
+            }
+
             EnemyActor target = null;
             var targetDir = Vector2Int.zero;
             var targetFront = false;
@@ -1223,7 +1259,7 @@ namespace LoopRogue
             }
             if (target != null && targetFront && !giveUpFlank)
             {
-                var flank = FirstStepTo(c => Directions.Any(d => map.GetActorAt(c + d) is EnemyActor e2 && !e2.IsShieldFront(c)), walkableSafe);
+                var flank = FirstStepTo(adjacentFlank.Contains, walkableSafe);
                 if (flank.HasValue)
                 {
                     _run.ShieldFlanks++;
@@ -1253,10 +1289,8 @@ namespace LoopRogue
 
             // 적에게 가는 길에 이벤트 칸이 있으면 그냥 밟고 지나간다.
             var eventCell = _room.Event != null ? _room.Event.GridPos : (Vector2Int?)null;
-            Func<Vector2Int, bool> isEnemyAdjacentAny = c => Directions.Any(d => map.GetActorAt(c + d) is EnemyActor);
-            Func<Vector2Int, bool> isEnemyAdjacent = giveUpFlank
-                ? isEnemyAdjacentAny
-                : c => Directions.Any(d => map.GetActorAt(c + d) is EnemyActor e && !e.IsShieldFront(c));
+            Func<Vector2Int, bool> isEnemyAdjacentAny = adjacentAny.Contains;
+            Func<Vector2Int, bool> isEnemyAdjacent = giveUpFlank ? isEnemyAdjacentAny : adjacentFlank.Contains;
             Func<Vector2Int, bool> passable = c => (map.IsWalkable(c) || c == eventCell) && !danger.Contains(c);
 
             // 궁수가 2마리 이상 살아 있으면 "여러 궁수가 동시에 쏠 수 있는 칸"을 비싸게 쳐서 돌아간다(한 줄로 선 궁수
@@ -1321,11 +1355,18 @@ namespace LoopRogue
         }
 
         /// <summary>플레이어 칸에서 passable 칸만 밟는 BFS로, isGoal을 만족하는 가장 가까운 칸까지의 첫 걸음 방향.</summary>
+        private static readonly HashSet<Vector2Int> AdjacentAnyBuffer = new HashSet<Vector2Int>();
+        private static readonly HashSet<Vector2Int> AdjacentFlankBuffer = new HashSet<Vector2Int>();
+        private static readonly Dictionary<Vector2Int, Vector2Int> FirstStepBuffer = new Dictionary<Vector2Int, Vector2Int>();
+        private static readonly Queue<Vector2Int> QueueBuffer = new Queue<Vector2Int>();
+
         private Vector2Int? FirstStepTo(Func<Vector2Int, bool> isGoal, Func<Vector2Int, bool> passable)
         {
             var start = _player.GridPos;
-            var firstStep = new Dictionary<Vector2Int, Vector2Int>();
-            var queue = new Queue<Vector2Int>();
+            var firstStep = FirstStepBuffer;
+            var queue = QueueBuffer;
+            firstStep.Clear();
+            queue.Clear();
             foreach (var d in Directions)
             {
                 var next = start + d;
@@ -1380,8 +1421,8 @@ namespace LoopRogue
             return true;
         }
 
-        /// <summary>FirstStepTo의 가중치 버전(다익스트라) - 칸을 밟을 때마다 1 + extraCost(칸). 방이 최대 14x14라
-        /// 우선순위 큐 없이 매번 최소값을 선형 탐색해도 충분히 빠르다.</summary>
+        /// <summary>FirstStepTo의 가중치 버전(다익스트라) - 칸을 밟을 때마다 1 + extraCost(칸). 예전엔 매번 최소값을 선형 탐색했는데
+        /// 방이 18x18까지 커지면서 칸 수의 제곱이 돼 봇이 절반 속도로 떨어져서 이진 힙(오래된 항목은 꺼낼 때 건너뜀)으로 바꿨다.</summary>
         private Vector2Int? CheapestFirstStepTo(Func<Vector2Int, bool> isGoal, Func<Vector2Int, bool> passable,
             Func<Vector2Int, int> extraCost)
         {
@@ -1389,6 +1430,7 @@ namespace LoopRogue
             var cost = new Dictionary<Vector2Int, int>();
             var firstStep = new Dictionary<Vector2Int, Vector2Int>();
             var done = new HashSet<Vector2Int>();
+            var heap = new List<(int Cost, Vector2Int Cell)>();
             foreach (var d in Directions)
             {
                 var next = start + d;
@@ -1396,24 +1438,16 @@ namespace LoopRogue
                     continue;
                 cost[next] = 1 + extraCost(next);
                 firstStep[next] = d;
+                HeapPush(heap, (cost[next], next));
             }
 
             while (true)
             {
-                var found = false;
-                var cur = default(Vector2Int);
-                var best = int.MaxValue;
-                foreach (var pair in cost)
-                {
-                    if (pair.Value < best && !done.Contains(pair.Key))
-                    {
-                        best = pair.Value;
-                        cur = pair.Key;
-                        found = true;
-                    }
-                }
-                if (!found)
+                if (heap.Count == 0)
                     return null;
+                var (best, cur) = HeapPop(heap);
+                if (done.Contains(cur) || best != cost[cur])
+                    continue; // 더 싼 값으로 이미 갱신된 오래된 항목
                 if (isGoal(cur))
                     return firstStep[cur];
                 done.Add(cur);
@@ -1428,20 +1462,66 @@ namespace LoopRogue
                     {
                         cost[next] = c;
                         firstStep[next] = firstStep[cur];
+                        HeapPush(heap, (c, next));
                     }
                 }
             }
+        }
+
+        private static void HeapPush(List<(int Cost, Vector2Int Cell)> heap, (int Cost, Vector2Int Cell) item)
+        {
+            heap.Add(item);
+            var i = heap.Count - 1;
+            while (i > 0)
+            {
+                var parent = (i - 1) / 2;
+                if (heap[parent].Cost <= heap[i].Cost)
+                    break;
+                (heap[parent], heap[i]) = (heap[i], heap[parent]);
+                i = parent;
+            }
+        }
+
+        private static (int Cost, Vector2Int Cell) HeapPop(List<(int Cost, Vector2Int Cell)> heap)
+        {
+            var top = heap[0];
+            var last = heap.Count - 1;
+            heap[0] = heap[last];
+            heap.RemoveAt(last);
+            var i = 0;
+            while (true)
+            {
+                var l = i * 2 + 1;
+                if (l >= heap.Count)
+                    break;
+                var r = l + 1;
+                var min = r < heap.Count && heap[r].Cost < heap[l].Cost ? r : l;
+                if (heap[i].Cost <= heap[min].Cost)
+                    break;
+                (heap[i], heap[min]) = (heap[min], heap[i]);
+                i = min;
+            }
+            return top;
         }
 
         // ===================== 맵 스냅샷 =====================
 
         /// <summary>매 턴 행동 직후(몹 턴까지 끝난 상태) 맵을 버퍼에 쌓는다 - 사망 시 "죽기 직전 몇 턴"을 보여주기 위해.
         /// 마지막 한 장은 죽은 순간 그대로라 MapFramesBeforeDeath + 1장을 유지한다.</summary>
+        private readonly Stopwatch _rememberWatch = new Stopwatch();
+
         private void RememberMap()
+        {
+            _rememberWatch.Start();
+            try { RememberMapCore(); }
+            finally { _rememberWatch.Stop(); }
+        }
+
+        private void RememberMapCore()
         {
             if (_room == null || _room.Map == null)
                 return;
-            _recentMaps.Enqueue(RenderMap($"턴 {_attemptTurns + 1}"));
+            _recentMaps.Enqueue(CaptureMap($"턴 {_attemptTurns + 1}"));
             while (_recentMaps.Count > MapFramesBeforeDeath + 1)
                 _recentMaps.Dequeue();
         }
@@ -1452,23 +1532,59 @@ namespace LoopRogue
                 return;
             Log($"  --- {_run.Index}판 사망 #{_stageDeaths} 직전 맵 ({_room.RoomName}) ---");
             foreach (var frame in _recentMaps)
-                Log(frame);
+                Log(frame.Render());
             _recentMaps.Clear();
         }
 
         /// <summary>현재 방을 글자로 그린다. 위쪽이 y가 큰 쪽(화면과 같은 방향).
         /// P 플레이어(!는 예고 칸 위) / M 근접 몹 / A 궁수 / B 보스 / m 졸개 / E 이벤트 / # 벽 / x 보스 예고 칸 / . 빈 칸,
         /// 아래에 몹별 좌표와 HP.</summary>
-        private string RenderMap(string title)
+        private string RenderMap(string title) => CaptureMap(title).Render();
+
+        /// <summary>맵 한 장을 문자열로 만들기 전의 가벼운 사본 - 칸 글자 배열 + 몹 목록 값만 복사해둔다.</summary>
+        private sealed class MapFrame
+        {
+            public string Title;
+            public string RoomName;
+            public Vector2Int PlayerPos;
+            public float Hp, MaxHp;
+            public int Width, Height;
+            public char[] Cells;
+            public (char Kind, Vector2Int Pos, float Hp)[] Enemies;
+
+            public string Render()
+            {
+                var sb = new StringBuilder();
+                sb.Append($"  [{Title}] {RoomName} | 플레이어 ({PlayerPos.x},{PlayerPos.y}) HP {Hp:0}/{MaxHp:0}\n");
+                for (var y = Height - 1; y >= 0; y--)
+                {
+                    sb.Append("    ");
+                    for (var x = 0; x < Width; x++)
+                        sb.Append(Cells[y * Width + x]).Append(' ');
+                    sb.Append('\n');
+                }
+                sb.Append($"    적: {string.Join("  ", Enemies.Select(e => $"{e.Kind}({e.Pos.x},{e.Pos.y}) HP{e.Hp:0}"))}");
+                return sb.ToString();
+            }
+        }
+
+        private MapFrame CaptureMap(string title)
         {
             var map = _room.Map;
-            var sb = new StringBuilder();
-            sb.Append($"  [{title}] {_room.RoomName} | 플레이어 ({_player.GridPos.x},{_player.GridPos.y}) " +
-                      $"HP {_player.Stats.CurrentHealth:0}/{_player.Stats.MaxHealth:0}\n");
+            var frame = new MapFrame
+            {
+                Title = title,
+                RoomName = _room.RoomName,
+                PlayerPos = _player.GridPos,
+                Hp = _player.Stats.CurrentHealth,
+                MaxHp = _player.Stats.MaxHealth,
+                Width = map.Width,
+                Height = map.Height,
+                Cells = new char[map.Width * map.Height],
+            };
 
             for (var y = map.Height - 1; y >= 0; y--)
             {
-                sb.Append("    ");
                 for (var x = 0; x < map.Width; x++)
                 {
                     var cell = new Vector2Int(x, y);
@@ -1486,15 +1602,14 @@ namespace LoopRogue
                         RoomEventActor _ => 'E',
                         _ => map.IsWall(cell) ? '#' : _room.DangerTiles.Contains(cell) ? 'x' : '.',
                     };
-                    sb.Append(c).Append(' ');
+                    frame.Cells[y * map.Width + x] = c;
                 }
-                sb.Append('\n');
             }
 
-            var enemies = _room.Enemies.Where(e => e != null && !e.Stats.IsDead)
-                .Select(e => $"{(e.IsBoss ? 'B' : e.Kind == EnemyKind.Ranged ? 'A' : e.Kind == EnemyKind.Shield ? 'S' : e.Kind == EnemyKind.Spider ? 'W' : e.Kind == EnemyKind.Bomber ? 'O' : 'M')}({e.GridPos.x},{e.GridPos.y}) HP{e.Stats.CurrentHealth:0}");
-            sb.Append($"    적: {string.Join("  ", enemies)}");
-            return sb.ToString();
+            frame.Enemies = _room.Enemies.Where(e => e != null && !e.Stats.IsDead)
+                .Select(e => (e.IsBoss ? 'B' : e.Kind == EnemyKind.Ranged ? 'A' : e.Kind == EnemyKind.Shield ? 'S' : e.Kind == EnemyKind.Spider ? 'W' : e.Kind == EnemyKind.Bomber ? 'O' : 'M', e.GridPos, e.Stats.CurrentHealth))
+                .ToArray();
+            return frame;
         }
 
         private string StatLine()
@@ -1661,6 +1776,12 @@ namespace LoopRogue
             var totalTurns = _results.Sum(r => r.TotalTurns);
             Log($"속도: 전체 {totalSec:0}초 | 초당 {totalTurns / Mathf.Max(1f, totalSec):0}턴 | 턴 처리에 쓴 시간 {_simMs / 1000.0:0}초({_simMs / 10.0 / Mathf.Max(1f, totalSec):0}%) | " +
                 $"프레임 {_simFrames}개(프레임당 {totalTurns / (float)Mathf.Max(1, _simFrames):0}턴) | 씬 로드 {_sceneLoads}회");
+            var enemySec = RoomController.EnemyTurnWatch.Elapsed.TotalSeconds;
+            var loadSec = RoomController.LoadRoomWatch.Elapsed.TotalSeconds;
+            var rememberSec = _rememberWatch.Elapsed.TotalSeconds;
+            var botSec = _simMs / 1000.0 - enemySec - loadSec - rememberSec;
+            Log($"턴 처리 내역: 몹 턴 {enemySec:0}초 | 방 생성 {loadSec:0}초 | 맵 기록 {rememberSec:0}초 | 봇 판단·기타 {botSec:0}초 | " +
+                $"턴 처리 밖(씬 로드·프레임) {totalSec - _simMs / 1000.0:0}초 | 턴당 {_simMs * 1000.0 / Mathf.Max(1, totalTurns):0}µs");
 
             if (n > 0)
             {

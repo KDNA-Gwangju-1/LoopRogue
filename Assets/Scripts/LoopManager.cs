@@ -144,7 +144,17 @@ namespace LoopRogue
         {
             _roomController.IsInputLocked = true;
             StageProgress.AdvanceStage();
-            _hud.ShowStageClear(_stage, SaveProgressAndLoadLobby);
+            _hud.ShowStageClear(_stage, SkipLobbyAfterStageClear ? SaveProgressAndReloadMain : (System.Action)SaveProgressAndLoadLobby);
+        }
+
+        /// <summary>자동 플레이 봇 전용 - 스테이지 클리어 후 로비 씬을 거치지 않고 Main을 그 자리에서 다시 짓는다(쇼핑은 봇이 같은 프레임에
+        /// 지갑만 건드려서 처리 - 다시 짓기는 다음 프레임이므로 저장 → 쇼핑 → 새 Main 초기화 순서가 로비를 거칠 때와 같다).</summary>
+        public static bool SkipLobbyAfterStageClear;
+
+        private void SaveProgressAndReloadMain()
+        {
+            SaveProgress();
+            GameBootstrap.RebuildInPlace();
         }
 
         private void SaveProgressAndLoadLobby()

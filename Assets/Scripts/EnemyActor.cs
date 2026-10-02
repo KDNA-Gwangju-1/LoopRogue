@@ -338,7 +338,8 @@ namespace LoopRogue
                 return;
             }
 
-            var slots = new HashSet<Vector2Int>();
+            var slots = SlotBuffer;
+            slots.Clear();
             foreach (var d in Directions)
             {
                 var slot = _tp + d;
@@ -357,13 +358,20 @@ namespace LoopRogue
         }
 
         /// <summary>현재 칸에서 빈 칸만 밟는 BFS로 targets 중 가장 가까운 칸을 찾는다. 찾으면 그 칸과 첫 걸음을 돌려준다.</summary>
+        // BFS 버퍼 재사용 - 몹마다 매 턴 새로 만들던 걸(봇 기준 초당 수만 번) 비우고 다시 쓴다. 턴은 한 번에 한 몹씩이라 공유해도 안전.
+        private static readonly HashSet<Vector2Int> SlotBuffer = new HashSet<Vector2Int>();
+        private static readonly Dictionary<Vector2Int, Vector2Int> FirstStepBuffer = new Dictionary<Vector2Int, Vector2Int>();
+        private static readonly Queue<Vector2Int> QueueBuffer = new Queue<Vector2Int>();
+
         private bool TryFindPathToAny(HashSet<Vector2Int> targets, out Vector2Int reached, out Vector2Int firstStep)
         {
             reached = default;
             firstStep = default;
 
-            var first = new Dictionary<Vector2Int, Vector2Int>();
-            var queue = new Queue<Vector2Int>();
+            var first = FirstStepBuffer;
+            var queue = QueueBuffer;
+            first.Clear();
+            queue.Clear();
             foreach (var d in Directions)
             {
                 var next = GridPos + d;
