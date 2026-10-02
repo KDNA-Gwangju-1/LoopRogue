@@ -226,7 +226,9 @@ namespace LoopRogue
             var stats = _player.Stats;
             var levels = _player.Levels;
 
-            _hpText.text = $"HP {stats.CurrentHealth:0}/{stats.MaxHealth:0}";
+            _hpText.text = stats.Shield >= 1f
+                ? $"HP {stats.CurrentHealth:0}/{stats.MaxHealth:0}  <color=#9FD8FF>(+보호막 {stats.Shield:0})</color>"
+                : $"HP {stats.CurrentHealth:0}/{stats.MaxHealth:0}";
             _levelText.text = $"Lv.{levels.Level}  (ATK {stats.AttackPower:0})";
             _expText.text = $"EXP {levels.Exp}/{levels.ExpToNext}";
             _skillText.text = _player.AimingItem.HasValue
@@ -307,6 +309,9 @@ namespace LoopRogue
 
                 var hex = ColorUtility.ToHtmlStringRGB(EquipmentData.Grades[grade.Value].Color);
                 sb.AppendLine($"<color=#{hex}>{EquipmentData.DisplayName(slot, grade.Value)}</color>");
+                var tier = EquipmentEffects.TierOf(grade.Value);
+                for (var t = 1; t <= tier; t++)
+                    sb.AppendLine($"   <size=12>{EquipmentEffects.Name(slot, t)}: {EquipmentEffects.Description(slot, t)}</size>");
             }
 
             return sb.ToString().TrimEnd();
@@ -524,7 +529,7 @@ namespace LoopRogue
             rect.anchorMin = new Vector2(1f, 1f);
             rect.anchorMax = new Vector2(1f, 1f);
             rect.pivot = new Vector2(1f, 1f);
-            rect.sizeDelta = new Vector2(320f, 440f);
+            rect.sizeDelta = new Vector2(340f, 600f); // 장비 효과(최대 15줄)까지 들어가게
             rect.anchoredPosition = new Vector2(-16f, -56f);
             _statPanel.AddComponent<Image>().color = PanelColor;
 

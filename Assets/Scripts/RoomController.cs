@@ -151,6 +151,8 @@ namespace LoopRogue
             if (def.HasEvent && layout.EventPosition.HasValue)
                 SpawnEvent(layout.EventPosition.Value, def.EventType);
 
+            _thornsKills.Clear();
+            _player.OnRoomEntered(); // 갑옷 효과(보호막/불굴/응급 처치) 방마다 다시 채움
             IsInputLocked = false;
         }
 
@@ -414,7 +416,7 @@ namespace LoopRogue
         public bool NotifyEnemyDefeated(EnemyActor enemy)
         {
             var stageMultiplier = StageScaling.RewardMultiplier(_stage);
-            var goldBonus = 1f + _player.Stats.EffectiveGoldBonus; // 골드 증감 카드(하한 -50%)
+            var goldBonus = 1f + _player.Stats.EffectiveGoldBonus + EquipmentEffects.ExtraGoldBonus; // + 반지 "행운" // 골드 증감 카드(하한 -50%)
             // 반복 보상 감소는 일반 몹/방 클리어에만(보스 처치는 항상 100%).
             var repeat = StageProgress.RepeatRewardMultiplier;
             ClearBombTelegraph(enemy); // 불 붙은 폭발병을 잡으면 불발
@@ -457,7 +459,7 @@ namespace LoopRogue
             LastClearHpFraction = _player.Stats.CurrentHealth / Mathf.Max(1f, _player.Stats.MaxHealth); // 클리어 회복 전
             if (!_current.IsBossRoom)
             {
-                var goldBonus = 1f + _player.Stats.EffectiveGoldBonus;
+                var goldBonus = 1f + _player.Stats.EffectiveGoldBonus + EquipmentEffects.ExtraGoldBonus; // + 반지 "행운"
                 GoldWallet.Add(Mathf.RoundToInt(GoldPerRoomClear * StageScaling.RewardMultiplier(_stage) * goldBonus * StageProgress.RepeatRewardMultiplier));
                 _player.Stats.Heal(_player.Stats.MaxHealth * RoomClearHealRate);
             }
@@ -552,6 +554,14 @@ namespace LoopRogue
                 }
             }
 
+            // 가시로 죽은 몹은 몹 턴이 다 끝난 뒤에 처치 처리(턴 도중에 방이 넘어가지 않게).
+            foreach (var dead in _thornsKills.ToArray())
+            {
+                if (dead != null && _player.ClaimKill(dead))
+                    return;
+            }
+            _thornsKills.Clear();
+
             EndOfEnemyTurns();
         }
 
@@ -602,6 +612,20 @@ namespace LoopRogue
             go.transform.position = new Vector3(pos.x * GridConstants.CellSize, pos.y * GridConstants.CellSize, 0f);
             _roomObjects.Add(go);
             _traps[pos] = go;
+        }
+
+        private readonly List<EnemyActor> _thornsKills = new List<EnemyActor>();
+
+        /// <summary>갑옷 "가시"(신화 이상) - 근접으로 플레이어를 때린 몹에게 받은 피해의 일부를 돌려준다.</summary>
+        public void ApplyThorns(EnemyActor attacker, float dealt)
+        {
+            if (attacker == null || dealt <= 0f || attacker.Stats.IsDead || !EquipmentEffects.Has(ItemSlot.Armor, 2))
+                return;
+            var damage = dealt * EquipmentEffects.ThornsRate;
+            attacker.Stats.TakeDamage(damage);
+            DamagePopup.Spawn(attacker.transform.position, damage, new Color(0.75f, 0.85f, 0.6f));
+            if (attacker.Stats.IsDead)
+                _thornsKills.Add(attacker);
         }
 
         private void CheckTrap(EnemyActor enemy)

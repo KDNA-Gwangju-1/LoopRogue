@@ -166,11 +166,13 @@ namespace LoopRogue
             Save();
         }
 
+        /// <summary>죽거나 중도 포기하면 전부 잃는다 - 반지 "유품"(영원)이면 퀵슬롯 1번 아이템은 남긴다.</summary>
         public static void LoseAll()
         {
             EnsureLoaded();
+            var keep = EquipmentEffects.Has(ItemSlot.Accessory, 5) ? Quick[0] : -1;
             for (var i = 0; i < ItemInfo.Count; i++)
-                Owned[i] = false;
+                Owned[i] = Owned[i] && i == keep;
             Save();
         }
 

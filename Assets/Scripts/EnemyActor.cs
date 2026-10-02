@@ -212,6 +212,7 @@ namespace LoopRogue
         {
             if (Stats.IsDead)
                 return;
+            _turnRoom = room;
 
             if (VulnerableTurns > 0)
                 VulnerableTurns--;
@@ -438,7 +439,7 @@ namespace LoopRogue
             if (CanShoot(_tp, RangedAttackRange))
             {
                 SpawnArrowVisual(TargetWorld(player));
-                HitTarget(player);
+                HitTarget(player, melee: false);
                 return;
             }
 
@@ -517,19 +518,23 @@ namespace LoopRogue
         private Vector3 TargetWorld(PlayerActor player) => _decoyTarget != null ? _decoyTarget.transform.position : player.transform.position;
 
         /// <summary>노리는 대상을 때린다 - 미끼면 미끼가 맞고, 아니면 플레이어.</summary>
-        private void HitTarget(PlayerActor player)
+        private RoomController _turnRoom;
+
+        private void HitTarget(PlayerActor player, bool melee = true)
         {
             if (_decoyTarget != null)
             {
                 _decoyTarget.TakeHit(this, Stats.AttackPower);
                 return;
             }
-            HitPlayer(player);
+            HitPlayer(player, melee);
         }
 
-        private void HitPlayer(PlayerActor player)
+        private void HitPlayer(PlayerActor player, bool melee)
         {
             var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower);
+            if (melee)
+                _turnRoom?.ApplyThorns(this, dealt); // 갑옷 "가시"
             DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.35f, 0.35f));
             HitFeedback.OnPlayerHurt(player, this);
         }

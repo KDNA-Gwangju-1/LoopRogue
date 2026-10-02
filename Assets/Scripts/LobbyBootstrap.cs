@@ -180,6 +180,9 @@ namespace LoopRogue
             var color = EquipmentData.Grades[r.Grade].Color;
 
             var message = r.Equipped ? $"{name} 획득! 장착했습니다." : $"{name}... 이미 더 좋은 장비가 있어 버려짐.";
+            var newTier = EquipmentEffects.TierOf(r.Grade);
+            if (r.Equipped && newTier > 0)
+                message += $"  새 효과: {EquipmentEffects.Name(slot, newTier)} ({EquipmentEffects.Description(slot, newTier)})";
             if (r.ShopLeveledUp)
                 message += $"  {EquipmentData.Templates[slot].BaseName} 상점 Lv{GachaSystem.GetShopLevel(slot)} 달성!";
 
@@ -330,7 +333,9 @@ namespace LoopRogue
 
             var atk = EquipmentData.AttackBonus(slot, grade.Value);
             var hp = EquipmentData.HealthBonus(slot, grade.Value);
-            return $"{slot}: {EquipmentData.DisplayName(slot, grade.Value)} (공격력+{atk:0.#} 체력+{hp:0.#})";
+            var tier = EquipmentEffects.TierOf(grade.Value);
+            var effects = tier > 0 ? $"  <color=#FFD966>효과 {tier}/{EquipmentEffects.MaxTier}</color>" : ""; // 효과 설명은 게임 중 Tab 상태창
+            return $"{slot}: {EquipmentData.DisplayName(slot, grade.Value)} (공격력+{atk:0.#} 체력+{hp:0.#}){effects}";
         }
 
         private void ShowResult(string message, Color color)

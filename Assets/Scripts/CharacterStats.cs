@@ -82,6 +82,16 @@ namespace LoopRogue
         /// <summary>보호막 아이템 - 다음 피해 1회 무효.</summary>
         public bool BlockNextHit;
 
+        // ---- 갑옷 고유 효과(플레이어만) - 보호막은 방마다(PlayerActor.OnRoomEntered), 불굴/응급 처치는 시도마다(OnAttemptStarted) 채운다 ----
+        /// <summary>보호막 - 피해를 먼저 흡수하는 체력.</summary>
+        public float Shield;
+        /// <summary>불굴 - 이번 시도에서 아직 안 썼으면 true(죽을 피해를 체력 1로 버팀).</summary>
+        public bool UndyingReady;
+        /// <summary>응급 처치 - 이번 시도에서 아직 안 썼으면 true.</summary>
+        public bool EmergencyHealReady;
+        /// <summary>불굴/응급 처치가 발동했을 때 알림(메시지 표시용).</summary>
+        public System.Action<string> OnArmorEffect;
+
         public float TakeIncomingDamage(float rawDamage)
         {
             if (BlockNextHit)
@@ -91,7 +101,26 @@ namespace LoopRogue
             }
             var reduction = Mathf.Clamp(DamageReductionRate, -MaxDamageReduction, MaxDamageReduction);
             var damage = rawDamage * (1f - reduction);
-            TakeDamage(damage);
+
+            var absorbed = Mathf.Min(Shield, damage);
+            Shield -= absorbed;
+            var toHealth = damage - absorbed;
+
+            if (UndyingReady && toHealth >= CurrentHealth)
+            {
+                UndyingReady = false;
+                toHealth = Mathf.Max(0f, CurrentHealth - 1f);
+                OnArmorEffect?.Invoke("불굴! 체력 1로 버텼다");
+            }
+            TakeDamage(toHealth);
+
+            if (EmergencyHealReady && !IsDead && CurrentHealth < MaxHealth * EquipmentEffects.EmergencyThreshold)
+            {
+                EmergencyHealReady = false;
+                Heal(MaxHealth * EquipmentEffects.EmergencyHealRate);
+                OnArmorEffect?.Invoke("응급 처치! 체력 회복");
+            }
+
             IncomingDamageTotal += damage;
             return damage;
         }

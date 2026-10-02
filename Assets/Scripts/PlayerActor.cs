@@ -98,7 +98,10 @@ namespace LoopRogue
             }
 
             BeginAction();
-            Inventory.Consume(type);
+            if (EquipmentEffects.Has(ItemSlot.Accessory, 2) && ItemRng.NextDouble() < EquipmentEffects.ItemSaveChance)
+                _room.ShowMessage($"절약! {ItemInfo.Name(type)}이(가) 남았다"); // 반지 "절약"
+            else
+                Inventory.Consume(type);
             ApplyItem(type, target);
             EndTurn();
             return true;
@@ -268,6 +271,50 @@ namespace LoopRogue
             _renderer = _idleSprite != null
                 ? VisualUtil.CreateSpriteVisual(gameObject, _idleSprite, GridConstants.CellSize * 0.9f, sortingOrder: 1)
                 : VisualUtil.CreateSquareVisual(gameObject, PlayerColor, GridConstants.CellSize * 0.65f, sortingOrder: 1);
+
+            Stats.OnArmorEffect = message => _room.ShowMessage(message);
+        }
+
+        /// <summary>방을 깔 때마다(RoomController.LoadRoom) - 갑옷 "보호막"을 다시 채운다.</summary>
+        public void OnRoomEntered()
+        {
+            Stats.Shield = EquipmentEffects.Has(ItemSlot.Armor, 1) ? Stats.MaxHealth * EquipmentEffects.RoomShieldRate : 0f;
+        }
+
+        /// <summary>새 시도(스테이지 입장, 사망 후 계속하기)마다 - 갑옷 "불굴"/"응급 처치"를 한 번씩 다시 채운다. 처음엔 방마다였는데
+        /// 봇 측정에서 보스전 사망이 목표의 10~25%로 떨어져서 시도마다로 줄였다(사용자 결정 C안).</summary>
+        public void OnAttemptStarted()
+        {
+            Stats.UndyingReady = EquipmentEffects.Has(ItemSlot.Armor, 3);
+            Stats.EmergencyHealReady = EquipmentEffects.Has(ItemSlot.Armor, 4);
+        }
+
+        // 검 "연격" - 일반 공격(방향키로 때리기) 횟수. 스킬은 안 센다.
+        private int _comboCount;
+
+        /// <summary>검 고유 효과로 붙는 피해 배율(1 + 보너스 합). countCombo면 이번 타격을 연격 횟수에 센다.</summary>
+        private float WeaponEffectMultiplier(EnemyActor enemy, bool countCombo)
+        {
+            var tier = EquipmentEffects.Tier(ItemSlot.Weapon);
+            if (tier == 0)
+                return 1f;
+
+            var bonus = 0f;
+            if (countCombo)
+            {
+                _comboCount++;
+                var every = tier >= 5 ? EquipmentEffects.ComboEveryUpgraded : EquipmentEffects.ComboEvery;
+                if (_comboCount % every == 0)
+                    bonus += tier >= 5 ? EquipmentEffects.ComboBonusUpgraded : EquipmentEffects.ComboBonus;
+            }
+            var hpRate = enemy.Stats.CurrentHealth / Mathf.Max(1f, enemy.Stats.MaxHealth);
+            if (tier >= 2 && hpRate <= EquipmentEffects.ExecuteThreshold)
+                bonus += EquipmentEffects.ExecuteBonus;
+            if (tier >= 3 && enemy.IsBoss)
+                bonus += EquipmentEffects.BossHunterBonus;
+            if (tier >= 4 && enemy.Stats.CurrentHealth >= enemy.Stats.MaxHealth)
+                bonus += EquipmentEffects.FirstStrikeBonus;
+            return 1f + bonus;
         }
 
         /// <summary>지금 이동/공격 입력을 받을 수 있는 상태인지(키 입력과 자동 플레이 봇이 같은 조건을 쓴다).</summary>
@@ -424,7 +471,8 @@ namespace LoopRogue
         /// 일반 방에서 맞는 만큼 회복해 버렸다).
         private bool StrikeEnemy(EnemyActor enemy, Vector2Int direction, float damageRate, bool ignoreShield = false, bool isSkill = false)
         {
-            var damage = Stats.RollAttackDamage(out var isCritical) * damageRate * enemy.DamageTakenMultiplier;
+            var damage = Stats.RollAttackDamage(out var isCritical) * damageRate * enemy.DamageTakenMultiplier
+                * WeaponEffectMultiplier(enemy, countCombo: !isSkill);
             var blocked = !ignoreShield && enemy.IsShieldFront(GridPos);
             if (blocked)
             {
@@ -449,7 +497,7 @@ namespace LoopRogue
         public bool ClaimKill(EnemyActor enemy)
         {
             HitFeedback.OnEnemyKilled(enemy);
-            if (!enemy.IsBoss && !enemy.IsMinion && ItemRng.NextDouble() < ItemInfo.MobDropChance)
+            if (!enemy.IsBoss && !enemy.IsMinion && ItemRng.NextDouble() < EquipmentEffects.MobDropChance)
             {
                 var drop = Inventory.GiveRandomMissing();
                 if (drop.HasValue)
@@ -500,7 +548,7 @@ namespace LoopRogue
                 return false;
 
             BeginAction();
-            DashCooldown = DashCooldownTurns;
+            DashCooldown = DashCooldownTurns - EquipmentEffects.SkillCooldownReduction; // 반지 "민첩"
             var from = transform.position;
             if (landing != GridPos)
                 Map.MoveActor(this, landing);
@@ -543,7 +591,7 @@ namespace LoopRogue
                 return false;
 
             BeginAction();
-            SpinCooldown = SpinCooldownTurns;
+            SpinCooldown = SpinCooldownTurns - EquipmentEffects.SkillCooldownReduction;
             PlayAttackFlash();
             HitFeedback.OnSpin(this);
             // 보스를 맨 뒤에 - 보스가 먼저 죽으면 남은 졸개가 같이 치워져서 그 뒤 타격이 의미 없어진다.

@@ -44,6 +44,7 @@ namespace LoopRogue
             StageProgress.BeginAttempt();
 
             _roomController.Initialize(player, this, stage);
+            _player.OnAttemptStarted();
             _roomController.LoadRoom(_rooms[_roomIndex]);
             RefreshHudProgress();
             _attemptStartGold = GoldWallet.Gold;
@@ -122,6 +123,7 @@ namespace LoopRogue
         private void ContinueAfterDeath(int startRoom)
         {
             LoopCount++;
+            _player.OnAttemptStarted();
             _roomIndex = startRoom;
             RollRoomEvent();
             StageProgress.BeginAttempt();
