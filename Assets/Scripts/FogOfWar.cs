@@ -68,7 +68,7 @@ namespace LoopRogue
                 return;
 
             _visible.Clear();
-            ComputeVisible(_room.Map, _player.GridPos, VisionRadius);
+            ComputeVisible(_room.Map, _player.GridPos, Relics.VisionRadius); // 유물 "사냥꾼의 눈" +2
             foreach (var torch in _room.Torches)
                 ComputeVisible(_room.Map, torch, ItemInfo.TorchRadius); // 횃불 주변도 밝게
             var danger = _room.DangerTiles;
@@ -103,7 +103,7 @@ namespace LoopRogue
             {
                 if (_visible.Contains(_room.ExitPosition.Value))
                     _exitSeen = true;
-                exit.enabled = _exitSeen;
+                exit.enabled = _exitSeen || Relics.Has(RelicType.HunterEye);
             }
 
             foreach (var enemy in _room.Enemies)

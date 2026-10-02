@@ -79,6 +79,7 @@ namespace LoopRogue
             Refresh();
             HandleStatPanelToggle();
             HandleUpgradeSelection();
+            HandleRelicChoice();
             HandleDeathChoice();
             HandleRoomSelect();
             HandleStageClearChoice();
@@ -124,6 +125,75 @@ namespace LoopRogue
                 return;
 
             ConfirmStageClear();
+        }
+
+        // ---- 보스 처치 유물 고르기 - 레벨업 카드가 같이 떴으면 카드부터(숫자키가 겹치므로 그 사이엔 창을 숨긴다) ----
+        private GameObject _relicPanel;
+        private List<RelicType> _pendingRelics;
+        private Action<RelicType> _onRelicPicked;
+
+        public IReadOnlyList<RelicType> PendingRelicOptions => _pendingOptions == null ? _pendingRelics : null;
+
+        public void ShowRelicChoice(List<RelicType> options, Action<RelicType> onPicked)
+        {
+            _pendingRelics = options;
+            _onRelicPicked = onPicked;
+
+            foreach (Transform child in _relicPanel.transform)
+                Destroy(child.gameObject);
+
+            var title = CreateLabel(_relicPanel.transform, "보스 처치! 유물을 하나 고르세요 (영구 적용)", new Vector2(10f, -45f), new Vector2(-10f, -10f));
+            title.alignment = TextAnchor.MiddleCenter;
+            title.fontSize = 18;
+            title.fontStyle = FontStyle.Bold;
+
+            for (var i = 0; i < options.Count; i++)
+            {
+                var relic = options[i];
+                var cardGo = new GameObject("Relic_" + i, typeof(RectTransform));
+                cardGo.transform.SetParent(_relicPanel.transform, false);
+                var rect = cardGo.GetComponent<RectTransform>();
+                rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
+                rect.sizeDelta = new Vector2(460f, 70f);
+                rect.anchoredPosition = new Vector2(0f, 60f - i * 85f);
+                cardGo.AddComponent<Image>().color = Relics.IsBossRelic(relic) ? new Color(0.85f, 0.35f, 0.25f, 0.35f) : new Color(0.7f, 0.4f, 1f, 0.25f);
+
+                var text = CreateLabel(cardGo.transform, string.Empty, Vector2.zero, Vector2.zero);
+                text.rectTransform.anchorMin = Vector2.zero;
+                text.rectTransform.anchorMax = Vector2.one;
+                text.rectTransform.offsetMin = Vector2.zero;
+                text.rectTransform.offsetMax = Vector2.zero;
+                text.alignment = TextAnchor.MiddleCenter;
+                text.fontSize = 15;
+                text.text = $"[{i + 1}] {Relics.Name(relic)}{(Relics.IsBossRelic(relic) ? "  (보스 전용 - 지금 아니면 못 얻음)" : "")}\n{Relics.Description(relic)}";
+            }
+        }
+
+        private void HandleRelicChoice()
+        {
+            if (_pendingRelics == null)
+                return;
+            _relicPanel.SetActive(_pendingOptions == null);
+            if (_pendingOptions != null)
+                return;
+
+            var keyboard = Keyboard.current;
+            if (keyboard == null)
+                return;
+            var index = keyboard.digit1Key.wasPressedThisFrame ? 0 : keyboard.digit2Key.wasPressedThisFrame ? 1 : keyboard.digit3Key.wasPressedThisFrame ? 2 : -1;
+            ChooseRelic(index);
+        }
+
+        public void ChooseRelic(int index)
+        {
+            if (_pendingRelics == null || _pendingOptions != null || index < 0 || index >= _pendingRelics.Count)
+                return;
+            var picked = _pendingRelics[index];
+            var callback = _onRelicPicked;
+            _pendingRelics = null;
+            _onRelicPicked = null;
+            _relicPanel.SetActive(false);
+            callback?.Invoke(picked);
         }
 
         // ---- 외부(자동 플레이 봇) 조작용 - 키 입력과 같은 동작을 그대로 호출한다 ----
@@ -285,7 +355,7 @@ namespace LoopRogue
             sb.AppendLine(reduction >= 0f
                 ? $"받는 피해  -{reduction * 100f:0.#}%  (최대 {CharacterStats.MaxDamageReduction * 100f:0}%)"
                 : $"받는 피해  <color=#FF7070>+{-reduction * 100f:0.#}%</color>");
-            sb.AppendLine($"흡혈  {s.EffectiveLifeSteal * 100f:0.#}%{(s.LifeStealRate >= CharacterStats.MaxLifeSteal ? " (최대)" : "")}");
+            sb.AppendLine($"흡혈  {s.EffectiveLifeSteal * 100f:0.#}%{(s.LifeStealRate >= Relics.LifeStealCap ? " (최대)" : "")}");
             sb.AppendLine($"재생  턴당 {s.RegenPerTurnRate * 100f:0.#}%  (≈{s.MaxHealth * s.RegenPerTurnRate:0.#} HP)");
             sb.AppendLine($"처치 회복  {s.KillHealRate * 100f:0.#}%  (≈{s.MaxHealth * s.KillHealRate:0.#} HP)");
 
@@ -312,6 +382,14 @@ namespace LoopRogue
                 var tier = EquipmentEffects.TierOf(grade.Value);
                 for (var t = 1; t <= tier; t++)
                     sb.AppendLine($"   <size=12>{EquipmentEffects.Name(slot, t)}: {EquipmentEffects.Description(slot, t)}</size>");
+            }
+
+            if (Relics.OwnedCount > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("<b><color=#E8A0FF>[유물]</color></b>");
+                foreach (var r in Relics.OwnedRelics())
+                    sb.AppendLine($"<size=12>{Relics.Name(r)}: {Relics.Description(r)}</size>");
             }
 
             return sb.ToString().TrimEnd();
@@ -387,7 +465,7 @@ namespace LoopRogue
             _onReturnToLobby = onLobby;
             LastDeathGoldPenalty = goldPenalty;
             _deathPenaltyText.text = goldPenalty > 0
-                ? $"데스 패널티: 골드 -{goldPenalty} (이번 시도 획득분의 {LoopManager.DeathGoldPenaltyRate * 100f:0}%)"
+                ? $"데스 패널티: 골드 -{goldPenalty} (이번 시도 획득분의 {Relics.DeathPenaltyRate * 100f:0}%)"
                 : "데스 패널티: 이번 시도에 번 골드 없음";
             _deathPanel.SetActive(true);
         }
@@ -464,6 +542,7 @@ namespace LoopRogue
             BuildVictoryPanel(canvasGo.transform);
             BuildDeathPanel(canvasGo.transform);
             BuildRoomSelectPanel(canvasGo.transform);
+            _relicPanel = BuildOverlayPanel(canvasGo.transform, "RelicPanel", new Vector2(500f, 330f), active: false);
             canvasGo.AddComponent<InventoryUI>().Build(canvasGo.transform, _player);
         }
 

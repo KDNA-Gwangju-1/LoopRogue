@@ -40,7 +40,7 @@ namespace LoopRogue
         /// <summary>흡혈 상한(사용자 결정 50%) - 봇 100판에서 흡혈 카드가 판당 중앙 11장(88%), 최대 20장(160%)까지 쌓였다.
         /// 상한에 닿으면 흡혈 카드는 더 이상 안 나온다(LevelSystem). 상한 도입 전 저장된 판도 적용은 이 값까지만.</summary>
         public const float MaxLifeSteal = 0.5f;
-        public float EffectiveLifeSteal => Mathf.Clamp(LifeStealRate, 0f, MaxLifeSteal);
+        public float EffectiveLifeSteal => Mathf.Clamp(LifeStealRate, 0f, Relics.LifeStealCap); // 유물 "피의 계약"이면 70%
         public float RegenPerTurnRate; // 매 턴 최대체력 대비 회복 비율
         public float KillHealRate;     // 적 처치 시 최대체력 대비 회복 비율
         public float ExpBonusRate;     // 획득 경험치 +%
@@ -89,6 +89,8 @@ namespace LoopRogue
         public bool UndyingReady;
         /// <summary>응급 처치 - 이번 시도에서 아직 안 썼으면 true.</summary>
         public bool EmergencyHealReady;
+        /// <summary>유물 "두 번째 숨" - 이번 시도에서 아직 안 썼으면 true(죽으면 체력 30%로 부활).</summary>
+        public bool ReviveReady;
         /// <summary>불굴/응급 처치가 발동했을 때 알림(메시지 표시용).</summary>
         public System.Action<string> OnArmorEffect;
 
@@ -101,6 +103,8 @@ namespace LoopRogue
             }
             var reduction = Mathf.Clamp(DamageReductionRate, -MaxDamageReduction, MaxDamageReduction);
             var damage = rawDamage * (1f - reduction);
+            if (Relics.Has(RelicType.IronSkin)) // 유물 "철의 피부" - 카드 피해 감소(상한 30%)와 별도로 곱한다
+                damage *= Relics.IronSkinDamageFactor;
 
             var absorbed = Mathf.Min(Shield, damage);
             Shield -= absorbed;
@@ -113,6 +117,13 @@ namespace LoopRogue
                 OnArmorEffect?.Invoke("불굴! 체력 1로 버텼다");
             }
             TakeDamage(toHealth);
+
+            if (IsDead && ReviveReady)
+            {
+                ReviveReady = false;
+                CurrentHealth = MaxHealth * Relics.SecondWindHealRate;
+                OnArmorEffect?.Invoke("두 번째 숨! 다시 일어섰다");
+            }
 
             if (EmergencyHealReady && !IsDead && CurrentHealth < MaxHealth * EquipmentEffects.EmergencyThreshold)
             {

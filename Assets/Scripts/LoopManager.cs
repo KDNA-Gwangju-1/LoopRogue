@@ -60,7 +60,7 @@ namespace LoopRogue
             // 중도 포기도 사망과 같은 데스 패널티(안 그러면 죽기 직전에 Esc로 빠져나가 패널티를 피할 수 있다).
             _hud.gameObject.AddComponent<PauseMenu>().Setup(RetreatToLobby,
                 () => !_roomController.IsInputLocked && !_player.Levels.IsChoosingUpgrade && !_player.Stats.IsDead && !InventoryUI.IsOpen,
-                lobbyLabel: $"로비로 이동 (이번 시도 골드 {DeathGoldPenaltyRate * 100f:0}% 손실)  [L]",
+                lobbyLabel: $"로비로 이동 (이번 시도 골드 {Relics.DeathPenaltyRate * 100f:0}% 손실)  [L]",
                 goToTitle: RetreatToTitle);
         }
 
@@ -98,7 +98,7 @@ namespace LoopRogue
         private int ApplyDeathGoldPenalty()
         {
             var earned = Mathf.Max(0, GoldWallet.Gold - _attemptStartGold);
-            var penalty = Mathf.RoundToInt(earned * DeathGoldPenaltyRate);
+            var penalty = Mathf.RoundToInt(earned * Relics.DeathPenaltyRate); // 유물 "탐욕"이면 60%
             GoldWallet.TrySpend(penalty);
             _attemptStartGold = GoldWallet.Gold;
             return penalty;
@@ -144,6 +144,20 @@ namespace LoopRogue
         {
             _roomController.IsInputLocked = true;
             StageProgress.AdvanceStage();
+            // 보스를 처음 잡았으면 유물부터 고른다(보스 전용 1 + 일반 2) → 고른 뒤 스테이지 클리어 창.
+            var offer = Relics.MakeOffer(_stage);
+            if (offer != null)
+                _hud.ShowRelicChoice(offer, picked =>
+                {
+                    Relics.Acquire(picked, _player);
+                    ShowStageClear();
+                });
+            else
+                ShowStageClear();
+        }
+
+        private void ShowStageClear()
+        {
             _hud.ShowStageClear(_stage, SkipLobbyAfterStageClear ? SaveProgressAndReloadMain : (System.Action)SaveProgressAndLoadLobby);
         }
 

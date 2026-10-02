@@ -19,17 +19,37 @@ namespace LoopRogue
         private const int ExpPerBossKill = 80;  // 골드처럼 일반 몹의 10배
 
         // ---- 스킬(처음부터 보유, 턴 쿨타임) - Q 대시, E 회전 베기 ----
-        public const int DashRange = 3;
+        public static int DashRange => Relics.Has(RelicType.ChargeHorn) ? Relics.ChargeHornDashRange : 3; // 유물 "돌진의 뿔"
         public const int DashCooldownTurns = 5;
         public const int SpinCooldownTurns = 6;
-        public const float SpinDamageRate = 0.8f;
+        public static float SpinDamageRate => Relics.Has(RelicType.SpinningBlade) ? Relics.SpinningBladeDamageRate : 0.8f; // 유물 "회전 칼날"
 
-        private static readonly Vector2Int[] SpinOffsets =
+        private static readonly Vector2Int[] SpinOffsetsBase =
         {
             new Vector2Int(-1, -1), new Vector2Int(0, -1), new Vector2Int(1, -1),
             new Vector2Int(-1, 0), new Vector2Int(1, 0),
             new Vector2Int(-1, 1), new Vector2Int(0, 1), new Vector2Int(1, 1),
         };
+
+        private static readonly Vector2Int[] SpinOffsetsCross =
+        {
+            new Vector2Int(-1, -1), new Vector2Int(0, -1), new Vector2Int(1, -1),
+            new Vector2Int(-1, 0), new Vector2Int(1, 0),
+            new Vector2Int(-1, 1), new Vector2Int(0, 1), new Vector2Int(1, 1),
+            new Vector2Int(0, -2), new Vector2Int(0, 2), new Vector2Int(-2, 0), new Vector2Int(2, 0),
+        };
+
+        /// <summary>회전 베기 범위 - 유물 "십자 문장"이면 상하좌우 2칸까지.</summary>
+        private static Vector2Int[] SpinOffsets => Relics.Has(RelicType.CrossCrest) ? SpinOffsetsCross : SpinOffsetsBase;
+
+        private static readonly Vector2Int[] Around8 =
+        {
+            new Vector2Int(-1, -1), new Vector2Int(0, -1), new Vector2Int(1, -1),
+            new Vector2Int(-1, 0), new Vector2Int(1, 0),
+            new Vector2Int(-1, 1), new Vector2Int(0, 1), new Vector2Int(1, 1),
+        };
+
+        private static readonly Vector2Int[] Around4 = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
 
         /// <summary>남은 쿨타임(행동 횟수). 0이면 사용 가능. 스킬을 쓰면 N이 되고 이후 행동(이동/공격/대기/스킬) 1번마다 1씩 준다.</summary>
         public int DashCooldown { get; private set; }
@@ -279,7 +299,22 @@ namespace LoopRogue
         public void OnRoomEntered()
         {
             Stats.Shield = EquipmentEffects.Has(ItemSlot.Armor, 1) ? Stats.MaxHealth * EquipmentEffects.RoomShieldRate : 0f;
+            _firstStrikeReady = Relics.Has(RelicType.FirstStrike); // 유물 "첫 일격"
+
+            if (Relics.Has(RelicType.PhantomBanner)) // 유물 "망령의 깃발" - 옆 빈 칸에 허수아비
+            {
+                foreach (var d in Around4)
+                {
+                    if (_room.CanPlaceAt(GridPos + d))
+                    {
+                        _room.PlaceDecoy(GridPos + d);
+                        break;
+                    }
+                }
+            }
         }
+
+        private bool _firstStrikeReady;
 
         /// <summary>새 시도(스테이지 입장, 사망 후 계속하기)마다 - 갑옷 "불굴"/"응급 처치"를 한 번씩 다시 채운다. 처음엔 방마다였는데
         /// 봇 측정에서 보스전 사망이 목표의 10~25%로 떨어져서 시도마다로 줄였다(사용자 결정 C안).</summary>
@@ -287,6 +322,7 @@ namespace LoopRogue
         {
             Stats.UndyingReady = EquipmentEffects.Has(ItemSlot.Armor, 3);
             Stats.EmergencyHealReady = EquipmentEffects.Has(ItemSlot.Armor, 4);
+            Stats.ReviveReady = Relics.Has(RelicType.SecondWind); // 유물 "두 번째 숨"
         }
 
         // 검 "연격" - 일반 공격(방향키로 때리기) 횟수. 스킬은 안 센다.
@@ -441,6 +477,8 @@ namespace LoopRogue
                 PlayAttackFlash();
                 if (StrikeEnemy(enemy, direction, 1f))
                     return; // 다음 방/승리 전환은 이미 끝났다 - 새 방 몹은 이번 턴엔 안 움직인다.
+                if (NormalAttackRelicHits(targetPos, direction))
+                    return;
             }
             else if (occupant is RoomEventActor ev)
             {
@@ -471,7 +509,21 @@ namespace LoopRogue
         /// 일반 방에서 맞는 만큼 회복해 버렸다).
         private bool StrikeEnemy(EnemyActor enemy, Vector2Int direction, float damageRate, bool ignoreShield = false, bool isSkill = false)
         {
-            var damage = Stats.RollAttackDamage(out var isCritical) * damageRate * enemy.DamageTakenMultiplier
+            var raw = Stats.RollAttackDamage(out var isCritical);
+            if (_firstStrikeReady) // 유물 "첫 일격" - 방마다 첫 타격은 치명타 확정
+            {
+                _firstStrikeReady = false;
+                if (!isCritical)
+                {
+                    isCritical = true;
+                    raw = Stats.AttackPower * Stats.CriticalDamageMultiplier;
+                }
+            }
+            if (isCritical && Relics.Has(RelicType.SniperEye)) // 유물 "저격수의 눈" - 치명타 피해 +50%p
+                raw *= (Stats.CriticalDamageMultiplier + Relics.SniperCritDamageBonus) / Stats.CriticalDamageMultiplier;
+            var berserk = Relics.Has(RelicType.Berserker) && Stats.CurrentHealth <= Stats.MaxHealth * Relics.BerserkerThreshold
+                ? 1f + Relics.BerserkerBonus : 1f; // 유물 "광전사"
+            var damage = raw * damageRate * enemy.DamageTakenMultiplier * berserk
                 * WeaponEffectMultiplier(enemy, countCombo: !isSkill);
             var blocked = !ignoreShield && enemy.IsShieldFront(GridPos);
             if (blocked)
@@ -479,6 +531,9 @@ namespace LoopRogue
                 damage *= EnemyActor.ShieldFrontDamageRate;
                 ShieldBlockCount++;
             }
+            if (Relics.Has(RelicType.Executioner) && !enemy.IsBoss &&
+                enemy.Stats.CurrentHealth <= enemy.Stats.MaxHealth * Relics.ExecutionerThreshold)
+                damage = Mathf.Max(damage, enemy.Stats.CurrentHealth); // 유물 "사형 집행자"
             enemy.Stats.TakeDamage(damage);
             DamagePopup.Spawn(enemy.transform.position, damage, blocked ? new Color(0.6f, 0.65f, 0.75f) : Color.white, isCritical && !blocked);
             HitFeedback.OnPlayerHitEnemy(this, enemy, direction, isCritical, blocked);
@@ -497,7 +552,8 @@ namespace LoopRogue
         public bool ClaimKill(EnemyActor enemy)
         {
             HitFeedback.OnEnemyKilled(enemy);
-            if (!enemy.IsBoss && !enemy.IsMinion && ItemRng.NextDouble() < EquipmentEffects.MobDropChance)
+            var blastTargets = CollectChainBlastTargets(enemy);
+            if (!enemy.IsBoss && !enemy.IsMinion && ItemRng.NextDouble() < EquipmentEffects.MobDropChance + Relics.DropBonus)
             {
                 var drop = Inventory.GiveRandomMissing();
                 if (drop.HasValue)
@@ -514,7 +570,71 @@ namespace LoopRogue
             var repeat = enemy.IsBoss ? 1f : StageProgress.RepeatRewardMultiplier; // 반복 보상 감소(보스는 제외)
             Levels.AddExp(Mathf.RoundToInt(baseExp * StageScaling.RewardMultiplier(_room.Stage) * (1f + Stats.EffectiveExpBonus) * repeat));
 
-            return _room.NotifyEnemyDefeated(enemy);
+            if (_room.NotifyEnemyDefeated(enemy))
+                return true;
+            return ResolveChainBlast(blastTargets);
+        }
+
+        // ---- 유물 추가타 ----
+        private bool _chainBlasting;
+
+        /// <summary>유물 "연쇄 폭발" - 일반 몹이 죽은 자리 주변 8칸의 살아있는 몹(제거되기 전에 모아둔다). 폭발로 죽은 몹은 다시 터지지 않는다.</summary>
+        private List<EnemyActor> CollectChainBlastTargets(EnemyActor dead)
+        {
+            if (_chainBlasting || dead.IsBoss || !Relics.Has(RelicType.ChainBlast))
+                return null;
+            var list = new List<EnemyActor>();
+            foreach (var d in Around8)
+                if (Map.GetActorAt(dead.GridPos + d) is EnemyActor e && e != dead && !e.Stats.IsDead)
+                    list.Add(e);
+            return list;
+        }
+
+        private bool ResolveChainBlast(List<EnemyActor> targets)
+        {
+            if (targets == null || targets.Count == 0)
+                return false;
+            _chainBlasting = true;
+            try
+            {
+                foreach (var e in targets)
+                {
+                    if (e == null || e.Stats.IsDead)
+                        continue;
+                    var damage = Stats.AttackPower * Relics.ChainBlastRate;
+                    e.Stats.TakeDamage(damage);
+                    DamagePopup.Spawn(e.transform.position, damage, new Color(1f, 0.6f, 0.2f));
+                    if (e.Stats.IsDead && ClaimKill(e))
+                        return true;
+                }
+                return false;
+            }
+            finally
+            {
+                _chainBlasting = false;
+            }
+        }
+
+        /// <summary>일반 공격(방향키로 때리기) 직후 - 유물 "대지의 망치"(대상 상하좌우)와 "관통의 인장"(대상 뒤 1칸). 방이 넘어갔으면 true.</summary>
+        private bool NormalAttackRelicHits(Vector2Int targetPos, Vector2Int direction)
+        {
+            if (Relics.Has(RelicType.EarthHammer))
+            {
+                foreach (var d in Around4)
+                {
+                    var p = targetPos + d;
+                    if (p == GridPos || !(Map.GetActorAt(p) is EnemyActor e) || e.Stats.IsDead)
+                        continue;
+                    if (StrikeEnemy(e, d, Relics.EarthHammerSplashRate, ignoreShield: true, isSkill: true))
+                        return true;
+                }
+            }
+            if (Relics.Has(RelicType.PiercingSeal) && Map.GetActorAt(targetPos + direction) is EnemyActor behind && !behind.Stats.IsDead)
+            {
+                if (StrikeEnemy(behind, direction, Relics.PiercingRate, ignoreShield: true, isSkill: true))
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>대시 미리보기 - dir 방향으로 최대 DashRange칸, 벽/방 끝/이벤트 칸 앞에서 멈추고, 몹을 만나면 그 앞에서
@@ -548,7 +668,8 @@ namespace LoopRogue
                 return false;
 
             BeginAction();
-            DashCooldown = DashCooldownTurns - EquipmentEffects.SkillCooldownReduction; // 반지 "민첩"
+            DashCooldown = Mathf.Max(1, DashCooldownTurns - EquipmentEffects.SkillCooldownReduction // 반지 "민첩"
+                - (Relics.Has(RelicType.Gale) ? Relics.GaleDashCooldownReduction : 0)); // 유물 "질풍"
             var from = transform.position;
             if (landing != GridPos)
                 Map.MoveActor(this, landing);
@@ -559,8 +680,20 @@ namespace LoopRogue
             if (hit != null)
             {
                 PlayAttackFlash();
-                if (StrikeEnemy(hit, dir, 1f, isSkill: true))
+                var dashRate = Relics.Has(RelicType.ChargeHorn) ? Relics.ChargeHornDashDamage : 1f; // 유물 "돌진의 뿔"
+                if (StrikeEnemy(hit, dir, dashRate, isSkill: true))
                     return true;
+            }
+
+            if (Relics.Has(RelicType.TyrantPlate)) // 유물 "폭군의 갑주" - 내려선 자리 주변 8칸
+            {
+                foreach (var d in Around8)
+                {
+                    if (!(Map.GetActorAt(GridPos + d) is EnemyActor e) || e.Stats.IsDead || e == hit)
+                        continue;
+                    if (StrikeEnemy(e, d, Relics.TyrantLandingRate, ignoreShield: true, isSkill: true))
+                        return true;
+                }
             }
 
             EndTurn();
@@ -601,6 +734,12 @@ namespace LoopRogue
                     continue;
                 if (StrikeEnemy(enemy, offset, SpinDamageRate, ignoreShield: true, isSkill: true))
                     return true; // 방 전환 - 남은 대상은 이미 정리됐다
+            }
+            if (Relics.Has(RelicType.PulseCore)) // 유물 "파동의 핵" - 맞고 살아남은 몹 1턴 기절
+            {
+                foreach (var (enemy, _) in targets)
+                    if (enemy != null && !enemy.Stats.IsDead)
+                        enemy.Stun(1);
             }
 
             EndTurn();

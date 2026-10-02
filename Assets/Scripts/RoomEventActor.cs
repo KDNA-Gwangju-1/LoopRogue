@@ -64,8 +64,9 @@ namespace LoopRogue
                     var gold = roomClearGold * TreasureGoldMultiplier;
                     GoldWallet.Add(gold);
                     var item = Inventory.GiveRandomMissing(); // 없는 아이템 중 하나
+                    var extra = Relics.Has(RelicType.TreasureHunter) ? Inventory.GiveRandomMissing() : null; // 유물 "보물 사냥꾼"
                     return item.HasValue
-                        ? $"보물상자! 골드 +{gold}, {ItemInfo.Name(item.Value)} 획득"
+                        ? $"보물상자! 골드 +{gold}, {ItemInfo.Name(item.Value)}{(extra.HasValue ? $", {ItemInfo.Name(extra.Value)}" : "")} 획득"
                         : $"보물상자! 골드 +{gold} (아이템은 이미 다 있다)";
                 }
                 case RoomEventType.HealingSpring:

@@ -101,8 +101,8 @@ namespace LoopRogue
 
             // 특수
             new UpgradeOption { Category = UpgradeCategory.Special, Title = "흡혈", Description = "흡혈 +8% (일반 공격만, 최대 50%) / 공격력 -3%",
-                Apply = s => { s.LifeStealRate = Math.Min(CharacterStats.MaxLifeSteal, s.LifeStealRate + 0.08f); s.BaseAttack *= 0.97f; },
-                IsAvailable = s => s.LifeStealRate < CharacterStats.MaxLifeSteal },
+                Apply = s => { s.LifeStealRate = Math.Min(Relics.LifeStealCap, s.LifeStealRate + 0.08f); s.BaseAttack *= 0.97f; },
+                IsAvailable = s => s.LifeStealRate < Relics.LifeStealCap },
             new UpgradeOption { Category = UpgradeCategory.Special, Title = "방어", Description = "받는 피해 -2% (최대 30%) / 골드 -5%",
                 Apply = s => { s.DamageReductionRate += 0.02f; s.GoldBonusRate -= 0.05f; } },
             new UpgradeOption { Category = UpgradeCategory.Special, Title = "재생", Description = "매 턴 최대체력 1.5% 회복 / 받는 피해 +2%",

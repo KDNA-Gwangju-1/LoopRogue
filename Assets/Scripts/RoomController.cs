@@ -428,7 +428,7 @@ namespace LoopRogue
         public bool NotifyEnemyDefeated(EnemyActor enemy)
         {
             var stageMultiplier = StageScaling.RewardMultiplier(_stage);
-            var goldBonus = 1f + _player.Stats.EffectiveGoldBonus + EquipmentEffects.ExtraGoldBonus; // + 반지 "행운" // 골드 증감 카드(하한 -50%)
+            var goldBonus = 1f + _player.Stats.EffectiveGoldBonus + EquipmentEffects.ExtraGoldBonus + Relics.ExtraGoldBonus; // + 반지 "행운" + 유물 "탐욕" // 골드 증감 카드(하한 -50%)
             // 반복 보상 감소는 일반 몹/방 클리어에만(보스 처치는 항상 100%).
             var repeat = StageProgress.RepeatRewardMultiplier;
             ClearBombTelegraph(enemy); // 불 붙은 폭발병을 잡으면 불발
@@ -471,9 +471,9 @@ namespace LoopRogue
             LastClearHpFraction = _player.Stats.CurrentHealth / Mathf.Max(1f, _player.Stats.MaxHealth); // 클리어 회복 전
             if (!_current.IsBossRoom)
             {
-                var goldBonus = 1f + _player.Stats.EffectiveGoldBonus + EquipmentEffects.ExtraGoldBonus; // + 반지 "행운"
+                var goldBonus = 1f + _player.Stats.EffectiveGoldBonus + EquipmentEffects.ExtraGoldBonus + Relics.ExtraGoldBonus; // + 반지 "행운" + 유물 "탐욕"
                 GoldWallet.Add(Mathf.RoundToInt(GoldPerRoomClear * StageScaling.RewardMultiplier(_stage) * goldBonus * StageProgress.RepeatRewardMultiplier));
-                _player.Stats.Heal(_player.Stats.MaxHealth * RoomClearHealRate);
+                _player.Stats.Heal(_player.Stats.MaxHealth * (RoomClearHealRate + (Relics.Has(RelicType.RegenMoss) ? Relics.RegenMossHealRate : 0f))); // + 유물 "재생의 이끼"
             }
 
             if (_current.IsBossRoom)

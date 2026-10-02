@@ -59,10 +59,10 @@ namespace LoopRogue
         public static float PermanentCriticalAtSave { get; private set; }
 
         public static float CurrentPermanentAttack() =>
-            EquipmentWallet.TotalAttackBonus() + StatPotionWallet.TotalAttackBonus();
+            EquipmentWallet.TotalAttackBonus() + StatPotionWallet.TotalAttackBonus() + Relics.PermanentAttack;
 
         public static float CurrentPermanentHealth() =>
-            EquipmentWallet.TotalHealthBonus() + StatPotionWallet.TotalHealthBonus();
+            EquipmentWallet.TotalHealthBonus() + StatPotionWallet.TotalHealthBonus() + Relics.PermanentHealth;
 
         public static float CurrentPermanentCritical() => StatPotionWallet.TotalCriticalChanceBonus();
 

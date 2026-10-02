@@ -451,6 +451,7 @@ namespace LoopRogue
             StatPotionWallet.Reload();
             StageProgress.Reload();
             GachaSystem.Reload();
+            Relics.Reload();
             RunProgress.Reload();
         }
 
@@ -805,6 +806,13 @@ namespace LoopRogue
                 return true;
             }
 
+            var relics = _hud.PendingRelicOptions;
+            if (relics != null)
+            {
+                PickRelic(relics);
+                return true;
+            }
+
             if (_hud.IsDeathChoiceOpen)
             {
                 OnDeath();
@@ -886,6 +894,26 @@ namespace LoopRogue
             _roomTurns++;
             _stageTurns++;
             return true;
+        }
+
+        /// <summary>봇 유물 우선순위 - 생존/전투력 순. 사냥꾼의 눈(봇은 안개와 무관), 보물 사냥꾼·탐욕(경제)은 뒤로.</summary>
+        private static readonly RelicType[] RelicPriority =
+        {
+            RelicType.SecondWind, RelicType.IronSkin, RelicType.TyrantPlate, RelicType.ChargeHorn, RelicType.Executioner,
+            RelicType.SpinningBlade, RelicType.CrossCrest, RelicType.EarthHammer, RelicType.PiercingSeal, RelicType.ChainBlast,
+            RelicType.Berserker, RelicType.SniperEye, RelicType.Gale, RelicType.PulseCore, RelicType.RegenMoss, RelicType.FirstStrike,
+            RelicType.BloodPact, RelicType.PhantomBanner, RelicType.CrownOfEnd, RelicType.Greed, RelicType.TreasureHunter, RelicType.HunterEye,
+        };
+
+        private void PickRelic(IReadOnlyList<RelicType> options)
+        {
+            var best = 0;
+            for (var i = 1; i < options.Count; i++)
+                if (Array.IndexOf(RelicPriority, options[i]) < Array.IndexOf(RelicPriority, options[best]))
+                    best = i;
+            Detail($"  유물: [{string.Join(" / ", options.Select(Relics.Name))}] → {Relics.Name(options[best])}");
+            Ev("relic", ("options", options.Select(o => o.ToString()).ToList()), ("chosen", options[best].ToString()));
+            _hud.ChooseRelic(best);
         }
 
         private void PickUpgrade(IReadOnlyList<UpgradeOption> options)

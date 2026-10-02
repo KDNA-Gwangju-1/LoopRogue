@@ -148,7 +148,7 @@ namespace LoopRogue
         private void RefreshPotionDisplay()
         {
             _potionText.text =
-                $"영약 누적 - 공격력+{StatPotionWallet.TotalAttackBonus():0.#}   체력+{StatPotionWallet.TotalHealthBonus():0.#}";
+                $"영약 누적 - 공격력+{StatPotionWallet.TotalAttackBonus():0.#}   체력+{StatPotionWallet.TotalHealthBonus():0.#}   |   유물 {Relics.OwnedCount}개";
 
             _attackButtonText.text =
                 $"[A] 공격력 영약 구매 (다음 비용 {StatPotionWallet.GetNextCost(PotionType.Attack)}골드)";
