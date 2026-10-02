@@ -29,6 +29,11 @@ namespace LoopRogue
         private readonly Text[] _quickTexts = new Text[Inventory.QuickSlotCount];
         private int _cursor;
 
+        private const float QuickUseFlashDuration = 0.35f;
+        private static readonly Color SlotUsedFlash = new Color(0.95f, 0.75f, 0.25f, 1f);
+        private readonly bool[] _quickWasOwned = new bool[Inventory.QuickSlotCount];
+        private readonly float[] _quickFlashUntil = new float[Inventory.QuickSlotCount];
+
         public void Build(Transform canvas, PlayerActor player)
         {
             _player = player;
@@ -110,9 +115,18 @@ namespace LoopRogue
                 var item = Inventory.QuickSlot(s);
                 var owned = item.HasValue && Inventory.Has(item.Value);
                 var aiming = item.HasValue && _player.AimingItem == item;
-                _quickImages[s].color = aiming ? SlotCursor : owned ? SlotOwned : SlotEmpty;
-                _quickTexts[s].text = item.HasValue ? $"[{s + 1}] {ItemInfo.Name(item.Value)}" : $"[{s + 1}] 비어 있음";
-                _quickTexts[s].color = owned ? Color.white : new Color(0.55f, 0.55f, 0.6f);
+
+                // 방금 써서 없어졌으면 잠깐 번쩍 - 이름만 회색으로 바뀌면 썼는지 잘 안 보였다.
+                if (_quickWasOwned[s] && !owned)
+                    _quickFlashUntil[s] = Time.time + QuickUseFlashDuration;
+                _quickWasOwned[s] = owned;
+
+                var flashing = Time.time < _quickFlashUntil[s];
+                _quickImages[s].color = flashing ? SlotUsedFlash : aiming ? SlotCursor : owned ? SlotOwned : SlotEmpty;
+                _quickTexts[s].text = !item.HasValue ? $"[{s + 1}] 비어 있음"
+                    : owned ? $"[{s + 1}] {ItemInfo.Name(item.Value)}\n{(aiming ? "방향 고르기" : "사용 가능")}"
+                    : $"[{s + 1}] {ItemInfo.Name(item.Value)}\n{(flashing ? "사용!" : "없음")}";
+                _quickTexts[s].color = owned || flashing ? Color.white : new Color(0.45f, 0.45f, 0.5f);
             }
         }
 
@@ -128,13 +142,13 @@ namespace LoopRogue
 
         private void BuildQuickBar(Transform canvas)
         {
-            const float width = 150f, height = 40f, gap = 8f;
+            const float width = 150f, height = 44f, gap = 8f;
             var total = Inventory.QuickSlotCount * width + (Inventory.QuickSlotCount - 1) * gap;
             for (var s = 0; s < Inventory.QuickSlotCount; s++)
             {
                 var x = -total * 0.5f + s * (width + gap) + width * 0.5f;
                 var (image, text) = CreateBox(canvas, $"QuickSlot{s}", new Vector2(0.5f, 0f), new Vector2(x, 16f + height * 0.5f), new Vector2(width, height));
-                text.fontSize = 14;
+                text.fontSize = 13;
                 _quickImages[s] = image;
                 _quickTexts[s] = text;
             }
