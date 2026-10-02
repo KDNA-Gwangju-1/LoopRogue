@@ -41,6 +41,15 @@ namespace LoopRogue
         private Image _criticalButtonImage;
         private Coroutine _resultRoutine;
 
+        // 슬롯머신 - 돌아가는 동안엔 당첨금을 골드 표시에서 빼서 결과를 미리 들키지 않게 한다.
+        private const float SlotSpinDuration = 1.2f;
+        private const float SlotReelStopInterval = 0.35f;
+        private Text _slotReelsText;
+        private Text _slotButtonText;
+        private Text _slotHighButtonText;
+        private bool _slotSpinning;
+        private int _slotPendingPayout;
+
         private void Awake()
         {
             GoldWallet.EnsureLoaded();
@@ -53,11 +62,12 @@ namespace LoopRogue
             RefreshGachaDisplay();
             RefreshPotionDisplay();
             RefreshCriticalDisplay();
+            RefreshSlotDisplay();
         }
 
         private void Update()
         {
-            _goldText.text = $"보유 골드: {GoldWallet.Gold}";
+            _goldText.text = $"보유 골드: {GoldWallet.Gold - _slotPendingPayout}";
 
             HandleMouseClick();
 
@@ -84,6 +94,9 @@ namespace LoopRogue
 
             if (keyboard.cKey.wasPressedThisFrame)
                 DoPotionBuy(PotionType.Critical, "치명타");
+
+            if (keyboard.sKey.wasPressedThisFrame)
+                DoSlotSpin(shift);
 
             if (keyboard.enterKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame)
                 StartRun();
@@ -233,6 +246,75 @@ namespace LoopRogue
                 pair.Value.text = $"[Shift+{(int)pair.Key + 1}] 10연차 ({GachaSystem.GetMultiPullCost(pair.Key)}G)";
         }
 
+        private void DoSlotSpin(bool high)
+        {
+            if (_slotSpinning)
+                return;
+
+            var result = SlotMachine.Spin(high);
+            if (result == null)
+            {
+                ShowResult($"골드가 모자랍니다! (베팅액: {SlotMachine.GetBet(high)})", Color.white);
+                return;
+            }
+
+            StartCoroutine(SlotSpinRoutine(result.Value));
+        }
+
+        /// <summary>결과는 이미 정해졌고 연출만 한다 - 전부 돌다가 왼쪽 릴부터 하나씩 멈춘다.</summary>
+        private IEnumerator SlotSpinRoutine(SlotMachine.SpinResult result)
+        {
+            _slotSpinning = true;
+            _slotPendingPayout = result.Payout;
+            _slotReelsText.color = Color.white;
+
+            var shown = new int[3];
+            var stopped = 0;
+            var elapsed = 0f;
+            while (stopped < 3)
+            {
+                while (stopped < 3 && elapsed >= SlotSpinDuration + SlotReelStopInterval * stopped)
+                {
+                    shown[stopped] = result.Reels[stopped];
+                    stopped++;
+                }
+
+                for (var i = stopped; i < 3; i++)
+                    shown[i] = UnityEngine.Random.Range(0, SlotMachine.Symbols.Length);
+
+                _slotReelsText.text = FormatReels(shown);
+                yield return new WaitForSeconds(0.06f);
+                elapsed += 0.06f;
+            }
+
+            _slotPendingPayout = 0;
+            _slotSpinning = false;
+
+            if (result.MatchCount == 3)
+            {
+                _slotReelsText.color = new Color(1f, 0.85f, 0.3f);
+                ShowResult($"잭팟! 3개 일치 - {result.Payout}골드 획득!", new Color(1f, 0.85f, 0.3f));
+            }
+            else if (result.MatchCount == 2)
+            {
+                ShowResult($"2개 일치 - {result.Payout}골드 돌려받음 (베팅 {result.Bet})", new Color(0.6f, 0.9f, 1f));
+            }
+            else
+            {
+                _slotReelsText.color = new Color(0.6f, 0.6f, 0.6f);
+                ShowResult($"꽝... {result.Bet}골드를 잃었습니다.", new Color(1f, 0.5f, 0.5f));
+            }
+        }
+
+        private static string FormatReels(int[] reels) =>
+            $"[ {SlotMachine.Symbols[reels[0]]} | {SlotMachine.Symbols[reels[1]]} | {SlotMachine.Symbols[reels[2]]} ]";
+
+        private void RefreshSlotDisplay()
+        {
+            _slotButtonText.text = $"[S] 돌리기 ({SlotMachine.GetBet(false)}G)";
+            _slotHighButtonText.text = $"[Shift+S] {SlotMachine.HighBetMultiplier}배 베팅 ({SlotMachine.GetBet(true)}G)";
+        }
+
         private void RefreshEquipmentDisplay()
         {
             _weaponText.text = FormatSlot(ItemSlot.Weapon);
@@ -322,6 +404,22 @@ namespace LoopRogue
 
             CreateButton(canvasGo.transform, "StartButton", StartButtonColor, -282f, 480f, 46f,
                 out _, $"[Enter / Space] 스테이지 {StageProgress.CurrentStage} 시작", 20, Color.white, StartRun);
+
+            // 슬롯머신은 오른쪽 빈 공간에 따로 세운다(가운데 열은 이미 꽉 참).
+            const float slotX = 470f;
+            var slotTitle = CreateLabel(canvasGo.transform, "SlotTitle", "운명의 슬롯\n3개 일치 10배 / 2개 일치 0.5배",
+                16, FontStyle.Bold, new Color(1f, 0.85f, 0.3f), 110f, 300f);
+            slotTitle.rectTransform.sizeDelta = new Vector2(300f, 48f);
+            slotTitle.rectTransform.anchoredPosition = new Vector2(slotX, 110f);
+
+            _slotReelsText = CreateLabel(canvasGo.transform, "SlotReels", FormatReels(new[] { 0, 1, 2 }),
+                24, FontStyle.Bold, Color.white, 55f, 300f);
+            _slotReelsText.rectTransform.anchoredPosition = new Vector2(slotX, 55f);
+
+            CreateButton(canvasGo.transform, "SlotButton", new Color(0.45f, 0.3f, 0.15f), 0f, 260f, 40f,
+                out _slotButtonText, string.Empty, 16, Color.white, () => DoSlotSpin(false), slotX);
+            CreateButton(canvasGo.transform, "SlotHighButton", new Color(0.5f, 0.2f, 0.15f), -48f, 260f, 40f,
+                out _slotHighButtonText, string.Empty, 16, Color.white, () => DoSlotSpin(true), slotX);
         }
 
         private static Text CreateLabel(Transform parent, string goName, string content, int fontSize,
