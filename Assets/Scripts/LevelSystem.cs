@@ -45,6 +45,21 @@ namespace LoopRogue
         private const float ExpGrowthRate = 1.13f;
         private const int BaseExpToNext = 10;
 
+        /// <summary>만렙(사용자 결정 100). Lv70까지는 위 지수 곡선 그대로, Lv70부터는 레벨당 +1,000씩만 늘어난다
+        /// (사용자 결정 B안: 70→71 41,000 … 99→100 70,000, 구간 합계 약 45만/55만/65만) - 지수 그대로면 Lv79→100에만
+        /// 약 1,277만이 들어서(스테이지 10 몹 약 10만 마리) 봇 100판 최고가 Lv79에서 멈췄다.</summary>
+        public const int MaxLevel = 100;
+        private const int LinearFromLevel = 70;
+        private const int LinearStartExp = 41000;
+        private const int LinearStepExp = 1000;
+
+        /// <summary>level → level+1에 필요한 경험치.</summary>
+        public static int ExpToNextFor(int level) => level >= LinearFromLevel
+            ? LinearStartExp + LinearStepExp * (level - LinearFromLevel)
+            : (int)Math.Round(BaseExpToNext * Math.Pow(ExpGrowthRate, level - 1));
+
+        public bool IsMaxLevel => Level >= MaxLevel;
+
         public int Level { get; private set; } = 1;
         public int Exp { get; private set; }
         public int ExpToNext { get; private set; } = BaseExpToNext;
@@ -119,14 +134,14 @@ namespace LoopRogue
         /// 흐름(AddExp)을 우회해서 Level/Exp/ExpToNext를 직접 덮어쓴다.</summary>
         public void RestoreProgress(int level, int exp, int expToNext)
         {
-            Level = level;
-            Exp = exp;
-            ExpToNext = expToNext;
+            Level = Math.Min(level, MaxLevel);
+            ExpToNext = ExpToNextFor(Level); // 곡선이 바뀌기 전에 저장된 판도 지금 곡선으로(옛 Lv70+ 요구량은 훨씬 컸다)
+            Exp = Math.Min(exp, ExpToNext - 1);
         }
 
         public void AddExp(int amount)
         {
-            if (amount <= 0 || IsChoosingUpgrade)
+            if (amount <= 0 || IsChoosingUpgrade || IsMaxLevel)
                 return;
 
             Exp += amount;
@@ -134,7 +149,9 @@ namespace LoopRogue
             {
                 Exp -= ExpToNext;
                 Level++;
-                ExpToNext = (int)Math.Round(BaseExpToNext * Math.Pow(ExpGrowthRate, Level - 1));
+                ExpToNext = ExpToNextFor(Level);
+                if (IsMaxLevel)
+                    Exp = 0;
                 OnLevelUp?.Invoke(Level);
                 PresentUpgradeChoices();
                 return; // 남은 exp는 다음 처치 때 이어서 - 한 킬로 여러 레벨 오르는 케이스는 범위 밖.

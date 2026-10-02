@@ -230,7 +230,7 @@ namespace LoopRogue
                 ? $"HP {stats.CurrentHealth:0}/{stats.MaxHealth:0}  <color=#9FD8FF>(+보호막 {stats.Shield:0})</color>"
                 : $"HP {stats.CurrentHealth:0}/{stats.MaxHealth:0}";
             _levelText.text = $"Lv.{levels.Level}  (ATK {stats.AttackPower:0})";
-            _expText.text = $"EXP {levels.Exp}/{levels.ExpToNext}";
+            _expText.text = levels.IsMaxLevel ? "EXP MAX" : $"EXP {levels.Exp}/{levels.ExpToNext}";
             _skillText.text = _player.AimingItem.HasValue
                 ? $"<color=#FFD27F>[아이템] {ItemInfo.Name(_player.AimingItem.Value)} - 방향키로 방향 선택 (같은 키: 취소)</color>"
                 : _player.RootedTurns > 0
@@ -272,7 +272,7 @@ namespace LoopRogue
             var sb = new System.Text.StringBuilder();
 
             sb.AppendLine("<b><color=#FFD966>[기본]</color></b>");
-            sb.AppendLine($"레벨  Lv.{levels.Level}  (EXP {levels.Exp}/{levels.ExpToNext})");
+            sb.AppendLine(levels.IsMaxLevel ? $"레벨  Lv.{levels.Level}  (MAX)" : $"레벨  Lv.{levels.Level}  (EXP {levels.Exp}/{levels.ExpToNext})");
             sb.AppendLine($"체력  {s.CurrentHealth:0} / {s.MaxHealth:0}  (장비·영약 {s.FixedMaxHealth:0})");
             sb.AppendLine($"공격력  {s.AttackPower:0.#}  (장비·영약 {s.FixedAttack:0.#})");
             sb.AppendLine($"치명타  {s.EffectiveCriticalChance * 100f:0.#}%  (피해 {s.CriticalDamageMultiplier * 100f:0.#}%)");
