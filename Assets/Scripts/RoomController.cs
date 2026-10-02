@@ -139,7 +139,8 @@ namespace LoopRogue
 
             Map.PlaceActor(_player, layout.PlayerStart);
             PositionCamera(layout);
-            FogOfWar.Create(this, _player, layout, _roomObjects);
+            if (!def.IsBossRoom) // 보스방은 안개 없이 전부 보이게(사용자 결정 - 보스 패턴/소환 몹을 다 보고 싸우게)
+                FogOfWar.Create(this, _player, layout, _roomObjects);
 
             for (var i = 0; i < layout.EnemyPositions.Count; i++)
             {
