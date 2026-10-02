@@ -48,12 +48,31 @@ namespace LoopRogue
             RefreshHudProgress();
             _attemptStartGold = GoldWallet.Gold;
 
+            // 시작 방 고르기(사람만) - 방1은 이미 깔아둔 채로 입력만 잠그고, 다른 방을 고르면 그 방으로 바꿔 로드.
+            if (!GameHUD.AutoPlayActive)
+            {
+                _roomController.IsInputLocked = true;
+                _hud.ShowRoomSelect(stage, _rooms, 0, StartFromSelectedRoom);
+            }
+
             // Esc 메뉴 - 사망/스테이지 클리어(입력 잠금 중)나 레벨업 카드 선택 중에는 안 열린다.
             // 중도 포기도 사망과 같은 데스 패널티(안 그러면 죽기 직전에 Esc로 빠져나가 패널티를 피할 수 있다).
             _hud.gameObject.AddComponent<PauseMenu>().Setup(RetreatToLobby,
                 () => !_roomController.IsInputLocked && !_player.Levels.IsChoosingUpgrade && !_player.Stats.IsDead && !InventoryUI.IsOpen,
                 lobbyLabel: $"로비로 이동 (이번 시도 골드 {DeathGoldPenaltyRate * 100f:0}% 손실)  [L]",
                 goToTitle: RetreatToTitle);
+        }
+
+        private void StartFromSelectedRoom(int index)
+        {
+            if (index == _roomIndex)
+            {
+                _roomController.IsInputLocked = false;
+                return;
+            }
+            _roomIndex = index;
+            _roomController.LoadRoom(_rooms[_roomIndex]); // IsInputLocked를 다시 false로 풀어준다.
+            RefreshHudProgress();
         }
 
         public void AdvanceToNextRoom()
@@ -71,7 +90,7 @@ namespace LoopRogue
             _roomController.IsInputLocked = true;
             Inventory.LoseAll(); // 죽으면 들고 있던 아이템 전부 잃음(사용자 결정)
             var penalty = ApplyDeathGoldPenalty();
-            _hud.ShowDeathChoice(ContinueAfterDeath, ReturnToLobby, penalty);
+            _hud.ShowDeathChoice(ContinueAfterDeath, ReturnToLobby, penalty, _rooms, _roomIndex); // 기본값 = 죽은 방
         }
 
         /// <summary>이번 시도에서 번 골드의 DeathGoldPenaltyRate만큼 뺏고, 뺏은 양을 돌려준다(표시용).</summary>
@@ -100,17 +119,17 @@ namespace LoopRogue
             UnityEngine.SceneManagement.SceneManager.LoadScene("Title");
         }
 
-        private void ContinueAfterDeath()
+        private void ContinueAfterDeath(int startRoom)
         {
             LoopCount++;
-            _roomIndex = 0;
+            _roomIndex = startRoom;
             RollRoomEvent();
             StageProgress.BeginAttempt();
             _player.Stats.FullHeal();
             _roomController.LoadRoom(_rooms[_roomIndex]); // IsInputLocked를 다시 false로 풀어준다.
             _attemptStartGold = GoldWallet.Gold;
             RefreshHudProgress();
-            _hud.ShowLoopResetBanner();
+            _hud.ShowLoopResetBanner(startRoom);
         }
 
         private void ReturnToLobby() => SaveProgressAndLoadLobby();

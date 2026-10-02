@@ -46,8 +46,18 @@ namespace LoopRogue
         private Action _onStageClearContinue;
         private GameObject _deathPanel;
         private Text _deathPenaltyText;
-        private Action _onContinueAfterDeath;
+        private Action<int> _onContinueAfterDeath;
         private Action _onReturnToLobby;
+
+        // 시작 방 고르기("방을 자유롭게 들어갈 수 있게", 사용자 결정: 처음부터 11개 전부, 깬 뒤엔 다음 방으로) -
+        // 스테이지 입장 창과 사망 창이 "방 지도 한 줄"(RoomMapView) 하나를 같이 쓴다.
+        // 봇은 항상 방1부터(밸런스 측정 기준 유지) - 봇이 켜져 있으면 입장 창은 아예 안 뜨고, ChooseDeathContinue는 방1.
+        public static bool AutoPlayActive;
+        private GameObject _roomSelectPanel;
+        private Text _roomSelectTitle;
+        private RoomMapView _roomMap;
+        private Action<int> _onRoomSelected;
+        private int _roomCount;
 
         public void Initialize(PlayerActor player)
         {
@@ -70,7 +80,30 @@ namespace LoopRogue
             HandleStatPanelToggle();
             HandleUpgradeSelection();
             HandleDeathChoice();
+            HandleRoomSelect();
             HandleStageClearChoice();
+        }
+
+        /// <summary>스테이지 입장 시 시작 방 고르기 - 고르기 전까지는 호출부(LoopManager)가 입력을 잠가둔다.</summary>
+        public void ShowRoomSelect(int stage, IReadOnlyList<RoomDefinition> rooms, int defaultRoom, Action<int> onSelected)
+        {
+            _onRoomSelected = onSelected;
+            _roomCount = rooms.Count;
+            _roomSelectTitle.text = $"스테이지 {stage} - 어디서 시작할까?";
+            _roomMap ??= new RoomMapView(_roomSelectPanel.transform, rooms.Count);
+            _roomMap.Show(_roomSelectPanel.transform, new Vector2(0f, 0f), rooms, defaultRoom);
+            _roomSelectPanel.SetActive(true);
+        }
+
+        private void HandleRoomSelect()
+        {
+            if (_onRoomSelected == null || !_roomMap.HandleInput())
+                return;
+
+            var callback = _onRoomSelected;
+            _onRoomSelected = null;
+            _roomSelectPanel.SetActive(false);
+            callback(_roomMap.Selected);
         }
 
         /// <summary>스테이지 보스를 잡은 직후 뜨는 안내 - Enter 한 번으로 로비로 이동한다(사망 때와
@@ -109,13 +142,16 @@ namespace LoopRogue
             callback();
         }
 
-        public void ChooseDeathContinue()
+        /// <summary>봇용 - 항상 방1부터(사람은 Enter로 고른 방부터).</summary>
+        public void ChooseDeathContinue() => ChooseDeathContinue(0);
+
+        private void ChooseDeathContinue(int startRoom)
         {
             var callback = _onContinueAfterDeath;
             if (callback == null)
                 return;
             ClearDeathChoice();
-            callback();
+            callback(startRoom);
         }
 
         public void ChooseDeathLobby()
@@ -138,8 +174,8 @@ namespace LoopRogue
             if (keyboard == null)
                 return;
 
-            if (keyboard.enterKey.wasPressedThisFrame)
-                ChooseDeathContinue();
+            if (_roomMap.HandleInput())
+                ChooseDeathContinue(_roomMap.Selected);
             else if (keyboard.lKey.wasPressedThisFrame)
                 ChooseDeathLobby();
         }
@@ -302,7 +338,7 @@ namespace LoopRogue
         /// <summary>화면 위쪽 배너로 짧은 안내(방 이벤트 결과, 보스 소환 등).</summary>
         public void ShowMessage(string message) => ShowBanner(message);
 
-        public void ShowLoopResetBanner() => ShowBanner("보스에게 당했다... 스탯은 그대로! 방 1부터 다시.");
+        public void ShowLoopResetBanner(int startRoom) => ShowBanner($"스탯은 그대로! {RoomMapView.RoomLabel(startRoom, _roomCount)}부터 다시.");
 
         private void ShowBanner(string message)
         {
@@ -337,9 +373,12 @@ namespace LoopRogue
 
         /// <summary>LoopManager.OnPlayerDied가 호출 - 선택 전까지는 RoomController.IsInputLocked가
         /// 이미 켜져 있어서 플레이어가 움직일 수 없다.</summary>
-        public void ShowDeathChoice(Action onContinue, Action onLobby, int goldPenalty)
+        public void ShowDeathChoice(Action<int> onContinue, Action onLobby, int goldPenalty, IReadOnlyList<RoomDefinition> rooms, int defaultRoom)
         {
             _onContinueAfterDeath = onContinue;
+            _roomCount = rooms.Count;
+            _roomMap ??= new RoomMapView(_deathPanel.transform, rooms.Count);
+            _roomMap.Show(_deathPanel.transform, new Vector2(0f, -5f), rooms, defaultRoom);
             _onReturnToLobby = onLobby;
             LastDeathGoldPenalty = goldPenalty;
             _deathPenaltyText.text = goldPenalty > 0
@@ -419,6 +458,7 @@ namespace LoopRogue
             BuildBanner(canvasGo.transform);
             BuildVictoryPanel(canvasGo.transform);
             BuildDeathPanel(canvasGo.transform);
+            BuildRoomSelectPanel(canvasGo.transform);
             canvasGo.AddComponent<InventoryUI>().Build(canvasGo.transform, _player);
         }
 
@@ -582,7 +622,7 @@ namespace LoopRogue
 
         private void BuildDeathPanel(Transform parent)
         {
-            _deathPanel = BuildOverlayPanel(parent, "DeathPanel", new Vector2(460f, 200f), active: false);
+            _deathPanel = BuildOverlayPanel(parent, "DeathPanel", new Vector2(700f, 330f), active: false);
 
             var title = CreateLabel(_deathPanel.transform, "사망! (레벨/스탯/장비는 그대로 유지됩니다)",
                 new Vector2(10f, -70f), new Vector2(-10f, -15f));
@@ -595,10 +635,25 @@ namespace LoopRogue
             _deathPenaltyText.fontSize = 15;
             _deathPenaltyText.color = new Color(1f, 0.6f, 0.4f);
 
-            var prompt = CreateLabel(_deathPanel.transform, "[Enter] 계속하기 (방1부터 다시)    [L] 로비로 이동",
-                new Vector2(10f, -170f), new Vector2(-10f, -110f));
+            var prompt = CreateLabel(_deathPanel.transform, "←/→ 또는 클릭: 시작 방 고르기   [Enter] 계속하기   [L] 로비로 이동",
+                new Vector2(10f, -315f), new Vector2(-10f, -275f));
             prompt.alignment = TextAnchor.MiddleCenter;
             prompt.fontSize = 16;
+        }
+
+        private void BuildRoomSelectPanel(Transform parent)
+        {
+            _roomSelectPanel = BuildOverlayPanel(parent, "RoomSelectPanel", new Vector2(700f, 280f), active: false);
+
+            _roomSelectTitle = CreateLabel(_roomSelectPanel.transform, string.Empty, new Vector2(10f, -55f), new Vector2(-10f, -15f));
+            _roomSelectTitle.alignment = TextAnchor.MiddleCenter;
+            _roomSelectTitle.fontSize = 20;
+            _roomSelectTitle.fontStyle = FontStyle.Bold;
+
+            var prompt = CreateLabel(_roomSelectPanel.transform, "←/→ 또는 클릭: 고르기   B: 보스방   [Enter] 시작  (깬 뒤엔 다음 방으로)",
+                new Vector2(10f, -265f), new Vector2(-10f, -225f));
+            prompt.alignment = TextAnchor.MiddleCenter;
+            prompt.fontSize = 15;
         }
 
         /// <summary>anchorMin/Max를 (0,1)/(1,1)로 고정하고 offsetMin/Max로 위치를 잡는 상단-정렬

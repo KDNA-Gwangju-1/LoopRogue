@@ -251,6 +251,7 @@ namespace LoopRogue
             Debug.Log($"[AutoPlayBot] 시작 ({(_stageTest ? "층별 순수 난이도 측정, " : "")}{SessionRuns}판) - 로그: {path}");
 
             DamagePopup.Suppressed = true;
+            GameHUD.AutoPlayActive = true; // 시작 방 고르기 창을 안 띄움(봇은 항상 방1부터)
             Application.targetFrameRate = -1;
             QualitySettings.vSyncCount = 0;
             Application.runInBackground = true; // 에디터 창이 포커스를 잃어도 느려지지 않게
@@ -265,6 +266,7 @@ namespace LoopRogue
         private void OnDestroy()
         {
             DamagePopup.Suppressed = false;
+            GameHUD.AutoPlayActive = false;
             _log?.Dispose();
             _events?.Dispose();
         }
