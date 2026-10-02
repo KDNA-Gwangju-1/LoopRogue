@@ -7,6 +7,8 @@ namespace LoopRogue
     /// 보이는 것과 들리는 것만 더한다. 자동 플레이 봇이 돌 때(DamagePopup.Suppressed)는 전부 건너뛴다 - 컴포넌트도 안 붙인다.</summary>
     public static class HitFeedback
     {
+        private static readonly Color SpriteHitTint = new Color(1f, 0.45f, 0.45f);
+
         private static readonly Color PlayerHurtTint = new Color(1f, 0.35f, 0.35f);
         private const float BumpDistance = 0.28f; // 칸 크기 대비 비율
 
@@ -28,7 +30,7 @@ namespace LoopRogue
                 SfxPlayer.Play(Sfx.Block);
                 return;
             }
-            juice.Flash(Color.white);
+            juice.Flash(enemy.GetComponent<SpriteAnimator>() != null ? SpriteHitTint : Color.white); // 그림은 흰색 틴트면 티가 안 나서 붉게
             juice.Squish(isCritical ? 0.3f : 0.18f);
 
             if (isCritical)

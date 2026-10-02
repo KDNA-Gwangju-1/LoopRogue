@@ -157,9 +157,11 @@ namespace LoopRogue
         {
             IsMinion = true;
             var renderer = GetComponent<SpriteRenderer>();
-            if (renderer != null)
-                renderer.color = new Color(0.55f, 0.25f, 0.25f);
+            if (renderer != null) // 그림(슬라임)은 곱해지는 색이라 덜 어둡게
+                renderer.color = GetComponent<SpriteAnimator>() != null ? new Color(1f, 0.5f, 0.5f) : new Color(0.55f, 0.25f, 0.25f);
         }
+
+        private const string SlimeSpriteSet = "Slime";
 
         public void Initialize(float maxHealth, float attackPower, bool isBoss, EnemyKind kind = EnemyKind.Melee)
         {
@@ -198,6 +200,14 @@ namespace LoopRogue
             }
             else
             {
+                // 기본 근접 몹 = 슬라임(사용자가 만든 도트 그림) - 그림 파일이 없으면 예전 빨간 사각형.
+                var slime = SpriteAnimator.FirstFrame(SlimeSpriteSet);
+                if (slime != null)
+                {
+                    var spriteRenderer = VisualUtil.CreateSpriteVisual(gameObject, slime, GridConstants.CellSize, sortingOrder: 0);
+                    gameObject.AddComponent<SpriteAnimator>().Setup(SlimeSpriteSet, spriteRenderer, new Color(0.45f, 0.8f, 0.3f));
+                    return;
+                }
                 color = new Color(0.8f, 0.2f, 0.2f);
                 scale = GridConstants.CellSize * 0.6f;
             }
@@ -530,6 +540,8 @@ namespace LoopRogue
 
         private void HitTarget(PlayerActor player, bool melee = true)
         {
+            if (melee && TryGetComponent<SpriteAnimator>(out var anim)) // 슬라임 공격 모션
+                anim.PlayAttack((_decoyTarget != null ? _decoyTarget.GridPos : player.GridPos) - GridPos);
             if (_decoyTarget != null)
             {
                 _decoyTarget.TakeHit(this, Stats.AttackPower);

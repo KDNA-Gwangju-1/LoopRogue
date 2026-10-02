@@ -40,6 +40,9 @@ namespace LoopRogue
         /// <summary>번쩍이는 중이면 원래 색을, 아니면 지금 색을 돌려준다(처치 파편 색용).</summary>
         public static Color BaseColorOf(GridActor actor, SpriteRenderer renderer)
         {
+            var anim = actor.GetComponent<SpriteAnimator>();
+            if (anim != null)
+                return anim.DebrisColor; // 그림은 틴트가 흰색이라 지정해둔 파편 색
             var juice = actor.GetComponent<ActorJuice>();
             if (juice != null && juice._flashing)
                 return juice._baseColor;
