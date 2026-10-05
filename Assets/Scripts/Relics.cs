@@ -39,19 +39,19 @@ namespace LoopRogue
         public const int BossRelicCount = 10;
         public const int OfferCount = 3;
 
-        // ---- 효과 수치 ----
+        // ---- 효과 수치 ---- (범위 공격 유물은 봇 측정에서 8~10층 일반 방 사망을 목표의 15~25%로 떨어뜨려서 한 번 약화: 망치 30→20%, 관통·갑주 50→30%, 집행 25→15%, 연쇄 30→20%)
         public const int ChargeHornDashRange = 4;
         public const float ChargeHornDashDamage = 1.5f;
-        public const float EarthHammerSplashRate = 0.3f;
-        public const float PiercingRate = 0.5f;
-        public const float TyrantLandingRate = 0.5f;
-        public const float ExecutionerThreshold = 0.25f;
+        public const float EarthHammerSplashRate = 0.2f;
+        public const float PiercingRate = 0.3f;
+        public const float TyrantLandingRate = 0.3f;
+        public const float ExecutionerThreshold = 0.15f;
         public const float SniperCritDamageBonus = 0.5f;
         public const float CrownAttack = 10f;
         public const float CrownHealth = 50f;
         public const float BloodPactHealthFactor = 0.8f;
         public const float BloodPactLifeStealCap = 0.7f;
-        public const float ChainBlastRate = 0.3f;
+        public const float ChainBlastRate = 0.2f;
         public const float SecondWindHealRate = 0.3f;
         public const float TreasureHunterDropBonus = 0.03f;
         public const float SpinningBladeDamageRate = 1.2f;
@@ -67,17 +67,17 @@ namespace LoopRogue
         private static readonly Dictionary<RelicType, (string Name, string Description)> Info = new Dictionary<RelicType, (string, string)>
         {
             { RelicType.ChargeHorn, ("돌진의 뿔", "대시 거리 3→4칸, 대시 공격 피해 +50%") },
-            { RelicType.EarthHammer, ("대지의 망치", "일반 공격 시 대상 상하좌우 몹에게도 30% 피해") },
+            { RelicType.EarthHammer, ("대지의 망치", "일반 공격 시 대상 상하좌우 몹에게도 20% 피해") },
             { RelicType.CrossCrest, ("십자 문장", "회전 베기가 상하좌우 2칸까지 닿음") },
             { RelicType.PhantomBanner, ("망령의 깃발", "방에 들어갈 때 옆에 허수아비가 생김") },
             { RelicType.PulseCore, ("파동의 핵", "회전 베기에 맞은 몹 1턴 기절") },
             { RelicType.SniperEye, ("저격수의 눈", "치명타 피해 +50%p") },
-            { RelicType.PiercingSeal, ("관통의 인장", "일반 공격이 대상 뒤 1칸 몹에게도 50% 피해") },
-            { RelicType.TyrantPlate, ("폭군의 갑주", "대시로 내려선 자리 주변 8칸 몹에게 50% 피해") },
-            { RelicType.Executioner, ("사형 집행자", "체력 25% 이하인 일반 몹은 한 대에 처치") },
+            { RelicType.PiercingSeal, ("관통의 인장", "일반 공격이 대상 뒤 1칸 몹에게도 30% 피해") },
+            { RelicType.TyrantPlate, ("폭군의 갑주", "대시로 내려선 자리 주변 8칸 몹에게 30% 피해") },
+            { RelicType.Executioner, ("사형 집행자", "체력 15% 이하인 일반 몹은 한 대에 처치") },
             { RelicType.CrownOfEnd, ("끝의 왕관", "공격력 +10, 최대체력 +50") },
             { RelicType.BloodPact, ("피의 계약", "최대체력(성장분) -20%, 흡혈 상한 50%→70%") },
-            { RelicType.ChainBlast, ("연쇄 폭발", "일반 몹 처치 시 주변 8칸 몹에게 공격력 30% 피해") },
+            { RelicType.ChainBlast, ("연쇄 폭발", "일반 몹 처치 시 주변 8칸 몹에게 공격력 20% 피해") },
             { RelicType.SecondWind, ("두 번째 숨", "시도마다 1회, 죽으면 체력 30%로 부활") },
             { RelicType.TreasureHunter, ("보물 사냥꾼", "보물상자에서 아이템 2개, 몹 아이템 드롭 +3%p") },
             { RelicType.SpinningBlade, ("회전 칼날", "회전 베기 피해 80%→120%") },
