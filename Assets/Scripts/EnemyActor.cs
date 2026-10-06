@@ -54,7 +54,6 @@ namespace LoopRogue
         /// 폭발은 플레이어만 맞는다(공격력 × 이 배율, 다른 몹은 안 맞음). 터지기 전에 잡으면 불발.</summary>
         public const float BlastDamageRate = 3f;
         private bool _fuseLit;
-        public bool IsFuseLit => _fuseLit;
 
         /// <summary>이번 턴에 노리는 칸(플레이어 또는 미끼)과 미끼.</summary>
         private Vector2Int _tp;

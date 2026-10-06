@@ -49,8 +49,6 @@ namespace LoopRogue
             renderer.color = color;
         }
 
-        public static RoomEventType RollType() => (RoomEventType)Rng.Next(4);
-
         /// <summary>보물상자를 뺀 나머지 셋 중 하나(보물상자는 층마다 따로 1개 확정).</summary>
         public static RoomEventType RollNonChestType() => (RoomEventType)(1 + Rng.Next(3));
 

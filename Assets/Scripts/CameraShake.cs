@@ -50,21 +50,6 @@ namespace LoopRogue
             shake.transform.position = shake._base;
         }
 
-        /// <summary>카메라를 직접 새 위치로 옮긴 직후 부른다 - 이전 흔들림 값이 새 위치에서 빠지지 않게.</summary>
-        public static void ResetOffset(Camera cam)
-        {
-            if (cam == null)
-                return;
-
-            var shake = cam.GetComponent<CameraShake>();
-            if (shake == null)
-                return;
-
-            shake._applied = Vector3.zero;
-            shake._duration = 0f;
-            shake._base = shake._follow != null ? shake.Goal() : cam.transform.position;
-        }
-
         private static CameraShake Get(Camera cam)
         {
             if (cam == null)

@@ -199,13 +199,5 @@ namespace LoopRogue
             Quick[slot] = (int)type;
             Save();
         }
-
-        public static IEnumerable<ItemType> OwnedItems()
-        {
-            EnsureLoaded();
-            for (var i = 0; i < ItemInfo.Count; i++)
-                if (Owned[i])
-                    yield return (ItemType)i;
-        }
     }
 }
