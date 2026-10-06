@@ -293,6 +293,21 @@ namespace LoopRogue
                 : VisualUtil.CreateSquareVisual(gameObject, PlayerColor, GridConstants.CellSize * 0.65f, sortingOrder: 1);
 
             Stats.OnArmorEffect = message => _room.ShowMessage(message);
+            Stats.OnRevived = MoveToSafeTile;
+        }
+
+        /// <summary>두 번째 숨으로 부활하면 몹에게서 먼 안전한 칸으로 옮긴다 - 제자리면 같은 몹 턴에 남은 몹들이
+        /// 계속 때려서 부활하자마자 다시 죽었다(사용자 결정: 안전지역으로 이동).</summary>
+        private void MoveToSafeTile()
+        {
+            if (_room == null)
+                return;
+            var safe = _room.FindSafeTile(GridPos);
+            if (safe == GridPos)
+                return;
+            var from = transform.position;
+            Map.MoveActor(this, safe);
+            HitFeedback.OnDash(this, from);
         }
 
         /// <summary>방을 깔 때마다(RoomController.LoadRoom) - 갑옷 "보호막"을 다시 채운다.</summary>

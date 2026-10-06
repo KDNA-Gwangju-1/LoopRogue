@@ -613,6 +613,43 @@ namespace LoopRogue
 
         public bool CanPlaceAt(Vector2Int pos) => Map.IsWalkable(pos) && ExitPosition != pos;
 
+        /// <summary>두 번째 숨 부활 위치 - 빈 칸 중 예고(보스 패턴·폭발) 칸, 출구, 덫을 빼고, 궁수·거미가 같은 줄
+        /// 사거리에서 노리는 칸을 피하면서 가장 가까운 몹과 제일 먼 칸. 같으면 지금 자리에서 가까운 칸. 갈 데가 없으면 제자리.</summary>
+        public Vector2Int FindSafeTile(Vector2Int from)
+        {
+            var alive = _enemies.Where(e => e != null && !e.Stats.IsDead).ToList();
+            var best = from;
+            var bestScore = float.MinValue;
+            for (var x = 0; x < Map.Width; x++)
+            for (var y = 0; y < Map.Height; y++)
+            {
+                var pos = new Vector2Int(x, y);
+                if (!Map.IsWalkable(pos) || ExitPosition == pos || _traps.ContainsKey(pos) || _dangerTiles.Contains(pos))
+                    continue;
+
+                var nearest = 99;
+                var aimed = false;
+                foreach (var e in alive)
+                {
+                    var dx = Mathf.Abs(e.GridPos.x - x);
+                    var dy = Mathf.Abs(e.GridPos.y - y);
+                    nearest = Mathf.Min(nearest, dx + dy);
+                    if ((e.Kind == EnemyKind.Ranged || e.Kind == EnemyKind.Spider) && (dx == 0 || dy == 0) && dx + dy <= EnemyActor.RangedAttackRange)
+                        aimed = true;
+                }
+
+                // 몹과 6칸이면 충분히 안전 - 그 이상은 똑같이 치고 덜 움직이는 쪽을 고른다.
+                var score = Mathf.Min(nearest, 6) * 100f - (aimed ? 250f : 0f)
+                            - (Mathf.Abs(x - from.x) + Mathf.Abs(y - from.y));
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    best = pos;
+                }
+            }
+            return best;
+        }
+
         public void PlaceTorch(Vector2Int pos)
         {
             _torches.Add(pos);

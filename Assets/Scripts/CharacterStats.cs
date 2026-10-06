@@ -93,6 +93,8 @@ namespace LoopRogue
         public bool ReviveReady;
         /// <summary>불굴/응급 처치가 발동했을 때 알림(메시지 표시용).</summary>
         public System.Action<string> OnArmorEffect;
+        /// <summary>유물 "두 번째 숨"으로 되살아난 직후 - 플레이어를 안전한 칸으로 옮긴다(PlayerActor).</summary>
+        public System.Action OnRevived;
 
         public float TakeIncomingDamage(float rawDamage)
         {
@@ -123,6 +125,7 @@ namespace LoopRogue
                 ReviveReady = false;
                 CurrentHealth = MaxHealth * Relics.SecondWindHealRate;
                 OnArmorEffect?.Invoke("두 번째 숨! 다시 일어섰다");
+                OnRevived?.Invoke();
             }
 
             if (EmergencyHealReady && !IsDead && CurrentHealth < MaxHealth * EquipmentEffects.EmergencyThreshold)
