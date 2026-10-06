@@ -35,6 +35,10 @@ namespace LoopRogue
         private RectTransform _statButtonRect;
         private GameObject _statPanel;
         private Text _statText;
+        // 가진 유물 - 상태창 왼쪽 별도 패널(상태창 안에 넣으면 장비 효과 줄이 많을 때 아래가 잘려서 안 보였다).
+        private GameObject _ownedRelicPanel;
+        private RectTransform _ownedRelicPanelRect;
+        private Text _ownedRelicText;
 
         private GameObject _upgradePanel;
         private List<UpgradeOption> _pendingOptions;
@@ -312,7 +316,7 @@ namespace LoopRogue
             RefreshTarget();
 
             if (_statPanel.activeSelf)
-                _statText.text = BuildStatText();
+                RefreshStatPanels();
         }
 
         private void HandleStatPanelToggle()
@@ -329,7 +333,42 @@ namespace LoopRogue
 
             _statPanel.SetActive(!_statPanel.activeSelf);
             if (_statPanel.activeSelf)
-                _statText.text = BuildStatText();
+                RefreshStatPanels();
+            else
+                _ownedRelicPanel.SetActive(false);
+        }
+
+        private const float RelicPanelMaxHeight = 640f;
+
+        /// <summary>상태창 글과 유물 패널을 같이 갱신 - 유물 패널은 유물이 있을 때만, 높이는 글 길이에 맞춘다.</summary>
+        private void RefreshStatPanels()
+        {
+            _statText.text = BuildStatText();
+
+            var hasRelics = Relics.OwnedCount > 0;
+            if (_ownedRelicPanel.activeSelf != hasRelics)
+                _ownedRelicPanel.SetActive(hasRelics);
+            if (!hasRelics)
+                return;
+            var text = BuildRelicText();
+            if (_ownedRelicText.text == text)
+                return;
+            _ownedRelicText.text = text;
+            var height = Mathf.Min(RelicPanelMaxHeight, _ownedRelicText.preferredHeight + 20f);
+            _ownedRelicPanelRect.sizeDelta = new Vector2(_ownedRelicPanelRect.sizeDelta.x, height);
+        }
+
+        private static string BuildRelicText()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"<b><color=#E8A0FF>[유물 {Relics.OwnedCount}개]</color></b>");
+            foreach (var r in Relics.OwnedRelics())
+            {
+                var color = Relics.IsBossRelic(r) ? "#FF9A80" : "#E8C8FF";
+                sb.AppendLine($"<color={color}>{Relics.Name(r)}</color>");
+                sb.AppendLine($"<size=12>   {Relics.Description(r)}</size>");
+            }
+            return sb.ToString().TrimEnd();
         }
 
         private static string FormatBonus(float rate) =>
@@ -382,14 +421,6 @@ namespace LoopRogue
                 var tier = EquipmentEffects.TierOf(grade.Value);
                 for (var t = 1; t <= tier; t++)
                     sb.AppendLine($"   <size=12>{EquipmentEffects.Name(slot, t)}: {EquipmentEffects.Description(slot, t)}</size>");
-            }
-
-            if (Relics.OwnedCount > 0)
-            {
-                sb.AppendLine();
-                sb.AppendLine("<b><color=#E8A0FF>[유물]</color></b>");
-                foreach (var r in Relics.OwnedRelics())
-                    sb.AppendLine($"<size=12>{Relics.Name(r)}: {Relics.Description(r)}</size>");
             }
 
             return sb.ToString().TrimEnd();
@@ -621,6 +652,26 @@ namespace LoopRogue
             _statText.lineSpacing = 1.05f;
 
             _statPanel.SetActive(false);
+
+            _ownedRelicPanel = new GameObject("OwnedRelicPanel", typeof(RectTransform));
+            _ownedRelicPanel.transform.SetParent(parent, false);
+            _ownedRelicPanelRect = _ownedRelicPanel.GetComponent<RectTransform>();
+            _ownedRelicPanelRect.anchorMin = new Vector2(1f, 1f);
+            _ownedRelicPanelRect.anchorMax = new Vector2(1f, 1f);
+            _ownedRelicPanelRect.pivot = new Vector2(1f, 1f);
+            _ownedRelicPanelRect.sizeDelta = new Vector2(300f, 100f); // 높이는 RefreshStatPanels가 글에 맞춘다
+            _ownedRelicPanelRect.anchoredPosition = new Vector2(-16f - rect.sizeDelta.x - 8f, -56f); // 상태창 바로 왼쪽
+            _ownedRelicPanel.AddComponent<Image>().color = PanelColor;
+
+            _ownedRelicText = CreateLabel(_ownedRelicPanel.transform, string.Empty, Vector2.zero, Vector2.zero);
+            _ownedRelicText.rectTransform.anchorMin = Vector2.zero;
+            _ownedRelicText.rectTransform.anchorMax = Vector2.one;
+            _ownedRelicText.rectTransform.offsetMin = new Vector2(14f, 10f);
+            _ownedRelicText.rectTransform.offsetMax = new Vector2(-14f, -10f);
+            _ownedRelicText.supportRichText = true;
+            _ownedRelicText.lineSpacing = 1.05f;
+
+            _ownedRelicPanel.SetActive(false);
         }
 
         private void BuildTargetPanel(Transform parent)
