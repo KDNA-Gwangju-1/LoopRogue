@@ -163,6 +163,7 @@ namespace LoopRogue
 
         private const string SlimeSpriteSet = "Slime";
         private const string SpiderSpriteSet = "Spider";
+        private const string ArcherSpriteSet = "SkeletonArcher";
 
         public void Initialize(float maxHealth, float attackPower, bool isBoss, EnemyKind kind = EnemyKind.Melee)
         {
@@ -179,6 +180,14 @@ namespace LoopRogue
             }
             else if (Kind == EnemyKind.Ranged)
             {
+                // 해골궁수 도트 그림(대기 4방향만 - 쏠 땐 플레이어 쪽을 바라봄) - 그림 파일이 없으면 예전 초록 사각형.
+                var archer = SpriteAnimator.FirstFrame(ArcherSpriteSet);
+                if (archer != null)
+                {
+                    var spriteRenderer = VisualUtil.CreateSpriteVisual(gameObject, archer, GridConstants.CellSize, sortingOrder: 0);
+                    gameObject.AddComponent<SpriteAnimator>().Setup(ArcherSpriteSet, spriteRenderer, new Color(0.85f, 0.85f, 0.8f));
+                    return;
+                }
                 color = new Color(0.35f, 0.8f, 0.35f); // 궁수는 초록색 - 한눈에 구분되게
                 scale = GridConstants.CellSize * 0.5f;
             }
@@ -551,7 +560,7 @@ namespace LoopRogue
 
         private void HitTarget(PlayerActor player, bool melee = true)
         {
-            if (melee && TryGetComponent<SpriteAnimator>(out var anim)) // 공격 모션(그림에 공격 프레임이 있을 때만)
+            if (TryGetComponent<SpriteAnimator>(out var anim)) // 때린 쪽을 바라보고 공격 모션(그림에 공격 프레임이 있을 때만)
                 anim.PlayAttack((_decoyTarget != null ? _decoyTarget.GridPos : player.GridPos) - GridPos);
             if (_decoyTarget != null)
             {
