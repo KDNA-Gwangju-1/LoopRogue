@@ -35,6 +35,8 @@ namespace LoopRogue
         private Text _resultText;
         private readonly Dictionary<ItemSlot, Text> _gachaButtonTexts = new Dictionary<ItemSlot, Text>();
         private readonly Dictionary<ItemSlot, Text> _gachaMultiButtonTexts = new Dictionary<ItemSlot, Text>();
+        // 왼쪽 빈 공간의 등급 확률표 - 칸마다 글자 하나(등급 이름 열 + 슬롯 3열, 각 열은 등급 수만큼 줄).
+        private readonly Dictionary<ItemSlot, Text> _chanceColumns = new Dictionary<ItemSlot, Text>();
         private Text _attackButtonText;
         private Text _healthButtonText;
         private Text _criticalButtonText;
@@ -247,6 +249,17 @@ namespace LoopRogue
 
             foreach (var pair in _gachaMultiButtonTexts)
                 pair.Value.text = $"[Shift+{(int)pair.Key + 1}] 10연차 ({GachaSystem.GetMultiPullCost(pair.Key)}G)";
+
+            // 확률표 - 그 슬롯 지금 상점 레벨 기준, 아직 안 열린 등급은 "-".
+            foreach (var pair in _chanceColumns)
+            {
+                var chances = GachaSystem.GetGradeChances(pair.Key);
+                var sb = new System.Text.StringBuilder();
+                sb.Append($"{EquipmentData.Templates[pair.Key].BaseName}\nLv{GachaSystem.GetShopLevel(pair.Key)}");
+                foreach (var c in chances)
+                    sb.Append(c > 0f ? $"\n{c:0.#}%" : "\n<color=#666666>-</color>");
+                pair.Value.text = sb.ToString();
+            }
         }
 
         private void DoSlotSpin(bool high)
@@ -410,6 +423,8 @@ namespace LoopRogue
             CreateButton(canvasGo.transform, "StartButton", StartButtonColor, -282f, 480f, 46f,
                 out _, $"[Enter / Space] 스테이지 {StageProgress.CurrentStage} 시작", 20, Color.white, StartRun);
 
+            BuildChanceTable(canvasGo.transform);
+
             // 슬롯머신은 오른쪽 빈 공간에 따로 세운다(가운데 열은 이미 꽉 참).
             const float slotX = 470f;
             var slotTitle = CreateLabel(canvasGo.transform, "SlotTitle", "운명의 슬롯\n3개 일치 10배 / 2개 일치 0.5배",
@@ -425,6 +440,38 @@ namespace LoopRogue
                 out _slotButtonText, string.Empty, 16, Color.white, () => DoSlotSpin(false), slotX);
             CreateButton(canvasGo.transform, "SlotHighButton", new Color(0.5f, 0.2f, 0.15f), -48f, 260f, 40f,
                 out _slotHighButtonText, string.Empty, 16, Color.white, () => DoSlotSpin(true), slotX);
+        }
+
+        /// <summary>등급 확률표 - 슬롯머신 반대편(왼쪽 빈 공간)에 등급 이름 열 + 검/갑옷/반지 열. 값은 RefreshGachaDisplay가 채운다.</summary>
+        private void BuildChanceTable(Transform parent)
+        {
+            const float tableX = -470f;
+            const float columnWidth = 66f;
+            const float tableY = 30f;
+            var grades = (ItemGrade[])Enum.GetValues(typeof(ItemGrade));
+            var height = (grades.Length + 2) * 19f;
+
+            var title = CreateLabel(parent, "ChanceTitle", "등급 확률 (상점 레벨별)", 16, FontStyle.Bold,
+                new Color(1f, 0.85f, 0.3f), tableY + height / 2f + 16f, 300f);
+            title.rectTransform.anchoredPosition = new Vector2(tableX, title.rectTransform.anchoredPosition.y);
+
+            var names = new System.Text.StringBuilder("등급\n");
+            foreach (var g in grades)
+            {
+                var info = EquipmentData.Grades[g];
+                names.Append($"\n<color=#{ColorUtility.ToHtmlStringRGB(info.Color)}>{info.Name}</color>");
+            }
+            var nameColumn = CreateLabel(parent, "ChanceNames", names.ToString(), 14, FontStyle.Normal, Color.white, tableY, columnWidth);
+            nameColumn.rectTransform.sizeDelta = new Vector2(columnWidth, height);
+            nameColumn.rectTransform.anchoredPosition = new Vector2(tableX - 1.5f * columnWidth, tableY);
+
+            foreach (ItemSlot slot in Enum.GetValues(typeof(ItemSlot)))
+            {
+                var column = CreateLabel(parent, $"Chance{slot}", string.Empty, 14, FontStyle.Normal, Color.white, tableY, columnWidth);
+                column.rectTransform.sizeDelta = new Vector2(columnWidth, height);
+                column.rectTransform.anchoredPosition = new Vector2(tableX + ((int)slot - 0.5f) * columnWidth, tableY);
+                _chanceColumns[slot] = column;
+            }
         }
 
         private static Text CreateLabel(Transform parent, string goName, string content, int fontSize,
