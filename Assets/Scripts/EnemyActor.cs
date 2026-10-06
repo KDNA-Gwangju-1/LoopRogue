@@ -162,6 +162,7 @@ namespace LoopRogue
         }
 
         private const string SlimeSpriteSet = "Slime";
+        private const string SpiderSpriteSet = "Spider";
 
         public void Initialize(float maxHealth, float attackPower, bool isBoss, EnemyKind kind = EnemyKind.Melee)
         {
@@ -190,6 +191,14 @@ namespace LoopRogue
             }
             else if (Kind == EnemyKind.Spider)
             {
+                // 거미 도트 그림(대기 4방향만 - 공격 모션은 없어서 대기 그대로) - 그림 파일이 없으면 예전 보라 사각형.
+                var spider = SpriteAnimator.FirstFrame(SpiderSpriteSet);
+                if (spider != null)
+                {
+                    var spriteRenderer = VisualUtil.CreateSpriteVisual(gameObject, spider, GridConstants.CellSize, sortingOrder: 0);
+                    gameObject.AddComponent<SpriteAnimator>().Setup(SpiderSpriteSet, spriteRenderer, new Color(0.6f, 0.3f, 0.85f));
+                    return;
+                }
                 color = new Color(0.6f, 0.3f, 0.85f); // 거미는 보라색
                 scale = GridConstants.CellSize * 0.5f;
             }
@@ -321,6 +330,8 @@ namespace LoopRogue
             if (!IsAdjacentTo(_tp) && _webCooldown == 0 && CanShoot(_tp, WebRange))
             {
                 _webCooldown = WebCooldownTurns;
+                if (TryGetComponent<SpriteAnimator>(out var anim)) // 거미줄 쏜 쪽을 바라보게
+                    anim.PlayAttack(_tp - GridPos);
                 SpawnLineVisual(TargetWorld(player), new Color(0.95f, 0.95f, 1f, 0.9f), 0.12f, 0.25f);
                 if (_decoyTarget != null)
                 {
@@ -540,7 +551,7 @@ namespace LoopRogue
 
         private void HitTarget(PlayerActor player, bool melee = true)
         {
-            if (melee && TryGetComponent<SpriteAnimator>(out var anim)) // 슬라임 공격 모션
+            if (melee && TryGetComponent<SpriteAnimator>(out var anim)) // 공격 모션(그림에 공격 프레임이 있을 때만)
                 anim.PlayAttack((_decoyTarget != null ? _decoyTarget.GridPos : player.GridPos) - GridPos);
             if (_decoyTarget != null)
             {
