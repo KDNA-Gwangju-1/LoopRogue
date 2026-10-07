@@ -18,9 +18,17 @@ namespace LoopRogue
 
         private Text _levelText;
         private Text _progressText;
-        private Text _hpText;
-        private Text _expText;
         private Text _skillText;
+
+        // 아래 가운데 액션바 - 체력/경험치 막대 + Q/E 스킬 칸(퀵슬롯 1/2/3 칸은 InventoryUI가 같은 줄에 그린다).
+        private HudBar _hpBar;
+        private HudBar _expBar;
+        private HudSlot _dashSlot;
+        private HudSlot _spinSlot;
+        private int _dashCooldownMax = PlayerActor.DashCooldownTurns;
+        private int _spinCooldownMax = PlayerActor.SpinCooldownTurns;
+        private int _lastDashCooldown;
+        private int _lastSpinCooldown;
 
         // 상단 중앙 타겟 체력바 - 마지막으로 때린 적 하나만 보여준다. 그 적이 죽어서 Destroy되면
         // (Unity의 파괴된 오브젝트 == null) 자동으로 숨는다(방 전환으로 몹이 전부 지워질 때도 동일).
@@ -32,13 +40,12 @@ namespace LoopRogue
 
         // 상태창(스탯 전체 보기) - Tab 키 또는 오른쪽 위 버튼으로 여닫는다. 버튼 클릭은 로비와 같은
         // 수동 사각형 히트테스트(EventSystem 없음). 열려 있어도 게임 진행은 막지 않는다(정보 표시만).
+        // 글이 화면보다 길면(장비 효과 줄이 많을 때) 휠/스크롤바로 넘겨 본다.
+        private RectTransform _canvasRect;
         private RectTransform _statButtonRect;
-        private GameObject _statPanel;
-        private Text _statText;
+        private ScrollTextPanel _statPanel;
         // 가진 유물 - 상태창 왼쪽 별도 패널(상태창 안에 넣으면 장비 효과 줄이 많을 때 아래가 잘려서 안 보였다).
-        private GameObject _ownedRelicPanel;
-        private RectTransform _ownedRelicPanelRect;
-        private Text _ownedRelicText;
+        private ScrollTextPanel _ownedRelicPanel;
 
         private GameObject _upgradePanel;
         private List<UpgradeOption> _pendingOptions;
@@ -80,8 +87,10 @@ namespace LoopRogue
         // HP 변화(공격당한 순간)를 못 잡는다(StoryRPG CharacterStatUI와 같은 이유의 폴링).
         private void Update()
         {
+            ApplyCameraViewport();
             Refresh();
             HandleStatPanelToggle();
+            HandleStatPanelScroll();
             HandleUpgradeSelection();
             HandleRelicChoice();
             HandleDeathChoice();
@@ -300,22 +309,30 @@ namespace LoopRogue
             var stats = _player.Stats;
             var levels = _player.Levels;
 
-            _hpText.text = stats.Shield >= 1f
-                ? $"HP {stats.CurrentHealth:0}/{stats.MaxHealth:0}  <color=#9FD8FF>(+보호막 {stats.Shield:0})</color>"
-                : $"HP {stats.CurrentHealth:0}/{stats.MaxHealth:0}";
+            var maxHp = Mathf.Max(1f, stats.MaxHealth);
+            _hpBar.Set(stats.CurrentHealth / maxHp, stats.Shield >= 1f
+                ? $"{stats.CurrentHealth:0} / {stats.MaxHealth:0}  <color=#9FD8FF>+보호막 {stats.Shield:0}</color>"
+                : $"{stats.CurrentHealth:0} / {stats.MaxHealth:0}");
+            _hpBar.SetOverlay(stats.Shield / maxHp);
+            var expRatio = levels.IsMaxLevel ? 1f : levels.Exp / (float)Mathf.Max(1, levels.ExpToNext);
+            _expBar.Set(expRatio, levels.IsMaxLevel
+                ? $"Lv.{levels.Level}   EXP MAX"
+                : $"Lv.{levels.Level}   EXP {levels.Exp} / {levels.ExpToNext}  [{expRatio * 100f:0.00}%]");
             _levelText.text = $"Lv.{levels.Level}  (ATK {stats.AttackPower:0})";
-            _expText.text = levels.IsMaxLevel ? "EXP MAX" : $"EXP {levels.Exp}/{levels.ExpToNext}";
+
+            // 상태 안내 한 줄(체력 막대 위) - 방향 고르는 중이거나 묶였을 때만.
             _skillText.text = _player.AimingItem.HasValue
                 ? $"<color=#FFD27F>[아이템] {ItemInfo.Name(_player.AimingItem.Value)} - 방향키로 방향 선택 (같은 키: 취소)</color>"
                 : _player.RootedTurns > 0
                 ? "<color=#D9B3FF>거미줄에 묶임! 이동·대시 불가 (공격·E·Space 가능)</color>"
                 : _player.IsAimingDash
                     ? "<color=#7FD4FF>[Q] 대시 - 방향키로 방향 선택 (Q: 취소)</color>"
-                    : $"{SkillLabel("Q", "대시", _player.DashCooldown)}    {SkillLabel("E", "회전 베기", _player.SpinCooldown)}";
+                    : string.Empty;
+            RefreshSkillSlots();
 
             RefreshTarget();
 
-            if (_statPanel.activeSelf)
+            if (_statPanel.Root.activeSelf)
                 RefreshStatPanels();
         }
 
@@ -331,31 +348,46 @@ namespace LoopRogue
             if (!toggle)
                 return;
 
-            _statPanel.SetActive(!_statPanel.activeSelf);
-            if (_statPanel.activeSelf)
+            var open = !_statPanel.Root.activeSelf;
+            _statPanel.Root.SetActive(open);
+            if (open)
+            {
+                _statPanel.ResetScroll();
+                _ownedRelicPanel.ResetScroll();
                 RefreshStatPanels();
+            }
             else
-                _ownedRelicPanel.SetActive(false);
+                _ownedRelicPanel.Root.SetActive(false);
         }
 
-        private const float RelicPanelMaxHeight = 640f;
+        private void HandleStatPanelScroll()
+        {
+            if (!_statPanel.Root.activeSelf || PauseMenu.BlocksInput)
+                return;
+            var mouse = Mouse.current;
+            _statPanel.HandleMouse(mouse);
+            if (_ownedRelicPanel.Root.activeSelf)
+                _ownedRelicPanel.HandleMouse(mouse);
+        }
 
-        /// <summary>상태창 글과 유물 패널을 같이 갱신 - 유물 패널은 유물이 있을 때만, 높이는 글 길이에 맞춘다.</summary>
+        private const float StatPanelTop = ActionBarLayout.TopBarHeight + 8f;
+        private const float StatPanelBottomMargin = ActionBarLayout.BottomAreaHeight + 8f;
+
+        /// <summary>상태창 글과 유물 패널을 같이 갱신 - 유물 패널은 유물이 있을 때만. 높이는 글 길이에 맞추되
+        /// 화면 아래를 넘으면 거기서 멈추고 스크롤바가 생긴다.</summary>
         private void RefreshStatPanels()
         {
-            _statText.text = BuildStatText();
+            // 캔버스 높이는 화면 비율에 따라 720이 아닐 수 있다(ScaleWithScreenSize, 너비 기준).
+            var canvasHeight = _canvasRect.rect.height > 200f ? _canvasRect.rect.height : 720f;
+            var maxHeight = canvasHeight - StatPanelTop - StatPanelBottomMargin;
+
+            _statPanel.SetText(BuildStatText(), maxHeight);
 
             var hasRelics = Relics.OwnedCount > 0;
-            if (_ownedRelicPanel.activeSelf != hasRelics)
-                _ownedRelicPanel.SetActive(hasRelics);
-            if (!hasRelics)
-                return;
-            var text = BuildRelicText();
-            if (_ownedRelicText.text == text)
-                return;
-            _ownedRelicText.text = text;
-            var height = Mathf.Min(RelicPanelMaxHeight, _ownedRelicText.preferredHeight + 20f);
-            _ownedRelicPanelRect.sizeDelta = new Vector2(_ownedRelicPanelRect.sizeDelta.x, height);
+            if (_ownedRelicPanel.Root.activeSelf != hasRelics)
+                _ownedRelicPanel.Root.SetActive(hasRelics);
+            if (hasRelics)
+                _ownedRelicPanel.SetText(BuildRelicText(), maxHeight);
         }
 
         private static string BuildRelicText()
@@ -564,8 +596,10 @@ namespace LoopRogue
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1280f, 720f);
             canvasGo.AddComponent<GraphicRaycaster>();
+            _canvasRect = canvasGo.GetComponent<RectTransform>();
 
             BuildStatusPanel(canvasGo.transform);
+            BuildActionBar(canvasGo.transform);
             BuildTargetPanel(canvasGo.transform);
             BuildStatPanel(canvasGo.transform);
             _upgradePanel = BuildOverlayPanel(canvasGo.transform, "UpgradePanel", new Vector2(440f, 320f), active: false);
@@ -577,52 +611,140 @@ namespace LoopRogue
             canvasGo.AddComponent<InventoryUI>().Build(canvasGo.transform, _player);
         }
 
+        private static readonly Color BandColor = new Color(0.04f, 0.04f, 0.05f, 1f);
+
+        /// <summary>화면 맨 위 띠 한 줄 - 레벨·공격력 / 스테이지 진행 / 조작 안내 / [Tab] 스탯 버튼(BuildStatPanel).
+        /// 카메라 영역이 이 띠 아래에서 시작해서 게임 화면을 가리지 않는다.</summary>
         private void BuildStatusPanel(Transform parent)
         {
-            var panelGo = new GameObject("StatusPanel", typeof(RectTransform));
-            panelGo.transform.SetParent(parent, false);
-            var rect = panelGo.GetComponent<RectTransform>();
+            var band = HudUi.CreateImage(parent, "TopBar", BandColor);
+            var rect = band.rectTransform;
             rect.anchorMin = new Vector2(0f, 1f);
-            rect.anchorMax = new Vector2(0f, 1f);
-            rect.pivot = new Vector2(0f, 1f);
-            rect.sizeDelta = new Vector2(400f, 166f);
-            rect.anchoredPosition = new Vector2(16f, -16f);
-            panelGo.AddComponent<Image>().color = PanelColor;
+            rect.anchorMax = Vector2.one;
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.offsetMin = new Vector2(0f, -ActionBarLayout.TopBarHeight);
+            rect.offsetMax = Vector2.zero;
 
-            // CreateLabel(parent, text, offsetMin, offsetMax) - 상단 고정 앵커라 offsetMin이
-            // "더 아래(더 음수)", offsetMax가 "더 위(덜 음수)" 쪽이어야 한다(offsetMax<offsetMin이면
-            // 높이가 음수가 되는 실수를 한 번 했었다 - RectTransform 높이 = offsetMax.y - offsetMin.y).
-            _levelText = CreateLabel(panelGo.transform, "Lv.1", new Vector2(10f, -28f), new Vector2(-10f, -8f));
-            _progressText = CreateLabel(panelGo.transform, "Stage 1/10   Room 1/3   Attempt 1", new Vector2(10f, -52f), new Vector2(-10f, -32f));
-            _progressText.fontSize = 13;
-            _hpText = CreateLabel(panelGo.transform, "HP 30/30", new Vector2(10f, -84f), new Vector2(-10f, -64f));
-            _expText = CreateLabel(panelGo.transform, "EXP 0/10", new Vector2(10f, -108f), new Vector2(-10f, -88f));
+            _levelText = CreateBandText(band.transform, "Level", 15, 14f, 180f, TextAnchor.MiddleLeft);
+            _levelText.fontStyle = FontStyle.Bold;
+            _progressText = CreateBandText(band.transform, "Progress", 14, 200f, 440f, TextAnchor.MiddleLeft);
 
-            // 조작 안내 한 줄 - 대기 키(스페이스바)를 모르고 지나치지 않게.
-            _skillText = CreateLabel(panelGo.transform, "", new Vector2(10f, -134f), new Vector2(-10f, -114f));
-            _skillText.fontSize = 14;
-            _skillText.supportRichText = true;
-
-            var controls = CreateLabel(panelGo.transform, "이동/공격: 방향키·WASD   대기: Space   스탯: Tab   메뉴: Esc",
-                new Vector2(10f, -158f), new Vector2(-10f, -138f));
-            controls.fontSize = 12;
-            controls.color = new Color(0.7f, 0.72f, 0.78f);
+            // 조작 안내 - 대기 키(스페이스바)를 모르고 지나치지 않게. 오른쪽 [Tab] 스탯 버튼 바로 왼쪽.
+            var controls = CreateBandText(band.transform, "Controls", 12, -520f - 130f, 520f, TextAnchor.MiddleRight);
+            controls.text = "이동/공격: 방향키·WASD   대기: Space   스탯: Tab   인벤토리: I   메뉴: Esc";
+            controls.color = new Color(0.62f, 0.64f, 0.7f);
+            var controlsRect = controls.rectTransform;
+            controlsRect.anchorMin = controlsRect.anchorMax = new Vector2(1f, 0.5f);
+            controlsRect.pivot = new Vector2(0f, 0.5f);
         }
 
-        private static string SkillLabel(string key, string name, int cooldown) =>
-            cooldown > 0 ? $"<color=#777777>[{key}] {name} {cooldown}턴</color>" : $"<color=#7FD4FF>[{key}] {name} 준비</color>";
+        /// <summary>위 띠 안 글자 - 왼쪽 끝 기준 x에서 width만큼.</summary>
+        private static Text CreateBandText(Transform band, string name, int fontSize, float x, float width, TextAnchor alignment)
+        {
+            var text = HudUi.CreateText(band, name, fontSize, alignment);
+            text.supportRichText = true;
+            var rect = text.rectTransform;
+            rect.anchorMin = rect.anchorMax = new Vector2(0f, 0.5f);
+            rect.pivot = new Vector2(0f, 0.5f);
+            rect.anchoredPosition = new Vector2(x, 0f);
+            rect.sizeDelta = new Vector2(width, ActionBarLayout.TopBarHeight);
+            return text;
+        }
+
+        private float _appliedViewportBottom = -1f;
+        private float _appliedViewportHeight = -1f;
+
+        /// <summary>카메라가 위·아래 HUD 띠를 뺀 가운데만 그리게 한다. 캔버스 높이는 화면 비율마다 달라서(너비 기준
+        /// 스케일) 매 프레임 비율을 다시 재고, 바뀐 때만 넣는다. 카메라 따라가기는 Camera.aspect·orthographicSize를 그때그때 읽어서 그대로 맞는다.</summary>
+        private void ApplyCameraViewport()
+        {
+            var cam = Camera.main;
+            var canvasHeight = _canvasRect.rect.height;
+            if (cam == null || canvasHeight < 200f)
+                return;
+            var bottom = ActionBarLayout.BottomAreaHeight / canvasHeight;
+            var height = 1f - (ActionBarLayout.BottomAreaHeight + ActionBarLayout.TopBarHeight) / canvasHeight;
+            if (Mathf.Approximately(bottom, _appliedViewportBottom) && Mathf.Approximately(height, _appliedViewportHeight))
+                return;
+            _appliedViewportBottom = bottom;
+            _appliedViewportHeight = height;
+            cam.rect = new Rect(0f, bottom, 1f, height);
+            // 영역이 줄어든 만큼 보이는 높이도 줄여 칸 크기를 HUD 넣기 전과 같게(방을 새로 불러올 때도 같은 계산).
+            cam.orthographicSize = RoomController.CameraOrthoSize(cam);
+        }
+
+        /// <summary>Q/E 칸 - 쿨다운 덮개 비율의 분모는 "막 썼을 때의 남은 턴"(반지 효과로 줄어들 수 있어서 상수 대신 관찰값).</summary>
+        private void RefreshSkillSlots()
+        {
+            UpdateSkillSlot(_dashSlot, _player.DashCooldown, ref _dashCooldownMax, ref _lastDashCooldown,
+                _player.IsAimingDash, _player.RootedTurns > 0);
+            UpdateSkillSlot(_spinSlot, _player.SpinCooldown, ref _spinCooldownMax, ref _lastSpinCooldown, false, false);
+        }
+
+        private static void UpdateSkillSlot(HudSlot slot, int cooldown, ref int max, ref int last, bool active, bool blocked)
+        {
+            if (cooldown > last)
+                max = cooldown;
+            last = cooldown;
+            slot.SetCooldown(cooldown, max);
+
+            var ready = cooldown <= 0 && !blocked;
+            slot.Frame.color = active ? HudSlot.FrameActive : ready ? HudSlot.FrameReady : HudSlot.FrameNormal;
+            slot.Label.color = ready || active ? Color.white : HudSlot.TextDim;
+        }
+
+        private void BuildActionBar(Transform parent)
+        {
+            var bottom = new Vector2(0.5f, 0f);
+            var slotSize = new Vector2(ActionBarLayout.SlotSize, ActionBarLayout.SlotSize);
+
+            // 아래 띠 배경 - 카메라 영역이 이 위에서 시작한다(ApplyCameraViewport).
+            var band = HudUi.CreateImage(parent, "BottomBar", BandColor).rectTransform;
+            band.anchorMin = Vector2.zero;
+            band.anchorMax = new Vector2(1f, 0f);
+            band.pivot = new Vector2(0.5f, 0f);
+            band.offsetMin = Vector2.zero;
+            band.offsetMax = new Vector2(0f, ActionBarLayout.BottomAreaHeight);
+
+            _dashSlot = new HudSlot(parent, "DashSlot", bottom,
+                new Vector2(ActionBarLayout.SkillX(0), ActionBarLayout.SlotCenterY), slotSize, "Q");
+            _dashSlot.Label.text = "대시";
+            _spinSlot = new HudSlot(parent, "SpinSlot", bottom,
+                new Vector2(ActionBarLayout.SkillX(1), ActionBarLayout.SlotCenterY), slotSize, "E");
+            _spinSlot.Label.text = "회전\n베기";
+
+            _hpBar = new HudBar(parent, "HpBar", new Vector2(ActionBarLayout.HpBarCenterX, ActionBarLayout.HpBarBottom),
+                new Vector2(ActionBarLayout.HpBarWidth, ActionBarLayout.HpBarHeight),
+                new Color(0.78f, 0.2f, 0.22f), 15, new Color(0.55f, 0.82f, 1f, 0.85f));
+            _hpBar.Label.gameObject.AddComponent<Outline>().effectColor = new Color(0f, 0f, 0f, 0.9f);
+            _expBar = new HudBar(parent, "ExpBar", Vector2.zero, Vector2.zero, new Color(0.85f, 0.7f, 0.25f), 12);
+            _expBar.StretchAcrossBottom(ActionBarLayout.ExpBarHeight);
+            _expBar.Label.gameObject.AddComponent<Outline>().effectColor = new Color(0f, 0f, 0f, 0.9f);
+
+            // 상태 안내 한 줄 - 체력 막대 바로 위, 가운데 정렬.
+            _skillText = HudUi.CreateText(parent, "StatusLine", 15, TextAnchor.MiddleCenter);
+            _skillText.supportRichText = true;
+            var lineRect = _skillText.rectTransform;
+            lineRect.anchorMin = bottom;
+            lineRect.anchorMax = bottom;
+            lineRect.pivot = new Vector2(0.5f, 0f);
+            lineRect.anchoredPosition = new Vector2(0f, ActionBarLayout.StatusLineBottom);
+            lineRect.sizeDelta = new Vector2(700f, 22f);
+            var outline = _skillText.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0f, 0f, 0f, 0.9f);
+        }
 
         private void BuildStatPanel(Transform parent)
         {
-            // 오른쪽 위 토글 버튼
+            // 위 띠 오른쪽 끝 토글 버튼
             var buttonGo = new GameObject("StatButton", typeof(RectTransform));
             buttonGo.transform.SetParent(parent, false);
             _statButtonRect = buttonGo.GetComponent<RectTransform>();
             _statButtonRect.anchorMin = new Vector2(1f, 1f);
             _statButtonRect.anchorMax = new Vector2(1f, 1f);
             _statButtonRect.pivot = new Vector2(1f, 1f);
-            _statButtonRect.sizeDelta = new Vector2(120f, 34f);
-            _statButtonRect.anchoredPosition = new Vector2(-16f, -16f);
+            _statButtonRect.sizeDelta = new Vector2(110f, ActionBarLayout.TopBarHeight - 8f);
+            _statButtonRect.anchoredPosition = new Vector2(-8f, -4f);
             buttonGo.AddComponent<Image>().color = new Color(0.25f, 0.28f, 0.35f, 0.95f);
 
             var buttonText = CreateLabel(buttonGo.transform, "[Tab] 스탯", Vector2.zero, Vector2.zero);
@@ -632,46 +754,156 @@ namespace LoopRogue
             buttonText.rectTransform.offsetMax = Vector2.zero;
             buttonText.alignment = TextAnchor.MiddleCenter;
 
-            // 버튼 아래 상태창
-            _statPanel = new GameObject("StatPanel", typeof(RectTransform));
-            _statPanel.transform.SetParent(parent, false);
-            var rect = _statPanel.GetComponent<RectTransform>();
-            rect.anchorMin = new Vector2(1f, 1f);
-            rect.anchorMax = new Vector2(1f, 1f);
-            rect.pivot = new Vector2(1f, 1f);
-            rect.sizeDelta = new Vector2(340f, 600f); // 장비 효과(최대 15줄)까지 들어가게
-            rect.anchoredPosition = new Vector2(-16f, -56f);
-            _statPanel.AddComponent<Image>().color = PanelColor;
+            // 버튼 아래 상태창, 그 바로 왼쪽에 유물 패널 - 높이는 RefreshStatPanels가 글에 맞춘다.
+            const float statWidth = 340f;
+            _statPanel = new ScrollTextPanel(parent, "StatPanel", statWidth, new Vector2(-16f, -StatPanelTop));
+            _ownedRelicPanel = new ScrollTextPanel(parent, "OwnedRelicPanel", 300f, new Vector2(-16f - statWidth - 8f, -StatPanelTop));
+        }
 
-            _statText = CreateLabel(_statPanel.transform, string.Empty, Vector2.zero, Vector2.zero);
-            _statText.rectTransform.anchorMin = Vector2.zero;
-            _statText.rectTransform.anchorMax = Vector2.one;
-            _statText.rectTransform.offsetMin = new Vector2(14f, 10f);
-            _statText.rectTransform.offsetMax = new Vector2(-14f, -10f);
-            _statText.supportRichText = true;
-            _statText.lineSpacing = 1.05f;
+        /// <summary>글이 길면 마우스 휠이나 스크롤바 드래그로 넘겨 보는 글 패널. 이 프로젝트엔 EventSystem이
+        /// 없어서(HandleUpgradeSelection 주석 참고) ScrollRect 대신 RectMask2D로 자르고, 휠·드래그는
+        /// Mouse.current + 사각형 히트테스트로 직접 읽는다. 패널 높이는 글 길이에 맞추되 maxHeight에서 멈춘다.</summary>
+        private sealed class ScrollTextPanel
+        {
+            private const float Padding = 10f;
+            private const float BarWidth = 6f;
+            private const float MinHandleHeight = 24f;
+            private const float WheelStep = 48f;
 
-            _statPanel.SetActive(false);
+            public readonly GameObject Root;
+            private readonly RectTransform _rect;
+            private readonly Text _text;
+            private readonly GameObject _bar;
+            private readonly RectTransform _barRect;
+            private readonly RectTransform _handle;
+            private string _shownText;
+            private float _shownMaxHeight;
+            private float _contentHeight;
+            private float _offset;
+            private bool _dragging;
 
-            _ownedRelicPanel = new GameObject("OwnedRelicPanel", typeof(RectTransform));
-            _ownedRelicPanel.transform.SetParent(parent, false);
-            _ownedRelicPanelRect = _ownedRelicPanel.GetComponent<RectTransform>();
-            _ownedRelicPanelRect.anchorMin = new Vector2(1f, 1f);
-            _ownedRelicPanelRect.anchorMax = new Vector2(1f, 1f);
-            _ownedRelicPanelRect.pivot = new Vector2(1f, 1f);
-            _ownedRelicPanelRect.sizeDelta = new Vector2(300f, 100f); // 높이는 RefreshStatPanels가 글에 맞춘다
-            _ownedRelicPanelRect.anchoredPosition = new Vector2(-16f - rect.sizeDelta.x - 8f, -56f); // 상태창 바로 왼쪽
-            _ownedRelicPanel.AddComponent<Image>().color = PanelColor;
+            public ScrollTextPanel(Transform parent, string name, float width, Vector2 anchoredPosition)
+            {
+                Root = new GameObject(name, typeof(RectTransform));
+                Root.transform.SetParent(parent, false);
+                _rect = Root.GetComponent<RectTransform>();
+                _rect.anchorMin = new Vector2(1f, 1f);
+                _rect.anchorMax = new Vector2(1f, 1f);
+                _rect.pivot = new Vector2(1f, 1f);
+                _rect.sizeDelta = new Vector2(width, 100f);
+                _rect.anchoredPosition = anchoredPosition;
+                Root.AddComponent<Image>().color = PanelColor;
 
-            _ownedRelicText = CreateLabel(_ownedRelicPanel.transform, string.Empty, Vector2.zero, Vector2.zero);
-            _ownedRelicText.rectTransform.anchorMin = Vector2.zero;
-            _ownedRelicText.rectTransform.anchorMax = Vector2.one;
-            _ownedRelicText.rectTransform.offsetMin = new Vector2(14f, 10f);
-            _ownedRelicText.rectTransform.offsetMax = new Vector2(-14f, -10f);
-            _ownedRelicText.supportRichText = true;
-            _ownedRelicText.lineSpacing = 1.05f;
+                // 글이 보이는 창 - 밖으로 나간 부분은 RectMask2D가 자른다. 오른쪽은 스크롤바 자리.
+                var viewportGo = new GameObject("Viewport", typeof(RectTransform));
+                viewportGo.transform.SetParent(Root.transform, false);
+                var viewport = viewportGo.GetComponent<RectTransform>();
+                viewport.anchorMin = Vector2.zero;
+                viewport.anchorMax = Vector2.one;
+                viewport.offsetMin = new Vector2(14f, Padding);
+                viewport.offsetMax = new Vector2(-(BarWidth + 12f), -Padding);
+                viewportGo.AddComponent<RectMask2D>();
 
-            _ownedRelicPanel.SetActive(false);
+                _text = CreateLabel(viewport, string.Empty, Vector2.zero, Vector2.zero);
+                _text.supportRichText = true;
+                _text.lineSpacing = 1.05f;
+                _text.verticalOverflow = VerticalWrapMode.Overflow;
+
+                var barGo = new GameObject("ScrollBar", typeof(RectTransform));
+                barGo.transform.SetParent(Root.transform, false);
+                _bar = barGo;
+                _barRect = barGo.GetComponent<RectTransform>();
+                _barRect.anchorMin = new Vector2(1f, 0f);
+                _barRect.anchorMax = new Vector2(1f, 1f);
+                _barRect.pivot = new Vector2(1f, 1f);
+                _barRect.offsetMin = new Vector2(-6f - BarWidth, Padding);
+                _barRect.offsetMax = new Vector2(-6f, -Padding);
+                barGo.AddComponent<Image>().color = new Color(1f, 1f, 1f, 0.12f);
+
+                var handleGo = new GameObject("Handle", typeof(RectTransform));
+                handleGo.transform.SetParent(barGo.transform, false);
+                _handle = handleGo.GetComponent<RectTransform>();
+                _handle.anchorMin = new Vector2(0f, 1f);
+                _handle.anchorMax = new Vector2(1f, 1f);
+                _handle.pivot = new Vector2(0.5f, 1f);
+                handleGo.AddComponent<Image>().color = new Color(1f, 1f, 1f, 0.55f);
+
+                Root.SetActive(false);
+            }
+
+            private float ViewHeight => _rect.sizeDelta.y - Padding * 2f;
+            private float MaxOffset => Mathf.Max(0f, _contentHeight - ViewHeight);
+
+            /// <summary>매 프레임 불려도 되게 글이나 최대 높이가 바뀐 때만 다시 잰다.</summary>
+            public void SetText(string text, float maxHeight)
+            {
+                if (text == _shownText && Mathf.Approximately(maxHeight, _shownMaxHeight))
+                    return;
+                _shownText = text;
+                _shownMaxHeight = maxHeight;
+                _text.text = text;
+                _contentHeight = _text.preferredHeight;
+                var height = Mathf.Min(maxHeight, _contentHeight + Padding * 2f);
+                _rect.sizeDelta = new Vector2(_rect.sizeDelta.x, height);
+                ApplyScroll();
+            }
+
+            public void ResetScroll()
+            {
+                _offset = 0f;
+                _dragging = false;
+                ApplyScroll();
+            }
+
+            public void HandleMouse(Mouse mouse)
+            {
+                if (mouse == null || MaxOffset <= 0f)
+                {
+                    _dragging = false;
+                    return;
+                }
+
+                var pos = mouse.position.ReadValue();
+                // 휠 값 크기는 Input System 버전/OS마다 달라서(±1 또는 ±120) 방향만 쓴다.
+                var wheel = mouse.scroll.ReadValue().y;
+                if (wheel != 0f && RectTransformUtility.RectangleContainsScreenPoint(_rect, pos, null))
+                {
+                    _offset -= Mathf.Sign(wheel) * WheelStep;
+                    ApplyScroll();
+                }
+
+                if (mouse.leftButton.wasPressedThisFrame && RectTransformUtility.RectangleContainsScreenPoint(_barRect, pos, null))
+                    _dragging = true;
+                if (!mouse.leftButton.isPressed)
+                    _dragging = false;
+
+                // 막대 위쪽(피벗)이 0, 아래로 갈수록 음수 - 손잡이 가운데가 마우스를 따라간다.
+                if (_dragging && RectTransformUtility.ScreenPointToLocalPointInRectangle(_barRect, pos, null, out var local))
+                {
+                    var track = _barRect.rect.height - _handle.rect.height;
+                    var t = track > 0f ? Mathf.Clamp01((-local.y - _handle.rect.height * 0.5f) / track) : 0f;
+                    _offset = t * MaxOffset;
+                    ApplyScroll();
+                }
+            }
+
+            private void ApplyScroll()
+            {
+                var max = MaxOffset;
+                _offset = Mathf.Clamp(_offset, 0f, max);
+                _text.rectTransform.sizeDelta = new Vector2(0f, _contentHeight);
+                _text.rectTransform.anchoredPosition = new Vector2(0f, _offset);
+
+                var scrollable = max > 0.5f;
+                if (_bar.activeSelf != scrollable)
+                    _bar.SetActive(scrollable);
+                if (!scrollable)
+                    return;
+                var view = ViewHeight;
+                var handleHeight = Mathf.Max(MinHandleHeight, view * view / _contentHeight);
+                _handle.sizeDelta = new Vector2(0f, handleHeight);
+                _handle.anchoredPosition = new Vector2(0f, -(view - handleHeight) * (_offset / max));
+            }
         }
 
         private void BuildTargetPanel(Transform parent)
@@ -683,7 +915,7 @@ namespace LoopRogue
             rect.anchorMax = new Vector2(0.5f, 1f);
             rect.pivot = new Vector2(0.5f, 1f);
             rect.sizeDelta = new Vector2(440f, 34f);
-            rect.anchoredPosition = new Vector2(0f, -16f);
+            rect.anchoredPosition = new Vector2(0f, -(ActionBarLayout.TopBarHeight + 8f)); // 위 띠 바로 아래
             _targetPanel.AddComponent<Image>().color = PanelColor;
 
             // 채움 막대 - 오른쪽 끝(anchorMax.x)을 체력 비율로 줄인다(Image.fillAmount는 스프라이트가
@@ -732,7 +964,7 @@ namespace LoopRogue
             rect.anchorMax = new Vector2(0.5f, 1f);
             rect.pivot = new Vector2(0.5f, 1f);
             rect.sizeDelta = new Vector2(560f, 44f);
-            rect.anchoredPosition = new Vector2(0f, -60f); // 상단 타겟 체력바(-16, 높이 34) 아래
+            rect.anchoredPosition = new Vector2(0f, -(ActionBarLayout.TopBarHeight + 8f + 34f + 10f)); // 상단 타겟 체력바(높이 34) 아래
             _bannerGo.AddComponent<Image>().color = new Color(0.5f, 0.1f, 0.1f, 0.85f);
 
             _bannerText = CreateLabel(_bannerGo.transform, string.Empty, Vector2.zero, Vector2.zero);

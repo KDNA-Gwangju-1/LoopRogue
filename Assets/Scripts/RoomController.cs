@@ -52,8 +52,12 @@ namespace LoopRogue
         /// 갈수록 깎인 체력을 그대로 들고 싸우다 죽던 문제(봇 100판에서 10층 일반 방 사망이 보스 사망의 약 30%) 대책.</summary>
         private const float RoomClearHealRate = 0.1f;
 
-        /// <summary>카메라에 보이는 높이의 절반(칸) - 화면 세로로 약 11칸. 시야(FogOfWar.VisionRadius 4.5칸)보다 조금 넓게.</summary>
+        /// <summary>카메라에 보이는 높이의 절반(칸) - 화면 전체 세로로 약 11칸. 시야(FogOfWar.VisionRadius 4.5칸)보다 조금 넓게.</summary>
         private const float CameraViewHalfHeightCells = 5.5f;
+
+        /// <summary>HUD 띠만큼 카메라 영역(cam.rect)이 줄어도 칸이 화면에서 같은 크기로 보이게, 보이는 높이도 같은 비율로 줄인다
+        /// (위아래로 보이는 칸 수가 줄어드는 대신 칸 크기 유지 - 사용자 선택). GameHUD.ApplyCameraViewport도 이걸 쓴다.</summary>
+        public static float CameraOrthoSize(Camera cam) => CameraViewHalfHeightCells * GridConstants.CellSize * cam.rect.height;
 
         private static readonly System.Random Rng = new System.Random();
         private static readonly Color TelegraphColor = new Color(1f, 0.15f, 0.15f, 0.45f);
@@ -388,7 +392,7 @@ namespace LoopRogue
             // 방 경계 바깥은 한 칸까지만 비친다.
             cam.transform.rotation = Quaternion.identity;
             cam.orthographic = true;
-            cam.orthographicSize = CameraViewHalfHeightCells * GridConstants.CellSize;
+            cam.orthographicSize = CameraOrthoSize(cam);
             var cs = GridConstants.CellSize;
             var bounds = Rect.MinMaxRect(-1.5f * cs, -1.5f * cs, (layout.Width + 0.5f) * cs, (layout.Height + 0.5f) * cs);
             CameraShake.Follow(cam, _player, bounds);

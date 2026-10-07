@@ -4,15 +4,15 @@ using UnityEngine.UI;
 
 namespace LoopRogue
 {
-    /// <summary>화면 아래 퀵슬롯 바(3칸, 1/2/3 키) + I 키로 여닫는 인벤토리 창(아이템 10칸). 아이템은 퀵슬롯에 등록된 것만 쓸 수
-    /// 있고(사용자 결정), 창은 등록용이다 - 방향키로 고르고 1/2/3 = 그 퀵슬롯에 등록, I = 닫기. 마우스 없이 키보드로만. 창이 열려 있는 동안은 게임 입력이 멈춘다
-    /// (PlayerActor.CanAct). 업그레이드 카드와 같은 이유로 EventSystem 없이 Keyboard.current로 직접 읽는다.</summary>
+    /// <summary>화면 아래 액션바의 퀵슬롯 3칸(1/2/3 키, GameHUD의 Q/E 칸 옆 - 배치는 ActionBarLayout) + 가방 칸 + I 키로 여닫는
+    /// 인벤토리 창(아이템 10칸). 아이템은 퀵슬롯에 등록된 것만 쓸 수 있고(사용자 결정), 창은 등록용이다 - 방향키나 클릭으로 고르고
+    /// 1/2/3 키나 아래 퀵슬롯 칸 클릭 = 그 퀵슬롯에 등록, I·닫기 버튼 = 닫기. 창이 열려 있는 동안은 게임 입력이 멈춘다
+    /// (PlayerActor.CanAct). 업그레이드 카드와 같은 이유로 EventSystem 없이 Keyboard/Mouse.current로 직접 읽는다.</summary>
     public class InventoryUI : MonoBehaviour
     {
         private const int Columns = 5;
-        private static readonly Color SlotOwned = new Color(0.22f, 0.3f, 0.42f, 0.95f);
-        private static readonly Color SlotEmpty = new Color(0.12f, 0.12f, 0.14f, 0.85f);
-        private static readonly Color SlotCursor = new Color(0.45f, 0.65f, 0.95f, 1f);
+        private static readonly Color SlotUsedFlash = new Color(0.95f, 0.75f, 0.25f, 1f);
+        private static readonly Color CellCursorFill = new Color(0.3f, 0.42f, 0.62f, 1f);
 
         /// <summary>인벤토리 창이 열려 있으면 true - 이동/공격 입력을 막는다.</summary>
         public static bool IsOpen { get; private set; }
@@ -22,15 +22,15 @@ namespace LoopRogue
 
         private PlayerActor _player;
         private GameObject _panel;
-        private readonly Image[] _cellImages = new Image[ItemInfo.Count];
-        private readonly Text[] _cellTexts = new Text[ItemInfo.Count];
+        private readonly HudSlot[] _cells = new HudSlot[ItemInfo.Count];
+        private Text _detailName;
         private Text _detail;
-        private readonly Image[] _quickImages = new Image[Inventory.QuickSlotCount];
-        private readonly Text[] _quickTexts = new Text[Inventory.QuickSlotCount];
+        private RectTransform _closeButton;
+        private readonly HudSlot[] _quickSlots = new HudSlot[Inventory.QuickSlotCount];
+        private HudSlot _bagSlot;
         private int _cursor;
 
         private const float QuickUseFlashDuration = 0.35f;
-        private static readonly Color SlotUsedFlash = new Color(0.95f, 0.75f, 0.25f, 1f);
         private readonly bool[] _quickWasOwned = new bool[Inventory.QuickSlotCount];
         private readonly float[] _quickFlashUntil = new float[Inventory.QuickSlotCount];
 
@@ -53,17 +53,22 @@ namespace LoopRogue
                 return;
 
             if (keyboard.iKey.wasPressedThisFrame)
-            {
-                if (IsOpen)
-                    SetOpen(false);
-                else if (_player.CanAct)
-                    SetOpen(true);
-            }
+                ToggleOpen();
+
+            HandleMouse();
 
             if (IsOpen)
                 HandlePanelInput(keyboard);
 
             Refresh();
+        }
+
+        private void ToggleOpen()
+        {
+            if (IsOpen)
+                SetOpen(false);
+            else if (_player.CanAct)
+                SetOpen(true);
         }
 
         private void SetOpen(bool open)
@@ -72,6 +77,45 @@ namespace LoopRogue
                 LastCloseFrame = Time.frameCount;
             IsOpen = open;
             _panel.SetActive(open);
+        }
+
+        /// <summary>가방 칸 = 여닫기. 창이 열려 있을 때만: 칸 클릭 = 고르기, 퀵슬롯 칸 클릭 = 고른 아이템 등록, 닫기 버튼.</summary>
+        private void HandleMouse()
+        {
+            var mouse = Mouse.current;
+            if (mouse == null || !mouse.leftButton.wasPressedThisFrame || PauseMenu.BlocksInput)
+                return;
+            var pos = mouse.position.ReadValue();
+
+            if (_bagSlot.Contains(pos))
+            {
+                ToggleOpen();
+                return;
+            }
+            if (!IsOpen)
+                return;
+
+            if (RectTransformUtility.RectangleContainsScreenPoint(_closeButton, pos, null))
+            {
+                SetOpen(false);
+                return;
+            }
+            for (var i = 0; i < _cells.Length; i++)
+            {
+                if (_cells[i].Contains(pos))
+                {
+                    _cursor = i;
+                    return;
+                }
+            }
+            for (var s = 0; s < _quickSlots.Length; s++)
+            {
+                if (_quickSlots[s].Contains(pos))
+                {
+                    Inventory.SetQuickSlot(s, (ItemType)_cursor);
+                    return;
+                }
+            }
         }
 
         private void HandlePanelInput(Keyboard keyboard)
@@ -93,7 +137,6 @@ namespace LoopRogue
                 Inventory.SetQuickSlot(1, type);
             if (keyboard.digit3Key.wasPressedThisFrame)
                 Inventory.SetQuickSlot(2, type);
-
         }
 
         private void Refresh()
@@ -103,12 +146,17 @@ namespace LoopRogue
                 var type = (ItemType)i;
                 var owned = Inventory.Has(type);
                 var quick = QuickIndexOf(type);
-                _cellImages[i].color = IsOpen && i == _cursor ? SlotCursor : owned ? SlotOwned : SlotEmpty;
-                _cellTexts[i].text = $"{ItemInfo.Name(type)}{(quick >= 0 ? $"  [{quick + 1}]" : "")}\n{(owned ? "보유" : "-")}";
-                _cellTexts[i].color = owned ? Color.white : new Color(0.55f, 0.55f, 0.6f);
+                var cell = _cells[i];
+                var selected = IsOpen && i == _cursor;
+                cell.Frame.color = selected ? HudSlot.FrameActive : owned ? HudSlot.FrameReady : HudSlot.FrameNormal;
+                cell.Fill.color = selected ? CellCursorFill : owned ? HudSlot.FillOwned : HudSlot.FillNormal;
+                cell.Key.text = quick >= 0 ? $"[{quick + 1}]" : string.Empty;
+                cell.Label.text = $"{ItemInfo.Name(type)}\n<size=11>{(owned ? "보유" : "-")}</size>";
+                cell.Label.color = owned ? Color.white : HudSlot.TextDim;
             }
             var cur = (ItemType)_cursor;
-            _detail.text = $"{ItemInfo.Name(cur)} - {ItemInfo.Description(cur)}\n방향키: 고르기   1/2/3: 퀵슬롯 등록(등록된 것만 사용 가능)   I: 닫기";
+            _detailName.text = $"{ItemInfo.Name(cur)}{(Inventory.Has(cur) ? "" : "  <color=#888888>(없음)</color>")}";
+            _detail.text = $"{ItemInfo.Description(cur)}\n<color=#9AA0AA>방향키·클릭: 고르기   1/2/3 키·아래 퀵슬롯 클릭: 등록(등록된 것만 사용 가능)   I: 닫기</color>";
 
             for (var s = 0; s < Inventory.QuickSlotCount; s++)
             {
@@ -122,12 +170,17 @@ namespace LoopRogue
                 _quickWasOwned[s] = owned;
 
                 var flashing = Time.time < _quickFlashUntil[s];
-                _quickImages[s].color = flashing ? SlotUsedFlash : aiming ? SlotCursor : owned ? SlotOwned : SlotEmpty;
-                _quickTexts[s].text = !item.HasValue ? $"[{s + 1}] 비어 있음"
-                    : owned ? $"[{s + 1}] {ItemInfo.Name(item.Value)}\n{(aiming ? "방향 고르기" : "사용 가능")}"
-                    : $"[{s + 1}] {ItemInfo.Name(item.Value)}\n{(flashing ? "사용!" : "없음")}";
-                _quickTexts[s].color = owned || flashing ? Color.white : new Color(0.45f, 0.45f, 0.5f);
+                var slot = _quickSlots[s];
+                // 창이 열려 있으면 퀵슬롯 칸이 "여기 클릭해서 등록" 자리라는 걸 테두리로 알린다.
+                slot.Frame.color = aiming ? HudSlot.FrameActive : IsOpen ? CellCursorFill : owned ? HudSlot.FrameReady : HudSlot.FrameNormal;
+                slot.Fill.color = flashing ? SlotUsedFlash : owned ? HudSlot.FillOwned : HudSlot.FillNormal;
+                slot.Label.text = !item.HasValue ? "<size=11>비어\n있음</size>"
+                    : flashing ? "사용!"
+                    : ItemInfo.Name(item.Value).Replace(" ", "\n");
+                slot.Label.color = owned || flashing ? Color.white : HudSlot.TextDim;
             }
+
+            _bagSlot.Frame.color = IsOpen ? HudSlot.FrameActive : HudSlot.FrameNormal;
         }
 
         private static int QuickIndexOf(ItemType type)
@@ -142,86 +195,96 @@ namespace LoopRogue
 
         private void BuildQuickBar(Transform canvas)
         {
-            const float width = 150f, height = 44f, gap = 8f;
-            var total = Inventory.QuickSlotCount * width + (Inventory.QuickSlotCount - 1) * gap;
+            var bottom = new Vector2(0.5f, 0f);
+            var size = new Vector2(ActionBarLayout.SlotSize, ActionBarLayout.SlotSize);
             for (var s = 0; s < Inventory.QuickSlotCount; s++)
             {
-                var x = -total * 0.5f + s * (width + gap) + width * 0.5f;
-                var (image, text) = CreateBox(canvas, $"QuickSlot{s}", new Vector2(0.5f, 0f), new Vector2(x, 16f + height * 0.5f), new Vector2(width, height));
-                text.fontSize = 13;
-                _quickImages[s] = image;
-                _quickTexts[s] = text;
+                _quickSlots[s] = new HudSlot(canvas, $"QuickSlot{s}", bottom,
+                    new Vector2(ActionBarLayout.QuickX(s), ActionBarLayout.SlotCenterY), size, (s + 1).ToString());
+                _quickSlots[s].Label.supportRichText = true;
             }
 
-            var hint = CreateBox(canvas, "InventoryHint", new Vector2(0.5f, 0f), new Vector2(total * 0.5f + 70f, 16f + height * 0.5f), new Vector2(120f, height));
-            hint.Image.color = new Color(0f, 0f, 0f, 0f);
-            hint.Text.text = "I: 인벤토리";
-            hint.Text.fontSize = 13;
-            hint.Text.color = new Color(0.7f, 0.72f, 0.78f);
+            // 가방 칸 - 퀵슬롯 오른쪽, 클릭하면 인벤토리 창 여닫기.
+            _bagSlot = new HudSlot(canvas, "BagSlot", bottom, new Vector2(ActionBarLayout.BagX, ActionBarLayout.SlotCenterY), size, "I");
+            _bagSlot.Label.text = "가방";
         }
 
         private void BuildPanel(Transform canvas)
         {
-            const float cellW = 130f, cellH = 56f, gap = 8f;
+            const float cellW = 120f, cellH = 64f, gap = 8f, side = 24f, header = 52f, footer = 92f;
             var rows = (ItemInfo.Count + Columns - 1) / Columns;
-            var panelW = Columns * cellW + (Columns - 1) * gap + 40f;
-            var panelH = rows * cellH + (rows - 1) * gap + 110f;
+            var panelW = Columns * cellW + (Columns - 1) * gap + side * 2f;
+            var panelH = header + rows * cellH + (rows - 1) * gap + footer;
 
-            var (panelImage, _) = CreateBox(canvas, "InventoryPanel", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(panelW, panelH));
-            panelImage.color = new Color(0.05f, 0.05f, 0.07f, 0.92f);
+            var panelImage = HudUi.CreateImage(canvas, "InventoryPanel", new Color(0.05f, 0.05f, 0.07f, 0.94f));
+            var panelRect = panelImage.rectTransform;
+            panelRect.anchorMin = panelRect.anchorMax = new Vector2(0.5f, 0.5f);
+            panelRect.sizeDelta = new Vector2(panelW, panelH);
+            panelRect.anchoredPosition = new Vector2(0f, 30f);
             _panel = panelImage.gameObject;
+            _panel.AddComponent<Outline>().effectColor = new Color(0.35f, 0.38f, 0.45f, 1f);
 
-            var title = CreateBox(_panel.transform, "Title", new Vector2(0.5f, 1f), new Vector2(0f, -22f), new Vector2(panelW, 30f));
-            title.Image.color = new Color(0f, 0f, 0f, 0f);
-            title.Text.text = "인벤토리 (모두 1회용, 종류마다 1개, 죽으면 전부 잃음)";
-            title.Text.fontSize = 16;
+            // 제목 띠
+            var headerImage = HudUi.CreateImage(_panel.transform, "Header", new Color(0.12f, 0.13f, 0.17f, 1f));
+            var headerRect = headerImage.rectTransform;
+            headerRect.anchorMin = new Vector2(0f, 1f);
+            headerRect.anchorMax = new Vector2(1f, 1f);
+            headerRect.pivot = new Vector2(0.5f, 1f);
+            headerRect.offsetMin = new Vector2(0f, -40f);
+            headerRect.offsetMax = Vector2.zero;
 
+            var title = HudUi.CreateText(headerImage.transform, "Title", 17, TextAnchor.MiddleLeft);
+            title.supportRichText = true;
+            title.text = "<b>인벤토리</b>   <size=12><color=#9AA0AA>모두 1회용 · 종류마다 1개 · 죽으면 전부 잃음</color></size>";
+            HudUi.Stretch(title.rectTransform, 0f);
+            title.rectTransform.offsetMin = new Vector2(16f, 0f);
+
+            var close = HudUi.CreateImage(headerImage.transform, "CloseButton", new Color(0.45f, 0.18f, 0.18f, 1f));
+            _closeButton = close.rectTransform;
+            _closeButton.anchorMin = _closeButton.anchorMax = new Vector2(1f, 0.5f);
+            _closeButton.pivot = new Vector2(1f, 0.5f);
+            _closeButton.sizeDelta = new Vector2(28f, 28f);
+            _closeButton.anchoredPosition = new Vector2(-8f, 0f);
+            var closeText = HudUi.CreateText(close.transform, "X", 16, TextAnchor.MiddleCenter);
+            closeText.text = "X";
+            HudUi.Stretch(closeText.rectTransform, 0f);
+
+            var center = new Vector2(0.5f, 0.5f);
             for (var i = 0; i < ItemInfo.Count; i++)
             {
                 var col = i % Columns;
                 var row = i / Columns;
-                var x = -panelW * 0.5f + 20f + col * (cellW + gap) + cellW * 0.5f;
-                var y = panelH * 0.5f - 50f - row * (cellH + gap) - cellH * 0.5f;
-                var (image, text) = CreateBox(_panel.transform, $"Item{i}", new Vector2(0.5f, 0.5f), new Vector2(x, y), new Vector2(cellW, cellH));
-                text.fontSize = 14;
-                _cellImages[i] = image;
-                _cellTexts[i] = text;
+                var x = -panelW * 0.5f + side + col * (cellW + gap) + cellW * 0.5f;
+                var y = panelH * 0.5f - header - row * (cellH + gap) - cellH * 0.5f;
+                _cells[i] = new HudSlot(_panel.transform, $"Item{i}", center, new Vector2(x, y), new Vector2(cellW, cellH), string.Empty);
+                _cells[i].Label.fontSize = 15;
+                _cells[i].Label.supportRichText = true;
+                _cells[i].Key.color = new Color(1f, 0.82f, 0.35f);
             }
 
-            var detail = CreateBox(_panel.transform, "Detail", new Vector2(0.5f, 0f), new Vector2(0f, 32f), new Vector2(panelW - 30f, 50f));
-            detail.Image.color = new Color(0f, 0f, 0f, 0f);
-            detail.Text.fontSize = 13;
-            _detail = detail.Text;
+            // 아래: 고른 아이템 이름 + 설명 + 조작 안내
+            _detailName = HudUi.CreateText(_panel.transform, "DetailName", 16, TextAnchor.UpperLeft);
+            _detailName.supportRichText = true;
+            _detailName.fontStyle = FontStyle.Bold;
+            _detailName.color = new Color(1f, 0.85f, 0.45f);
+            var nameRect = _detailName.rectTransform;
+            nameRect.anchorMin = Vector2.zero;
+            nameRect.anchorMax = new Vector2(1f, 0f);
+            nameRect.pivot = new Vector2(0.5f, 0f);
+            nameRect.offsetMin = new Vector2(side, footer - 34f);
+            nameRect.offsetMax = new Vector2(-side, footer - 12f);
+
+            _detail = HudUi.CreateText(_panel.transform, "Detail", 13, TextAnchor.UpperLeft);
+            _detail.supportRichText = true;
+            _detail.lineSpacing = 1.2f;
+            var detailRect = _detail.rectTransform;
+            detailRect.anchorMin = Vector2.zero;
+            detailRect.anchorMax = new Vector2(1f, 0f);
+            detailRect.pivot = new Vector2(0.5f, 0f);
+            detailRect.offsetMin = new Vector2(side, 10f);
+            detailRect.offsetMax = new Vector2(-side, footer - 38f);
 
             _panel.SetActive(false);
-        }
-
-        private static (Image Image, Text Text) CreateBox(Transform parent, string name, Vector2 anchor, Vector2 position, Vector2 size)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var rect = go.GetComponent<RectTransform>();
-            rect.anchorMin = anchor;
-            rect.anchorMax = anchor;
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = position;
-            rect.sizeDelta = size;
-            var image = go.AddComponent<Image>();
-            image.color = SlotEmpty;
-
-            var textGo = new GameObject("Text", typeof(RectTransform));
-            textGo.transform.SetParent(go.transform, false);
-            var textRect = textGo.GetComponent<RectTransform>();
-            textRect.anchorMin = Vector2.zero;
-            textRect.anchorMax = Vector2.one;
-            textRect.offsetMin = new Vector2(4f, 2f);
-            textRect.offsetMax = new Vector2(-4f, -2f);
-            var text = textGo.AddComponent<Text>();
-            text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            text.alignment = TextAnchor.MiddleCenter;
-            text.color = Color.white;
-            text.fontSize = 14;
-            return (image, text);
         }
     }
 }
