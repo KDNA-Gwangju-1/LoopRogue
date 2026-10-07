@@ -83,5 +83,13 @@ namespace LoopRogue
             owner.transform.localScale = new Vector3(size, size, 1f);
             return renderer;
         }
+
+        /// <summary>맵 소품 도트(Resources/Sprites/Props/{name}, 32x32 = 한 칸)를 한 칸 크기로 - 그림이 없으면 null을 돌려줘
+        /// 호출부가 예전 단색 도형을 그린다.</summary>
+        public static SpriteRenderer TryCreateProp(GameObject owner, string name, int sortingOrder)
+        {
+            var sprite = Resources.Load<Sprite>($"Sprites/Props/{name}");
+            return sprite != null ? CreateSpriteVisual(owner, sprite, GridConstants.CellSize, sortingOrder) : null;
+        }
     }
 }

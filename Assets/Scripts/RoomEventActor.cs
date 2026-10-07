@@ -44,6 +44,9 @@ namespace LoopRogue
                 RoomEventType.BlessingAltar => new Color(0.85f, 0.5f, 1f),
                 _ => new Color(0.45f, 0.15f, 0.55f),
             };
+            // 이벤트 도트 그림(보물상자 / 회복 샘 / 축복 제단 / 저주받은 상자) - 없으면 예전 색 마름모
+            if (VisualUtil.TryCreateProp(gameObject, $"Event_{type}", sortingOrder: 0) != null)
+                return;
             var renderer = VisualUtil.CreateSquareVisual(gameObject, color, GridConstants.CellSize * 0.45f, sortingOrder: 0);
             transform.rotation = Quaternion.Euler(0f, 0f, 45f); // 마름모 - 몹(사각형)과 구분
             renderer.color = color;

@@ -356,6 +356,13 @@ namespace LoopRogue
 
         private void BuildFloor(RoomLayout layout, bool isBossRoom)
         {
+            _tiledRoom = !GameHUD.AutoPlayActive && DungeonTiles.Available;
+            if (_tiledRoom)
+            {
+                BuildTiledRoom(layout, isBossRoom);
+                return;
+            }
+
             var floor = new GameObject("Floor");
             floor.transform.SetParent(transform, false);
             var color = isBossRoom ? new Color(0.22f, 0.05f, 0.05f) : new Color(0.15f, 0.15f, 0.18f);
@@ -378,6 +385,80 @@ namespace LoopRogue
                 _roomObjects.Add(go);
                 _wallObjects[wall] = go;
             }
+        }
+
+        // ---- 도트 타일 방(DungeonTiles) ----
+        private bool _tiledRoom;
+        private Transform _floorRoot;
+        private Color _floorTint;
+        private RoomLayout _tileLayout;
+        private readonly System.Random _tileRng = new System.Random();
+
+        /// <summary>칸마다 돌판 바닥, 벽은 아래가 바닥이면 벽돌 앞면 / 아니면 윗면, 방 둘레엔 장식용 벽 한 줄(이동 판정엔 없음).
+        /// 보스방은 바닥을 붉게 물들인다.</summary>
+        private void BuildTiledRoom(RoomLayout layout, bool isBossRoom)
+        {
+            _tileLayout = layout;
+            _floorTint = isBossRoom ? new Color(1f, 0.58f, 0.55f) : Color.white;
+            var floorGo = new GameObject("Floor");
+            floorGo.transform.SetParent(transform, false);
+            _floorRoot = floorGo.transform;
+            _roomObjects.Add(floorGo);
+
+            for (var x = 0; x < layout.Width; x++)
+            for (var y = 0; y < layout.Height; y++)
+            {
+                var cell = new Vector2Int(x, y);
+                if (!layout.Walls.Contains(cell))
+                    CreateTile(_floorRoot, cell, DungeonTiles.Floor(_tileRng), -10, _floorTint);
+            }
+
+            foreach (var wall in layout.Walls)
+            {
+                var go = CreateTile(transform, wall, DungeonTiles.Wall(ShowsWallFace(wall), _tileRng), -8, Color.white).gameObject;
+                go.name = "Wall";
+                _roomObjects.Add(go);
+                _wallObjects[wall] = go;
+            }
+
+            // 방 둘레 장식 벽 - 안개 밖이라 조금 어둡게
+            var border = new Color(0.72f, 0.72f, 0.78f);
+            for (var x = -1; x <= layout.Width; x++)
+            for (var y = -1; y <= layout.Height; y++)
+            {
+                if (x >= 0 && y >= 0 && x < layout.Width && y < layout.Height)
+                    continue;
+                var cell = new Vector2Int(x, y);
+                _roomObjects.Add(CreateTile(transform, cell, DungeonTiles.Wall(ShowsWallFace(cell), _tileRng), -8, border).gameObject);
+            }
+        }
+
+        /// <summary>바로 아래 칸이 방 안의 바닥이면 앞면이 보인다.</summary>
+        private bool ShowsWallFace(Vector2Int cell)
+        {
+            var below = cell + Vector2Int.down;
+            var inside = below.x >= 0 && below.y >= 0 && below.x < _tileLayout.Width && below.y < _tileLayout.Height;
+            return inside && !_tileLayout.Walls.Contains(below);
+        }
+
+        private static SpriteRenderer CreateTile(Transform parent, Vector2Int cell, Sprite sprite, int sortingOrder, Color tint)
+        {
+            var go = new GameObject("Tile");
+            go.transform.SetParent(parent, false);
+            var renderer = VisualUtil.CreateSpriteVisual(go, sprite, GridConstants.CellSize, sortingOrder);
+            renderer.color = tint;
+            go.transform.position = new Vector3(cell.x * GridConstants.CellSize, cell.y * GridConstants.CellSize, 0f);
+            return renderer;
+        }
+
+        /// <summary>폭탄으로 벽이 부서진 뒤 - 그 자리에 바닥을 깔고, 바로 위 벽은 이제 아래가 바닥이니 앞면으로.</summary>
+        private void OnWallRemoved(Vector2Int cell)
+        {
+            if (!_tiledRoom || _floorRoot == null)
+                return;
+            CreateTile(_floorRoot, cell, DungeonTiles.Floor(_tileRng), -10, _floorTint);
+            if (_wallObjects.TryGetValue(cell + Vector2Int.up, out var above) && above != null)
+                above.GetComponent<SpriteRenderer>().sprite = DungeonTiles.Wall(true, _tileRng);
         }
 
         /// <summary>방마다 크기가 달라서(보스방은 더 큼) 매 방 로드 시 카메라를 방 중앙으로 다시
@@ -518,11 +599,16 @@ namespace LoopRogue
             ExitPosition = best.Value;
             var go = new GameObject("Exit");
             go.transform.SetParent(transform, false);
-            ExitRenderer = VisualUtil.CreateSquareVisual(go, ExitColor, GridConstants.CellSize * 0.85f, sortingOrder: -6);
+            // 내려가는 던전 계단 도트(Resources/Tiles/Stairs) - 그림이 없으면 예전 파란 칸
+            var stairs = Resources.Load<Sprite>("Tiles/Stairs");
+            ExitRenderer = stairs != null
+                ? VisualUtil.CreateSpriteVisual(go, stairs, GridConstants.CellSize, sortingOrder: -6)
+                : VisualUtil.CreateSquareVisual(go, ExitColor, GridConstants.CellSize * 0.85f, sortingOrder: -6);
             go.transform.position = new Vector3(best.Value.x * GridConstants.CellSize, best.Value.y * GridConstants.CellSize, 0f);
-            go.AddComponent<ExitMarker>();
+            if (stairs == null)
+                go.AddComponent<ExitMarker>(); // 예전 파란 칸만 깜빡임 - 계단은 늘 밝게(사용자 요청)
             _roomObjects.Add(go);
-            ShowMessage("출구가 열렸다! (파란 칸)");
+            ShowMessage(stairs != null ? "출구가 열렸다! (계단)" : "출구가 열렸다! (파란 칸)");
         }
 
         /// <summary>플레이어가 pos로 막 옮겨왔을 때 - 출구면 다음 방으로 보내고 true(호출부는 이번 턴을 그대로 끝낸다).</summary>
@@ -659,9 +745,12 @@ namespace LoopRogue
             _torches.Add(pos);
             var go = new GameObject("Torch");
             go.transform.SetParent(transform, false);
-            VisualUtil.CreateSquareVisual(go, new Color(1f, 0.7f, 0.2f), GridConstants.CellSize * 0.3f, sortingOrder: -6);
+            if (VisualUtil.TryCreateProp(go, "Torch", sortingOrder: -6) == null)
+            {
+                VisualUtil.CreateSquareVisual(go, new Color(1f, 0.7f, 0.2f), GridConstants.CellSize * 0.3f, sortingOrder: -6);
+                go.transform.rotation = Quaternion.Euler(0f, 0f, 45f);
+            }
             go.transform.position = new Vector3(pos.x * GridConstants.CellSize, pos.y * GridConstants.CellSize, 0f);
-            go.transform.rotation = Quaternion.Euler(0f, 0f, 45f);
             _roomObjects.Add(go);
         }
 
@@ -669,7 +758,8 @@ namespace LoopRogue
         {
             var go = new GameObject("Trap");
             go.transform.SetParent(transform, false);
-            VisualUtil.CreateSquareVisual(go, new Color(0.55f, 0.55f, 0.6f, 0.9f), GridConstants.CellSize * 0.5f, sortingOrder: -6);
+            if (VisualUtil.TryCreateProp(go, "Trap", sortingOrder: -6) == null)
+                VisualUtil.CreateSquareVisual(go, new Color(0.55f, 0.55f, 0.6f, 0.9f), GridConstants.CellSize * 0.5f, sortingOrder: -6);
             go.transform.position = new Vector3(pos.x * GridConstants.CellSize, pos.y * GridConstants.CellSize, 0f);
             _roomObjects.Add(go);
             _traps[pos] = go;
@@ -720,6 +810,16 @@ namespace LoopRogue
             var objects = new List<GameObject>();
             foreach (var t in BlastArea(center))
                 objects.Add(SpawnTelegraphTile(t, PlayerBombColor, -4));
+            // 가운데에 폭탄 그림(심지에 불) - 범위 표시와 같이 터질 때 지워진다
+            var bombGo = new GameObject("Bomb");
+            bombGo.transform.SetParent(transform, false);
+            if (VisualUtil.TryCreateProp(bombGo, "Bomb", sortingOrder: -3) != null)
+            {
+                bombGo.transform.position = new Vector3(center.x * GridConstants.CellSize, center.y * GridConstants.CellSize, 0f);
+                objects.Add(bombGo);
+            }
+            else
+                Destroy(bombGo);
             _playerBombs.Add((center, objects));
         }
 
@@ -751,6 +851,7 @@ namespace LoopRogue
                     if (wallGo != null)
                         Destroy(wallGo);
                 }
+                OnWallRemoved(t);
             }
 
             var damage = _player.Stats.AttackPower * ItemInfo.BombDamageRate;

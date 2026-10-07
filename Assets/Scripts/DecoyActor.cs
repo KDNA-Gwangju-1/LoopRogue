@@ -12,6 +12,9 @@ namespace LoopRogue
         {
             TurnsLeft = turns;
             Stats = new CharacterStats(1f, 0f);
+            // 허수아비 도트 그림 - 없으면 예전 갈색 사각형
+            if (VisualUtil.TryCreateProp(gameObject, "Decoy", sortingOrder: 1) != null)
+                return;
             var renderer = VisualUtil.CreateSquareVisual(gameObject, new Color(0.75f, 0.6f, 0.35f), GridConstants.CellSize * 0.6f, sortingOrder: 1);
             renderer.color = new Color(0.75f, 0.6f, 0.35f);
         }
