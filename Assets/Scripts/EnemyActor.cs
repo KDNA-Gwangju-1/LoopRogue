@@ -133,9 +133,15 @@ namespace LoopRogue
             return current == vertical ? vertical : horizontal;
         }
 
-        /// <summary>삼각형 꼭짓점이 바라보는 방향을 가리키게 돌린다(스프라이트는 위쪽을 가리키게 그려져 있음).</summary>
+        /// <summary>방패병 도트 그림이면 그 방향 그림으로(방패가 정면 쪽에 그려져 있다), 예전 삼각형이면 꼭짓점이
+        /// 바라보는 방향을 가리키게 돌린다(삼각형은 위쪽을 가리키게 그려져 있음).</summary>
         private void ApplyFacingVisual()
         {
+            if (TryGetComponent<SpriteAnimator>(out var anim))
+            {
+                anim.Face(Facing);
+                return;
+            }
             var angle = Mathf.Atan2(Facing.y, Facing.x) * Mathf.Rad2Deg - 90f;
             transform.rotation = Quaternion.Euler(0f, 0f, angle);
         }
@@ -163,6 +169,8 @@ namespace LoopRogue
         private const string SlimeSpriteSet = "Slime";
         private const string SpiderSpriteSet = "Spider";
         private const string ArcherSpriteSet = "SkeletonArcher";
+        private const string ShieldSpriteSet = "ShieldSoldier";
+        private const float ShieldSpriteScale = 1.35f;
 
         public void Initialize(float maxHealth, float attackPower, bool isBoss, EnemyKind kind = EnemyKind.Melee)
         {
@@ -192,7 +200,19 @@ namespace LoopRogue
             }
             else if (Kind == EnemyKind.Shield)
             {
-                // 방패병은 삼각형(사용자 요청) - 꼭짓점이 방패 정면.
+                // 해골 방패병 도트 그림(4방향 대기·걷기 + 방패 밀치기 공격) - 그림 방향은 움직임이 아니라 방패 정면(Facing)을 따른다.
+                var soldier = SpriteAnimator.FirstFrame(ShieldSpriteSet);
+                if (soldier != null)
+                {
+                    // 48x48 캔버스에 몸이 작게 그려져 있어 다른 몹보다 크게(사용자 요청 "크기를 좀 더")
+                    var spriteRenderer = VisualUtil.CreateSpriteVisual(gameObject, soldier, GridConstants.CellSize * ShieldSpriteScale, sortingOrder: 0);
+                    var anim = gameObject.AddComponent<SpriteAnimator>();
+                    anim.Setup(ShieldSpriteSet, spriteRenderer, new Color(0.55f, 0.65f, 0.85f));
+                    anim.LockedToFacing = true;
+                    ApplyFacingVisual();
+                    return;
+                }
+                // 그림이 없으면 예전 삼각형(사용자 요청) - 꼭짓점이 방패 정면.
                 VisualUtil.CreateTriangleVisual(gameObject, new Color(0.55f, 0.65f, 0.85f), GridConstants.CellSize * 0.75f, sortingOrder: 0);
                 ApplyFacingVisual();
                 return;
