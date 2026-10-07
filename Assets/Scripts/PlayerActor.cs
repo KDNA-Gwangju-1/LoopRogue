@@ -80,6 +80,25 @@ namespace LoopRogue
         public int WebImmuneTurns { get; private set; }
         /// <summary>반사 부적 - 남은 턴 안에 맞는 보스 예고 공격 1회를 되돌린다.</summary>
         public int ReflectTurns { get; private set; }
+        /// <summary>연막 - 쓴 순간 주변 몹이 "연막 속"이 되고, 플레이어가 공격하기 전까지(또는 다음 방까지) 유지된다(사용자 결정:
+        /// 사람은 봇처럼 늘 최선수를 두지 않으니 괜찮다). 그동안 캐릭터는 반투명.</summary>
+        public bool InSmoke { get; private set; }
+        private const float SmokeAlpha = 0.35f;
+        private readonly List<EnemyActor> _smokedEnemies = new List<EnemyActor>();
+
+        /// <summary>공격하는 순간(몹을 때림 / 폭탄 던짐) 연막이 걷힌다 - 걸려 있던 몹이 다시 움직인다.</summary>
+        private void BreakSmoke()
+        {
+            if (!InSmoke)
+                return;
+            InSmoke = false;
+            foreach (var e in _smokedEnemies)
+                if (e != null)
+                    e.SetInSmoke(false);
+            _smokedEnemies.Clear();
+            if (HitFeedback.Enabled)
+                DeathBurst.Spawn(transform.position, new Color(0.62f, 0.64f, 0.7f), count: 12, speed: 3f, size: 0.25f);
+        }
 
         private static readonly System.Random ItemRng = new System.Random();
 
@@ -136,6 +155,7 @@ namespace LoopRogue
                     _room.ShowMessage("횃불을 놓았다");
                     break;
                 case ItemType.Bomb:
+                    BreakSmoke(); // 폭탄도 공격
                     _room.ThrowBomb(target);
                     _room.ShowMessage("폭탄을 던졌다! 다음 턴에 터진다");
                     break;
@@ -149,13 +169,28 @@ namespace LoopRogue
                     break;
                 case ItemType.Smoke:
                     foreach (var e in _room.EnemiesWithin(GridPos, ItemInfo.SmokeRadius))
-                        e.Stun(ItemInfo.SmokeStunTurns);
-                    _room.ShowMessage($"연막! 주변 몹이 {ItemInfo.SmokeStunTurns}턴 동안 플레이어를 못 찾는다");
+                    {
+                        e.SetInSmoke(true);
+                        if (!_smokedEnemies.Contains(e))
+                            _smokedEnemies.Add(e);
+                    }
+                    InSmoke = true;
+                    if (HitFeedback.Enabled)
+                        DeathBurst.Spawn(transform.position, new Color(0.62f, 0.64f, 0.7f), count: 30, speed: 4f, size: 0.4f);
+                    _room.ShowMessage("연막! 공격하기 전까지 주변 몹이 플레이어를 못 찾는다");
                     break;
                 case ItemType.Cleanse:
                     RootedTurns = 0;
                     WebImmuneTurns = ItemInfo.CleanseImmuneTurns;
                     _room.ShowMessage("정화제! 거미줄이 풀렸다");
+                    if (HitFeedback.Enabled)
+                    {
+                        // 초록 기운이 몸을 감쌌다가 퍼지며 풀려나간다
+                        var cleanse = new Color(0.45f, 1f, 0.55f);
+                        ActorJuice.Get(this).Flash(cleanse);
+                        AuraEffect.Spawn(transform, new Color(0.45f, 1f, 0.55f, 0.9f));
+                        DeathBurst.Spawn(transform.position, new Color(0.55f, 1f, 0.6f), count: 16, speed: 5f, size: 0.14f);
+                    }
                     break;
                 case ItemType.Flash:
                 {
@@ -313,6 +348,10 @@ namespace LoopRogue
         /// <summary>방을 깔 때마다(RoomController.LoadRoom) - 갑옷 "보호막"을 다시 채운다.</summary>
         public void OnRoomEntered()
         {
+            // 연막은 그 방에서만 - 새 방에 들어가면 걷힌다(몹 목록은 이미 새 방 것)
+            InSmoke = false;
+            _smokedEnemies.Clear();
+
             Stats.Shield = EquipmentEffects.Has(ItemSlot.Armor, 1) ? Stats.MaxHealth * EquipmentEffects.RoomShieldRate : 0f;
             _firstStrikeReady = Relics.Has(RelicType.FirstStrike); // 유물 "첫 일격"
 
@@ -376,6 +415,20 @@ namespace LoopRogue
         {
             if (CanAct)
                 TryAct(direction);
+        }
+
+        /// <summary>연막 중이면 반투명 - 맞아서 번쩍이는 색(ActorJuice)이 덮어써도 투명도만은 매 프레임 다시 맞춘다.</summary>
+        private void LateUpdate()
+        {
+            if (_renderer == null)
+                return;
+            var alpha = InSmoke ? SmokeAlpha : 1f;
+            var color = _renderer.color;
+            if (!Mathf.Approximately(color.a, alpha))
+            {
+                color.a = alpha;
+                _renderer.color = color;
+            }
         }
 
         private void Update()
@@ -553,6 +606,7 @@ namespace LoopRogue
             DamagePopup.Spawn(enemy.transform.position, damage, blocked ? new Color(0.6f, 0.65f, 0.75f) : Color.white, isCritical && !blocked);
             HitFeedback.OnPlayerHitEnemy(this, enemy, direction, isCritical, blocked);
             OnAttackedEnemy?.Invoke(enemy);
+            BreakSmoke(); // 때리는 순간 연막이 걷힌다(일반 공격·대시·회전 베기 공통)
             if (!isSkill)
                 Stats.Heal(damage * Stats.EffectiveLifeSteal); // 흡혈 카드(최대 50%)
 

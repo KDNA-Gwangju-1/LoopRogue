@@ -29,7 +29,6 @@ namespace LoopRogue
         public const float BombDamageRate = 3f;     // 플레이어 공격력 ×
         public const int DecoyTurns = 3;
         public const int SmokeRadius = 3;           // 체비쇼프(정사각형) 반경
-        public const int SmokeStunTurns = 2;
         public const int CleanseImmuneTurns = 3;
         public const int FlashBossStunTurns = 2;
         public const int FlashRadius = 2;
@@ -61,7 +60,7 @@ namespace LoopRogue
             ItemType.Torch => "옆 칸에 설치 - 그 주변이 계속 밝게 보인다",
             ItemType.Bomb => $"던지면 최대 {BombRange}칸 앞에 떨어져 다음 턴 3x3 폭발(공격력 {BombDamageRate:0}배, 벽도 부숨, 방패 무시)",
             ItemType.Decoy => $"옆 칸에 허수아비 - {DecoyTurns}턴 동안 몹들이 허수아비를 노린다",
-            ItemType.Smoke => $"주변 {SmokeRadius}칸 몹이 {SmokeStunTurns}턴 동안 플레이어를 못 찾는다(행동 못 함)",
+            ItemType.Smoke => $"주변 {SmokeRadius}칸 몹이 플레이어가 공격하기 전까지 플레이어를 못 찾는다(행동 못 함)",
             ItemType.Cleanse => $"거미줄 즉시 해제 + {CleanseImmuneTurns}턴 동안 거미줄 무시",
             ItemType.Flash => $"보스의 예고 공격 취소 + {FlashBossStunTurns}턴 기절, 주변 몹 {FlashEnemyStunTurns}턴 기절",
             ItemType.Trap => $"옆 칸에 설치 - 밟은 몹(보스 포함) {TrapStunTurns}턴 기절",

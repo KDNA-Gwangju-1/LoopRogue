@@ -63,9 +63,17 @@ namespace LoopRogue
         public int StunTurns { get; private set; }
         public void Stun(int turns) => StunTurns = Mathf.Max(StunTurns, turns);
 
+        /// <summary>연막 속 - 플레이어가 공격할 때까지(PlayerActor.BreakSmoke) 플레이어를 못 찾아 아무것도 안 한다.</summary>
+        public bool InSmoke { get; private set; }
+        public void SetInSmoke(bool value) => InSmoke = value;
+
         /// <summary>약점 표식 - 남은 턴 동안 받는 피해 증가.</summary>
         public int VulnerableTurns { get; private set; }
-        public void MarkVulnerable(int turns) => VulnerableTurns = Mathf.Max(VulnerableTurns, turns);
+        public void MarkVulnerable(int turns)
+        {
+            VulnerableTurns = Mathf.Max(VulnerableTurns, turns);
+            WeaknessMark.Attach(this); // 몸에 붉은 과녁 표식(효과 끝나면 스스로 사라짐)
+        }
         public float DamageTakenMultiplier => VulnerableTurns > 0 ? ItemInfo.WeaknessDamageMultiplier : 1f;
 
         /// <summary>섬광탄 - 보스가 예고해둔 공격을 취소한다.</summary>
@@ -273,9 +281,11 @@ namespace LoopRogue
 
             if (VulnerableTurns > 0)
                 VulnerableTurns--;
+            if (InSmoke)
+                return; // 연막 속 - 플레이어가 공격하기 전까지 아무것도 안 함(약점 표식 턴은 위에서 그대로 줄어든다)
             if (StunTurns > 0)
             {
-                StunTurns--; // 기절(섬광탄/연막탄/덫) - 아무것도 안 함
+                StunTurns--; // 기절(섬광탄/덫) - 아무것도 안 함
                 return;
             }
 
