@@ -59,6 +59,15 @@ namespace LoopRogue
             GachaSystem.EnsureLoaded();
             StatPotionWallet.EnsureLoaded();
             StageProgress.EnsureLoaded();
+
+            // 씬 카메라가 유니티 기본 파란 배경이라 UI 뒤를 검은색으로.
+            var cam = Camera.main;
+            if (cam != null)
+            {
+                cam.clearFlags = CameraClearFlags.SolidColor;
+                cam.backgroundColor = Color.black;
+            }
+
             BuildUI();
             RefreshEquipmentDisplay();
             RefreshGachaDisplay();
