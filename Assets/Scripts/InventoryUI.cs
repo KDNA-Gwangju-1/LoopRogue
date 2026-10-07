@@ -153,6 +153,7 @@ namespace LoopRogue
                 cell.Key.text = quick >= 0 ? $"[{quick + 1}]" : string.Empty;
                 cell.Label.text = $"{ItemInfo.Name(type)}\n<size=11>{(owned ? "보유" : "-")}</size>";
                 cell.Label.color = owned ? Color.white : HudSlot.TextDim;
+                cell.Icon.color = owned ? Color.white : new Color(0.4f, 0.4f, 0.45f);
             }
             var cur = (ItemType)_cursor;
             _detailName.text = $"{ItemInfo.Name(cur)}{(Inventory.Has(cur) ? "" : "  <color=#888888>(없음)</color>")}";
@@ -174,14 +175,20 @@ namespace LoopRogue
                 // 창이 열려 있으면 퀵슬롯 칸이 "여기 클릭해서 등록" 자리라는 걸 테두리로 알린다.
                 slot.Frame.color = aiming ? HudSlot.FrameActive : IsOpen ? CellCursorFill : owned ? HudSlot.FrameReady : HudSlot.FrameNormal;
                 slot.Fill.color = flashing ? SlotUsedFlash : owned ? HudSlot.FillOwned : HudSlot.FillNormal;
+                var icon = item.HasValue && !flashing ? ItemIcon(item.Value) : null;
+                slot.SetIcon(icon);
+                slot.Icon.color = owned ? Color.white : new Color(0.4f, 0.4f, 0.45f);
                 slot.Label.text = !item.HasValue ? "<size=11>비어\n있음</size>"
                     : flashing ? "사용!"
+                    : icon != null ? string.Empty
                     : ItemInfo.Name(item.Value).Replace(" ", "\n");
                 slot.Label.color = owned || flashing ? Color.white : HudSlot.TextDim;
             }
 
             _bagSlot.Frame.color = IsOpen ? HudSlot.FrameActive : HudSlot.FrameNormal;
         }
+
+        private static Sprite ItemIcon(ItemType type) => PixelUi.Icon($"Item_{type}");
 
         private static int QuickIndexOf(ItemType type)
         {
@@ -206,7 +213,8 @@ namespace LoopRogue
 
             // 가방 칸 - 퀵슬롯 오른쪽, 클릭하면 인벤토리 창 여닫기.
             _bagSlot = new HudSlot(canvas, "BagSlot", bottom, new Vector2(ActionBarLayout.BagX, ActionBarLayout.SlotCenterY), size, "I");
-            _bagSlot.Label.text = "가방";
+            _bagSlot.SetIcon(PixelUi.Icon("Bag"));
+            _bagSlot.Label.text = _bagSlot.Icon.enabled ? string.Empty : "가방";
         }
 
         private void BuildPanel(Transform canvas)
@@ -217,12 +225,15 @@ namespace LoopRogue
             var panelH = header + rows * cellH + (rows - 1) * gap + footer;
 
             var panelImage = HudUi.CreateImage(canvas, "InventoryPanel", new Color(0.05f, 0.05f, 0.07f, 0.94f));
+            var skinned = PixelUi.Slice(panelImage, "Panel");
             var panelRect = panelImage.rectTransform;
             panelRect.anchorMin = panelRect.anchorMax = new Vector2(0.5f, 0.5f);
             panelRect.sizeDelta = new Vector2(panelW, panelH);
             panelRect.anchoredPosition = new Vector2(0f, 30f);
             _panel = panelImage.gameObject;
-            _panel.AddComponent<Outline>().effectColor = new Color(0.35f, 0.38f, 0.45f, 1f);
+            if (!skinned)
+                _panel.AddComponent<Outline>().effectColor = new Color(0.35f, 0.38f, 0.45f, 1f);
+            var edge = skinned ? 5f * PixelUi.Scale : 0f; // 테두리 두께
 
             // 제목 띠
             var headerImage = HudUi.CreateImage(_panel.transform, "Header", new Color(0.12f, 0.13f, 0.17f, 1f));
@@ -230,8 +241,8 @@ namespace LoopRogue
             headerRect.anchorMin = new Vector2(0f, 1f);
             headerRect.anchorMax = new Vector2(1f, 1f);
             headerRect.pivot = new Vector2(0.5f, 1f);
-            headerRect.offsetMin = new Vector2(0f, -40f);
-            headerRect.offsetMax = Vector2.zero;
+            headerRect.offsetMin = new Vector2(edge, -44f);
+            headerRect.offsetMax = new Vector2(-edge, edge > 0f ? -(edge - 4f) : 0f);
 
             var title = HudUi.CreateText(headerImage.transform, "Title", 17, TextAnchor.MiddleLeft);
             title.supportRichText = true;
@@ -240,6 +251,8 @@ namespace LoopRogue
             title.rectTransform.offsetMin = new Vector2(16f, 0f);
 
             var close = HudUi.CreateImage(headerImage.transform, "CloseButton", new Color(0.45f, 0.18f, 0.18f, 1f));
+            if (PixelUi.Slice(close, "Button"))
+                close.color = new Color(1f, 0.6f, 0.6f);
             _closeButton = close.rectTransform;
             _closeButton.anchorMin = _closeButton.anchorMax = new Vector2(1f, 0.5f);
             _closeButton.pivot = new Vector2(1f, 0.5f);
@@ -260,6 +273,13 @@ namespace LoopRogue
                 _cells[i].Label.fontSize = 15;
                 _cells[i].Label.supportRichText = true;
                 _cells[i].Key.color = new Color(1f, 0.82f, 0.35f);
+                _cells[i].SetIcon(ItemIcon((ItemType)i));
+                if (_cells[i].Icon.enabled)
+                {
+                    _cells[i].Icon.rectTransform.anchoredPosition = new Vector2(-cellW * 0.5f + 34f, 0f);
+                    _cells[i].Label.rectTransform.offsetMin = new Vector2(62f, 4f);
+                    _cells[i].Label.fontSize = 14;
+                }
             }
 
             // 아래: 고른 아이템 이름 + 설명 + 조작 안내
@@ -281,7 +301,7 @@ namespace LoopRogue
             detailRect.anchorMin = Vector2.zero;
             detailRect.anchorMax = new Vector2(1f, 0f);
             detailRect.pivot = new Vector2(0.5f, 0f);
-            detailRect.offsetMin = new Vector2(side, 10f);
+            detailRect.offsetMin = new Vector2(side, 22f);
             detailRect.offsetMax = new Vector2(-side, footer - 38f);
 
             _panel.SetActive(false);

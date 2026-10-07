@@ -146,6 +146,22 @@ namespace LoopRogue
             dim.offsetMax = Vector2.zero;
             _panel.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
 
+            // 메뉴 뒤 돌 테두리 패널(도트 그림이 있을 때만) - 버튼 수에 맞춘 높이
+            var buttonCount = 2 + (_goToTitle != null ? 1 : 0) + (showQuit ? 1 : 0);
+            var board = new GameObject("Board", typeof(RectTransform));
+            board.transform.SetParent(_panel.transform, false);
+            var boardImage = board.AddComponent<Image>();
+            if (PixelUi.Slice(boardImage, "Panel"))
+            {
+                var boardRect = board.GetComponent<RectTransform>();
+                var top = 150f;
+                var bottom = 40f - (buttonCount - 1) * 60f - 44f;
+                boardRect.sizeDelta = new Vector2(500f, top - bottom);
+                boardRect.anchoredPosition = new Vector2(0f, (top + bottom) * 0.5f);
+            }
+            else
+                Destroy(board);
+
             CreateLabel(_panel.transform, "메뉴", 30, FontStyle.Bold, 110f, 400f, 44f);
 
             var y = 40f;
@@ -190,7 +206,8 @@ namespace LoopRogue
         {
             var go = new GameObject("Button", typeof(RectTransform));
             go.transform.SetParent(parent, false);
-            go.AddComponent<Image>().color = bgColor;
+            var image = go.AddComponent<Image>();
+            image.color = PixelUi.Slice(image, "Button") ? PixelUi.Tint(bgColor) : bgColor;
 
             var rect = go.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 0.5f);

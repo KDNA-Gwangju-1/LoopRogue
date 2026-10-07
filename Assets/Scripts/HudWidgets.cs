@@ -58,10 +58,12 @@ namespace LoopRogue
         public readonly RectTransform Rect;
         public readonly Image Frame;
         public readonly Image Fill;
+        public readonly Image Icon;
         public readonly Text Key;
         public readonly Text Label;
         private readonly RectTransform _cooldownCover;
         private readonly Text _cooldownText;
+        private readonly float _inset; // 도트 쇠테(UI/Common/Slot)가 있으면 그 안쪽부터
 
         public HudSlot(Transform parent, string name, Vector2 anchor, Vector2 position, Vector2 size, string key)
         {
@@ -74,13 +76,21 @@ namespace LoopRogue
             Rect.anchoredPosition = position;
             Rect.sizeDelta = size;
             Frame = go.AddComponent<Image>();
+            // 쇠테 그림은 밝은 회색이라 Frame.color(상태 색)가 그대로 곱해져 입혀진다.
+            _inset = PixelUi.Slice(Frame, "Slot") ? 3f * PixelUi.Scale : 2f;
             Frame.color = FrameNormal;
 
             Fill = HudUi.CreateImage(go.transform, "Fill", FillNormal);
-            HudUi.Stretch(Fill.rectTransform, 2f);
+            HudUi.Stretch(Fill.rectTransform, _inset);
+
+            // 아이콘(SetIcon) - 12x12 도트를 4배로, 기본은 가운데
+            Icon = HudUi.CreateImage(go.transform, "Icon", Color.white);
+            Icon.rectTransform.sizeDelta = new Vector2(12f, 12f) * PixelUi.Scale;
+            Icon.enabled = false;
 
             Label = HudUi.CreateText(go.transform, "Label", 12, TextAnchor.MiddleCenter);
             HudUi.Stretch(Label.rectTransform, 4f);
+            Label.gameObject.AddComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 0.9f);
 
             // 쿨다운 덮개 - 아래 기준으로 높이를 남은 비율만큼(아래에서 위로 줄어든다).
             var cover = HudUi.CreateImage(go.transform, "Cooldown", new Color(0f, 0f, 0f, 0.65f));
@@ -88,8 +98,8 @@ namespace LoopRogue
             _cooldownCover.anchorMin = Vector2.zero;
             _cooldownCover.anchorMax = new Vector2(1f, 0f);
             _cooldownCover.pivot = new Vector2(0.5f, 0f);
-            _cooldownCover.offsetMin = new Vector2(2f, 2f);
-            _cooldownCover.offsetMax = new Vector2(-2f, 2f);
+            _cooldownCover.offsetMin = new Vector2(_inset, _inset);
+            _cooldownCover.offsetMax = new Vector2(-_inset, _inset);
 
             _cooldownText = HudUi.CreateText(go.transform, "CooldownText", 22, TextAnchor.MiddleCenter);
             _cooldownText.fontStyle = FontStyle.Bold;
@@ -113,8 +123,17 @@ namespace LoopRogue
             if (!on)
                 return;
             var ratio = Mathf.Clamp01(remaining / (float)Mathf.Max(1, max));
-            var inner = Rect.sizeDelta.y - 4f;
+            var inner = Rect.sizeDelta.y - _inset * 2f;
             _cooldownCover.sizeDelta = new Vector2(_cooldownCover.sizeDelta.x, inner * ratio);
+        }
+
+        /// <summary>아이콘 그림(없으면 숨김). 아이콘이 있으면 호출부가 이름 글자를 비우거나 옆으로 옮긴다.</summary>
+        public void SetIcon(Sprite sprite)
+        {
+            if (Icon.sprite != sprite)
+                Icon.sprite = sprite;
+            if (Icon.enabled != (sprite != null))
+                Icon.enabled = sprite != null;
         }
 
         public bool Contains(Vector2 screenPos) => RectTransformUtility.RectangleContainsScreenPoint(Rect, screenPos, null);
@@ -151,6 +170,13 @@ namespace LoopRogue
                 _overlay.offsetMax = new Vector2(0f, -2f);
             }
 
+            // 도트 쇠테(가운데 투명) - 채움 위, 글자 아래. 막대가 얇아서 2배 픽셀로.
+            var frame = HudUi.CreateImage(bg.transform, "Frame", Color.white);
+            if (PixelUi.Slice(frame, "BarFrame", 2f))
+                HudUi.Stretch(frame.rectTransform, 0f);
+            else
+                Object.Destroy(frame.gameObject);
+
             Label = HudUi.CreateText(bg.transform, "Label", fontSize, TextAnchor.MiddleCenter);
             Label.supportRichText = true;
             HudUi.Stretch(Label.rectTransform, 0f);
@@ -186,6 +212,48 @@ namespace LoopRogue
             if (part.gameObject.activeSelf != visible)
                 part.gameObject.SetActive(visible);
             part.anchorMax = new Vector2(ratio, part.anchorMax.y);
+        }
+    }
+
+    /// <summary>도트 UI 그림 공용 - Resources/UI/Common(9-slice 패널·버튼·칸·막대·띠), Resources/UI/Icons(아이콘).
+    /// 타이틀·로비와 같은 4배 픽셀. 그림이 없으면 Slice가 false를 돌려주고 호출부는 예전 단색을 그대로 쓴다.</summary>
+    public static class PixelUi
+    {
+        public const float Scale = 4f;
+        private static readonly System.Collections.Generic.Dictionary<string, Sprite> Cache =
+            new System.Collections.Generic.Dictionary<string, Sprite>();
+
+        public static Sprite Get(string path)
+        {
+            if (!Cache.TryGetValue(path, out var sprite) || sprite == null)
+            {
+                sprite = Resources.Load<Sprite>(path);
+                Cache[path] = sprite;
+            }
+            return sprite;
+        }
+
+        public static Sprite Icon(string name) => Get($"UI/Icons/{name}");
+
+        /// <summary>9-slice로 입힌다. 색은 흰색으로 바꿔 그림 색 그대로(상태 색을 입힐 땐 호출부가 다시 color를 넣는다).</summary>
+        public static bool Slice(Image image, string name, float scale = Scale)
+        {
+            var sprite = Get($"UI/Common/{name}");
+            if (sprite == null)
+                return false;
+            image.sprite = sprite;
+            image.type = Image.Type.Sliced;
+            image.pixelsPerUnitMultiplier = 1f / scale;
+            image.color = Color.white;
+            return true;
+        }
+
+        /// <summary>단색 대신 그림을 입힐 때 원래 색을 옅은 물빛으로만 남긴다(그림 색이 묻히지 않게).</summary>
+        public static Color Tint(Color color, float strength = 0.4f)
+        {
+            var tint = Color.Lerp(Color.white, new Color(color.r * 2.2f, color.g * 2.2f, color.b * 2.2f), strength);
+            tint.a = 1f;
+            return tint;
         }
     }
 

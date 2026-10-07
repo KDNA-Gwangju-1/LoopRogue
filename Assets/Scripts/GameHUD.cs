@@ -169,7 +169,9 @@ namespace LoopRogue
                 rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
                 rect.sizeDelta = new Vector2(460f, 70f);
                 rect.anchoredPosition = new Vector2(0f, 60f - i * 85f);
-                cardGo.AddComponent<Image>().color = Relics.IsBossRelic(relic) ? new Color(0.85f, 0.35f, 0.25f, 0.35f) : new Color(0.7f, 0.4f, 1f, 0.25f);
+                var relicColor = Relics.IsBossRelic(relic) ? new Color(0.85f, 0.35f, 0.25f, 0.35f) : new Color(0.7f, 0.4f, 1f, 0.25f);
+                var relicImage = cardGo.AddComponent<Image>();
+                relicImage.color = PixelUi.Slice(relicImage, "Button") ? PixelUi.Tint(relicColor, 0.5f) : relicColor;
 
                 var text = CreateLabel(cardGo.transform, string.Empty, Vector2.zero, Vector2.zero);
                 text.rectTransform.anchorMin = Vector2.zero;
@@ -524,7 +526,7 @@ namespace LoopRogue
             _onContinueAfterDeath = onContinue;
             _roomCount = rooms.Count;
             _roomMap ??= new RoomMapView(_deathPanel.transform, rooms.Count);
-            _roomMap.Show(_deathPanel.transform, new Vector2(0f, -5f), rooms, defaultRoom);
+            _roomMap.Show(_deathPanel.transform, new Vector2(0f, -18f), rooms, defaultRoom);
             _onReturnToLobby = onLobby;
             LastDeathGoldPenalty = goldPenalty;
             _deathPenaltyText.text = goldPenalty > 0
@@ -565,7 +567,8 @@ namespace LoopRogue
                 rect.sizeDelta = new Vector2(400f, 70f);
                 rect.anchoredPosition = new Vector2(0f, 100f - i * 90f);
 
-                cardGo.AddComponent<Image>().color = CardColor(option.Category);
+                var cardImage = cardGo.AddComponent<Image>();
+                cardImage.color = PixelUi.Slice(cardImage, "Button") ? PixelUi.Tint(CardColor(option.Category), 0.5f) : CardColor(option.Category);
 
                 var textGo = new GameObject("Text", typeof(RectTransform));
                 textGo.transform.SetParent(cardGo.transform, false);
@@ -618,6 +621,7 @@ namespace LoopRogue
         private void BuildStatusPanel(Transform parent)
         {
             var band = HudUi.CreateImage(parent, "TopBar", BandColor);
+            PixelUi.Slice(band, "Band");
             var rect = band.rectTransform;
             rect.anchorMin = new Vector2(0f, 1f);
             rect.anchorMax = Vector2.one;
@@ -699,7 +703,9 @@ namespace LoopRogue
             var slotSize = new Vector2(ActionBarLayout.SlotSize, ActionBarLayout.SlotSize);
 
             // 아래 띠 배경 - 카메라 영역이 이 위에서 시작한다(ApplyCameraViewport).
-            var band = HudUi.CreateImage(parent, "BottomBar", BandColor).rectTransform;
+            var bandImage = HudUi.CreateImage(parent, "BottomBar", BandColor);
+            PixelUi.Slice(bandImage, "Band");
+            var band = bandImage.rectTransform;
             band.anchorMin = Vector2.zero;
             band.anchorMax = new Vector2(1f, 0f);
             band.pivot = new Vector2(0.5f, 0f);
@@ -708,10 +714,12 @@ namespace LoopRogue
 
             _dashSlot = new HudSlot(parent, "DashSlot", bottom,
                 new Vector2(ActionBarLayout.SkillX(0), ActionBarLayout.SlotCenterY), slotSize, "Q");
-            _dashSlot.Label.text = "대시";
+            _dashSlot.SetIcon(PixelUi.Icon("Skill_Dash"));
+            _dashSlot.Label.text = _dashSlot.Icon.enabled ? string.Empty : "대시";
             _spinSlot = new HudSlot(parent, "SpinSlot", bottom,
                 new Vector2(ActionBarLayout.SkillX(1), ActionBarLayout.SlotCenterY), slotSize, "E");
-            _spinSlot.Label.text = "회전\n베기";
+            _spinSlot.SetIcon(PixelUi.Icon("Skill_Spin"));
+            _spinSlot.Label.text = _spinSlot.Icon.enabled ? string.Empty : "회전\n베기";
 
             _hpBar = new HudBar(parent, "HpBar", new Vector2(ActionBarLayout.HpBarCenterX, ActionBarLayout.HpBarBottom),
                 new Vector2(ActionBarLayout.HpBarWidth, ActionBarLayout.HpBarHeight),
@@ -745,7 +753,9 @@ namespace LoopRogue
             _statButtonRect.pivot = new Vector2(1f, 1f);
             _statButtonRect.sizeDelta = new Vector2(110f, ActionBarLayout.TopBarHeight - 8f);
             _statButtonRect.anchoredPosition = new Vector2(-8f, -4f);
-            buttonGo.AddComponent<Image>().color = new Color(0.25f, 0.28f, 0.35f, 0.95f);
+            var buttonImage = buttonGo.AddComponent<Image>();
+            if (!PixelUi.Slice(buttonImage, "Button"))
+                buttonImage.color = new Color(0.25f, 0.28f, 0.35f, 0.95f);
 
             var buttonText = CreateLabel(buttonGo.transform, "[Tab] 스탯", Vector2.zero, Vector2.zero);
             buttonText.rectTransform.anchorMin = Vector2.zero;
@@ -765,7 +775,7 @@ namespace LoopRogue
         /// Mouse.current + 사각형 히트테스트로 직접 읽는다. 패널 높이는 글 길이에 맞추되 maxHeight에서 멈춘다.</summary>
         private sealed class ScrollTextPanel
         {
-            private const float Padding = 10f;
+            private const float Padding = 18f; // 도트 패널 테두리(5px x4) 안쪽
             private const float BarWidth = 6f;
             private const float MinHandleHeight = 24f;
             private const float WheelStep = 48f;
@@ -792,7 +802,9 @@ namespace LoopRogue
                 _rect.pivot = new Vector2(1f, 1f);
                 _rect.sizeDelta = new Vector2(width, 100f);
                 _rect.anchoredPosition = anchoredPosition;
-                Root.AddComponent<Image>().color = PanelColor;
+                var rootImage = Root.AddComponent<Image>();
+                if (!PixelUi.Slice(rootImage, "Panel"))
+                    rootImage.color = PanelColor;
 
                 // 글이 보이는 창 - 밖으로 나간 부분은 RectMask2D가 자른다. 오른쪽은 스크롤바 자리.
                 var viewportGo = new GameObject("Viewport", typeof(RectTransform));
@@ -800,8 +812,8 @@ namespace LoopRogue
                 var viewport = viewportGo.GetComponent<RectTransform>();
                 viewport.anchorMin = Vector2.zero;
                 viewport.anchorMax = Vector2.one;
-                viewport.offsetMin = new Vector2(14f, Padding);
-                viewport.offsetMax = new Vector2(-(BarWidth + 12f), -Padding);
+                viewport.offsetMin = new Vector2(22f, Padding);
+                viewport.offsetMax = new Vector2(-(BarWidth + 26f), -Padding);
                 viewportGo.AddComponent<RectMask2D>();
 
                 _text = CreateLabel(viewport, string.Empty, Vector2.zero, Vector2.zero);
@@ -816,8 +828,8 @@ namespace LoopRogue
                 _barRect.anchorMin = new Vector2(1f, 0f);
                 _barRect.anchorMax = new Vector2(1f, 1f);
                 _barRect.pivot = new Vector2(1f, 1f);
-                _barRect.offsetMin = new Vector2(-6f - BarWidth, Padding);
-                _barRect.offsetMax = new Vector2(-6f, -Padding);
+                _barRect.offsetMin = new Vector2(-20f - BarWidth, Padding);
+                _barRect.offsetMax = new Vector2(-20f, -Padding);
                 barGo.AddComponent<Image>().color = new Color(1f, 1f, 1f, 0.12f);
 
                 var handleGo = new GameObject("Handle", typeof(RectTransform));
@@ -929,6 +941,12 @@ namespace LoopRogue
             _targetFill.offsetMax = new Vector2(-3f, -3f);
             _targetFillImage = fillGo.AddComponent<Image>();
 
+            var targetFrame = HudUi.CreateImage(_targetPanel.transform, "Frame", Color.white);
+            if (PixelUi.Slice(targetFrame, "BarFrame", 2f))
+                HudUi.Stretch(targetFrame.rectTransform, 0f);
+            else
+                Destroy(targetFrame.gameObject);
+
             _targetText = CreateLabel(_targetPanel.transform, string.Empty, Vector2.zero, Vector2.zero);
             _targetText.rectTransform.anchorMin = Vector2.zero;
             _targetText.rectTransform.anchorMax = Vector2.one;
@@ -950,7 +968,9 @@ namespace LoopRogue
             rect.pivot = new Vector2(0.5f, 0.5f);
             rect.sizeDelta = size;
             rect.anchoredPosition = Vector2.zero;
-            go.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
+            var image = go.AddComponent<Image>();
+            if (!PixelUi.Slice(image, "Panel"))
+                image.color = new Color(0f, 0f, 0f, 0.55f);
             go.SetActive(active);
             return go;
         }
@@ -965,7 +985,8 @@ namespace LoopRogue
             rect.pivot = new Vector2(0.5f, 1f);
             rect.sizeDelta = new Vector2(560f, 44f);
             rect.anchoredPosition = new Vector2(0f, -(ActionBarLayout.TopBarHeight + 8f + 34f + 10f)); // 상단 타겟 체력바(높이 34) 아래
-            _bannerGo.AddComponent<Image>().color = new Color(0.5f, 0.1f, 0.1f, 0.85f);
+            var bannerImage = _bannerGo.AddComponent<Image>();
+            bannerImage.color = PixelUi.Slice(bannerImage, "Panel") ? new Color(1f, 0.55f, 0.5f) : new Color(0.5f, 0.1f, 0.1f, 0.85f);
 
             _bannerText = CreateLabel(_bannerGo.transform, string.Empty, Vector2.zero, Vector2.zero);
             _bannerText.rectTransform.anchorMin = Vector2.zero;
