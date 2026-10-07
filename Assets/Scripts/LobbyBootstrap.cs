@@ -34,6 +34,18 @@ namespace LoopRogue
         private readonly Dictionary<LobbyView, GameObject> _viewRoots = new Dictionary<LobbyView, GameObject>();
         private Text _titleText;
         private GameObject _equipmentGroup;
+        private GameObject _potionGroup;
+
+        // 도트 그림(Resources/UI/Lobby, Resources/Backgrounds/Lobby_<화면>) - 타이틀과 같은 4배 픽셀. 화면마다 배경이 바뀌고,
+        // 버튼·패널은 9-slice 돌판. 그림이 없으면 예전 단색 버튼/검은 배경 그대로.
+        private const float PixelScale = 4f;
+        private Sprite _buttonSprite;
+        private Sprite _buttonHoverSprite;
+        private Sprite _panelSprite;
+        private Image _background;
+        private Image _shade;
+        private readonly Dictionary<LobbyView, Sprite> _backgrounds = new Dictionary<LobbyView, Sprite>();
+        private readonly List<(RectTransform rect, Image image)> _skinnedButtons = new List<(RectTransform, Image)>();
 
         private Text _goldText;
         private Text _weaponText;
@@ -55,6 +67,12 @@ namespace LoopRogue
         private const float SlotSpinDuration = 1.2f;
         private const float SlotReelStopInterval = 0.35f;
         private Text _slotReelsText;
+        // 도트 슬롯(Resources/UI/Casino) - 틀 + 릴 창 3개에 기호 그림. 그림이 없으면 위 글자 릴로.
+        private Image _slotFrameImage;
+        private readonly Image[] _reelImages = new Image[3];
+        private Sprite[] _symbolSprites;
+        private Sprite _slotFrameSprite;
+        private Sprite _slotFrameWinSprite;
         private Text _slotButtonText;
         private Text _slotHighButtonText;
         private bool _slotSpinning;
@@ -88,6 +106,7 @@ namespace LoopRogue
         private void Update()
         {
             _goldText.text = $"보유 골드: {GoldWallet.Gold - _slotPendingPayout}";
+            UpdateHover();
 
             // 클릭으로 화면이 바뀐 프레임엔 단축키를 안 읽는다(같은 프레임에 새 화면 키가 먹지 않게).
             if (HandleMouseClick())
@@ -169,13 +188,20 @@ namespace LoopRogue
                 pair.Value.SetActive(pair.Key == view);
             // 장비 요약은 로비와 뽑기 상점 둘 다에서 보여준다(뽑으면서 지금 장비를 봐야 해서).
             _equipmentGroup.SetActive(view == LobbyView.Hub || view == LobbyView.Gacha);
-            _potionText.gameObject.SetActive(view == LobbyView.Hub || view == LobbyView.Potion);
+            _potionGroup.SetActive(view == LobbyView.Hub || view == LobbyView.Potion);
+            if (_backgrounds.TryGetValue(view, out var background) && background != null)
+            {
+                _background.sprite = background;
+                _background.enabled = true;
+            }
+            // 상점 안은 UI가 많아서 배경을 더 어둡게.
+            _shade.color = new Color(0f, 0f, 0f, view == LobbyView.Hub ? 0.2f : 0.45f);
             _titleText.text = view switch
             {
                 LobbyView.Gacha => "뽑기 상점",
                 LobbyView.Potion => "영약 상점",
                 LobbyView.Casino => "도박장",
-                _ => $"LoopRogue - Stage {StageProgress.CurrentStage}/{StageProgress.MaxStage}",
+                _ => $"Stage {StageProgress.CurrentStage}/{StageProgress.MaxStage}",
             };
         }
 
@@ -215,7 +241,7 @@ namespace LoopRogue
         private void RefreshCriticalDisplay()
         {
             var unlocked = StatPotionWallet.IsUnlocked(PotionType.Critical);
-            _criticalButtonImage.color = unlocked ? ButtonColor : ButtonLockedColor;
+            _criticalButtonImage.color = ButtonTint(unlocked ? ButtonColor : ButtonLockedColor);
 
             _criticalButtonText.text = unlocked
                 ? $"[C] 치명타확률+{StatPotionWallet.TotalCriticalChanceBonus() * 100f:0.#}% 구매 (다음 비용 {StatPotionWallet.GetNextCost(PotionType.Critical)}골드)"
@@ -336,7 +362,7 @@ namespace LoopRogue
         {
             _slotSpinning = true;
             _slotPendingPayout = result.Payout;
-            _slotReelsText.color = Color.white;
+            SetSlotLook(dim: false, win: false);
 
             var shown = new int[3];
             var stopped = 0;
@@ -352,7 +378,7 @@ namespace LoopRogue
                 for (var i = stopped; i < 3; i++)
                     shown[i] = UnityEngine.Random.Range(0, SlotMachine.Symbols.Length);
 
-                _slotReelsText.text = FormatReels(shown);
+                ShowReels(shown);
                 yield return new WaitForSeconds(0.06f);
                 elapsed += 0.06f;
             }
@@ -362,7 +388,7 @@ namespace LoopRogue
 
             if (result.MatchCount == 3)
             {
-                _slotReelsText.color = new Color(1f, 0.85f, 0.3f);
+                SetSlotLook(dim: false, win: true);
                 ShowResult($"잭팟! 3개 일치 - {result.Payout}골드 획득!", new Color(1f, 0.85f, 0.3f));
             }
             else if (result.MatchCount == 2)
@@ -371,9 +397,33 @@ namespace LoopRogue
             }
             else
             {
-                _slotReelsText.color = new Color(0.6f, 0.6f, 0.6f);
+                SetSlotLook(dim: true, win: false);
                 ShowResult($"꽝... {result.Bet}골드를 잃었습니다.", new Color(1f, 0.5f, 0.5f));
             }
+        }
+
+        private void ShowReels(int[] reels)
+        {
+            if (_reelImages[0] == null)
+            {
+                _slotReelsText.text = FormatReels(reels);
+                return;
+            }
+            for (var i = 0; i < _reelImages.Length; i++)
+                _reelImages[i].sprite = _symbolSprites[reels[i]];
+        }
+
+        /// <summary>잭팟 = 틀이 금빛, 꽝 = 기호가 흐리게(글자 릴이면 글자 색으로).</summary>
+        private void SetSlotLook(bool dim, bool win)
+        {
+            if (_reelImages[0] == null)
+            {
+                _slotReelsText.color = win ? new Color(1f, 0.85f, 0.3f) : dim ? new Color(0.6f, 0.6f, 0.6f) : Color.white;
+                return;
+            }
+            _slotFrameImage.sprite = win ? _slotFrameWinSprite : _slotFrameSprite;
+            foreach (var reel in _reelImages)
+                reel.color = dim ? new Color(0.5f, 0.5f, 0.5f) : Color.white;
         }
 
         private static string FormatReels(int[] reels) =>
@@ -434,25 +484,106 @@ namespace LoopRogue
             canvasGo.AddComponent<GraphicRaycaster>();
             var root = canvasGo.transform;
 
+            LoadArt();
+            BuildBackground(root);
+
             // 모든 화면 공통: 제목(화면 이름) / 골드 / 결과 안내 한 줄
-            _titleText = CreateLabel(root, "Title", string.Empty, 30, FontStyle.Bold, Color.white, 300f, 560f);
-            _goldText = CreateLabel(root, "GoldText", "보유 골드: 0", 20, FontStyle.Bold,
+            CreatePanel(root, 0f, 282f, 200f, 80f);
+            _titleText = CreateLabel(root, "Title", string.Empty, 26, FontStyle.Bold, Color.white, 300f, 560f);
+            _goldText = CreateLabel(root, "GoldText", "보유 골드: 0", 18, FontStyle.Bold,
                 new Color(1f, 0.85f, 0.3f), 262f, 560f);
             _resultText = CreateLabel(root, "ResultText", string.Empty, 18, FontStyle.Normal, Color.white, 222f, 1000f);
             _resultText.gameObject.SetActive(false);
 
             // 로비·뽑기 상점 공통: 지금 장비 / 로비·영약 상점 공통: 영약 누적
             _equipmentGroup = CreateGroup(root, "EquipmentGroup");
+            CreatePanel(_equipmentGroup.transform, 0f, 143f, 760f, 104f);
             _weaponText = CreateLabel(_equipmentGroup.transform, "WeaponText", string.Empty, 16, FontStyle.Normal, Color.white, 170f, 700f);
             _armorText = CreateLabel(_equipmentGroup.transform, "ArmorText", string.Empty, 16, FontStyle.Normal, Color.white, 140f, 700f);
             _accessoryText = CreateLabel(_equipmentGroup.transform, "AccessoryText", string.Empty, 16, FontStyle.Normal, Color.white, 110f, 700f);
-            _potionText = CreateLabel(root, "PotionText", string.Empty, 16, FontStyle.Normal,
-                new Color(0.6f, 1f, 0.7f), 75f, 700f);
+            _potionGroup = CreateGroup(root, "PotionGroup");
+            CreatePanel(_potionGroup.transform, 0f, 73f, 760f, 40f);
+            _potionText = CreateLabel(_potionGroup.transform, "PotionText", string.Empty, 16, FontStyle.Normal,
+                new Color(0.6f, 1f, 0.7f), 73f, 700f);
 
             BuildHubView(root);
             BuildGachaView(root);
             BuildPotionView(root);
             BuildCasinoView(root);
+        }
+
+        private void LoadArt()
+        {
+            _buttonSprite = Resources.Load<Sprite>("UI/Common/Button");
+            _buttonHoverSprite = Resources.Load<Sprite>("UI/Common/Button_Hover");
+            _panelSprite = Resources.Load<Sprite>("UI/Common/Panel");
+            foreach (LobbyView view in Enum.GetValues(typeof(LobbyView)))
+                _backgrounds[view] = Resources.Load<Sprite>($"Backgrounds/Lobby_{view}");
+        }
+
+        /// <summary>화면 비율이 16:9가 아니어도 빈틈 없이 덮게(넘치는 쪽은 잘림) + 위에 어둠 한 겹(ShowView가 화면마다 진하기 조절).</summary>
+        private void BuildBackground(Transform parent)
+        {
+            var go = new GameObject("Background", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            _background = go.AddComponent<Image>();
+            _background.enabled = false; // ShowView가 그림을 넣을 때 켠다(그림 없으면 카메라의 검은 배경)
+            var rect = go.GetComponent<RectTransform>();
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(1280f, 720f);
+            var fitter = go.AddComponent<AspectRatioFitter>();
+            fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
+            fitter.aspectRatio = 16f / 9f;
+
+            var shade = CreateGroup(parent, "Shade");
+            _shade = shade.AddComponent<Image>();
+            _shade.color = new Color(0f, 0f, 0f, 0.2f);
+        }
+
+        /// <summary>돌 테두리 패널(9-slice, 가운데 반투명 어둠) - 글자 묶음 뒤에 깐다. 글자보다 먼저 만들어야 뒤에 그려진다.</summary>
+        private void CreatePanel(Transform parent, float x, float y, float width, float height)
+        {
+            var go = new GameObject("Panel", typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var image = go.AddComponent<Image>();
+            if (_panelSprite != null)
+            {
+                image.sprite = _panelSprite;
+                image.type = Image.Type.Sliced;
+                image.pixelsPerUnitMultiplier = 1f / PixelScale;
+            }
+            else
+                image.color = new Color(0f, 0f, 0f, 0.5f);
+            var rect = go.GetComponent<RectTransform>();
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(width, height);
+            rect.anchoredPosition = new Vector2(x, y);
+        }
+
+        /// <summary>돌판 그림 버튼은 원래 단색을 옅은 물빛으로만 남긴다(그림 색이 묻히지 않게).</summary>
+        private Color ButtonTint(Color bgColor)
+        {
+            if (_buttonSprite == null)
+                return bgColor;
+            var tint = Color.Lerp(Color.white, bgColor * 2.2f, 0.35f);
+            tint.a = 1f;
+            return tint;
+        }
+
+        private void UpdateHover()
+        {
+            var mouse = Mouse.current;
+            if (mouse == null || _buttonHoverSprite == null)
+                return;
+            var screenPos = mouse.position.ReadValue();
+            foreach (var (rect, image) in _skinnedButtons)
+            {
+                if (!rect.gameObject.activeInHierarchy)
+                    continue;
+                var sprite = RectTransformUtility.RectangleContainsScreenPoint(rect, screenPos, null) ? _buttonHoverSprite : _buttonSprite;
+                if (image.sprite != sprite)
+                    image.sprite = sprite;
+            }
         }
 
         private static GameObject CreateGroup(Transform parent, string goName)
@@ -486,17 +617,32 @@ namespace LoopRogue
             // 상점 입구 3개 - 한 줄로
             var shops = new[]
             {
-                (LobbyView.Gacha, "[1] 뽑기 상점", "검 · 갑옷 · 반지 뽑기", new Color(0.3f, 0.3f, 0.5f)),
-                (LobbyView.Potion, "[2] 영약 상점", "공격력 · 체력 · 치명타 영약", new Color(0.22f, 0.4f, 0.3f)),
+                (LobbyView.Gacha, "[1] 뽑기 상점", "검·갑옷·반지 뽑기", new Color(0.3f, 0.3f, 0.5f)),
+                (LobbyView.Potion, "[2] 영약 상점", "공격력·체력·치명타", new Color(0.22f, 0.4f, 0.3f)),
                 (LobbyView.Casino, "[3] 도박장", "운명의 슬롯", new Color(0.5f, 0.3f, 0.15f)),
             };
             for (var i = 0; i < shops.Length; i++)
             {
                 var (target, name, desc, color) = shops[i];
-                CreateButton(view, $"{target}Entrance", color, -30f, 240f, 100f,
-                    out var label, $"<size=22><b>{name}</b></size>\n{desc}", 15, Color.white, () => ShowView(target), (i - 1) * 270f);
+                var card = CreateButton(view, $"{target}Entrance", color, -30f, 250f, 100f,
+                    out var label, $"<size=20><b>{name}</b></size>\n{desc}", 15, Color.white, () => ShowView(target), (i - 1) * 270f);
                 label.supportRichText = true;
-                label.rectTransform.sizeDelta = new Vector2(220f, 90f);
+
+                // 왼쪽 아이콘(보물상자 / 물약병 / 주사위), 글자는 오른쪽으로
+                var icon = Resources.Load<Sprite>($"UI/Lobby/Icon_{target}");
+                if (icon == null)
+                {
+                    label.rectTransform.sizeDelta = new Vector2(230f, 90f);
+                    continue;
+                }
+                var iconGo = new GameObject("Icon", typeof(RectTransform));
+                iconGo.transform.SetParent(card, false);
+                iconGo.AddComponent<Image>().sprite = icon;
+                var iconRect = iconGo.GetComponent<RectTransform>();
+                iconRect.sizeDelta = new Vector2(icon.rect.width, icon.rect.height) * PixelScale;
+                iconRect.anchoredPosition = new Vector2(-72f, 0f);
+                label.rectTransform.sizeDelta = new Vector2(160f, 90f);
+                label.rectTransform.anchoredPosition = new Vector2(40f, 0f);
             }
 
             CreateButton(view, "StartButton", StartButtonColor, -160f, 480f, 50f,
@@ -525,6 +671,7 @@ namespace LoopRogue
                 _gachaMultiButtonTexts[slot] = multiLabel;
             }
 
+            CreatePanel(view, 0f, -148f, 300f, 256f);
             BuildChanceTable(view);
             CreateBackButton(view);
         }
@@ -549,21 +696,60 @@ namespace LoopRogue
         private void BuildCasinoView(Transform parent)
         {
             var view = CreateView(parent, LobbyView.Casino);
+            CreatePanel(view, 0f, 115f, 440f, 170f);
 
             var slotTitle = CreateLabel(view, "SlotTitle", "운명의 슬롯\n3개 일치 10배 / 2개 일치 0.5배",
-                18, FontStyle.Bold, new Color(1f, 0.85f, 0.3f), 140f, 400f);
+                18, FontStyle.Bold, new Color(1f, 0.85f, 0.3f), 168f, 400f);
             slotTitle.rectTransform.sizeDelta = new Vector2(400f, 52f);
 
-            _slotReelsText = CreateLabel(view, "SlotReels", FormatReels(new[] { 0, 1, 2 }),
-                32, FontStyle.Bold, Color.white, 70f, 400f);
-            _slotReelsText.rectTransform.sizeDelta = new Vector2(400f, 44f);
+            BuildSlotReels(view, 86f);
 
-            CreateButton(view, "SlotButton", new Color(0.45f, 0.3f, 0.15f), 0f, 300f, 42f,
+            CreateButton(view, "SlotButton", new Color(0.45f, 0.3f, 0.15f), -12f, 300f, 42f,
                 out _slotButtonText, string.Empty, 17, Color.white, () => DoSlotSpin(false));
-            CreateButton(view, "SlotHighButton", new Color(0.5f, 0.2f, 0.15f), -50f, 300f, 42f,
+            CreateButton(view, "SlotHighButton", new Color(0.5f, 0.2f, 0.15f), -62f, 300f, 42f,
                 out _slotHighButtonText, string.Empty, 17, Color.white, () => DoSlotSpin(true));
 
             CreateBackButton(view);
+        }
+
+        /// <summary>슬롯 틀(72x26 도트) + 릴 창 3개 위에 기호(18x18 도트) - 둘 다 4배. 그림이 하나라도 없으면 글자 릴.</summary>
+        private void BuildSlotReels(Transform view, float y)
+        {
+            _slotFrameSprite = Resources.Load<Sprite>("UI/Casino/SlotFrame");
+            _slotFrameWinSprite = Resources.Load<Sprite>("UI/Casino/SlotFrame_Win");
+            _symbolSprites = new Sprite[SlotMachine.Symbols.Length];
+            var complete = _slotFrameSprite != null && _slotFrameWinSprite != null;
+            for (var i = 0; i < _symbolSprites.Length; i++)
+            {
+                _symbolSprites[i] = Resources.Load<Sprite>($"UI/Casino/Symbol_{i}");
+                complete &= _symbolSprites[i] != null;
+            }
+
+            if (!complete)
+            {
+                _slotReelsText = CreateLabel(view, "SlotReels", FormatReels(new[] { 0, 1, 2 }),
+                    32, FontStyle.Bold, Color.white, y, 400f);
+                _slotReelsText.rectTransform.sizeDelta = new Vector2(400f, 44f);
+                return;
+            }
+
+            _slotFrameImage = CreatePixelImage(view, "SlotFrame", _slotFrameSprite, new Vector2(0f, y));
+            // 창 가운데: 틀 왼쪽에서 14 + 22*i 픽셀(틀 가운데 36) → -22 / 0 / +22 픽셀
+            for (var i = 0; i < _reelImages.Length; i++)
+                _reelImages[i] = CreatePixelImage(view, $"Reel{i}", _symbolSprites[i], new Vector2((i - 1) * 22f * PixelScale, y));
+        }
+
+        private static Image CreatePixelImage(Transform parent, string goName, Sprite sprite, Vector2 position)
+        {
+            var go = new GameObject(goName, typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var image = go.AddComponent<Image>();
+            image.sprite = sprite;
+            var rect = go.GetComponent<RectTransform>();
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(sprite.rect.width, sprite.rect.height) * PixelScale;
+            rect.anchoredPosition = position;
+            return image;
         }
 
         /// <summary>등급 확률표 - 뽑기 버튼 아래에 등급 이름 열 + 검/갑옷/반지 열. 값은 RefreshGachaDisplay가 채운다.</summary>
@@ -610,6 +796,10 @@ namespace LoopRogue
             text.fontStyle = style;
             text.color = color;
             text.text = content;
+            // 그림 배경 위에서도 읽히게
+            var shadow = go.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.85f);
+            shadow.effectDistance = new Vector2(2f, -2f);
 
             var rect = go.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -630,7 +820,13 @@ namespace LoopRogue
             var go = new GameObject(goName, typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var image = go.AddComponent<Image>();
-            image.color = bgColor;
+            image.color = ButtonTint(bgColor);
+            if (_buttonSprite != null)
+            {
+                image.sprite = _buttonSprite;
+                image.type = Image.Type.Sliced;
+                image.pixelsPerUnitMultiplier = 1f / PixelScale;
+            }
 
             var rect = go.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -642,6 +838,8 @@ namespace LoopRogue
             label = CreateLabel(go.transform, goName + "Label", content, fontSize, FontStyle.Normal, textColor, 0f, width - 20f);
 
             _buttons.Add((rect, onClick));
+            if (_buttonSprite != null)
+                _skinnedButtons.Add((rect, image));
             return rect;
         }
     }
