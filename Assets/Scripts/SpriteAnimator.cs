@@ -23,6 +23,18 @@ namespace LoopRogue
             public Sprite[][] Idle = new Sprite[4][];
             public Sprite[][] Attack = new Sprite[4][];
             public Sprite[][] Walk = new Sprite[4][];
+            public Sprite[][] Lit = new Sprite[4][]; // 폭발병 심지에 불붙은 대기(lit_)
+        }
+
+        private const float LitFrameSeconds = 0.08f;
+
+        /// <summary>true면 대기 대신 lit_ 그림을 빠르게 돌린다(폭발병 불붙음) - 그 그림이 없으면 false를 돌려줘 호출부가 예전 색 표시로.</summary>
+        public bool SetLit(bool lit)
+        {
+            if (_set == null || Frames(_set.Lit).Length == 0)
+                return false;
+            _lit = lit;
+            return true;
         }
 
         private static readonly Dictionary<string, FrameSet> Cache = new Dictionary<string, FrameSet>();
@@ -47,6 +59,7 @@ namespace LoopRogue
         private float _attackStart;
         private float _stepStart = -1f;
         private Vector3 _stepFrom;
+        private bool _lit;
 
         /// <summary>세트의 대기(남쪽) 첫 프레임 - 없으면 null(그림 파일이 아직 없으면 호출부가 예전 사각형으로).</summary>
         public static Sprite FirstFrame(string setName)
@@ -127,6 +140,12 @@ namespace LoopRogue
             }
 
             _time += Time.deltaTime;
+            if (_lit)
+            {
+                var lit = Frames(_set.Lit);
+                _renderer.sprite = lit[(int)(_time / LitFrameSeconds) % lit.Length];
+                return;
+            }
             var idle = Frames(_set.Idle);
             if (idle.Length > 0)
                 _renderer.sprite = idle[(int)(_time / IdleFrameSeconds) % idle.Length];
@@ -154,6 +173,7 @@ namespace LoopRogue
                 set.Idle[d] = LoadSequence($"Sprites/{setName}/idle_{DirNames[d]}_");
                 set.Attack[d] = LoadSequence($"Sprites/{setName}/attack_{DirNames[d]}_");
                 set.Walk[d] = LoadSequence($"Sprites/{setName}/walk_{DirNames[d]}_");
+                set.Lit[d] = LoadSequence($"Sprites/{setName}/lit_{DirNames[d]}_");
             }
             Cache[setName] = set;
             return set;

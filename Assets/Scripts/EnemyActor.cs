@@ -171,6 +171,8 @@ namespace LoopRogue
         private const string ArcherSpriteSet = "SkeletonArcher";
         private const string ShieldSpriteSet = "ShieldSoldier";
         private const float ShieldSpriteScale = 1.35f;
+        private const string BomberSpriteSet = "Bomber";
+        private const float BomberSpriteScale = 1.3f;
 
         public void Initialize(float maxHealth, float attackPower, bool isBoss, EnemyKind kind = EnemyKind.Melee)
         {
@@ -232,6 +234,14 @@ namespace LoopRogue
             }
             else if (Kind == EnemyKind.Bomber)
             {
+                // 고블린 폭탄병 도트 그림(대기·걷기 4방향 + 불붙음) - 그림 파일이 없으면 예전 주황 사각형.
+                var bomber = SpriteAnimator.FirstFrame(BomberSpriteSet);
+                if (bomber != null)
+                {
+                    var spriteRenderer = VisualUtil.CreateSpriteVisual(gameObject, bomber, GridConstants.CellSize * BomberSpriteScale, sortingOrder: 0);
+                    gameObject.AddComponent<SpriteAnimator>().Setup(BomberSpriteSet, spriteRenderer, new Color(1f, 0.55f, 0.1f));
+                    return;
+                }
                 color = new Color(1f, 0.55f, 0.1f); // 폭발병은 주황색(불 붙으면 노랗게)
                 scale = GridConstants.CellSize * 0.55f;
             }
@@ -302,9 +312,15 @@ namespace LoopRogue
             if (IsAdjacentTo(_tp))
             {
                 _fuseLit = true;
-                var renderer = GetComponent<SpriteRenderer>();
-                if (renderer != null)
-                    renderer.color = new Color(1f, 0.95f, 0.3f);
+                // 그림이면 플레이어 쪽을 보며 부들부들 + 폭탄이 달아오르는 그림으로, 아니면 예전처럼 노랗게
+                if (TryGetComponent<SpriteAnimator>(out var anim) && anim.SetLit(true))
+                    anim.Face(_tp - GridPos);
+                else
+                {
+                    var renderer = GetComponent<SpriteRenderer>();
+                    if (renderer != null)
+                        renderer.color = new Color(1f, 0.95f, 0.3f);
+                }
                 room.ShowBombTelegraph(this, BlastTiles());
                 HitFeedback.OnFuseLit(this);
                 return;
