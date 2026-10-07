@@ -234,11 +234,12 @@ namespace LoopRogue
         {
             _pendingTiles.Clear();
             var origin = _boss.GridPos;
+            var body = _boss.FootprintRadius; // 3x3 보스면 1 - 보스 기준 범위는 몸 가장자리에서 잰다
 
             switch (type)
             {
                 case BossPatternType.Slam:
-                    AddSquare(map, origin, 1);
+                    AddSquare(map, origin, 1 + body); // 몸 둘레 한 줄
                     break;
                 case BossPatternType.Snipe:
                     // 3x3이면 한 턴에 한 칸만 움직이는 플레이어가 절대 못 빠져나가서, 플레이어 자리 + 대각선만 친다.
@@ -255,10 +256,10 @@ namespace LoopRogue
                     // 거리 1과 3을 치고 그 사이 거리 2는 안전 - 보스 옆에서 때리다 예고가 뜨면 한 칸 물러나서 피한다.
                     // 예전(거리 2~3, 바로 옆 안전)은 옆에 붙어 계속 때리면 절대 안 맞아서 패턴이 보스의 공격 턴만 버리게
                     // 만들었다(봇 100판: 5층 81판 무사망). 1~2칸 전부 치면 예고 후 한 칸 이동으로는 못 빠져나간다.
-                    for (var dx = -3; dx <= 3; dx++)
-                    for (var dy = -3; dy <= 3; dy++)
+                    for (var dx = -3 - body; dx <= 3 + body; dx++)
+                    for (var dy = -3 - body; dy <= 3 + body; dy++)
                     {
-                        var r = Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy));
+                        var r = Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) - body; // 몸 가장자리 기준 거리
                         if (r == 1 || r == 3)
                             AddTile(map, origin + new Vector2Int(dx, dy));
                     }
@@ -282,7 +283,23 @@ namespace LoopRogue
                         : new Vector2Int(0, System.Math.Sign(diff.y));
                     if (_chargeDirection == Vector2Int.zero)
                         _chargeDirection = Vector2Int.left;
-                    AddRay(map, origin, _chargeDirection, MaxChargeDistance);
+                    if (body == 0)
+                    {
+                        AddRay(map, origin, _chargeDirection, MaxChargeDistance);
+                        break;
+                    }
+                    // 큰 몸은 몸 폭만큼의 띠를 쓸고 간다 - 몸이 벽에 닿기 직전까지(캐릭터는 예고만 통과, 실제 돌진은 DoChargeMove가 막힘 확인)
+                    for (var k = 1; k <= MaxChargeDistance; k++)
+                    {
+                        var center = origin + _chargeDirection * k;
+                        var fits = true;
+                        foreach (var p in GridMap.Cells(center, body))
+                            fits &= map.IsInBounds(p) && !map.IsWall(p);
+                        if (!fits)
+                            break;
+                        foreach (var p in GridMap.Cells(center, body))
+                            AddTile(map, p);
+                    }
                     break;
                 }
             }
@@ -295,7 +312,7 @@ namespace LoopRogue
             for (var i = 0; i < MaxChargeDistance; i++)
             {
                 var next = pos + _chargeDirection;
-                if (!map.IsWalkable(next))
+                if (!map.CanOccupy(_boss, next)) // 몸 전체가 들어가야 전진
                     break;
                 pos = next;
             }
@@ -314,13 +331,15 @@ namespace LoopRogue
         private void AddRay(GridMap map, Vector2Int origin, Vector2Int d, int maxLength = int.MaxValue)
         {
             var length = 0;
-            for (var p = origin + d; map.IsInBounds(p) && !map.IsWall(p) && length < maxLength; p += d, length++)
+            // 보스 몸 안은 건너뛰고 몸 가장자리 바깥부터 센다(3x3 보스)
+            var start = GridMap.Occupies(_boss, origin) ? origin + d * (_boss.FootprintRadius + 1) : origin + d;
+            for (var p = start; map.IsInBounds(p) && !map.IsWall(p) && length < maxLength; p += d, length++)
                 _pendingTiles.Add(p);
         }
 
         private void AddTile(GridMap map, Vector2Int p)
         {
-            if (map.IsInBounds(p) && !map.IsWall(p) && p != _boss.GridPos)
+            if (map.IsInBounds(p) && !map.IsWall(p) && !GridMap.Occupies(_boss, p))
                 _pendingTiles.Add(p);
         }
     }

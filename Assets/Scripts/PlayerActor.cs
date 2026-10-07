@@ -654,8 +654,8 @@ namespace LoopRogue
                 return null;
             var list = new List<EnemyActor>();
             foreach (var d in Around8)
-                if (Map.GetActorAt(dead.GridPos + d) is EnemyActor e && e != dead && !e.Stats.IsDead)
-                    list.Add(e);
+                if (Map.GetActorAt(dead.GridPos + d) is EnemyActor e && e != dead && !e.Stats.IsDead && !list.Contains(e))
+                    list.Add(e); // 3x3 보스는 여러 칸이 걸쳐도 한 번만
             return list;
         }
 
@@ -687,20 +687,30 @@ namespace LoopRogue
         /// <summary>일반 공격(방향키로 때리기) 직후 - 유물 "대지의 망치"(대상 상하좌우)와 "관통의 인장"(대상 뒤 1칸). 방이 넘어갔으면 true.</summary>
         private bool NormalAttackRelicHits(Vector2Int targetPos, Vector2Int direction)
         {
+            // 방금 때린 몹(3x3 보스면 그 몸 칸들이 주변에 걸쳐 있다) - 같은 몹을 추가타로 다시 때리지 않는다
+            var primary = Map.GetActorAt(targetPos) as EnemyActor;
             if (Relics.Has(RelicType.EarthHammer))
             {
+                var struck = new HashSet<EnemyActor>();
+                if (primary != null)
+                    struck.Add(primary);
                 foreach (var d in Around4)
                 {
                     var p = targetPos + d;
-                    if (p == GridPos || !(Map.GetActorAt(p) is EnemyActor e) || e.Stats.IsDead)
+                    if (p == GridPos || !(Map.GetActorAt(p) is EnemyActor e) || e.Stats.IsDead || !struck.Add(e))
                         continue;
                     if (StrikeEnemy(e, d, Relics.EarthHammerSplashRate, ignoreShield: true, isSkill: true))
                         return true;
                 }
             }
-            if (Relics.Has(RelicType.PiercingSeal) && Map.GetActorAt(targetPos + direction) is EnemyActor behind && !behind.Stats.IsDead)
+            if (Relics.Has(RelicType.PiercingSeal))
             {
-                if (StrikeEnemy(behind, direction, Relics.PiercingRate, ignoreShield: true, isSkill: true))
+                // 대상 몸 바로 뒤 칸(3x3 보스면 몸을 지나 그 너머)
+                var behindPos = targetPos + direction;
+                while (primary != null && GridMap.Occupies(primary, behindPos))
+                    behindPos += direction;
+                if (Map.GetActorAt(behindPos) is EnemyActor behind && behind != primary && !behind.Stats.IsDead &&
+                    StrikeEnemy(behind, direction, Relics.PiercingRate, ignoreShield: true, isSkill: true))
                     return true;
             }
             return false;
@@ -754,11 +764,14 @@ namespace LoopRogue
                     return true;
             }
 
-            if (Relics.Has(RelicType.TyrantPlate)) // 유물 "폭군의 갑주" - 내려선 자리 주변 8칸
+            if (Relics.Has(RelicType.TyrantPlate)) // 유물 "폭군의 갑주" - 내려선 자리 주변 8칸(같은 몹은 한 번만)
             {
+                var struck = new HashSet<EnemyActor>();
+                if (hit != null)
+                    struck.Add(hit);
                 foreach (var d in Around8)
                 {
-                    if (!(Map.GetActorAt(GridPos + d) is EnemyActor e) || e.Stats.IsDead || e == hit)
+                    if (!(Map.GetActorAt(GridPos + d) is EnemyActor e) || e.Stats.IsDead || !struck.Add(e))
                         continue;
                     if (StrikeEnemy(e, d, Relics.TyrantLandingRate, ignoreShield: true, isSkill: true))
                         return true;
@@ -772,11 +785,11 @@ namespace LoopRogue
         /// <summary>회전 베기 대상 수(주변 8칸의 살아있는 몹) - 봇 판단용.</summary>
         public int CountSpinTargets()
         {
-            var count = 0;
+            var seen = new HashSet<EnemyActor>(); // 3x3 보스는 여러 칸이 걸쳐도 한 마리
             foreach (var offset in SpinOffsets)
                 if (Map.GetActorAt(GridPos + offset) is EnemyActor e && !e.Stats.IsDead)
-                    count++;
-            return count;
+                    seen.Add(e);
+            return seen.Count;
         }
 
         /// <summary>E 회전 베기 - 주변 8칸 몹 전체를 공격력의 80%로(치명타는 몹마다 따로). 주변에 몹이 없으면 false(턴 소모 없음).</summary>
@@ -787,8 +800,8 @@ namespace LoopRogue
 
             var targets = new List<(EnemyActor Enemy, Vector2Int Offset)>();
             foreach (var offset in SpinOffsets)
-                if (Map.GetActorAt(GridPos + offset) is EnemyActor e && !e.Stats.IsDead)
-                    targets.Add((e, offset));
+                if (Map.GetActorAt(GridPos + offset) is EnemyActor e && !e.Stats.IsDead && !targets.Any(t => t.Enemy == e))
+                    targets.Add((e, offset)); // 3x3 보스는 처음 걸린 칸 방향으로 한 번만
             if (targets.Count == 0)
                 return false;
 

@@ -86,6 +86,10 @@ namespace LoopRogue
             { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
 
         public bool IsBoss { get; private set; }
+
+        /// <summary>보스는 3x3 칸을 차지한다(사용자 결정) - GridPos가 가운데 칸. 어느 칸을 때려도 맞고, 몸 전체가 들어갈 자리로만 움직인다.</summary>
+        public const int BossFootprintRadius = 1;
+        public override int FootprintRadius => IsBoss ? BossFootprintRadius : 0;
         public bool IsMinion { get; private set; } // 보스가 소환한 졸개 - 골드/경험치 없음, 보스가 죽으면 같이 사라짐
         public EnemyKind Kind { get; private set; }
 
@@ -193,7 +197,7 @@ namespace LoopRogue
             if (isBoss)
             {
                 color = new Color(0.55f, 0.05f, 0.05f);
-                scale = GridConstants.CellSize * 1.1f;
+                scale = GridConstants.CellSize * (BossFootprintRadius * 2 + 1) * 0.95f; // 차지한 3x3 칸만큼
             }
             else if (Kind == EnemyKind.Ranged)
             {
@@ -269,7 +273,8 @@ namespace LoopRogue
             VisualUtil.CreateSquareVisual(gameObject, color, scale, sortingOrder: 0);
         }
 
-        public bool IsAdjacentTo(Vector2Int pos) => Distance(GridPos, pos) == 1;
+        /// <summary>pos가 몸에 상하좌우로 붙은 칸인지(3x3 보스면 몸 둘레 칸, 대각선 모서리는 아님).</summary>
+        public bool IsAdjacentTo(Vector2Int pos) => GridMap.FootprintDistance(this, pos) == 1;
 
         /// <param name="claimedSlots">이번 턴에 이미 다른 근접 몹이 예약한 "플레이어 옆 칸" - 한 칸에 두 마리가
         /// 몰리지 않게 RoomController가 한 턴 동안 공유해서 넘겨준다.</param>
@@ -412,6 +417,11 @@ namespace LoopRogue
                 HitTarget(player);
                 return;
             }
+            if (FootprintRadius > 0)
+            {
+                MoveBigBodyToward(_tp);
+                return;
+            }
 
             var slots = SlotBuffer;
             slots.Clear();
@@ -476,6 +486,59 @@ namespace LoopRogue
                 }
             }
             return false;
+        }
+
+        /// <summary>3x3 보스 이동 - 몸 전체가 들어가는 가운데 칸만 밟는 BFS로 "몸이 target에 붙는" 자리를 찾아 첫 걸음.
+        /// 길이 없으면(기둥 사이 등) 몸이 들어가는 쪽으로 그리디하게 한 칸.</summary>
+        private void MoveBigBodyToward(Vector2Int target)
+        {
+            var r = FootprintRadius;
+            var first = FirstStepBuffer;
+            var queue = QueueBuffer;
+            first.Clear();
+            queue.Clear();
+            foreach (var d in Directions)
+            {
+                var next = GridPos + d;
+                if (!Map.CanOccupy(this, next))
+                    continue;
+                first[next] = next;
+                queue.Enqueue(next);
+            }
+
+            while (queue.Count > 0)
+            {
+                var cur = queue.Dequeue();
+                if (GridMap.FootprintDistance(cur, r, target) == 1)
+                {
+                    Map.MoveActor(this, first[cur]);
+                    return;
+                }
+                foreach (var d in Directions)
+                {
+                    var next = cur + d;
+                    if (next == GridPos || first.ContainsKey(next) || !Map.CanOccupy(this, next))
+                        continue;
+                    first[next] = first[cur];
+                    queue.Enqueue(next);
+                }
+            }
+
+            var diff = target - GridPos;
+            var primary = Mathf.Abs(diff.x) >= Mathf.Abs(diff.y)
+                ? new Vector2Int(System.Math.Sign(diff.x), 0)
+                : new Vector2Int(0, System.Math.Sign(diff.y));
+            var secondary = Mathf.Abs(diff.x) >= Mathf.Abs(diff.y)
+                ? new Vector2Int(0, System.Math.Sign(diff.y))
+                : new Vector2Int(System.Math.Sign(diff.x), 0);
+            foreach (var step in new[] { primary, secondary })
+            {
+                if (step != Vector2Int.zero && Map.CanOccupy(this, GridPos + step))
+                {
+                    Map.MoveActor(this, GridPos + step);
+                    return;
+                }
+            }
         }
 
         /// <summary>예전 방식 - 더 멀리 떨어진 축으로 한 칸, 막히면 다른 축으로 한 칸, 그것도 막히면 대기.</summary>

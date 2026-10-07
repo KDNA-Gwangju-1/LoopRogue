@@ -1153,7 +1153,7 @@ namespace LoopRogue
                 return true;
             if (boss != null && danger.Count > 0 && hpRate < 0.5f && Use(ItemType.Flash, null, "보스 예고+체력 낮음"))
                 return true;
-            if (boss != null && Mathf.Abs(boss.GridPos.x - start.x) + Mathf.Abs(boss.GridPos.y - start.y) == 1 && Use(ItemType.Weakness, null, "보스 옆"))
+            if (boss != null && GridMap.FootprintDistance(boss, start) == 1 && Use(ItemType.Weakness, null, "보스 옆"))
                 return true;
             if (boss == null && near >= 4 && Use(ItemType.Weakness, null, "몹 4+"))
                 return true;
@@ -1182,7 +1182,7 @@ namespace LoopRogue
             if (boss != null && Inventory.Has(ItemType.Trap))
             {
                 var diff = boss.GridPos - start;
-                if (Mathf.Abs(diff.x) + Mathf.Abs(diff.y) >= 3)
+                if (GridMap.FootprintDistance(boss, start) >= 3) // 몸 가장자리까지 3칸 이상
                 {
                     var d = Mathf.Abs(diff.x) >= Mathf.Abs(diff.y) ? new Vector2Int(System.Math.Sign(diff.x), 0) : new Vector2Int(0, System.Math.Sign(diff.y));
                     if (_room.CanPlaceAt(start + d) && Use(ItemType.Trap, d, "보스 길목"))
@@ -1259,6 +1259,20 @@ namespace LoopRogue
             {
                 if (e == null || !ReferenceEquals(map.GetActorAt(e.GridPos), e))
                     continue;
+                if (e.FootprintRadius > 0)
+                {
+                    // 3x3 보스 - 몸 둘레에 상하좌우로 붙는 칸 전부(몸 안 칸은 목표가 아님)
+                    foreach (var cell in GridMap.CellsOf(e))
+                    foreach (var d in Directions)
+                    {
+                        var c = cell + d;
+                        if (GridMap.Occupies(e, c))
+                            continue;
+                        adjacentAny.Add(c);
+                        adjacentFlank.Add(c);
+                    }
+                    continue;
+                }
                 foreach (var d in Directions)
                 {
                     var c = e.GridPos + d;

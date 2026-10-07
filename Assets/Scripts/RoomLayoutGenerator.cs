@@ -52,13 +52,16 @@ namespace LoopRogue
             // 보스는 시작 칸 반대편 구석 근처 - 입장하자마자 붙어 있지 않게.
             var bossPos = new Vector2Int(layout.Width - 2, layout.Height - 2);
 
-            // 벽을 깔면 안 되는 칸: 시작 칸 주변(반경 1), 보스 자리 주변
+            // 벽을 깔면 안 되는 칸: 시작 칸 주변(반경 1), 보스 자리 주변(보스 몸 3x3 + 처음 움직일 둘레 한 줄)
             var reserved = new HashSet<Vector2Int>();
             for (var dx = -1; dx <= 1; dx++)
             for (var dy = -1; dy <= 1; dy++)
-            {
                 reserved.Add(layout.PlayerStart + new Vector2Int(dx, dy));
-                if (def.IsBossRoom)
+            if (def.IsBossRoom)
+            {
+                var keep = EnemyActor.BossFootprintRadius + 1;
+                for (var dx = -keep; dx <= keep; dx++)
+                for (var dy = -keep; dy <= keep; dy++)
                     reserved.Add(bossPos + new Vector2Int(dx, dy));
             }
 

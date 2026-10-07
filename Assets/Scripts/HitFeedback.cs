@@ -74,7 +74,13 @@ namespace LoopRogue
                 return;
 
             if (attacker != null && attacker.IsAdjacentTo(player.GridPos))
-                ActorJuice.Get(attacker).Bump(player.GridPos - attacker.GridPos, BumpDistance);
+            {
+                // 3x3 보스는 가운데 칸에서 재면 (2,1) 같은 비스듬한 값이 나와서, 몸 밖으로 나간 축 쪽으로만 들이받는다
+                var d = player.GridPos - attacker.GridPos;
+                var r = attacker.FootprintRadius;
+                var dir = new Vector2Int(Mathf.Abs(d.x) > r ? System.Math.Sign(d.x) : 0, Mathf.Abs(d.y) > r ? System.Math.Sign(d.y) : 0);
+                ActorJuice.Get(attacker).Bump(dir, BumpDistance);
+            }
             ActorJuice.Get(player).Flash(PlayerHurtTint);
             CameraShake.Shake(attacker != null && attacker.IsBoss ? 0.14f : 0.08f, 0.12f);
             SfxPlayer.Play(Sfx.Hurt);

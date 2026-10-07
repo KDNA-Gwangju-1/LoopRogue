@@ -229,9 +229,11 @@ namespace LoopRogue
             if (toSpawn <= 0)
                 return;
 
+            // 보스 몸 바로 둘레 한 줄(3x3 보스면 5x5 테두리)
             var cells = new List<Vector2Int>();
-            for (var dx = -1; dx <= 1; dx++)
-            for (var dy = -1; dy <= 1; dy++)
+            var ring = boss.FootprintRadius + 1;
+            for (var dx = -ring; dx <= ring; dx++)
+            for (var dy = -ring; dy <= ring; dy++)
             {
                 var p = boss.GridPos + new Vector2Int(dx, dy);
                 if (Map.IsWalkable(p))
@@ -723,7 +725,7 @@ namespace LoopRogue
                 {
                     var dx = Mathf.Abs(e.GridPos.x - x);
                     var dy = Mathf.Abs(e.GridPos.y - y);
-                    nearest = Mathf.Min(nearest, dx + dy);
+                    nearest = Mathf.Min(nearest, GridMap.FootprintDistance(e, pos)); // 3x3 보스는 몸 가장자리까지
                     if ((e.Kind == EnemyKind.Ranged || e.Kind == EnemyKind.Spider) && (dx == 0 || dy == 0) && dx + dy <= EnemyActor.RangedAttackRange)
                         aimed = true;
                 }
@@ -781,9 +783,13 @@ namespace LoopRogue
 
         private void CheckTrap(EnemyActor enemy)
         {
-            if (enemy == null || enemy.Stats.IsDead || !_traps.TryGetValue(enemy.GridPos, out var go))
+            if (enemy == null || enemy.Stats.IsDead)
                 return;
-            _traps.Remove(enemy.GridPos);
+            // 몸이 덮은 칸 중 덫이 있는 칸(3x3 보스는 몸 어디로든 밟는다)
+            var trapCell = GridMap.CellsOf(enemy).FirstOrDefault(c => _traps.ContainsKey(c));
+            if (!_traps.TryGetValue(trapCell, out var go) || !GridMap.Occupies(enemy, trapCell))
+                return;
+            _traps.Remove(trapCell);
             if (go != null)
                 Destroy(go);
             enemy.Stun(ItemInfo.TrapStunTurns);
@@ -855,7 +861,7 @@ namespace LoopRogue
             }
 
             var damage = _player.Stats.AttackPower * ItemInfo.BombDamageRate;
-            foreach (var enemy in _enemies.Where(e => e != null && !e.Stats.IsDead && area.Contains(e.GridPos)).ToArray())
+            foreach (var enemy in _enemies.Where(e => e != null && !e.Stats.IsDead && area.Any(t => GridMap.Occupies(e, t))).ToArray())
             {
                 var dealt = damage * enemy.DamageTakenMultiplier;
                 enemy.Stats.TakeDamage(dealt);
@@ -875,7 +881,6 @@ namespace LoopRogue
 
         /// <summary>주변(체비쇼프 반경) 살아있는 몹 - 연막탄/섬광탄/약점 표식용.</summary>
         public List<EnemyActor> EnemiesWithin(Vector2Int center, int radius) =>
-            _enemies.Where(e => e != null && !e.Stats.IsDead &&
-                                Mathf.Max(Mathf.Abs(e.GridPos.x - center.x), Mathf.Abs(e.GridPos.y - center.y)) <= radius).ToList();
+            _enemies.Where(e => e != null && !e.Stats.IsDead && GridMap.FootprintChebyshev(e, center) <= radius).ToList(); // 몸 가장자리 기준
     }
 }
