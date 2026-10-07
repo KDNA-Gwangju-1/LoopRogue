@@ -27,6 +27,14 @@ namespace LoopRogue
 
         private readonly List<(RectTransform rect, Action onClick)> _buttons = new List<(RectTransform, Action)>();
 
+        // 로비(허브)에서 상점 3곳으로 들어가 그 안에서만 사고판다 - 한 화면에 다 몰려 있던 걸 나눔.
+        // 화면마다 GameObject 하나, 꺼진 화면의 버튼은 클릭·단축키 둘 다 안 받는다.
+        private enum LobbyView { Hub, Gacha, Potion, Casino }
+        private LobbyView _view;
+        private readonly Dictionary<LobbyView, GameObject> _viewRoots = new Dictionary<LobbyView, GameObject>();
+        private Text _titleText;
+        private GameObject _equipmentGroup;
+
         private Text _goldText;
         private Text _weaponText;
         private Text _armorText;
@@ -74,64 +82,101 @@ namespace LoopRogue
             RefreshPotionDisplay();
             RefreshCriticalDisplay();
             RefreshSlotDisplay();
+            ShowView(LobbyView.Hub);
         }
 
         private void Update()
         {
             _goldText.text = $"보유 골드: {GoldWallet.Gold - _slotPendingPayout}";
 
-            HandleMouseClick();
+            // 클릭으로 화면이 바뀐 프레임엔 단축키를 안 읽는다(같은 프레임에 새 화면 키가 먹지 않게).
+            if (HandleMouseClick())
+                return;
 
             var keyboard = Keyboard.current;
             if (keyboard == null)
                 return;
 
-            // 숫자키 = 1회, Shift+숫자키 = 10연차
             var shift = keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed;
-            if (keyboard.digit1Key.wasPressedThisFrame)
-                DoGacha(ItemSlot.Weapon, shift);
+            switch (_view)
+            {
+                case LobbyView.Hub:
+                    if (keyboard.digit1Key.wasPressedThisFrame)
+                        ShowView(LobbyView.Gacha);
+                    else if (keyboard.digit2Key.wasPressedThisFrame)
+                        ShowView(LobbyView.Potion);
+                    else if (keyboard.digit3Key.wasPressedThisFrame)
+                        ShowView(LobbyView.Casino);
+                    else if (keyboard.enterKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame)
+                        StartRun();
+                    // Esc = 타이틀로(로비엔 진행 중인 전투가 없어서 확인 없이 바로 이동 - 골드/장비는 전부 영구 저장).
+                    else if (keyboard.escapeKey.wasPressedThisFrame)
+                        SceneManager.LoadScene("Title");
+                    return;
 
-            if (keyboard.digit2Key.wasPressedThisFrame)
-                DoGacha(ItemSlot.Armor, shift);
+                case LobbyView.Gacha:
+                    // 숫자키 = 1회, Shift+숫자키 = 10연차
+                    if (keyboard.digit1Key.wasPressedThisFrame)
+                        DoGacha(ItemSlot.Weapon, shift);
+                    if (keyboard.digit2Key.wasPressedThisFrame)
+                        DoGacha(ItemSlot.Armor, shift);
+                    if (keyboard.digit3Key.wasPressedThisFrame)
+                        DoGacha(ItemSlot.Accessory, shift);
+                    break;
 
-            if (keyboard.digit3Key.wasPressedThisFrame)
-                DoGacha(ItemSlot.Accessory, shift);
+                case LobbyView.Potion:
+                    if (keyboard.aKey.wasPressedThisFrame)
+                        DoPotionBuy(PotionType.Attack, "공격력");
+                    if (keyboard.hKey.wasPressedThisFrame)
+                        DoPotionBuy(PotionType.Health, "체력");
+                    if (keyboard.cKey.wasPressedThisFrame)
+                        DoPotionBuy(PotionType.Critical, "치명타");
+                    break;
 
-            if (keyboard.aKey.wasPressedThisFrame)
-                DoPotionBuy(PotionType.Attack, "공격력");
+                case LobbyView.Casino:
+                    if (keyboard.sKey.wasPressedThisFrame)
+                        DoSlotSpin(shift);
+                    break;
+            }
 
-            if (keyboard.hKey.wasPressedThisFrame)
-                DoPotionBuy(PotionType.Health, "체력");
-
-            if (keyboard.cKey.wasPressedThisFrame)
-                DoPotionBuy(PotionType.Critical, "치명타");
-
-            if (keyboard.sKey.wasPressedThisFrame)
-                DoSlotSpin(shift);
-
-            if (keyboard.enterKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame)
-                StartRun();
-
-            // Esc = 타이틀로(로비엔 진행 중인 전투가 없어서 확인 없이 바로 이동 - 골드/장비는 전부 영구 저장).
             if (keyboard.escapeKey.wasPressedThisFrame)
-                SceneManager.LoadScene("Title");
+                ShowView(LobbyView.Hub);
         }
 
-        private void HandleMouseClick()
+        /// <summary>눌린 버튼이 있으면 실행하고 true. 꺼진 화면의 버튼은 건너뛴다.</summary>
+        private bool HandleMouseClick()
         {
             var mouse = Mouse.current;
             if (mouse == null || !mouse.leftButton.wasPressedThisFrame)
-                return;
+                return false;
 
             var screenPos = mouse.position.ReadValue();
             foreach (var (rect, onClick) in _buttons)
             {
-                if (RectTransformUtility.RectangleContainsScreenPoint(rect, screenPos, null))
+                if (rect.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(rect, screenPos, null))
                 {
                     onClick();
-                    return;
+                    return true;
                 }
             }
+            return false;
+        }
+
+        private void ShowView(LobbyView view)
+        {
+            _view = view;
+            foreach (var pair in _viewRoots)
+                pair.Value.SetActive(pair.Key == view);
+            // 장비 요약은 로비와 뽑기 상점 둘 다에서 보여준다(뽑으면서 지금 장비를 봐야 해서).
+            _equipmentGroup.SetActive(view == LobbyView.Hub || view == LobbyView.Gacha);
+            _potionText.gameObject.SetActive(view == LobbyView.Hub || view == LobbyView.Potion);
+            _titleText.text = view switch
+            {
+                LobbyView.Gacha => "뽑기 상점",
+                LobbyView.Potion => "영약 상점",
+                LobbyView.Casino => "도박장",
+                _ => $"LoopRogue - Stage {StageProgress.CurrentStage}/{StageProgress.MaxStage}",
+            };
         }
 
         private void StartRun() => SceneManager.LoadScene(MainSceneName);
@@ -387,76 +432,146 @@ namespace LoopRogue
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1280f, 720f);
             canvasGo.AddComponent<GraphicRaycaster>();
+            var root = canvasGo.transform;
 
-            CreateLabel(canvasGo.transform, "Title",
-                $"LoopRogue - Stage {StageProgress.CurrentStage}/{StageProgress.MaxStage}",
-                30, FontStyle.Bold, Color.white, 240f, 560f);
-            _resultText = CreateLabel(canvasGo.transform, "ResultText", string.Empty, 18, FontStyle.Normal, Color.white, 190f, 560f);
+            // 모든 화면 공통: 제목(화면 이름) / 골드 / 결과 안내 한 줄
+            _titleText = CreateLabel(root, "Title", string.Empty, 30, FontStyle.Bold, Color.white, 300f, 560f);
+            _goldText = CreateLabel(root, "GoldText", "보유 골드: 0", 20, FontStyle.Bold,
+                new Color(1f, 0.85f, 0.3f), 262f, 560f);
+            _resultText = CreateLabel(root, "ResultText", string.Empty, 18, FontStyle.Normal, Color.white, 222f, 1000f);
             _resultText.gameObject.SetActive(false);
 
-            _weaponText = CreateLabel(canvasGo.transform, "WeaponText", string.Empty, 16, FontStyle.Normal, Color.white, 140f, 560f);
-            _armorText = CreateLabel(canvasGo.transform, "ArmorText", string.Empty, 16, FontStyle.Normal, Color.white, 110f, 560f);
-            _accessoryText = CreateLabel(canvasGo.transform, "AccessoryText", string.Empty, 16, FontStyle.Normal, Color.white, 80f, 560f);
-            _potionText = CreateLabel(canvasGo.transform, "PotionText", string.Empty, 16, FontStyle.Normal,
-                new Color(0.6f, 1f, 0.7f), 45f, 560f);
+            // 로비·뽑기 상점 공통: 지금 장비 / 로비·영약 상점 공통: 영약 누적
+            _equipmentGroup = CreateGroup(root, "EquipmentGroup");
+            _weaponText = CreateLabel(_equipmentGroup.transform, "WeaponText", string.Empty, 16, FontStyle.Normal, Color.white, 170f, 700f);
+            _armorText = CreateLabel(_equipmentGroup.transform, "ArmorText", string.Empty, 16, FontStyle.Normal, Color.white, 140f, 700f);
+            _accessoryText = CreateLabel(_equipmentGroup.transform, "AccessoryText", string.Empty, 16, FontStyle.Normal, Color.white, 110f, 700f);
+            _potionText = CreateLabel(root, "PotionText", string.Empty, 16, FontStyle.Normal,
+                new Color(0.6f, 1f, 0.7f), 75f, 700f);
 
-            _goldText = CreateLabel(canvasGo.transform, "GoldText", "보유 골드: 0", 20, FontStyle.Bold,
-                new Color(1f, 0.85f, 0.3f), 5f, 560f);
+            BuildHubView(root);
+            BuildGachaView(root);
+            BuildPotionView(root);
+            BuildCasinoView(root);
+        }
+
+        private static GameObject CreateGroup(Transform parent, string goName)
+        {
+            var go = new GameObject(goName, typeof(RectTransform));
+            go.transform.SetParent(parent, false);
+            var rect = go.GetComponent<RectTransform>();
+            rect.anchorMin = Vector2.zero;
+            rect.anchorMax = Vector2.one;
+            rect.offsetMin = Vector2.zero;
+            rect.offsetMax = Vector2.zero;
+            return go;
+        }
+
+        private Transform CreateView(Transform parent, LobbyView view)
+        {
+            var go = CreateGroup(parent, $"{view}View");
+            _viewRoots[view] = go;
+            return go.transform;
+        }
+
+        /// <summary>상점 안 화면 맨 아래 공통 "로비로" 버튼.</summary>
+        private void CreateBackButton(Transform view) =>
+            CreateButton(view, "BackButton", ButtonLockedColor, -300f, 220f, 40f,
+                out _, "[Esc] 로비로", 17, Color.white, () => ShowView(LobbyView.Hub));
+
+        private void BuildHubView(Transform parent)
+        {
+            var view = CreateView(parent, LobbyView.Hub);
+
+            // 상점 입구 3개 - 한 줄로
+            var shops = new[]
+            {
+                (LobbyView.Gacha, "[1] 뽑기 상점", "검 · 갑옷 · 반지 뽑기", new Color(0.3f, 0.3f, 0.5f)),
+                (LobbyView.Potion, "[2] 영약 상점", "공격력 · 체력 · 치명타 영약", new Color(0.22f, 0.4f, 0.3f)),
+                (LobbyView.Casino, "[3] 도박장", "운명의 슬롯", new Color(0.5f, 0.3f, 0.15f)),
+            };
+            for (var i = 0; i < shops.Length; i++)
+            {
+                var (target, name, desc, color) = shops[i];
+                CreateButton(view, $"{target}Entrance", color, -30f, 240f, 100f,
+                    out var label, $"<size=22><b>{name}</b></size>\n{desc}", 15, Color.white, () => ShowView(target), (i - 1) * 270f);
+                label.supportRichText = true;
+                label.rectTransform.sizeDelta = new Vector2(220f, 90f);
+            }
+
+            CreateButton(view, "StartButton", StartButtonColor, -160f, 480f, 50f,
+                out _, $"[Enter / Space] 스테이지 {StageProgress.CurrentStage} 시작", 20, Color.white, StartRun);
+
+            CreateLabel(view, "HubHint", "Esc: 타이틀로", 13, FontStyle.Normal, new Color(0.6f, 0.6f, 0.65f), -215f, 400f);
+        }
+
+        private void BuildGachaView(Transform parent)
+        {
+            var view = CreateView(parent, LobbyView.Gacha);
 
             // 슬롯별 뽑기 버튼 3개를 한 줄로(검/갑옷/반지) - 두 줄 텍스트라 버튼/라벨 높이를 키운다.
             foreach (ItemSlot slot in Enum.GetValues(typeof(ItemSlot)))
             {
                 var x = ((int)slot - 1) * 200f;
                 var captured = slot;
-                CreateButton(canvasGo.transform, $"Gacha{slot}Button", ButtonColor, -42f, 190f, 50f,
+                CreateButton(view, $"Gacha{slot}Button", ButtonColor, 50f, 190f, 50f,
                     out var label, string.Empty, 14, Color.white, () => DoGachaPull(captured), x);
                 label.rectTransform.sizeDelta = new Vector2(180f, 46f);
                 _gachaButtonTexts[slot] = label;
 
                 // 바로 아래 10연차 버튼
-                CreateButton(canvasGo.transform, $"Gacha{slot}MultiButton", new Color(0.35f, 0.3f, 0.45f), -92f, 190f, 34f,
+                CreateButton(view, $"Gacha{slot}MultiButton", new Color(0.35f, 0.3f, 0.45f), 2f, 190f, 34f,
                     out var multiLabel, string.Empty, 14, Color.white, () => DoGachaMultiPull(captured), x);
                 _gachaMultiButtonTexts[slot] = multiLabel;
             }
 
-            CreateButton(canvasGo.transform, "AttackPotionButton", ButtonColor, -137f, 480f, 38f,
+            BuildChanceTable(view);
+            CreateBackButton(view);
+        }
+
+        private void BuildPotionView(Transform parent)
+        {
+            var view = CreateView(parent, LobbyView.Potion);
+
+            CreateButton(view, "AttackPotionButton", ButtonColor, 20f, 480f, 38f,
                 out _attackButtonText, string.Empty, 17, Color.white, () => DoPotionBuy(PotionType.Attack, "공격력"));
 
-            CreateButton(canvasGo.transform, "HealthPotionButton", ButtonColor, -182f, 480f, 38f,
+            CreateButton(view, "HealthPotionButton", ButtonColor, -25f, 480f, 38f,
                 out _healthButtonText, string.Empty, 17, Color.white, () => DoPotionBuy(PotionType.Health, "체력"));
 
-            var criticalRect = CreateButton(canvasGo.transform, "CriticalPotionButton", ButtonColor, -227f, 480f, 38f,
+            var criticalRect = CreateButton(view, "CriticalPotionButton", ButtonColor, -70f, 480f, 38f,
                 out _criticalButtonText, string.Empty, 17, Color.white, () => DoPotionBuy(PotionType.Critical, "치명타"));
             _criticalButtonImage = criticalRect.GetComponent<Image>();
 
-            CreateButton(canvasGo.transform, "StartButton", StartButtonColor, -282f, 480f, 46f,
-                out _, $"[Enter / Space] 스테이지 {StageProgress.CurrentStage} 시작", 20, Color.white, StartRun);
-
-            BuildChanceTable(canvasGo.transform);
-
-            // 슬롯머신은 오른쪽 빈 공간에 따로 세운다(가운데 열은 이미 꽉 참).
-            const float slotX = 470f;
-            var slotTitle = CreateLabel(canvasGo.transform, "SlotTitle", "운명의 슬롯\n3개 일치 10배 / 2개 일치 0.5배",
-                16, FontStyle.Bold, new Color(1f, 0.85f, 0.3f), 110f, 300f);
-            slotTitle.rectTransform.sizeDelta = new Vector2(300f, 48f);
-            slotTitle.rectTransform.anchoredPosition = new Vector2(slotX, 110f);
-
-            _slotReelsText = CreateLabel(canvasGo.transform, "SlotReels", FormatReels(new[] { 0, 1, 2 }),
-                24, FontStyle.Bold, Color.white, 55f, 300f);
-            _slotReelsText.rectTransform.anchoredPosition = new Vector2(slotX, 55f);
-
-            CreateButton(canvasGo.transform, "SlotButton", new Color(0.45f, 0.3f, 0.15f), 0f, 260f, 40f,
-                out _slotButtonText, string.Empty, 16, Color.white, () => DoSlotSpin(false), slotX);
-            CreateButton(canvasGo.transform, "SlotHighButton", new Color(0.5f, 0.2f, 0.15f), -48f, 260f, 40f,
-                out _slotHighButtonText, string.Empty, 16, Color.white, () => DoSlotSpin(true), slotX);
+            CreateBackButton(view);
         }
 
-        /// <summary>등급 확률표 - 슬롯머신 반대편(왼쪽 빈 공간)에 등급 이름 열 + 검/갑옷/반지 열. 값은 RefreshGachaDisplay가 채운다.</summary>
+        private void BuildCasinoView(Transform parent)
+        {
+            var view = CreateView(parent, LobbyView.Casino);
+
+            var slotTitle = CreateLabel(view, "SlotTitle", "운명의 슬롯\n3개 일치 10배 / 2개 일치 0.5배",
+                18, FontStyle.Bold, new Color(1f, 0.85f, 0.3f), 140f, 400f);
+            slotTitle.rectTransform.sizeDelta = new Vector2(400f, 52f);
+
+            _slotReelsText = CreateLabel(view, "SlotReels", FormatReels(new[] { 0, 1, 2 }),
+                32, FontStyle.Bold, Color.white, 70f, 400f);
+            _slotReelsText.rectTransform.sizeDelta = new Vector2(400f, 44f);
+
+            CreateButton(view, "SlotButton", new Color(0.45f, 0.3f, 0.15f), 0f, 300f, 42f,
+                out _slotButtonText, string.Empty, 17, Color.white, () => DoSlotSpin(false));
+            CreateButton(view, "SlotHighButton", new Color(0.5f, 0.2f, 0.15f), -50f, 300f, 42f,
+                out _slotHighButtonText, string.Empty, 17, Color.white, () => DoSlotSpin(true));
+
+            CreateBackButton(view);
+        }
+
+        /// <summary>등급 확률표 - 뽑기 버튼 아래에 등급 이름 열 + 검/갑옷/반지 열. 값은 RefreshGachaDisplay가 채운다.</summary>
         private void BuildChanceTable(Transform parent)
         {
-            const float tableX = -470f;
+            const float tableX = 0f;
             const float columnWidth = 66f;
-            const float tableY = 30f;
+            const float tableY = -160f;
             var grades = (ItemGrade[])Enum.GetValues(typeof(ItemGrade));
             var height = (grades.Length + 2) * 19f;
 
