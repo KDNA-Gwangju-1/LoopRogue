@@ -275,7 +275,7 @@ namespace LoopRogue
                 {
                     FixedMaxHealth = RunProgress.CurrentPermanentHealth(),
                     FixedAttack = RunProgress.CurrentPermanentAttack(),
-                    CriticalChanceRate = StatPotionWallet.TotalCriticalChanceBonus(),
+                    CriticalChanceRate = RunProgress.CurrentPermanentCritical(), // 영약 + 칭호
                 };
                 Stats.FullHeal();
                 Levels = new LevelSystem(Stats);
@@ -369,7 +369,8 @@ namespace LoopRogue
         }
 
         /// <summary>지금 이동/공격 입력을 받을 수 있는 상태인지(키 입력과 자동 플레이 봇이 같은 조건을 쓴다).</summary>
-        public bool CanAct => _room != null && !_room.IsInputLocked && !Levels.IsChoosingUpgrade && !Stats.IsDead && !PauseMenu.BlocksInput && !InventoryUI.IsOpen;
+        public bool CanAct => _room != null && !_room.IsInputLocked && !Levels.IsChoosingUpgrade && !Stats.IsDead && !PauseMenu.BlocksInput && !InventoryUI.IsOpen
+                              && !NpcDialogUI.BlocksInput; // 대화창을 닫은 키(Space/숫자)가 대기/퀵슬롯으로 또 읽히지 않게 닫힌 프레임까지
 
         /// <summary>자동 플레이 봇용 - 방향키 한 번 누른 것과 똑같이 한 턴 행동한다.</summary>
         public void BotAct(Vector2Int direction)
@@ -412,6 +413,12 @@ namespace LoopRogue
                     SelectItem(item.Value);
                 else
                     _room.ShowMessage($"퀵슬롯 {slot + 1}이 비어 있다 (I: 인벤토리)");
+                return;
+            }
+
+            if (keyboard.fKey.wasPressedThisFrame)
+            {
+                TryTalk();
                 return;
             }
 
@@ -471,6 +478,20 @@ namespace LoopRogue
                 Wait(); // 스페이스바 = 제자리 대기(한 턴 넘기기)
         }
 
+        /// <summary>F - 주변 8칸의 NPC와 대화(턴 소모 없음). 방향 고르기 중이면 취소하고 연다.</summary>
+        private void TryTalk()
+        {
+            var npc = _room.FindNpcNear(GridPos);
+            if (npc == null)
+            {
+                _room.ShowMessage("주변에 말을 걸 상대가 없다");
+                return;
+            }
+            IsAimingDash = false;
+            AimingItem = null;
+            npc.Talk(this);
+        }
+
         private void TryAct(Vector2Int direction)
         {
             var targetPos = GridPos + direction;
@@ -479,6 +500,12 @@ namespace LoopRogue
                 return; // 방 끝/벽 방향으로 헛눌러도 턴 소모 없음 - 로그라이크 관례.
 
             var occupant = Map.GetActorAt(targetPos);
+
+            if (occupant is NpcActor npc)
+            {
+                _room.ShowMessage($"{npc.DisplayName} - F 키로 대화"); // 부딪혀도 턴 소모 없음
+                return;
+            }
 
             if (RootedTurns > 0 && !(occupant is EnemyActor))
             {
@@ -539,7 +566,8 @@ namespace LoopRogue
             var berserk = Relics.Has(RelicType.Berserker) && Stats.CurrentHealth <= Stats.MaxHealth * Relics.BerserkerThreshold
                 ? 1f + Relics.BerserkerBonus : 1f; // 유물 "광전사"
             var damage = raw * damageRate * enemy.DamageTakenMultiplier * berserk
-                * WeaponEffectMultiplier(enemy, countCombo: !isSkill);
+                * WeaponEffectMultiplier(enemy, countCombo: !isSkill)
+                * Curses.DamageDealtMultiplier; // 저주 계약(분노·메마름)
             var blocked = !ignoreShield && enemy.IsShieldFront(GridPos);
             if (blocked)
             {
@@ -583,7 +611,11 @@ namespace LoopRogue
             // 먼저 들어가야 해서 NotifyEnemyDefeated(보스면 곧바로 클리어 처리)보다 앞에서 준다.
             var baseExp = enemy.IsMinion ? 0 : enemy.IsBoss ? ExpPerBossKill : ExpPerKill; // 졸개는 경험치 없음
             var repeat = enemy.IsBoss ? 1f : StageProgress.RepeatRewardMultiplier; // 반복 보상 감소(보스는 제외)
-            Levels.AddExp(Mathf.RoundToInt(baseExp * StageScaling.RewardMultiplier(_room.Stage) * (1f + Stats.EffectiveExpBonus) * repeat));
+            Levels.AddExp(Mathf.RoundToInt(baseExp * StageScaling.RewardMultiplier(_room.Stage) * (1f + Stats.EffectiveExpBonus + Achievements.TitleExpBonus) * repeat)); // + 칭호
+
+            if (!enemy.IsMinion)
+                LobbyQuests.AddKill(); // 로비 안내자의 토벌 의뢰(누적 처치)
+            Codex.Discover(Codex.MonsterKey(enemy));
 
             if (_room.NotifyEnemyDefeated(enemy))
                 return true;

@@ -173,6 +173,8 @@ namespace LoopRogue
                     break;
                 offer.Add(r);
             }
+            foreach (var r in offer)
+                Codex.Discover(Codex.RelicKey(r)); // 후보로 본 유물도 도감에 기록(고르지 않아도)
             return offer.Count > 0 ? offer : null;
         }
 
@@ -183,6 +185,7 @@ namespace LoopRogue
             if (!Owned.Add(type))
                 return;
             Save();
+            Codex.Discover(Codex.RelicKey(type));
 
             var stats = player.Stats;
             switch (type)

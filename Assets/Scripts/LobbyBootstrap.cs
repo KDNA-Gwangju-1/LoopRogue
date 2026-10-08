@@ -101,12 +101,36 @@ namespace LoopRogue
             RefreshCriticalDisplay();
             RefreshSlotDisplay();
             ShowView(LobbyView.Hub);
+            NpcDialogUI.Create();
+            _achievementPanel = AchievementPanel.Create();
+            _codexPanel = CodexPanel.Create();
+            Achievements.Unlocked += OnAchievementUnlocked;
+            Codex.SyncOwned();    // 도감이 생기기 전 저장으로 이미 가진 유물/아이템
+            Achievements.Check(); // 업적이 생기기 전 저장으로 이미 조건을 채운 것들
+        }
+
+        private AchievementPanel _achievementPanel;
+        private CodexPanel _codexPanel;
+
+        private void OnDestroy() => Achievements.Unlocked -= OnAchievementUnlocked;
+
+        private void OnAchievementUnlocked(AchievementDef def)
+        {
+            var reward = def.RewardText;
+            ShowResult($"업적 달성! {def.Name} - 칭호 「{def.Title}」{(reward.Length > 0 ? $" + {reward}" : "")}", new Color(1f, 0.85f, 0.4f));
+            RefreshGachaDisplay(); // 보상 뽑기권·이용권 장수
+            RefreshSlotDisplay();
         }
 
         private void Update()
         {
             _goldText.text = $"보유 골드: {GoldWallet.Gold - _slotPendingPayout}";
+            RefreshGuideButton();
             UpdateHover();
+
+            // 안내자와 대화 중이거나 업적 창이 열려 있으면(닫은 프레임 포함) 로비 버튼·단축키를 안 받는다 - 그 창들이 Esc/숫자/클릭을 직접 처리한다.
+            if (NpcDialogUI.BlocksInput || AchievementPanel.BlocksInput || CodexPanel.BlocksInput)
+                return;
 
             // 클릭으로 화면이 바뀐 프레임엔 단축키를 안 읽는다(같은 프레임에 새 화면 키가 먹지 않게).
             if (HandleMouseClick())
@@ -126,6 +150,12 @@ namespace LoopRogue
                         ShowView(LobbyView.Potion);
                     else if (keyboard.digit3Key.wasPressedThisFrame)
                         ShowView(LobbyView.Casino);
+                    else if (keyboard.digit4Key.wasPressedThisFrame)
+                        LobbyGuide.Talk();
+                    else if (keyboard.digit5Key.wasPressedThisFrame)
+                        _achievementPanel.Open();
+                    else if (keyboard.digit6Key.wasPressedThisFrame)
+                        _codexPanel.Open();
                     else if (keyboard.enterKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame)
                         StartRun();
                     // Esc = 타이틀로(로비엔 진행 중인 전투가 없어서 확인 없이 바로 이동 - 골드/장비는 전부 영구 저장).
@@ -323,8 +353,9 @@ namespace LoopRogue
                 var level = GachaSystem.GetShopLevel(slot);
                 var next = GachaSystem.GetPullsForNextLevel(slot);
                 var progress = next.HasValue ? $"{GachaSystem.GetPullCount(slot)}/{next.Value}회" : "MAX";
+                var price = GachaSystem.Tickets > 0 ? $"뽑기권 {GachaSystem.Tickets}장" : $"{GachaSystem.GetPullCost(slot)}G"; // 뽑기권이 있으면 먼저 쓴다
                 pair.Value.text =
-                    $"[{(int)slot + 1}] {EquipmentData.Templates[slot].BaseName} 뽑기 ({GachaSystem.GetPullCost(slot)}G)\n상점 Lv{level} ({progress})";
+                    $"[{(int)slot + 1}] {EquipmentData.Templates[slot].BaseName} 뽑기 ({price})\n상점 Lv{level} ({progress})";
             }
 
             foreach (var pair in _gachaMultiButtonTexts)
@@ -354,6 +385,7 @@ namespace LoopRogue
                 return;
             }
 
+            RefreshSlotDisplay(); // 이용권 장수
             StartCoroutine(SlotSpinRoutine(result.Value));
         }
 
@@ -398,7 +430,7 @@ namespace LoopRogue
             else
             {
                 SetSlotLook(dim: true, win: false);
-                ShowResult($"꽝... {result.Bet}골드를 잃었습니다.", new Color(1f, 0.5f, 0.5f));
+                ShowResult(result.UsedTicket ? "꽝... 이용권 1장을 썼습니다." : $"꽝... {result.Bet}골드를 잃었습니다.", new Color(1f, 0.5f, 0.5f));
             }
         }
 
@@ -431,7 +463,9 @@ namespace LoopRogue
 
         private void RefreshSlotDisplay()
         {
-            _slotButtonText.text = $"[S] 돌리기 ({SlotMachine.GetBet(false)}G)";
+            _slotButtonText.text = SlotMachine.Tickets > 0 // 이용권이 있으면 먼저 쓴다
+                ? $"[S] 돌리기 (이용권 {SlotMachine.Tickets}장)"
+                : $"[S] 돌리기 ({SlotMachine.GetBet(false)}G)";
             _slotHighButtonText.text = $"[Shift+S] {SlotMachine.HighBetMultiplier}배 베팅 ({SlotMachine.GetBet(true)}G)";
         }
 
@@ -645,10 +679,58 @@ namespace LoopRogue
                 label.rectTransform.anchoredPosition = new Vector2(40f, 0f);
             }
 
+            // NPC "시간지기 노인" - 상점 입구와 시작 버튼 사이. 받을 보상이 있으면 버튼에 표시(RefreshGuideButton).
+            // 노인 / 업적·칭호 / 도감 - 상점 입구와 시작 버튼 사이 한 줄.
+            CreateButton(view, "GuideButton", new Color(0.35f, 0.3f, 0.2f), -107f, 250f, 32f,
+                out _guideButtonText, string.Empty, 15, Color.white, LobbyGuide.Talk, -265f);
+            CreateButton(view, "AchievementButton", new Color(0.4f, 0.32f, 0.12f), -107f, 250f, 32f,
+                out _achievementButtonText, string.Empty, 15, Color.white, () => _achievementPanel.Open());
+            var codexButton = CreateButton(view, "CodexButton", new Color(0.3f, 0.22f, 0.42f), -107f, 250f, 32f,
+                out _codexButtonText, string.Empty, 15, Color.white, () => _codexPanel.Open(), 265f);
+            // 책 아이콘(16x16 도트 2배) - 버튼 왼쪽, 글자는 오른쪽으로 조금 민다.
+            var bookSprite = Resources.Load<Sprite>("UI/Relics/Codex_Book");
+            if (bookSprite != null)
+            {
+                var bookGo = new GameObject("BookIcon", typeof(RectTransform));
+                bookGo.transform.SetParent(codexButton, false);
+                bookGo.AddComponent<Image>().sprite = bookSprite;
+                var bookRect = bookGo.GetComponent<RectTransform>();
+                bookRect.sizeDelta = new Vector2(32f, 32f);
+                bookRect.anchoredPosition = new Vector2(-92f, 0f);
+                _codexButtonText.rectTransform.anchoredPosition = new Vector2(16f, 0f);
+            }
+
             CreateButton(view, "StartButton", StartButtonColor, -160f, 480f, 50f,
                 out _, $"[Enter / Space] 스테이지 {StageProgress.CurrentStage} 시작", 20, Color.white, StartRun);
 
             CreateLabel(view, "HubHint", "Esc: 타이틀로", 13, FontStyle.Normal, new Color(0.6f, 0.6f, 0.65f), -215f, 400f);
+        }
+
+        private Text _guideButtonText;
+        private int _guidePendingShown = -1;
+
+        private Text _achievementButtonText;
+        private Text _codexButtonText;
+
+        private void RefreshGuideButton()
+        {
+            SetIfChanged(_achievementButtonText, $"[5] 업적·칭호 <color=#FFD966>({Achievements.UnlockedCount}/{Achievements.All.Length})</color>");
+            SetIfChanged(_codexButtonText, $"[6] 도감 <color=#B9A0FF>({Codex.FoundCount()}/{Codex.TotalCount()})</color>");
+
+            var pending = LobbyQuests.PendingCount;
+            var hasWord = LobbyGuide.HasSomethingToSay; // 회차 특별 대사가 기다리고 있으면 "!"
+            var key = pending * 2 + (hasWord ? 1 : 0);
+            if (key == _guidePendingShown)
+                return;
+            _guidePendingShown = key;
+            var marks = (hasWord ? " <color=#B9A0FF>(!)</color>" : "") + (pending > 0 ? $" <color=#FFD966>(보상 {pending})</color>" : "");
+            _guideButtonText.text = $"[4] {LobbyGuide.Name}{marks}";
+        }
+
+        private static void SetIfChanged(Text text, string value)
+        {
+            if (text.text != value)
+                text.text = value;
         }
 
         private void BuildGachaView(Transform parent)

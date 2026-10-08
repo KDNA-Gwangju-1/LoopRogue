@@ -38,10 +38,15 @@ namespace LoopRogue
             _player = player;
             _hud = hud;
             _rooms = rooms;
+            for (var i = 0; i < rooms.Count; i++)
+                rooms[i].RoomNumber = i + 1;
             _stage = stage;
             _roomIndex = 0;
             RollRoomEvent();
             StageProgress.BeginAttempt();
+            Curses.Reset(); // 저주 계약은 시도 단위
+            Codex.SyncOwned();    // 도감이 생기기 전 저장으로 이미 가진 유물/아이템
+            Achievements.Check(); // 업적이 생기기 전 저장으로 이미 조건을 채운 것들
 
             _roomController.Initialize(player, this, stage);
             _player.OnAttemptStarted();
@@ -59,7 +64,8 @@ namespace LoopRogue
             // Esc 메뉴 - 사망/스테이지 클리어(입력 잠금 중)나 레벨업 카드 선택 중에는 안 열린다.
             // 중도 포기도 사망과 같은 데스 패널티(안 그러면 죽기 직전에 Esc로 빠져나가 패널티를 피할 수 있다).
             _hud.gameObject.AddComponent<PauseMenu>().Setup(RetreatToLobby,
-                () => !_roomController.IsInputLocked && !_player.Levels.IsChoosingUpgrade && !_player.Stats.IsDead && !InventoryUI.IsOpen,
+                () => !_roomController.IsInputLocked && !_player.Levels.IsChoosingUpgrade && !_player.Stats.IsDead && !InventoryUI.IsOpen
+                      && !NpcDialogUI.BlocksInput, // 대화창을 Esc로 닫은 그 프레임에 메뉴가 바로 열리지 않게
                 lobbyLabel: $"로비로 이동 (이번 시도 골드 {Relics.DeathPenaltyRate * 100f:0}% 손실)  [L]",
                 goToTitle: RetreatToTitle);
         }
@@ -89,9 +95,11 @@ namespace LoopRogue
         public void OnPlayerDied()
         {
             _roomController.IsInputLocked = true;
+            LoopRecord.AddDeath(); // 누적 회차 - NPC 대사가 바뀐다
             Inventory.LoseAll(); // 죽으면 들고 있던 아이템 전부 잃음(사용자 결정)
             var penalty = ApplyDeathGoldPenalty();
-            _hud.ShowDeathChoice(ContinueAfterDeath, ReturnToLobby, penalty, _rooms, _roomIndex); // 기본값 = 죽은 방
+            _hud.ShowDeathChoice(ContinueAfterDeath, ReturnToLobby, penalty, _rooms, _roomIndex, // 기본값 = 죽은 방
+                bossRoom: _rooms[_roomIndex].IsBossRoom); // 보스방이면 노인의 한마디도 보스 조언 위주로
         }
 
         /// <summary>이번 시도에서 번 골드의 DeathGoldPenaltyRate만큼 뺏고, 뺏은 양을 돌려준다(표시용).</summary>
@@ -127,6 +135,7 @@ namespace LoopRogue
             _roomIndex = startRoom;
             RollRoomEvent();
             StageProgress.BeginAttempt();
+            Curses.Reset(); // 죽으면 저주도 풀린다
             _player.Stats.FullHeal();
             _roomController.LoadRoom(_rooms[_roomIndex]); // IsInputLocked를 다시 false로 풀어준다.
             _attemptStartGold = GoldWallet.Gold;
@@ -144,12 +153,16 @@ namespace LoopRogue
         {
             _roomController.IsInputLocked = true;
             StageProgress.AdvanceStage();
+            if (_stage >= StageProgress.MaxStage)
+                Achievements.Unlock("ACH_CLEAR_10");
+            Achievements.Check(); // 층 도달 업적
             // 보스를 처음 잡았으면 유물부터 고른다(보스 전용 1 + 일반 2) → 고른 뒤 스테이지 클리어 창.
             var offer = Relics.MakeOffer(_stage);
             if (offer != null)
                 _hud.ShowRelicChoice(offer, picked =>
                 {
                     Relics.Acquire(picked, _player);
+                    Achievements.Check(); // 유물 개수 업적
                     ShowStageClear();
                 });
             else

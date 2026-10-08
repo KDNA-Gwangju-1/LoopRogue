@@ -19,6 +19,12 @@ namespace LoopRogue
             GachaSystem.Reload();
             Inventory.Reload();
             Relics.Reload();
+            LobbyQuests.Reload();
+            RunQuest.Reload();
+            LoopRecord.Reload();
+            Codex.Reload();
+            Achievements.Reload(); // 칭호 효과가 RunProgress 기본값에 들어가므로 그보다 먼저
+            SlotMachine.Reload();
             RunProgress.Reload(); // 기본값 계산에 위 지갑들을 쓰므로 마지막에.
         }
     }

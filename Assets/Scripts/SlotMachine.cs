@@ -21,16 +21,47 @@ namespace LoopRogue
             public int Bet;
             public int Payout;
             public int MatchCount; // 1 = 다 다름, 2 = 2개 같음, 3 = 3개 같음
+            public bool UsedTicket; // 골드 대신 이용권으로 돌렸으면 true
         }
 
         public static int GetBet(bool high) =>
             Mathf.RoundToInt(BaseBet * StageScaling.RewardMultiplier(StageProgress.CurrentStage)) * (high ? HighBetMultiplier : 1);
 
-        /// <summary>골드가 모자라면 null. 베팅액을 먼저 빼고 당첨금을 더한다.</summary>
+        // ---- 이용권(던전 떠돌이 상인이 10장 묶음으로 판다) - 일반 베팅 1회를 골드 없이 돌린다. 영구 저장. ----
+        private const string TicketKey = "LoopRogue_SlotTickets";
+        private static bool _ticketsLoaded;
+        private static int _tickets;
+
+        public static int Tickets
+        {
+            get
+            {
+                if (!_ticketsLoaded)
+                {
+                    _tickets = PlayerPrefs.GetInt(TicketKey, 0);
+                    _ticketsLoaded = true;
+                }
+                return _tickets;
+            }
+        }
+
+        public static void Reload() => _ticketsLoaded = false;
+
+        public static void AddTickets(int count)
+        {
+            _tickets = Tickets + count;
+            PlayerPrefs.SetInt(TicketKey, _tickets);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>골드가 모자라면 null. 베팅액을 먼저 빼고 당첨금을 더한다. 일반 베팅은 이용권이 있으면 골드 대신 이용권 1장을 쓴다.</summary>
         public static SpinResult? Spin(bool high)
         {
             var bet = GetBet(high);
-            if (!GoldWallet.TrySpend(bet))
+            var usedTicket = !high && Tickets > 0;
+            if (usedTicket)
+                AddTickets(-1);
+            else if (!GoldWallet.TrySpend(bet))
                 return null;
 
             var reels = new int[3];
@@ -47,8 +78,10 @@ namespace LoopRogue
                 : matchCount == 2 ? Mathf.RoundToInt(bet * PairPayout)
                 : 0;
             GoldWallet.Add(payout);
+            if (matchCount == 3)
+                Achievements.Unlock("ACH_JACKPOT");
 
-            return new SpinResult { Reels = reels, Bet = bet, Payout = payout, MatchCount = matchCount };
+            return new SpinResult { Reels = reels, Bet = bet, Payout = payout, MatchCount = matchCount, UsedTicket = usedTicket };
         }
     }
 }

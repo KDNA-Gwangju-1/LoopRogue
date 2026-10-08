@@ -9,6 +9,8 @@ namespace LoopRogue
     public class RoomDefinition
     {
         public string RoomName;
+        /// <summary>층 안에서 몇 번째 방인지(1부터, 보스방이 마지막) - LoopManager가 채운다. 모험가 NPC가 방 1/방 10을 구분할 때 쓴다.</summary>
+        public int RoomNumber;
         public int Width;
         public int Height;
         public int EnemyCount;
@@ -106,6 +108,7 @@ namespace LoopRogue
         private static readonly Color PlayerBombColor = new Color(1f, 0.85f, 0.2f, 0.4f);
         public static int BombPlayerHitCount;
         private RoomEventActor _event;
+        private NpcActor _npc;
         private PlayerActor _player;
         private LoopManager _loopManager;
         private RoomDefinition _current;
@@ -121,6 +124,18 @@ namespace LoopRogue
 
         /// <summary>이 방에 아직 안 밟은 이벤트 칸이 있으면 그 액터.</summary>
         public RoomEventActor Event => _event;
+
+        /// <summary>이 방의 NPC(없으면 null).</summary>
+        public NpcActor Npc => _npc;
+
+        /// <summary>pos 주변 8칸에 있는 NPC - 플레이어가 F로 말을 걸 때.</summary>
+        public NpcActor FindNpcNear(Vector2Int pos)
+        {
+            if (_npc == null)
+                return null;
+            var d = _npc.GridPos - pos;
+            return Mathf.Abs(d.x) <= 1 && Mathf.Abs(d.y) <= 1 ? _npc : null;
+        }
 
         public void Initialize(PlayerActor player, LoopManager loopManager, int stage)
         {
@@ -205,11 +220,118 @@ namespace LoopRogue
             Map.PlaceActor(_event, pos);
         }
 
+        /// <summary>일반 방 클리어 시 NPC 등장 - 모험가: 의뢰를 들고 있으면 방 10에서 반드시(보고 받으러), 없으면 방 1에서 WandererChance.
+        /// 모험가가 안 나오면 상인을 MerchantChance로 굴린다.</summary>
+        private const float MerchantChance = 0.1f;
+        private const float WandererChance = 0.33f;
+        private const float CurseChance = 0.07f; // 상인도 안 나오면 그림자 거래상
+
+        /// <summary>일반 방을 비운 직후(출구가 생긴 뒤) - 확률로 NPC를 플레이어 근처에 세운다. 봇도 걸어가서 말을 건다(AutoPlayBot).</summary>
+        private void TrySpawnRoomClearNpc()
+        {
+            if (_npc != null)
+                return;
+
+            var room = _current.RoomNumber;
+            var report = RunQuest.Active && room == RunQuest.ReportRoom;
+            NpcType type;
+            if (report || (!RunQuest.Active && room == RunQuest.AcceptRoom && Rng.NextDouble() < WandererChance))
+                type = NpcType.Wanderer;
+            else if (Rng.NextDouble() < MerchantChance)
+                type = NpcType.Merchant;
+            else if (Rng.NextDouble() < CurseChance)
+                type = NpcType.Curse;
+            else
+                return;
+
+            var pos = FindNpcSpot();
+            if (!pos.HasValue)
+                return;
+
+            var go = new GameObject("Npc");
+            go.transform.SetParent(transform, false);
+            _npc = go.AddComponent<NpcActor>();
+            _npc.Initialize(type, _stage, this, _player, isReport: report);
+            Map.PlaceActor(_npc, pos.Value);
+            _npc.PlayAppearEffect();
+            ShowMessage(report
+                ? $"{_npc.DisplayName}이(가) 기다리고 있었다! (옆에서 F: 보고)"
+                : $"{_npc.DisplayName}이(가) 나타났다! (옆에서 F: 대화)");
+        }
+
+        /// <summary>지금 층의 방 클리어 골드(보너스 반영) - 이벤트·저주 계약 보상의 기준.</summary>
+        public int RoomClearGold =>
+            Mathf.RoundToInt(GoldPerRoomClear * StageScaling.RewardMultiplier(_stage) * (1f + _player.Stats.EffectiveGoldBonus));
+
+        /// <summary>NPC가 볼일을 마치고 떠날 때(그림자 거래상의 계약 성립 등) - 연기 속에 사라지고 칸을 비운다.</summary>
+        public void DismissNpc(NpcActor npc)
+        {
+            if (npc == null || npc != _npc)
+                return;
+            if (!DamagePopup.Suppressed)
+                DeathBurst.Spawn(npc.transform.position, new Color(0.3f, 0.12f, 0.4f, 0.9f), 16, GridConstants.CellSize * 2.4f, GridConstants.CellSize * 0.18f);
+            Map.RemoveActor(npc);
+            Destroy(npc.gameObject);
+            _npc = null;
+        }
+
+        /// <summary>NPC 자리 - 플레이어에게서 2~3칸(보이는 곳) 빈 칸 중, 그 칸을 막아도 나머지 빈 칸과 출구에 전부 갈 수 있는 칸.
+        /// 가까운 거리부터 무작위로 보고, 없으면 거리 제한을 풀어서 아무 데나.</summary>
+        private Vector2Int? FindNpcSpot()
+        {
+            var from = _player.GridPos;
+            var cells = new List<Vector2Int>();
+            for (var x = 0; x < Map.Width; x++)
+            for (var y = 0; y < Map.Height; y++)
+            {
+                var p = new Vector2Int(x, y);
+                if (Map.IsWalkable(p) && ExitPosition != p && !_traps.ContainsKey(p))
+                    cells.Add(p);
+            }
+
+            int Dist(Vector2Int p) => Mathf.Max(Mathf.Abs(p.x - from.x), Mathf.Abs(p.y - from.y));
+            var ordered = cells.Where(c => Dist(c) >= 2 && Dist(c) <= 3).OrderBy(_ => Rng.Next())
+                .Concat(cells.Where(c => Dist(c) < 2 || Dist(c) > 3).OrderBy(Dist));
+            foreach (var c in ordered)
+                if (StaysConnectedWithout(c))
+                    return c;
+            return null;
+        }
+
+        /// <summary>blocked 칸을 막았을 때 플레이어 칸에서 다른 모든 빈 칸(출구 포함)에 갈 수 있는지 - 벽과 다른 액터(이벤트 칸 등)도 막힌 것으로 본다.</summary>
+        private bool StaysConnectedWithout(Vector2Int blocked)
+        {
+            var start = _player.GridPos;
+            var visited = new HashSet<Vector2Int> { start };
+            var queue = new Queue<Vector2Int>();
+            queue.Enqueue(start);
+            var dirs = new[] { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+            while (queue.Count > 0)
+            {
+                var cur = queue.Dequeue();
+                foreach (var d in dirs)
+                {
+                    var next = cur + d;
+                    if (next == blocked || !Map.IsWalkable(next) || !visited.Add(next))
+                        continue;
+                    queue.Enqueue(next);
+                }
+            }
+
+            for (var x = 0; x < Map.Width; x++)
+            for (var y = 0; y < Map.Height; y++)
+            {
+                var p = new Vector2Int(x, y);
+                if (p != blocked && p != start && Map.IsWalkable(p) && !visited.Contains(p))
+                    return false;
+            }
+            return true;
+        }
+
         /// <summary>플레이어가 이벤트 칸으로 이동했을 때(PlayerActor가 호출) - 발동하고 칸을 비운다.</summary>
         public void TriggerEvent(RoomEventActor ev)
         {
-            var roomClearGold = Mathf.RoundToInt(GoldPerRoomClear * StageScaling.RewardMultiplier(_stage) * (1f + _player.Stats.EffectiveGoldBonus));
-            var message = ev.Trigger(_player, roomClearGold);
+            var message = ev.Trigger(_player, RoomClearGold);
             EventTriggeredCount++;
             LastEventType = ev.Type;
             Map.RemoveActor(ev);
@@ -409,6 +531,12 @@ namespace LoopRogue
                 Destroy(_event.gameObject);
             _event = null;
 
+            if (_npc != null)
+                Destroy(_npc.gameObject);
+            _npc = null;
+            if (NpcDialogUI.Instance != null)
+                NpcDialogUI.Instance.Close(); // 대화 중 방이 넘어가면(폭탄 등) 창을 닫는다
+
             foreach (var go in _roomObjects)
                 if (go != null)
                     Destroy(go);
@@ -432,7 +560,9 @@ namespace LoopRogue
         public bool NotifyEnemyDefeated(EnemyActor enemy)
         {
             var stageMultiplier = StageScaling.RewardMultiplier(_stage);
-            var goldBonus = 1f + _player.Stats.EffectiveGoldBonus + EquipmentEffects.ExtraGoldBonus + Relics.ExtraGoldBonus; // + 반지 "행운" + 유물 "탐욕" // 골드 증감 카드(하한 -50%)
+            var goldBonus = (1f + _player.Stats.EffectiveGoldBonus + EquipmentEffects.ExtraGoldBonus + Relics.ExtraGoldBonus // + 반지 "행운" + 유물 "탐욕" // 골드 증감 카드(하한 -50%)
+                            + Achievements.TitleGoldBonus) // + 칭호
+                            * Curses.GoldMultiplier; // × 저주 계약(황금·무모)
             // 반복 보상 감소는 일반 몹/방 클리어에만(보스 처치는 항상 100%).
             var repeat = StageProgress.RepeatRewardMultiplier;
             ClearBombTelegraph(enemy); // 불 붙은 폭발병을 잡으면 불발
@@ -473,17 +603,25 @@ namespace LoopRogue
             LastClearedRoom = _current.RoomName;
             LastClearedWasBoss = _current.IsBossRoom;
             LastClearHpFraction = _player.Stats.CurrentHealth / Mathf.Max(1f, _player.Stats.MaxHealth); // 클리어 회복 전
+            Achievements.Check(); // 누적 처치 업적 - 몹마다 보지 않고 방을 비울 때 한 번
             if (!_current.IsBossRoom)
             {
-                var goldBonus = 1f + _player.Stats.EffectiveGoldBonus + EquipmentEffects.ExtraGoldBonus + Relics.ExtraGoldBonus; // + 반지 "행운" + 유물 "탐욕"
+                var goldBonus = (1f + _player.Stats.EffectiveGoldBonus + EquipmentEffects.ExtraGoldBonus + Relics.ExtraGoldBonus // + 반지 "행운" + 유물 "탐욕"
+                                + Achievements.TitleGoldBonus) // + 칭호
+                                * Curses.GoldMultiplier; // × 저주 계약
                 GoldWallet.Add(Mathf.RoundToInt(GoldPerRoomClear * StageScaling.RewardMultiplier(_stage) * goldBonus * StageProgress.RepeatRewardMultiplier));
-                _player.Stats.Heal(_player.Stats.MaxHealth * (RoomClearHealRate + (Relics.Has(RelicType.RegenMoss) ? Relics.RegenMossHealRate : 0f))); // + 유물 "재생의 이끼"
+                _player.Stats.Heal(_player.Stats.MaxHealth * (RoomClearHealRate + (Relics.Has(RelicType.RegenMoss) ? Relics.RegenMossHealRate : 0f)) // + 유물 "재생의 이끼"
+                                   * Curses.RoomHealMultiplier); // × 저주 "메마른 저주"
             }
 
             if (_current.IsBossRoom)
                 _loopManager.OnBossDefeated();
             else
+            {
                 SpawnExit();
+                if (ExitPosition.HasValue)
+                    TrySpawnRoomClearNpc(); // 안내는 같은 프레임의 "출구가 열렸다" 아래 줄에 붙는다(GameHUD.ShowBanner)
+            }
         }
 
         private const int ExitMinDistance = 6;

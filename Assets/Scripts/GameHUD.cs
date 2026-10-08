@@ -79,8 +79,28 @@ namespace LoopRogue
             _player.Levels.OnLevelUp += _ => Refresh();
             _player.Levels.OnUpgradeChoicesReady += ShowUpgradeChoices;
             _player.OnAttackedEnemy += enemy => _target = enemy;
+            Achievements.Unlocked += OnAchievementUnlocked;
+            Codex.Discovered += OnCodexDiscovered;
 
             Refresh();
+        }
+
+        private void OnDestroy()
+        {
+            Achievements.Unlocked -= OnAchievementUnlocked;
+            Codex.Discovered -= OnCodexDiscovered;
+        }
+
+        private void OnCodexDiscovered(CodexEntry entry)
+        {
+            if (!AutoPlayActive)
+                ShowMessage($"<color=#B9A0FF>도감 기록</color> {entry.Name}");
+        }
+
+        private void OnAchievementUnlocked(AchievementDef def)
+        {
+            if (!AutoPlayActive)
+                ShowMessage($"<color=#FFD966>업적 달성!</color> {def.Name} - 칭호 「{def.Title}」");
         }
 
         // 체력은 전투 중 실시간으로 바뀌므로 매 프레임 새로고침한다 - LevelSystem 이벤트만으로는
@@ -181,6 +201,20 @@ namespace LoopRogue
                 text.alignment = TextAnchor.MiddleCenter;
                 text.fontSize = 15;
                 text.text = $"[{i + 1}] {Relics.Name(relic)}{(Relics.IsBossRelic(relic) ? "  (보스 전용 - 지금 아니면 못 얻음)" : "")}\n{Relics.Description(relic)}";
+
+                // 왼쪽에 유물 그림(16x16 도트 3배) - 그림이 있으면 글자를 오른쪽으로 민다.
+                var sprite = PixelUi.Get($"UI/Relics/Relic_{relic}");
+                if (sprite != null)
+                {
+                    var icon = HudUi.CreateImage(cardGo.transform, "Icon", Color.white);
+                    icon.sprite = sprite;
+                    var iconRect = icon.rectTransform;
+                    iconRect.anchorMin = iconRect.anchorMax = new Vector2(0f, 0.5f);
+                    iconRect.pivot = new Vector2(0f, 0.5f);
+                    iconRect.sizeDelta = new Vector2(48f, 48f);
+                    iconRect.anchoredPosition = new Vector2(12f, 0f);
+                    text.rectTransform.offsetMin = new Vector2(64f, 0f);
+                }
             }
         }
 
@@ -320,7 +354,10 @@ namespace LoopRogue
             _expBar.Set(expRatio, levels.IsMaxLevel
                 ? $"Lv.{levels.Level}   EXP MAX"
                 : $"Lv.{levels.Level}   EXP {levels.Exp} / {levels.ExpToNext}  [{expRatio * 100f:0.00}%]");
-            _levelText.text = $"Lv.{levels.Level}  (ATK {stats.AttackPower:0})";
+            var title = Achievements.EquippedTitle;
+            _levelText.text = title != null
+                ? $"Lv.{levels.Level} <size=12><color=#FFD966>「{title.Title}」</color></size>"
+                : $"Lv.{levels.Level}  (ATK {stats.AttackPower:0})";
 
             // 상태 안내 한 줄(체력 막대 위) - 방향 고르는 중이거나 묶였을 때만.
             _skillText.text = _player.AimingItem.HasValue
@@ -333,6 +370,7 @@ namespace LoopRogue
             RefreshSkillSlots();
 
             RefreshTarget();
+            RefreshQuestTracker();
 
             if (_statPanel.Root.activeSelf)
                 RefreshStatPanels();
@@ -415,6 +453,8 @@ namespace LoopRogue
             var sb = new System.Text.StringBuilder();
 
             sb.AppendLine("<b><color=#FFD966>[기본]</color></b>");
+            var title = Achievements.EquippedTitle;
+            sb.AppendLine(title != null ? $"칭호  「{title.Title}」  ({title.EffectText})" : "칭호  없음 (로비 업적 창에서 장착)");
             sb.AppendLine(levels.IsMaxLevel ? $"레벨  Lv.{levels.Level}  (MAX)" : $"레벨  Lv.{levels.Level}  (EXP {levels.Exp}/{levels.ExpToNext})");
             sb.AppendLine($"체력  {s.CurrentHealth:0} / {s.MaxHealth:0}  (장비·영약 {s.FixedMaxHealth:0})");
             sb.AppendLine($"공격력  {s.AttackPower:0.#}  (장비·영약 {s.FixedAttack:0.#})");
@@ -488,8 +528,18 @@ namespace LoopRogue
 
         public void ShowLoopResetBanner(int startRoom) => ShowBanner($"스탯은 그대로! {RoomMapView.RoomLabel(startRoom, _roomCount)}부터 다시.");
 
+        private int _bannerFrame = -1;
+
+        /// <summary>같은 프레임에 안내가 여러 개 오면(방 클리어 "출구가 열렸다" + 의뢰 완료 등) 덮어쓰지 않고 줄을 늘려 같이 보여준다.</summary>
         private void ShowBanner(string message)
         {
+            if (_bannerGo.activeSelf && _bannerFrame == Time.frameCount)
+                message = _bannerText.text + "\n" + message;
+            _bannerFrame = Time.frameCount;
+            var lines = message.Split('\n').Length;
+            var rect = (RectTransform)_bannerGo.transform;
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, 44f + (lines - 1) * 22f);
+
             _bannerText.text = message;
             _bannerGo.SetActive(true);
 
@@ -521,12 +571,14 @@ namespace LoopRogue
 
         /// <summary>LoopManager.OnPlayerDied가 호출 - 선택 전까지는 RoomController.IsInputLocked가
         /// 이미 켜져 있어서 플레이어가 움직일 수 없다.</summary>
-        public void ShowDeathChoice(Action<int> onContinue, Action onLobby, int goldPenalty, IReadOnlyList<RoomDefinition> rooms, int defaultRoom)
+        public void ShowDeathChoice(Action<int> onContinue, Action onLobby, int goldPenalty, IReadOnlyList<RoomDefinition> rooms, int defaultRoom,
+            bool bossRoom = false)
         {
+            _deathTipText.text = $"<color=#C8B88A>시간지기 노인의 한마디</color>  \"{LobbyGuide.DeathTip(bossRoom)}\"";
             _onContinueAfterDeath = onContinue;
             _roomCount = rooms.Count;
             _roomMap ??= new RoomMapView(_deathPanel.transform, rooms.Count);
-            _roomMap.Show(_deathPanel.transform, new Vector2(0f, -18f), rooms, defaultRoom);
+            _roomMap.Show(_deathPanel.transform, new Vector2(0f, -18f + DeathTipHeight * 0.5f), rooms, defaultRoom); // 아래 조언 줄만큼 늘어난 패널 보정
             _onReturnToLobby = onLobby;
             LastDeathGoldPenalty = goldPenalty;
             _deathPenaltyText.text = goldPenalty > 0
@@ -612,6 +664,44 @@ namespace LoopRogue
             BuildRoomSelectPanel(canvasGo.transform);
             _relicPanel = BuildOverlayPanel(canvasGo.transform, "RelicPanel", new Vector2(500f, 330f), active: false);
             canvasGo.AddComponent<InventoryUI>().Build(canvasGo.transform, _player);
+            BuildQuestTracker(canvasGo.transform);
+            NpcDialogUI.Create();
+        }
+
+        // 왼쪽 위 의뢰 줄 - 던전 NPC "길 잃은 모험가"의 의뢰를 받았을 때만 보인다(RunQuest).
+        private GameObject _questTracker;
+        private Text _questText;
+
+        private void BuildQuestTracker(Transform parent)
+        {
+            var bg = HudUi.CreateImage(parent, "QuestTracker", PanelColor);
+            var rect = bg.rectTransform;
+            rect.anchorMin = rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
+            rect.sizeDelta = new Vector2(340f, 30f);
+            rect.anchoredPosition = new Vector2(12f, -(ActionBarLayout.TopBarHeight + 8f));
+            _questTracker = bg.gameObject;
+
+            _questText = HudUi.CreateText(bg.transform, "Text", 14, TextAnchor.MiddleLeft);
+            _questText.supportRichText = true;
+            HudUi.Stretch(_questText.rectTransform, 0f);
+            _questText.rectTransform.offsetMin = new Vector2(10f, 0f);
+            _questTracker.SetActive(false);
+        }
+
+        /// <summary>모험가 의뢰 + 받은 저주 계약을 줄마다 하나씩(없는 건 빼고). 둘 다 없으면 숨긴다.</summary>
+        private void RefreshQuestTracker()
+        {
+            var quest = RunQuest.TrackerText;
+            var curse = Curses.TrackerText;
+            var text = quest != null && curse != null ? $"{quest}\n{curse}" : quest ?? curse;
+            if (_questTracker.activeSelf != (text != null))
+                _questTracker.SetActive(text != null);
+            if (text == null || _questText.text == text)
+                return;
+            _questText.text = text;
+            var rect = (RectTransform)_questTracker.transform;
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, quest != null && curse != null ? 50f : 30f);
         }
 
         private static readonly Color BandColor = new Color(0.04f, 0.04f, 0.05f, 1f);
@@ -634,8 +724,8 @@ namespace LoopRogue
             _progressText = CreateBandText(band.transform, "Progress", 14, 200f, 440f, TextAnchor.MiddleLeft);
 
             // 조작 안내 - 대기 키(스페이스바)를 모르고 지나치지 않게. 오른쪽 [Tab] 스탯 버튼 바로 왼쪽.
-            var controls = CreateBandText(band.transform, "Controls", 12, -520f - 130f, 520f, TextAnchor.MiddleRight);
-            controls.text = "이동/공격: 방향키·WASD   대기: Space   스탯: Tab   인벤토리: I   메뉴: Esc";
+            var controls = CreateBandText(band.transform, "Controls", 12, -560f - 130f, 560f, TextAnchor.MiddleRight);
+            controls.text = "이동/공격: 방향키·WASD   대기: Space   대화: F   스탯: Tab   인벤토리: I   메뉴: Esc";
             controls.color = new Color(0.62f, 0.64f, 0.7f);
             var controlsRect = controls.rectTransform;
             controlsRect.anchorMin = controlsRect.anchorMax = new Vector2(1f, 0.5f);
@@ -1010,7 +1100,7 @@ namespace LoopRogue
 
         private void BuildDeathPanel(Transform parent)
         {
-            _deathPanel = BuildOverlayPanel(parent, "DeathPanel", new Vector2(700f, 330f), active: false);
+            _deathPanel = BuildOverlayPanel(parent, "DeathPanel", new Vector2(700f, 330f + DeathTipHeight), active: false);
 
             var title = CreateLabel(_deathPanel.transform, "사망! (레벨/스탯/장비는 그대로 유지됩니다)",
                 new Vector2(10f, -70f), new Vector2(-10f, -15f));
@@ -1027,7 +1117,17 @@ namespace LoopRogue
                 new Vector2(10f, -315f), new Vector2(-10f, -275f));
             prompt.alignment = TextAnchor.MiddleCenter;
             prompt.fontSize = 16;
+
+            // 맨 아래 - 노인의 조언 한 줄(LobbyGuide.DeathTip). 패널을 그만큼 늘렸다.
+            _deathTipText = CreateLabel(_deathPanel.transform, string.Empty, new Vector2(30f, -315f - DeathTipHeight), new Vector2(-30f, -318f));
+            _deathTipText.alignment = TextAnchor.MiddleCenter;
+            _deathTipText.fontSize = 14;
+            _deathTipText.supportRichText = true;
+            _deathTipText.color = new Color(0.85f, 0.86f, 0.9f);
         }
+
+        private const float DeathTipHeight = 56f;
+        private Text _deathTipText;
 
         private void BuildRoomSelectPanel(Transform parent)
         {

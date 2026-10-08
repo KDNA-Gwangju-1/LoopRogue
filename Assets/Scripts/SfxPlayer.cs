@@ -17,6 +17,8 @@ namespace LoopRogue
         Web,
         Fuse,
         Explosion,
+        Appear,  // NPC 등장
+        Curse,   // 저주 거래 성립
     }
 
     /// <summary>효과음 - 음원 파일 없이 사인파/사각파/노이즈를 코드로 합성해 AudioClip을 만든다(처음 쓸 때 한 번).
@@ -113,6 +115,12 @@ namespace LoopRogue
                 Sfx.Fuse => Build("sfx_fuse", 0.3f, p => Noise() * 0.35f * p * (0.7f + 0.3f * Mathf.Sin(p * 90f))),
                 // 폭발 - 길게 울리는 저음 쾅 + 노이즈
                 Sfx.Explosion => Build("sfx_explosion", 0.55f, p => (a.Sine(Mathf.Lerp(80f, 30f, p)) * 0.9f + Noise() * 0.8f * Decay(p, 5f)) * Decay(p, 3f)),
+                // NPC 등장 - 연기 "푸슉" + 위로 올라가는 반짝임
+                Sfx.Appear => Build("sfx_appear", 0.45f, p => Noise() * 0.3f * Decay(p, 8f)
+                    + a.Sine(Mathf.Lerp(520f, 1240f, p)) * 0.18f * Mathf.Sin(p * Mathf.PI) * (Mathf.Sin(p * 70f) > 0f ? 1f : 0.5f)),
+                // 저주 거래 - 낮게 떨리며 깔리는 불협화음
+                Sfx.Curse => Build("sfx_curse", 0.7f, p => (a.Sine(Mathf.Lerp(110f, 70f, p)) * 0.5f + b.Square(Mathf.Lerp(116f, 74f, p)) * 0.15f
+                    + Noise() * 0.15f * Mathf.Sin(p * Mathf.PI)) * Decay(p, 1.8f)),
                 _ => Build("sfx_none", 0.01f, p => 0f),
             };
         }

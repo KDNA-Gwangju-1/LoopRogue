@@ -58,13 +58,14 @@ namespace LoopRogue
         public static float PermanentHealthAtSave { get; private set; }
         public static float PermanentCriticalAtSave { get; private set; }
 
+        // + 장착 칭호(Achievements) - 로비에서 칭호를 바꾸면 위의 "차이만큼 더하기" 복원이 그대로 반영한다.
         public static float CurrentPermanentAttack() =>
-            EquipmentWallet.TotalAttackBonus() + StatPotionWallet.TotalAttackBonus() + Relics.PermanentAttack;
+            EquipmentWallet.TotalAttackBonus() + StatPotionWallet.TotalAttackBonus() + Relics.PermanentAttack + Achievements.TitleAttack;
 
         public static float CurrentPermanentHealth() =>
-            EquipmentWallet.TotalHealthBonus() + StatPotionWallet.TotalHealthBonus() + Relics.PermanentHealth;
+            EquipmentWallet.TotalHealthBonus() + StatPotionWallet.TotalHealthBonus() + Relics.PermanentHealth + Achievements.TitleHealth;
 
-        public static float CurrentPermanentCritical() => StatPotionWallet.TotalCriticalChanceBonus();
+        public static float CurrentPermanentCritical() => StatPotionWallet.TotalCriticalChanceBonus() + Achievements.TitleCrit;
 
         public static void EnsureLoaded()
         {
