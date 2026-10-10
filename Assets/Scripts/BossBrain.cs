@@ -173,6 +173,9 @@ namespace LoopRogue
             room.ClearTelegraph();
         }
 
+        /// <summary>거울 파편(4연격)이 진행 중인지 - 섬광탄으로도 안 멈추고, 보스가 기절해 있어도 계속 터진다(사용자 요청).</summary>
+        public bool MirrorShardsActive => _pending == BossPatternType.MirrorShards;
+
         public bool TakePatternTurn(PlayerActor player, RoomController room)
         {
             if (_pending.HasValue)

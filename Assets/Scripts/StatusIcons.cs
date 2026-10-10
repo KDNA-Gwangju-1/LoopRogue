@@ -37,7 +37,7 @@ namespace LoopRogue
             var icons = enemy.gameObject.AddComponent<StatusIcons>();
             var head = enemy.IsBoss ? 0.85f : 0.55f;
             icons.Add("status_stun", () => enemy.StunTurns > 0 && !enemy.Stats.IsDead, head, enemy.IsBoss ? 1f : 0.7f);
-            icons.Add("status_weak", () => enemy.VulnerableTurns > 0 && !enemy.Stats.IsDead, head + 0.3f, 0.45f);
+            icons.Add("status_weak", () => enemy.IsVulnerable && !enemy.Stats.IsDead, head + 0.3f, 0.45f);
         }
 
         private void LateUpdate()

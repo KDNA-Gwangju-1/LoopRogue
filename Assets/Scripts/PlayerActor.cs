@@ -160,14 +160,19 @@ namespace LoopRogue
                     break;
                 case ItemType.Flash:
                 {
+                    var mirrorKept = false;
                     foreach (var e in _room.Enemies.Where(b => b != null && b.IsBoss && !b.Stats.IsDead))
                     {
-                        e.CancelBossPattern(_room);
+                        // 10층 거울 파편(4연격)은 섬광탄으로 못 막는다 - 기절은 걸리지만 깔린 파편은 그대로 터진다.
+                        if (e.MirrorShardsActive)
+                            mirrorKept = true;
+                        else
+                            e.CancelBossPattern(_room);
                         e.Stun(ItemInfo.FlashBossStunTurns);
                     }
                     foreach (var e in _room.EnemiesWithin(GridPos, ItemInfo.FlashRadius).Where(m => !m.IsBoss))
                         e.Stun(ItemInfo.FlashEnemyStunTurns);
-                    _room.ShowMessage(Loc.T("섬광탄! 보스의 공격이 취소됐다"));
+                    _room.ShowMessage(mirrorKept ? Loc.T("섬광탄! 보스는 비틀거리지만 거울 파편은 멈추지 않는다") : Loc.T("섬광탄! 보스의 공격이 취소됐다"));
                     break;
                 }
                 case ItemType.Reflect:
@@ -176,9 +181,9 @@ namespace LoopRogue
                     break;
                 case ItemType.Weakness:
                     foreach (var e in _room.EnemiesWithin(GridPos, ItemInfo.WeaknessRadius))
-                        e.MarkVulnerable(ItemInfo.WeaknessTurns);
+                        e.MarkVulnerable();
                     foreach (var e in _room.Enemies.Where(b => b != null && b.IsBoss && !b.Stats.IsDead))
-                        e.MarkVulnerable(ItemInfo.WeaknessTurns);
+                        e.MarkVulnerable();
                     _room.ShowMessage(Loc.T("약점 표식! 받는 피해가 늘어난다"));
                     break;
                 case ItemType.Barrier:

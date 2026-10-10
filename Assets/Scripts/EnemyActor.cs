@@ -64,12 +64,24 @@ namespace LoopRogue
         public void Stun(int turns) => StunTurns = Mathf.Max(StunTurns, turns);
 
         /// <summary>약점 표식 - 남은 턴 동안 받는 피해 증가.</summary>
+        /// <summary>약점 표식 - 사람은 실제 시간(ItemInfo.WeaknessSeconds초), 자동 플레이 봇은 턴(초고속이라 시간 기준이 안 맞음).</summary>
         public int VulnerableTurns { get; private set; }
-        public void MarkVulnerable(int turns) => VulnerableTurns = Mathf.Max(VulnerableTurns, turns);
-        public float DamageTakenMultiplier => VulnerableTurns > 0 ? ItemInfo.WeaknessDamageMultiplier : 1f;
+        private float _vulnerableUntil = -1f;
+        public bool IsVulnerable => VulnerableTurns > 0 || Time.time < _vulnerableUntil;
+
+        public void MarkVulnerable()
+        {
+            if (GameHUD.AutoPlayActive)
+                VulnerableTurns = Mathf.Max(VulnerableTurns, ItemInfo.WeaknessTurns);
+            else
+                _vulnerableUntil = Mathf.Max(_vulnerableUntil, Time.time + ItemInfo.WeaknessSeconds);
+        }
+
+        public float DamageTakenMultiplier => IsVulnerable ? ItemInfo.WeaknessDamageMultiplier : 1f;
 
         /// <summary>섬광탄 - 보스가 예고해둔 공격을 취소한다.</summary>
         public void CancelBossPattern(RoomController room) => _brain?.CancelPending(room);
+        public bool MirrorShardsActive => _brain != null && _brain.MirrorShardsActive;
 
         /// <summary>방패병이 바라보는 방향(상하좌우). 다른 몹은 의미 없음.</summary>
         public Vector2Int Facing { get; private set; } = Vector2Int.left;
@@ -459,6 +471,8 @@ namespace LoopRogue
             if (StunTurns > 0)
             {
                 StunTurns--; // 기절(섬광탄/연막탄/덫) - 아무것도 안 함
+                if (MirrorShardsActive)
+                    _brain.TakePatternTurn(player, room); // 단, 이미 깔린 거울 파편은 기절해도 순서대로 계속 터진다
                 return;
             }
 

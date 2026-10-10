@@ -35,10 +35,11 @@ namespace LoopRogue
         public const int FlashRadius = 2;
         public const int FlashEnemyStunTurns = 1;
         public const int TrapStunTurns = 3;
-        public const int ReflectTurns = 3;
+        public const int ReflectTurns = 5; // 3 -> 5(사용자 요청)
         public const float ReflectBossDamageRate = 0.15f; // 보스 최대 체력 ×
         public const int WeaknessRadius = 3;
-        public const int WeaknessTurns = 5;
+        public const int WeaknessTurns = 5;          // 자동 플레이 봇용(봇은 초고속이라 실제 시간 대신 턴)
+        public const float WeaknessSeconds = 15f;    // 사람 - 실제 시간 15초(사용자 요청, 턴이 아니라 초)
         public const float WeaknessDamageMultiplier = 1.5f;
         public const float MobDropChance = 0.03f;
 
@@ -66,7 +67,7 @@ namespace LoopRogue
             ItemType.Flash => Loc.F("보스의 예고 공격 취소 + {0}턴 기절, 주변 몹 {1}턴 기절", FlashBossStunTurns, FlashEnemyStunTurns),
             ItemType.Trap => Loc.F("옆 칸에 설치 - 밟은 몹(보스 포함) {0}턴 기절", TrapStunTurns),
             ItemType.Reflect => Loc.F("{0}턴 안에 맞는 보스 예고 공격 1회를 되돌린다(보스 최대 체력 {1:0}%)", ReflectTurns, ReflectBossDamageRate * 100f),
-            ItemType.Weakness => Loc.F("주변 {0}칸 몹과 보스가 {1}턴 동안 받는 피해 +{2:0}%", WeaknessRadius, WeaknessTurns, (WeaknessDamageMultiplier - 1f) * 100f),
+            ItemType.Weakness => Loc.F("주변 {0}칸 몹과 보스가 {1:0}초 동안 받는 피해 +{2:0}%", WeaknessRadius, WeaknessSeconds, (WeaknessDamageMultiplier - 1f) * 100f),
             _ => Loc.T("다음에 받는 피해 1회 무효"),
         };
 

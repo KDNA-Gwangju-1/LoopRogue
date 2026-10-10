@@ -693,3 +693,5 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 본모습일 때는 거울 파편을 쓴다 - 주변에 4번의 공격 칸을 한꺼번에 보여주고(칸의 숫자 = 몇 번째에 터지는지) 순서대로 터뜨린다. 매번 서 있는 칸이 포함되니 숫자를 읽고 길을 짜서 움직이자.	In its true form it uses Mirror Shards: it shows four waves of strike tiles at once (the number on a tile = which wave hits it) and detonates them in order. Your current tile is always in the next wave, so read the numbers and plan your path.
 거울이 깨졌다! {0}가 본모습으로 돌아와 {1}턴 동안 비틀거린다	The mirror shatters! {0} returns to its true form and staggers for {1} turns
 다른 보스를 비추는 동안 많이 때리면 머리 위 거울에 금이 가다가 깨진다 - 깨지면 본모습으로 돌아오고, 예고한 패턴이 취소되고, 2턴 동안 비틀거린다.	While it mirrors another boss, hit it hard enough and the mirror above its head cracks and shatters: it returns to its true form, its telegraphed pattern is cancelled, and it staggers for 2 turns.
+주변 {0}칸 몹과 보스가 {1:0}초 동안 받는 피해 +{2:0}%	Mobs and bosses within {0} tiles take +{2:0}% damage for {1:0} seconds
+섬광탄! 보스는 비틀거리지만 거울 파편은 멈추지 않는다	Flashbang! The boss staggers, but the Mirror Shards keep coming
