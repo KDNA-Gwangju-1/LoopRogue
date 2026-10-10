@@ -280,6 +280,7 @@ namespace LoopRogue
                 Stats.FullHeal();
                 Levels = new LevelSystem(Stats);
             }
+            Levels.OnLevelUp += _ => HitFeedback.OnLevelUp(this); // 금빛 기둥
 
             // StoryRPG의 로그(Rogue) 캐릭터 스프라이트(전용 아트가 아직 없어 어쌔신 스프라이트로
             // 폴백 중인 그 그림) - Assets/Resources/PlayerSprite.png(평소)+PlayerAttackSprite.png

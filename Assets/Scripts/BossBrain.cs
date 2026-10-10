@@ -262,7 +262,7 @@ namespace LoopRogue
             }
 
             PatternResolveCount++;
-            HitFeedback.OnBossPatternResolved(player, _pendingTiles.Contains(player.GridPos));
+            HitFeedback.OnBossPatternResolved(player, _pendingTiles.Contains(player.GridPos), type, _pendingTiles);
             if (_pendingTiles.Contains(player.GridPos))
             {
                 PatternHitCount++;

@@ -369,6 +369,7 @@ namespace LoopRogue
                     boss.Stats.AttackPower * BossBrain.MinionAttackRatio, isBoss: false);
                 minion.MarkAsMinion();
                 Map.PlaceActor(minion, pos);
+                HitFeedback.OnSummon(new Vector3(pos.x * GridConstants.CellSize, pos.y * GridConstants.CellSize, 0f));
                 _enemies.Add(minion);
             }
         }
@@ -409,10 +410,16 @@ namespace LoopRogue
 
         private GameObject SpawnTelegraphTile(Vector2Int t, Color color, int sortingOrder)
         {
+            var position = new Vector3(t.x * GridConstants.CellSize, t.y * GridConstants.CellSize, 0f);
+            // 도트 예고 칸(흰 그림에 색을 곱함 - 보스 = 빨강, 폭발 = 주황, 깜빡임) - 그림이 없거나 봇 중이면 예전 사각형.
+            var fx = Fx.Play("telegraph", position, 0.95f, tint: new Color(color.r, color.g, color.b, 0.95f), fps: 6f, loop: true,
+                sortingOrder: sortingOrder, parent: transform);
+            if (fx != null)
+                return fx.gameObject;
             var go = new GameObject("Telegraph");
             go.transform.SetParent(transform, false);
             VisualUtil.CreateSquareVisual(go, color, GridConstants.CellSize * 0.95f, sortingOrder);
-            go.transform.position = new Vector3(t.x * GridConstants.CellSize, t.y * GridConstants.CellSize, 0f);
+            go.transform.position = position;
             return go;
         }
 
@@ -572,6 +579,7 @@ namespace LoopRogue
                     ? Mathf.RoundToInt(GoldPerBossKill * stageMultiplier * goldBonus)
                     : Mathf.RoundToInt(GoldPerKill * stageMultiplier * goldBonus * repeat);
                 GoldWallet.Add(killGold);
+                HitFeedback.OnGold(enemy.transform.position);
             }
 
             _enemies.Remove(enemy);
@@ -612,6 +620,7 @@ namespace LoopRogue
                 GoldWallet.Add(Mathf.RoundToInt(GoldPerRoomClear * StageScaling.RewardMultiplier(_stage) * goldBonus * StageProgress.RepeatRewardMultiplier));
                 _player.Stats.Heal(_player.Stats.MaxHealth * (RoomClearHealRate + (Relics.Has(RelicType.RegenMoss) ? Relics.RegenMossHealRate : 0f)) // + 유물 "재생의 이끼"
                                    * Curses.RoomHealMultiplier); // × 저주 "메마른 저주"
+                HitFeedback.OnHeal(_player);
             }
 
             if (_current.IsBossRoom)

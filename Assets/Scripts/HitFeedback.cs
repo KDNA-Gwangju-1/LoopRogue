@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace LoopRogue
@@ -26,12 +27,19 @@ namespace LoopRogue
             {
                 // 방패에 막힘 - 번쩍임 대신 살짝만 찌그러지고 "깡" 소리.
                 juice.Squish(0.06f);
+                Fx.Play("hit_spark", enemy.transform.position, 0.6f, tint: new Color(0.75f, 0.8f, 0.9f));
                 CameraShake.Shake(0.03f, 0.06f);
                 SfxPlayer.Play(Sfx.Block);
                 return;
             }
             juice.Flash(enemy.GetComponent<SpriteAnimator>() != null ? SpriteHitTint : Color.white); // 그림은 흰색 틴트면 티가 안 나서 붉게
             juice.Squish(isCritical ? 0.3f : 0.18f);
+
+            // 베기 - 몹 자리에서 플레이어 쪽으로 살짝 당겨서, 때린 방향을 향하게(치명타는 크고 붉은 금빛).
+            var cell = GridConstants.CellSize;
+            var slashPos = enemy.transform.position - new Vector3(direction.x, direction.y, 0f) * cell * 0.2f;
+            Fx.Play(isCritical ? "slash_crit" : "slash", slashPos, isCritical ? 1.7f : 1.2f, Fx.Angle(direction));
+            Fx.Play("hit_spark", enemy.transform.position, isCritical ? 0.9f : 0.6f);
 
             if (isCritical)
             {
@@ -53,15 +61,18 @@ namespace LoopRogue
 
             var renderer = enemy.GetComponent<SpriteRenderer>();
             var color = ActorJuice.BaseColorOf(enemy, renderer);
+            // 사라지는 연기(몹 색으로 살짝 물들임) - 연기 그림이 있으면 사각형 파편은 조금만.
+            var smokeTint = Color.Lerp(Color.white, color, 0.35f);
+            var smoke = Fx.Play("death_smoke", enemy.transform.position, enemy.IsBoss ? 2.8f : 1.2f, tint: smokeTint);
             if (enemy.IsBoss)
             {
-                DeathBurst.Spawn(enemy.transform.position, color, count: 24, speed: 6f, size: 0.3f);
+                DeathBurst.Spawn(enemy.transform.position, color, count: smoke != null ? 14 : 24, speed: 6f, size: 0.3f);
                 CameraShake.Shake(0.4f, 0.45f);
                 SfxPlayer.Play(Sfx.BossDown);
             }
             else
             {
-                DeathBurst.Spawn(enemy.transform.position, color, count: 10, speed: 4f, size: 0.18f);
+                DeathBurst.Spawn(enemy.transform.position, color, count: smoke != null ? 5 : 10, speed: 4f, size: 0.18f);
                 CameraShake.Shake(0.08f, 0.12f);
                 SfxPlayer.Play(Sfx.Kill);
             }
@@ -76,6 +87,7 @@ namespace LoopRogue
             if (attacker != null && attacker.IsAdjacentTo(player.GridPos))
                 ActorJuice.Get(attacker).Bump(player.GridPos - attacker.GridPos, BumpDistance);
             ActorJuice.Get(player).Flash(PlayerHurtTint);
+            Fx.Play("hit_spark", player.transform.position, 0.7f, tint: new Color(1f, 0.45f, 0.4f));
             CameraShake.Shake(attacker != null && attacker.IsBoss ? 0.14f : 0.08f, 0.12f);
             SfxPlayer.Play(Sfx.Hurt);
         }
@@ -96,7 +108,8 @@ namespace LoopRogue
             if (!Enabled)
                 return;
 
-            DeathBurst.Spawn(position, new Color(1f, 0.6f, 0.15f), count: 22, speed: 8f, size: 0.25f);
+            var fire = Fx.Play("explosion", position, 3.3f, fps: 16f); // 주변 3x3이 터지는 크기
+            DeathBurst.Spawn(position, new Color(1f, 0.6f, 0.15f), count: fire != null ? 10 : 22, speed: 8f, size: 0.25f);
             CameraShake.Shake(0.3f, 0.3f);
             SfxPlayer.Play(Sfx.Explosion);
         }
@@ -108,15 +121,38 @@ namespace LoopRogue
                 return;
 
             ActorJuice.Get(player).Flash(new Color(0.85f, 0.8f, 1f));
+            // 묶여 있는 동안 몸에 거미줄(풀리거나 죽으면 사라짐) - 이미 감겨 있으면 하나만.
+            if (player.transform.Find("Fx_web_bind") == null)
+            {
+                var web = Fx.Play("web_bind", player.transform.position, 1.1f, fps: 6f, loop: true, sortingOrder: 3, parent: player.transform);
+                if (web != null)
+                    web.KeepAlive = () => player != null && player.RootedTurns > 0 && !player.Stats.IsDead;
+            }
             CameraShake.Shake(0.05f, 0.1f);
             SfxPlayer.Play(Sfx.Web);
         }
 
         /// <summary>보스 예고 공격이 발동하는 순간 - 피했어도 "쾅" 하는 느낌은 주고, 맞았으면 훨씬 크게.</summary>
-        public static void OnBossPatternResolved(PlayerActor player, bool hitPlayer)
+        public static void OnBossPatternResolved(PlayerActor player, bool hitPlayer, BossPatternType type, IEnumerable<Vector2Int> tiles)
         {
             if (!Enabled)
                 return;
+
+            // 패턴마다 칸 위에 터지는 그림(강타 = 흙·돌, 돌진 = 먼지, 십자 = 얼음 균열, 파동 = 포자, 저격 = 빛줄기, X자 = 보라 베기)
+            var name = type switch
+            {
+                BossPatternType.Slam => "boss_slam",
+                BossPatternType.Charge => "boss_charge",
+                BossPatternType.Cross => "boss_cross",
+                BossPatternType.Ring => "boss_ring",
+                BossPatternType.Snipe => "boss_snipe",
+                BossPatternType.SnipeFollowUp => "boss_snipe",
+                BossPatternType.Diagonal => "boss_diag",
+                _ => null,
+            };
+            if (name != null)
+                foreach (var t in tiles)
+                    Fx.Play(name, new Vector3(t.x * GridConstants.CellSize, t.y * GridConstants.CellSize, 0f), 1.15f, fps: 16f, sortingOrder: 4);
 
             SfxPlayer.Play(Sfx.Slam);
             if (hitPlayer)
@@ -148,6 +184,10 @@ namespace LoopRogue
                     DeathBurst.SpawnGhost(renderer.sprite, pos, player.transform.localScale.x, new Color(0.5f, 0.8f, 1f, 0.15f + 0.1f * i));
                 }
             }
+            var path = to - from;
+            if (path.sqrMagnitude > 0.01f)
+                Fx.Play("dash", (from + to) * 0.5f, path.magnitude / GridConstants.CellSize + 0.6f,
+                    Mathf.Atan2(path.y, path.x) * Mathf.Rad2Deg, fps: 22f, sortingOrder: 2);
             CameraShake.Shake(0.05f, 0.08f);
             SfxPlayer.Play(Sfx.Dash);
         }
@@ -159,7 +199,8 @@ namespace LoopRogue
                 return;
 
             ActorJuice.Get(player).Spin();
-            DeathBurst.Spawn(player.transform.position, new Color(0.7f, 0.9f, 1f), count: 16, speed: 7f, size: 0.12f);
+            var swirl = Fx.Play("spin", player.transform.position, 3.3f, fps: 22f); // 주변 8칸을 감싸는 고리
+            DeathBurst.Spawn(player.transform.position, new Color(0.7f, 0.9f, 1f), count: swirl != null ? 8 : 16, speed: 7f, size: 0.12f);
             CameraShake.Shake(0.1f, 0.12f);
             SfxPlayer.Play(Sfx.Spin);
         }
@@ -171,6 +212,48 @@ namespace LoopRogue
                 return;
 
             SfxPlayer.Play(Sfx.Warning);
+        }
+
+        /// <summary>크게 회복했을 때(방 클리어 회복, 회복 샘) - 초록 십자가 떠오른다.</summary>
+        public static void OnHeal(PlayerActor player)
+        {
+            if (!Enabled)
+                return;
+            Fx.Play("heal", player.transform.position, 1.3f, fps: 14f, sortingOrder: 8);
+        }
+
+        /// <summary>레벨업 - 발밑에서 금빛 기둥이 솟는다.</summary>
+        public static void OnLevelUp(PlayerActor player)
+        {
+            if (!Enabled)
+                return;
+            // 그림이 세로로 길어서(48x96) 아래쪽 고리가 발밑에 오게 위로 올린다.
+            Fx.Play("levelup", player.transform.position + Vector3.up * GridConstants.CellSize * 0.95f, 1.3f, fps: 14f, sortingOrder: 8);
+        }
+
+        /// <summary>골드를 얻은 자리 - 동전이 돌며 떠오른다.</summary>
+        public static void OnGold(Vector3 position)
+        {
+            if (!Enabled)
+                return;
+            Fx.Play("coin", position + Vector3.up * GridConstants.CellSize * 0.3f, 0.4f, fps: 14f, sortingOrder: 8, riseCells: 0.9f);
+        }
+
+        /// <summary>보스가 졸개를 부른 칸 - 붉은 마법진.</summary>
+        public static void OnSummon(Vector3 position)
+        {
+            if (!Enabled)
+                return;
+            Fx.Play("summon", position, 1.5f, fps: 14f, sortingOrder: 2);
+        }
+
+        /// <summary>거울 가면 기사가 다른 보스로 변신 - 거울 조각이 터져 나간다.</summary>
+        public static void OnMorph(EnemyActor boss)
+        {
+            if (!Enabled)
+                return;
+            Fx.Play("morph", boss.transform.position, 3.2f, fps: 16f, sortingOrder: 8);
+            CameraShake.Shake(0.08f, 0.15f);
         }
     }
 }

@@ -218,6 +218,7 @@ namespace LoopRogue
             _morphStage = stage;
             ApplyBossSprite(stage);
             ActorJuice.Get(this).Flash(Color.white); // 변신하는 순간 번쩍
+            HitFeedback.OnMorph(this);
         }
 
         /// <summary>보스 광폭화 표시 - 붉게 물들인다(BossBrain이 HP 절반 이하가 되는 순간 한 번 부른다).</summary>
@@ -446,7 +447,8 @@ namespace LoopRogue
                 _webCooldown = WebCooldownTurns;
                 if (TryGetComponent<SpriteAnimator>(out var anim)) // 거미줄 쏜 쪽을 바라보게
                     anim.PlayAttack(_tp - GridPos);
-                SpawnLineVisual(TargetWorld(player), new Color(0.95f, 0.95f, 1f, 0.9f), 0.12f, 0.25f);
+                if (!Fx.Projectile("web_shot", transform.position, TargetWorld(player), 0.45f, 0.15f))
+                    SpawnLineVisual(TargetWorld(player), new Color(0.95f, 0.95f, 1f, 0.9f), 0.12f, 0.25f);
                 if (_decoyTarget != null)
                 {
                     _decoyTarget.TakeHit(this, Stats.AttackPower * WebDamageRate);
@@ -684,9 +686,12 @@ namespace LoopRogue
             HitFeedback.OnPlayerHurt(player, this);
         }
 
-        /// <summary>궁수 → 플레이어로 가는 가는 노란 선을 잠깐 보여준다(화살 느낌만, 투사체 이동은 없음).</summary>
-        private void SpawnArrowVisual(Vector3 targetWorld) =>
-            SpawnLineVisual(targetWorld, new Color(1f, 0.9f, 0.3f, 0.9f), 0.08f, 0.15f);
+        /// <summary>궁수 → 플레이어로 화살이 날아간다(연출만 - 피해는 바로 들어감). 화살 그림이 없으면 가는 노란 선.</summary>
+        private void SpawnArrowVisual(Vector3 targetWorld)
+        {
+            if (!Fx.Projectile("arrow", transform.position, targetWorld, 0.55f, 0.1f))
+                SpawnLineVisual(targetWorld, new Color(1f, 0.9f, 0.3f, 0.9f), 0.08f, 0.15f);
+        }
 
         /// <summary>이 몹 → targetWorld로 가는 선을 잠깐 보여준다(화살/거미줄 - 투사체 이동은 없음).</summary>
         private void SpawnLineVisual(Vector3 targetWorld, Color color, float thickness, float lifetime)

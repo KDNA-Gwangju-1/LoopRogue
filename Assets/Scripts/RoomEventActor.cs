@@ -69,6 +69,7 @@ namespace LoopRogue
                 }
                 case RoomEventType.HealingSpring:
                     player.Stats.FullHeal();
+                    HitFeedback.OnHeal(player);
                     return "회복 샘! 체력이 전부 회복됐다";
                 case RoomEventType.BlessingAltar:
                     player.Levels.GrantBonusUpgrade();
