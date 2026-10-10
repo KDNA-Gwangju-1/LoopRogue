@@ -172,7 +172,7 @@ namespace LoopRogue
             public int ShieldBlocks;      // 방패 정면을 때려 피해가 줄어든 횟수
             public int BombExplosions;    // 폭발병 폭발
             public int BombHits;          // 그중 플레이어가 맞은 횟수
-            public readonly int[] Events = new int[4]; // RoomEventType 순서
+            public readonly int[] Events = new int[RoomEventActor.TypeCount]; // RoomEventType 순서
 
             // NPC 통계
             public int MerchantsMet;       // 떠돌이 상인 등장
@@ -191,7 +191,7 @@ namespace LoopRogue
 
         private static readonly string[] StockKindNames = { "영약", "뽑기권", "슬롯이용권", "아이템" };
 
-        private static readonly string[] EventNames = { "보물상자", "회복 샘", "축복 제단", "저주받은 상자" };
+        private static readonly string[] EventNames = Enumerable.Range(0, RoomEventActor.TypeCount).Select(i => RoomEventActor.Name((RoomEventType)i)).ToArray();
 
         private static readonly PotionType[] PotionOrder = { PotionType.Attack, PotionType.Health, PotionType.Critical };
         private static readonly string[] SlotNames = { "검", "갑옷", "반지" };
@@ -1921,7 +1921,7 @@ namespace LoopRogue
                    $"골드 사용: 뽑기 {r.GoldSpentGacha} / 영약 {r.GoldSpentPotion} / 데스패널티 {r.GoldLostDeath} | " +
                    $"최종 ATK {r.FinalAttack:0} 최대HP {r.FinalMaxHealth:0} 치명 {r.FinalCritChance * 100f:0}%(배율 {r.FinalCritMultiplier * 100f:0}%) | " +
                    $"보스 예고공격 {r.PatternResolves}회 중 {r.PatternHits}회 맞음(회피 이동 {r.Dodges}, 대기 {r.Waits}) | " +
-                   $"이벤트: {string.Join(" ", Enumerable.Range(0, 4).Select(i => $"{EventNames[i]} {r.Events[i]}"))} | " +
+                   $"이벤트: {string.Join(" ", Enumerable.Range(0, EventNames.Length).Select(i => $"{EventNames[i]} {r.Events[i]}"))} | " +
                    $"NPC: 상인 {r.MerchantsMet} 모험가 {r.WanderersMet} 거래상 {r.CurseNpcsMet}(계약 {r.CursesTaken}) 대화 {r.NpcTalks} | 상인 구매 " +
                    $"{string.Join(" ", Enumerable.Range(0, 4).Select(i => $"{StockKindNames[i]} {r.MerchantBuys[i]}"))} ({r.GoldSpentMerchant}G) | " +
                    $"모험가 의뢰 수락 {r.QuestAccepted} 완료 {r.QuestCompleted} | " +
@@ -2063,7 +2063,7 @@ namespace LoopRogue
                 Log($"아이템(판당): 얻음 {_results.Average(r => r.ItemObtained.Sum()):0.0}개 / 씀 {_results.Average(r => r.ItemUsed.Sum()):0.0}개 | 종류별 씀(전체) " +
                 string.Join(" ", Enumerable.Range(0, ItemInfo.Count).Select(i => $"{ItemInfo.Name((ItemType)i)} {_results.Sum(r => r.ItemUsed[i])}")));
             Log($"폭발병(판당): 폭발 {_results.Average(r => r.BombExplosions):0.0}회, 플레이어 적중 {(bombs > 0 ? _results.Sum(r => r.BombHits) * 100f / bombs : 0f):0}%");
-                Log($"방 이벤트(판당): {string.Join(" / ", Enumerable.Range(0, 4).Select(i => $"{EventNames[i]} {_results.Average(r => r.Events[i]):0.0}"))}");
+                Log($"방 이벤트(판당): {string.Join(" / ", Enumerable.Range(0, EventNames.Length).Select(i => $"{EventNames[i]} {_results.Average(r => r.Events[i]):0.0}"))}");
                 Log($"NPC(판당): 상인 {_results.Average(r => r.MerchantsMet):0.0} / 모험가 {_results.Average(r => r.WanderersMet):0.0} / " +
                     $"거래상 {_results.Average(r => r.CurseNpcsMet):0.0}(계약 {_results.Average(r => r.CursesTaken):0.0}) / 대화 {_results.Average(r => r.NpcTalks):0.0} | " +
                     $"상인 구매 {string.Join(" ", Enumerable.Range(0, 4).Select(i => $"{StockKindNames[i]} {_results.Average(r => r.MerchantBuys[i]):0.0}"))} " +

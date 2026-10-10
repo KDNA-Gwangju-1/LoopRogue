@@ -24,6 +24,9 @@ namespace LoopRogue
         /// <summary>이번 시도에 이 방에 이벤트 칸이 있는지 - LoopManager가 시도마다 스테이지당 한 방만 켠다.</summary>
         public bool HasEvent;
         public RoomEventType EventType;
+
+        /// <summary>테스트 맵 방(TestMap) - 정해진 배치에 이벤트 11종을 전부 깐다.</summary>
+        public bool IsTestRoom;
     }
 
     /// <summary>방 하나의 실제 상태(격자/벽/적 목록/이벤트/바닥 시각화/보스 예고 칸)를 관리하고, 적 전멸 시 다음 방
@@ -107,7 +110,7 @@ namespace LoopRogue
         private readonly Dictionary<Vector2Int, GameObject> _wallObjects = new Dictionary<Vector2Int, GameObject>();
         private static readonly Color PlayerBombColor = new Color(1f, 0.85f, 0.2f, 0.4f);
         public static int BombPlayerHitCount;
-        private RoomEventActor _event;
+        private readonly List<RoomEventActor> _events = new List<RoomEventActor>(); // 보통 방마다 하나, 테스트 맵은 11개
         private NpcActor _npc;
         private PlayerActor _player;
         private LoopManager _loopManager;
@@ -122,8 +125,8 @@ namespace LoopRogue
         /// <summary>예고된 공격 칸(보스 예고 + 불 붙은 폭발병 3x3, 다음 그 몹 턴에 발동) - 비어 있으면 예고 중인 공격 없음.</summary>
         public IReadOnlyCollection<Vector2Int> DangerTiles => _dangerTiles;
 
-        /// <summary>이 방에 아직 안 밟은 이벤트 칸이 있으면 그 액터.</summary>
-        public RoomEventActor Event => _event;
+        /// <summary>이 방에 아직 안 밟은 이벤트 칸이 있으면 그 액터(여러 개면 처음 것).</summary>
+        public RoomEventActor Event => _events.Count > 0 ? _events[0] : null;
 
         /// <summary>이 방의 NPC(없으면 null).</summary>
         public NpcActor Npc => _npc;
@@ -161,7 +164,7 @@ namespace LoopRogue
             _current = def;
             ClearRoom();
 
-            var layout = RoomLayoutGenerator.Generate(def, Rng);
+            var layout = def.IsTestRoom ? TestMap.Layout() : RoomLayoutGenerator.Generate(def, Rng);
             Map = new GridMap(layout.Width, layout.Height);
             foreach (var wall in layout.Walls)
                 Map.AddWall(wall);
@@ -170,7 +173,7 @@ namespace LoopRogue
 
             Map.PlaceActor(_player, layout.PlayerStart);
             PositionCamera(layout);
-            if (!def.IsBossRoom) // 보스방은 안개 없이 전부 보이게(사용자 결정 - 보스 패턴/소환 몹을 다 보고 싸우게)
+            if (!def.IsBossRoom && !def.IsTestRoom) // 보스방·테스트 방은 안개 없이 전부 보이게(사용자 결정 - 보스 패턴/소환 몹을 다 보고 싸우게)
                 FogOfWar.Create(this, _player, layout, _roomObjects);
 
             for (var i = 0; i < layout.EnemyPositions.Count; i++)
@@ -181,13 +184,18 @@ namespace LoopRogue
 
             if (def.HasEvent && layout.EventPosition.HasValue)
                 SpawnEvent(layout.EventPosition.Value, def.EventType);
+            if (def.IsTestRoom)
+                foreach (var (pos, type) in TestMap.Events)
+                    SpawnEvent(pos, type);
 
             _thornsKills.Clear();
+            _challengeEnemies.Clear();
+            _roomCleared = false;
             _player.OnRoomEntered(); // 갑옷 효과(보호막/불굴/응급 처치) 방마다 다시 채움
             IsInputLocked = false;
         }
 
-        private void SpawnEnemy(Vector2Int pos, RoomDefinition def, EnemyKind kind)
+        private EnemyActor SpawnEnemy(Vector2Int pos, RoomDefinition def, EnemyKind kind, float healthScale = 1f, float attackScale = 1f)
         {
             if (def.IsBossRoom)
                 kind = EnemyKind.Melee;
@@ -203,21 +211,23 @@ namespace LoopRogue
                 _ => (1f, 1f),
             };
             var enemy = go.AddComponent<EnemyActor>();
-            enemy.Initialize(def.EnemyMaxHealth * hpRatio, def.EnemyAttackPower * atkRatio, def.IsBossRoom, kind);
+            enemy.Initialize(def.EnemyMaxHealth * hpRatio * healthScale, def.EnemyAttackPower * atkRatio * attackScale, def.IsBossRoom, kind);
             if (def.IsBossRoom)
                 enemy.SetupBossPatterns(def.BossPatterns, _stage);
             Map.PlaceActor(enemy, pos);
             enemy.FaceToward(_player.GridPos); // 방패병은 입장한 플레이어 쪽을 보고 시작
             _enemies.Add(enemy);
+            return enemy;
         }
 
         private void SpawnEvent(Vector2Int pos, RoomEventType type)
         {
             var go = new GameObject("RoomEvent");
             go.transform.SetParent(transform, false);
-            _event = go.AddComponent<RoomEventActor>();
-            _event.Initialize(type);
-            Map.PlaceActor(_event, pos);
+            var ev = go.AddComponent<RoomEventActor>();
+            ev.Initialize(type);
+            Map.PlaceActor(ev, pos);
+            _events.Add(ev);
         }
 
         /// <summary>일반 방 클리어 시 NPC 등장 - 모험가: 의뢰를 들고 있으면 방 10에서 반드시(보고 받으러), 없으면 방 1에서 WandererChance.
@@ -328,17 +338,139 @@ namespace LoopRogue
             return true;
         }
 
-        /// <summary>플레이어가 이벤트 칸으로 이동했을 때(PlayerActor가 호출) - 발동하고 칸을 비운다.</summary>
-        public void TriggerEvent(RoomEventActor ev)
+        /// <summary>플레이어가 이벤트 칸으로 이동했을 때(PlayerActor가 호출) - 발동하고 칸을 비운다.
+        /// 칸이 사라졌으면 true(플레이어가 그 칸으로 들어간다) - 피의 제단처럼 고르는 창이 뜨면 false(칸이 남는다).</summary>
+        public bool TriggerEvent(RoomEventActor ev)
         {
-            var message = ev.Trigger(_player, RoomClearGold);
+            var message = ev.Trigger(_player, this, out var consumed);
+            if (message != null)
+                ShowMessage(message);
+            if (!consumed)
+                return false;
+            ConsumeEvent(ev);
+            return true;
+        }
+
+        /// <summary>이벤트 칸을 다 썼을 때 - 통계를 세고 칸을 비운다(피의 제단은 고르는 창에서 바친 순간).</summary>
+        public void ConsumeEvent(RoomEventActor ev)
+        {
+            if (ev == null)
+                return;
             EventTriggeredCount++;
             LastEventType = ev.Type;
             Map.RemoveActor(ev);
             Destroy(ev.gameObject);
-            if (_event == ev)
-                _event = null;
-            ShowMessage(message);
+            _events.Remove(ev);
+        }
+
+        // ---- 이벤트로 나오는 몹(미믹·도전의 깃발·운명의 주사위) ----
+        public const float MimicHealthRatio = 3f;
+        public const float MimicAttackRatio = 1.5f;
+        public const int MimicGoldRooms = 12;      // 미믹 처치 골드 = 방 클리어 골드 × 이 값(+ 아이템 1개)
+        public const int ChallengeEnemyCount = 3;
+        public const float EliteHealthRatio = 1.8f;
+        public const float EliteAttackRatio = 1.3f;
+        public const int ChallengeGoldRooms = 6;   // 도전 성공 골드 = 방 클리어 골드 × 이 값(+ 레벨업 카드 1장)
+        private readonly HashSet<EnemyActor> _challengeEnemies = new HashSet<EnemyActor>();
+        private bool _roomCleared;
+
+        /// <summary>미믹 - 상자 자리(곧 플레이어가 들어갈 칸) 옆 빈 칸에서 튀어나온다.</summary>
+        public void SpawnMimic(Vector2Int chestPos)
+        {
+            var pos = FreeCellNear(chestPos, chestPos);
+            if (!pos.HasValue)
+                return;
+            var mimic = SpawnEnemy(pos.Value, _current, EnemyKind.Melee, MimicHealthRatio, MimicAttackRatio);
+            mimic.MarkAsMimic();
+            mimic.FaceToward(chestPos);
+            HitFeedback.OnSummon(mimic.transform.position);
+        }
+
+        /// <summary>도전의 깃발 - 정예 몹 한 무리. 전부 잡으면 보상(GiveEventEnemyReward).</summary>
+        public void StartChallenge(Vector2Int flagPos)
+        {
+            _challengeEnemies.Clear();
+            for (var i = 0; i < ChallengeEnemyCount; i++)
+            {
+                var enemy = SpawnOneEventEnemy(flagPos, EliteHealthRatio, EliteAttackRatio, elite: true);
+                if (enemy != null)
+                    _challengeEnemies.Add(enemy);
+            }
+        }
+
+        /// <summary>이벤트로 몹 count마리를 더 부른다(플레이어에게서 2칸 이상 떨어진 빈 칸). 실제로 나온 수를 돌려준다.</summary>
+        public int SpawnEventEnemies(int count, float healthRatio, float attackRatio, bool elite)
+        {
+            var spawned = 0;
+            for (var i = 0; i < count; i++)
+                if (SpawnOneEventEnemy(_player.GridPos, healthRatio, attackRatio, elite) != null)
+                    spawned++;
+            return spawned;
+        }
+
+        /// <param name="avoid">비워둘 칸(곧 플레이어가 들어갈 이벤트 칸)</param>
+        private EnemyActor SpawnOneEventEnemy(Vector2Int avoid, float healthRatio, float attackRatio, bool elite)
+        {
+            var cells = new List<Vector2Int>();
+            for (var x = 0; x < Map.Width; x++)
+            for (var y = 0; y < Map.Height; y++)
+            {
+                var p = new Vector2Int(x, y);
+                var d = Mathf.Max(Mathf.Abs(p.x - _player.GridPos.x), Mathf.Abs(p.y - _player.GridPos.y));
+                if (Map.IsWalkable(p) && p != avoid && ExitPosition != p && !_traps.ContainsKey(p) && d >= 2)
+                    cells.Add(p);
+            }
+            if (cells.Count == 0)
+                return null;
+            var pos = cells[Rng.Next(cells.Count)];
+            var kinds = _current.EnemyKinds;
+            var kind = kinds != null && kinds.Count > 0 ? kinds[Rng.Next(kinds.Count)] : EnemyKind.Melee;
+            var enemy = SpawnEnemy(pos, _current, kind, healthRatio, attackRatio);
+            if (elite)
+                enemy.MarkAsElite();
+            HitFeedback.OnSummon(enemy.transform.position);
+            return enemy;
+        }
+
+        /// <summary>center 주변(1~3칸 고리 순서) 빈 칸 중 하나(avoid·플레이어 칸 제외).</summary>
+        private Vector2Int? FreeCellNear(Vector2Int center, Vector2Int avoid)
+        {
+            for (var r = 1; r <= 3; r++)
+            {
+                var ring = new List<Vector2Int>();
+                for (var dx = -r; dx <= r; dx++)
+                for (var dy = -r; dy <= r; dy++)
+                {
+                    var p = center + new Vector2Int(dx, dy);
+                    if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) == r && p != avoid && p != _player.GridPos && Map.IsWalkable(p)
+                        && ExitPosition != p && !_traps.ContainsKey(p))
+                        ring.Add(p);
+                }
+                if (ring.Count > 0)
+                    return ring[Rng.Next(ring.Count)];
+            }
+            return null;
+        }
+
+        /// <summary>미믹·도전 정예를 잡았을 때의 추가 보상.</summary>
+        private void GiveEventEnemyReward(EnemyActor enemy)
+        {
+            if (enemy.IsMimic)
+            {
+                var gold = RoomClearGold * MimicGoldRooms;
+                GoldWallet.Add(gold);
+                var item = Inventory.GiveRandomMissing();
+                ShowMessage($"미믹 처치! 골드 +{gold}{(item.HasValue ? $", {ItemInfo.Name(item.Value)} 획득" : "")}");
+                HitFeedback.OnGold(enemy.transform.position);
+            }
+            if (_challengeEnemies.Remove(enemy) && _challengeEnemies.Count == 0)
+            {
+                var gold = RoomClearGold * ChallengeGoldRooms;
+                GoldWallet.Add(gold);
+                _player.Levels.GrantBonusUpgrade();
+                ShowMessage($"도전 성공! 골드 +{gold}, 레벨업 카드 1장");
+                HitFeedback.OnLevelUp(_player);
+            }
         }
 
         public void ShowMessage(string message) => _loopManager.ShowMessage(message);
@@ -534,9 +666,10 @@ namespace LoopRogue
                     Destroy(enemy.gameObject);
             _enemies.Clear();
 
-            if (_event != null)
-                Destroy(_event.gameObject);
-            _event = null;
+            foreach (var ev in _events) // 방을 다시 깔 때 남은 이벤트 칸을 전부 지운다(예전엔 하나만 지워서 테스트 맵에 옛 그림이 남았다)
+                if (ev != null)
+                    Destroy(ev.gameObject);
+            _events.Clear();
 
             if (_npc != null)
                 Destroy(_npc.gameObject);
@@ -583,6 +716,7 @@ namespace LoopRogue
             }
 
             _enemies.Remove(enemy);
+            GiveEventEnemyReward(enemy);
 
             if (enemy.IsBoss)
             {
@@ -597,8 +731,8 @@ namespace LoopRogue
                 ClearTelegraph();
             }
 
-            if (_enemies.Count > 0)
-                return false;
+            if (_enemies.Count > 0 || _roomCleared)
+                return false; // 이미 비운 방에서 이벤트로 나온 몹(미믹·정예)을 잡은 경우 - 방 클리어는 한 번만
 
             FinishRoomCleared();
             return true;
@@ -607,6 +741,9 @@ namespace LoopRogue
         /// <summary>방의 몹이 전부 사라졌을 때 - 일반 방은 클리어 골드 + 회복 후 다음 방, 보스방은 스테이지 클리어.</summary>
         private void FinishRoomCleared()
         {
+            if (_roomCleared)
+                return;
+            _roomCleared = true;
             RoomClearCount++;
             LastClearedRoom = _current.RoomName;
             LastClearedWasBoss = _current.IsBossRoom;
@@ -806,9 +943,12 @@ namespace LoopRogue
             _torches.Add(pos);
             var go = new GameObject("Torch");
             go.transform.SetParent(transform, false);
-            VisualUtil.CreateSquareVisual(go, new Color(1f, 0.7f, 0.2f), GridConstants.CellSize * 0.3f, sortingOrder: -6);
             go.transform.position = new Vector3(pos.x * GridConstants.CellSize, pos.y * GridConstants.CellSize, 0f);
-            go.transform.rotation = Quaternion.Euler(0f, 0f, 45f);
+            if (Fx.Play("obj_torch", go.transform.position, 0.8f, fps: 8f, loop: true, sortingOrder: -6, parent: go.transform) == null)
+            {
+                VisualUtil.CreateSquareVisual(go, new Color(1f, 0.7f, 0.2f), GridConstants.CellSize * 0.3f, sortingOrder: -6);
+                go.transform.rotation = Quaternion.Euler(0f, 0f, 45f);
+            }
             _roomObjects.Add(go);
         }
 
@@ -816,8 +956,9 @@ namespace LoopRogue
         {
             var go = new GameObject("Trap");
             go.transform.SetParent(transform, false);
-            VisualUtil.CreateSquareVisual(go, new Color(0.55f, 0.55f, 0.6f, 0.9f), GridConstants.CellSize * 0.5f, sortingOrder: -6);
             go.transform.position = new Vector3(pos.x * GridConstants.CellSize, pos.y * GridConstants.CellSize, 0f);
+            if (Fx.Play("obj_trap", go.transform.position, 0.8f, fps: 4f, loop: true, sortingOrder: -6, parent: go.transform) == null)
+                VisualUtil.CreateSquareVisual(go, new Color(0.55f, 0.55f, 0.6f, 0.9f), GridConstants.CellSize * 0.5f, sortingOrder: -6);
             _roomObjects.Add(go);
             _traps[pos] = go;
         }
@@ -867,6 +1008,11 @@ namespace LoopRogue
             var objects = new List<GameObject>();
             foreach (var t in BlastArea(center))
                 objects.Add(SpawnTelegraphTile(t, PlayerBombColor, -4));
+            // 떨어진 폭탄(심지 불꽃) - 터지면 예고 칸과 같이 지워진다.
+            var bomb = Fx.Play("obj_bomb", new Vector3(center.x * GridConstants.CellSize, center.y * GridConstants.CellSize, 0f), 0.7f,
+                fps: 10f, loop: true, sortingOrder: 2, parent: transform);
+            if (bomb != null)
+                objects.Add(bomb.gameObject);
             _playerBombs.Add((center, objects));
         }
 

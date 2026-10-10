@@ -25,7 +25,7 @@ namespace LoopRogue
         public Func<string> Note;     // 발견 후 덧붙이는 상태(유물 보유 여부 등) - 없으면 null
     }
 
-    /// <summary>도감 - 몬스터 5 / 유물 22 / 보스 10. 발견 기록은 영구 저장(PlayerPrefs). 몬스터는 처음 처치할 때, 유물은 보스 보상
+    /// <summary>도감 - 몬스터 6 / 유물 22 / 보스 10. 발견 기록은 영구 저장(PlayerPrefs). 몬스터는 처음 처치할 때, 유물은 보스 보상
     /// 후보로 처음 보거나 얻을 때 기록된다(각 기록 지점이 Discover를 부른다). 새로 기록되면 Discovered 이벤트로 지금 씬 UI가 알린다.
     /// 그림은 몬스터 = 각 도트 그림 첫 프레임, 유물 = Resources/UI/Relics.</summary>
     public static class Codex
@@ -70,6 +70,8 @@ namespace LoopRogue
                 "거미줄을 쏴서 몇 턴 동안 이동과 대시를 막는다. 공격과 회전 베기는 된다. 정화제로 바로 풀린다.");
             AddMonster(list, "Bomber", "고블린 폭탄병", "Bomber", new Color(1f, 0.55f, 0.1f),
                 "심지에 불을 붙이면 다음 턴에 주변 3x3이 터진다(주황 칸). 터지기 전에 잡으면 불발.");
+            AddMonster(list, "Mimic", "미믹", "Mimic", new Color(0.65f, 0.45f, 0.25f),
+                "보물상자인 척하는 상자 괴물. 밟으면 튀어나온다. 튼튼하고 아프게 물지만, 잡으면 보물상자보다 훨씬 많은 골드와 아이템을 뱉는다.");
 
             AddBoss(list, 1, new Color(0.5f, 0.33f, 0.2f),
                 "엄니를 앞세워 플레이어 쪽 일직선으로 최대 5칸 돌진한다. 돌진할 줄에서 옆으로 비키자. 돌진한 뒤엔 2턴 동안 비틀거린다 - 때릴 기회.");
@@ -127,7 +129,7 @@ namespace LoopRogue
 
         /// <summary>처치한 몹의 도감 키 - 졸개(= 슬라임 모습)도 슬라임으로, 층 보스는 보스 도감(변신 중인 10층 보스도 10층으로).</summary>
         public static string MonsterKey(EnemyActor e) =>
-            e.IsBoss ? BossKey(e.BossStage) : e.IsMinion || e.Kind == EnemyKind.Melee ? "M:Slime" : "M:" + e.Kind;
+            e.IsBoss ? BossKey(e.BossStage) : e.IsMimic ? "M:Mimic" : e.IsMinion || e.Kind == EnemyKind.Melee ? "M:Slime" : "M:" + e.Kind;
 
         public static void Reload()
         {

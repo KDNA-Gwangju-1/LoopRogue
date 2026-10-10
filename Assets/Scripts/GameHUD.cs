@@ -689,19 +689,25 @@ namespace LoopRogue
             _questTracker.SetActive(false);
         }
 
-        /// <summary>모험가 의뢰 + 받은 저주 계약을 줄마다 하나씩(없는 건 빼고). 둘 다 없으면 숨긴다.</summary>
+        /// <summary>모험가 의뢰 + 받은 저주 계약 + 방 이벤트 효과를 줄마다 하나씩(없는 건 빼고). 전부 없으면 숨긴다.</summary>
         private void RefreshQuestTracker()
         {
-            var quest = RunQuest.TrackerText;
-            var curse = Curses.TrackerText;
-            var text = quest != null && curse != null ? $"{quest}\n{curse}" : quest ?? curse;
+            string text = null;
+            var lines = 0;
+            foreach (var line in new[] { RunQuest.TrackerText, Curses.TrackerText, RunBuffs.TrackerText })
+            {
+                if (line == null)
+                    continue;
+                text = text == null ? line : text + "\n" + line;
+                lines++;
+            }
             if (_questTracker.activeSelf != (text != null))
                 _questTracker.SetActive(text != null);
             if (text == null || _questText.text == text)
                 return;
             _questText.text = text;
             var rect = (RectTransform)_questTracker.transform;
-            rect.sizeDelta = new Vector2(rect.sizeDelta.x, quest != null && curse != null ? 50f : 30f);
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, 30f + 20f * (lines - 1));
         }
 
         private static readonly Color BandColor = new Color(0.04f, 0.04f, 0.05f, 1f);

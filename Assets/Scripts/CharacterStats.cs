@@ -128,6 +128,12 @@ namespace LoopRogue
                 OnArmorEffect?.Invoke("두 번째 숨! 다시 일어섰다");
                 OnRevived?.Invoke();
             }
+            if (IsDead && RunBuffs.ConsumeRevive()) // 방 이벤트 "시간의 모래시계"
+            {
+                CurrentHealth = MaxHealth * RunBuffs.ReviveHealth;
+                OnArmorEffect?.Invoke($"시간의 모래시계가 깨졌다! 체력 {RunBuffs.ReviveHealth * 100f:0}%로 되살아났다");
+                OnRevived?.Invoke();
+            }
 
             if (EmergencyHealReady && !IsDead && CurrentHealth < MaxHealth * EquipmentEffects.EmergencyThreshold)
             {
@@ -158,6 +164,12 @@ namespace LoopRogue
         public void LoseCurrentHealthPercent(float percent)
         {
             CurrentHealth = Mathf.Max(1f, CurrentHealth * (1f - percent));
+        }
+
+        /// <summary>피의 제단 - 체력을 깎되 이걸로는 죽지 않게 최소 1은 남긴다.</summary>
+        public void LoseHealth(float amount)
+        {
+            CurrentHealth = Mathf.Max(1f, CurrentHealth - amount);
         }
 
         public void FullHeal()

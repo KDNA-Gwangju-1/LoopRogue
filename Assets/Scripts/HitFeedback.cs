@@ -255,5 +255,44 @@ namespace LoopRogue
             Fx.Play("morph", boss.transform.position, 3.2f, fps: 16f, sortingOrder: 8);
             CameraShake.Shake(0.08f, 0.15f);
         }
+
+        /// <summary>아이템을 쓴 순간 - 설치형은 놓은 칸에 먼지, 범위형은 그 범위만큼 퍼지는 그림, 몸에 거는 건 색 고리.
+        /// (보호막·반사 부적·약점 표식·기절은 그 뒤로 StatusIcons가 계속 보여준다.)</summary>
+        public static void OnItemUsed(PlayerActor player, ItemType type, Vector2Int target)
+        {
+            if (!Enabled)
+                return;
+            var cell = GridConstants.CellSize;
+            var at = player.transform.position;
+            var targetPos = new Vector3(target.x * cell, target.y * cell, 0f);
+            switch (type)
+            {
+                case ItemType.Torch:
+                case ItemType.Trap:
+                case ItemType.Decoy:
+                case ItemType.Bomb:
+                    Fx.Play("item_place", targetPos, 0.9f, fps: 14f, sortingOrder: 3);
+                    break;
+                case ItemType.Smoke:
+                    Fx.Play("item_smoke", at, ItemInfo.SmokeRadius * 2 + 1.5f, fps: 10f, sortingOrder: 8);
+                    break;
+                case ItemType.Flash:
+                    Fx.Play("item_flash", at, ItemInfo.FlashRadius * 2 + 2f, fps: 14f, sortingOrder: 8);
+                    CameraShake.Shake(0.08f, 0.12f);
+                    break;
+                case ItemType.Cleanse:
+                    Fx.Play("item_cleanse", at, 1.3f, fps: 14f, sortingOrder: 8);
+                    break;
+                case ItemType.Reflect:
+                    Fx.Play("item_ring", at, 1.8f, tint: new Color(1f, 0.85f, 0.35f), fps: 14f, sortingOrder: 8);
+                    break;
+                case ItemType.Weakness:
+                    Fx.Play("item_ring", at, ItemInfo.WeaknessRadius * 2 + 1f, tint: new Color(1f, 0.35f, 0.35f), fps: 12f, sortingOrder: 8);
+                    break;
+                case ItemType.Barrier:
+                    Fx.Play("item_ring", at, 1.6f, tint: new Color(0.55f, 0.85f, 1f), fps: 14f, sortingOrder: 8);
+                    break;
+            }
+        }
     }
 }

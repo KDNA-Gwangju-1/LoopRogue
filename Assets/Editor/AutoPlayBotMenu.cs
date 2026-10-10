@@ -39,6 +39,53 @@ namespace LoopRogue.EditorTools
             EditorApplication.isPlaying = true;
         }
 
+        // ---- 테스트 맵: 이벤트 11종을 다 깐 방 하나 + 지금 층 보스방 ----
+        // 지금 저장 그대로 들어가고, 시작 전에 BotLogs/testmap_backup.reg로 백업했다가 Play를 멈추면 자동으로 되돌린다
+        // (테스트 중 받은 골드·영약·도감 등이 진짜 저장에 남지 않게).
+        private const string TestRestorePendingKey = "LoopRogue_TestMap_RestorePending";
+
+        [MenuItem("LoopRogue/테스트 맵 (이벤트 전부, 끝나면 저장 되돌림)")]
+        private static void StartTestMap()
+        {
+            if (EditorApplication.isPlaying)
+            {
+                // Play 중에 눌렀으면 멈추고 다시 시작(예전엔 아무 일도 안 일어나서 메뉴가 안 먹는 것처럼 보였다)
+                EditorPrefs.SetBool(TestStartAfterStopKey, true);
+                EditorApplication.isPlaying = false;
+                return;
+            }
+            UnityEngine.PlayerPrefs.Save();
+            if (RunReg($"export \"{PrefsRegistryKey}\" \"{TestBackupPath}\" /y"))
+                EditorPrefs.SetBool(TestRestorePendingKey, true);
+            else if (!EditorUtility.DisplayDialog("저장 백업 실패", "지금 저장을 백업하지 못했습니다. 테스트 중 바뀐 저장이 그대로 남습니다. 그래도 시작할까요?", "시작", "취소"))
+                return;
+            EditorPrefs.SetBool(TestMap.PrefKey, true);
+            EditorApplication.isPlaying = true;
+        }
+
+        private static string TestBackupPath => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(BackupPath), "testmap_backup.reg");
+
+        [InitializeOnLoadMethod]
+        private static void HookTestMapRestore() => EditorApplication.playModeStateChanged += state =>
+        {
+            if (state != PlayModeStateChange.EnteredEditMode)
+                return;
+            if (EditorPrefs.GetBool(TestRestorePendingKey, false))
+            {
+                EditorPrefs.SetBool(TestRestorePendingKey, false);
+                RunReg($"delete \"{PrefsRegistryKey}\" /f");
+                if (RunReg($"import \"{TestBackupPath}\""))
+                    UnityEngine.Debug.Log("[테스트 맵] 저장을 테스트 시작 전으로 되돌렸습니다.");
+            }
+            if (EditorPrefs.GetBool(TestStartAfterStopKey, false))
+            {
+                EditorPrefs.SetBool(TestStartAfterStopKey, false);
+                EditorApplication.delayCall += StartTestMap;
+            }
+        };
+
+        private const string TestStartAfterStopKey = "LoopRogue_TestMap_StartAfterStop";
+
         // ---- N층 보스방 앞까지 봇이 진행 → 사람에게 인계 ----
         // 새 저장으로 시작하므로(봇 공통) 시작 전에 지금 저장을 BotLogs/save_backup.reg로 백업한다 - "봇 전 저장 되돌리기"로 복구.
         private const string HandoffMenu = "LoopRogue/봇으로 N층 보스방 앞까지 (저장 백업 후 초기화)/";

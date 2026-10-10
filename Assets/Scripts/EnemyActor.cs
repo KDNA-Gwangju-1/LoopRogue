@@ -88,7 +88,10 @@ namespace LoopRogue
         private int _morphStage; // 거울 가면 기사가 지금 비추고 있는 보스 층(0 = 본모습)
         private bool _enraged;
 
-        public string DisplayName => IsBoss ? BossDisplayName : IsMinion ? "졸개" : Kind switch
+        public bool IsMimic { get; private set; } // 방 이벤트 "미믹" - 잡으면 큰 보상(RoomController)
+        public bool IsElite { get; private set; } // 방 이벤트 "도전의 깃발" 정예
+
+        public string DisplayName => IsBoss ? BossDisplayName : IsMinion ? "졸개" : IsMimic ? "미믹" : (IsElite ? "정예 " : "") + Kind switch
         {
             EnemyKind.Ranged => "궁수",
             EnemyKind.Shield => "방패병",
@@ -228,6 +231,39 @@ namespace LoopRogue
             ApplyBossTint(GetComponent<SpriteRenderer>());
         }
 
+        /// <summary>방 이벤트 "미믹" - 상자 괴물 도트 그림(Resources/Sprites/Mimic, 4방향 대기·걷기·공격)으로. 그림이 없으면 갈색 사각형.</summary>
+        public void MarkAsMimic()
+        {
+            IsMimic = true;
+            var first = SpriteAnimator.FirstFrame(MimicSpriteSet);
+            if (first == null)
+            {
+                var renderer = GetComponent<SpriteRenderer>();
+                if (renderer != null)
+                    renderer.color = new Color(0.6f, 0.4f, 0.2f);
+                return;
+            }
+            var spriteRenderer = VisualUtil.CreateSpriteVisual(gameObject, first, GridConstants.CellSize * MimicSpriteScale, sortingOrder: 0);
+            var anim = GetComponent<SpriteAnimator>();
+            if (anim == null)
+                anim = gameObject.AddComponent<SpriteAnimator>();
+            anim.Setup(MimicSpriteSet, spriteRenderer, new Color(0.65f, 0.45f, 0.25f));
+            anim.Face(Facing);
+        }
+
+        private const string MimicSpriteSet = "Mimic";
+        private const float MimicSpriteScale = 1.25f;
+
+        /// <summary>방 이벤트 "도전의 깃발" 정예 - 금빛으로 물들이고 조금 크게.</summary>
+        public void MarkAsElite()
+        {
+            IsElite = true;
+            var renderer = GetComponent<SpriteRenderer>();
+            if (renderer != null)
+                renderer.color = GetComponent<SpriteAnimator>() != null ? new Color(1f, 0.82f, 0.4f) : new Color(0.95f, 0.7f, 0.2f);
+            transform.localScale *= 1.15f;
+        }
+
         /// <summary>보스 소환 졸개로 표시 - 색을 어둡게 해서 일반 몹과 구분.</summary>
         public void MarkAsMinion()
         {
@@ -248,6 +284,7 @@ namespace LoopRogue
         public void Initialize(float maxHealth, float attackPower, bool isBoss, EnemyKind kind = EnemyKind.Melee)
         {
             IsBoss = isBoss;
+            StatusIcons.AttachToEnemy(this); // 기절·약점 표식 표시
             Kind = isBoss ? EnemyKind.Melee : kind;
             Stats = new CharacterStats(maxHealth, attackPower);
 

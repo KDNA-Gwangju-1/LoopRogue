@@ -45,6 +45,7 @@ namespace LoopRogue
             RollRoomEvent();
             StageProgress.BeginAttempt();
             Curses.Reset(); // 저주 계약은 시도 단위
+            RunBuffs.Reset(); // 방 이벤트 효과(숫돌·피의 제단·모래시계)도
             Codex.SyncOwned();    // 도감이 생기기 전 저장으로 이미 가진 유물/아이템
             Achievements.Check(); // 업적이 생기기 전 저장으로 이미 조건을 채운 것들
 
@@ -55,7 +56,7 @@ namespace LoopRogue
             _attemptStartGold = GoldWallet.Gold;
 
             // 시작 방 고르기(사람만) - 방1은 이미 깔아둔 채로 입력만 잠그고, 다른 방을 고르면 그 방으로 바꿔 로드.
-            if (!GameHUD.AutoPlayActive)
+            if (!GameHUD.AutoPlayActive && !TestMap.Active)
             {
                 _roomController.IsInputLocked = true;
                 _hud.ShowRoomSelect(stage, _rooms, 0, StartFromSelectedRoom);
@@ -136,6 +137,7 @@ namespace LoopRogue
             RollRoomEvent();
             StageProgress.BeginAttempt();
             Curses.Reset(); // 죽으면 저주도 풀린다
+            RunBuffs.Reset();
             _player.Stats.FullHeal();
             _roomController.LoadRoom(_rooms[_roomIndex]); // IsInputLocked를 다시 false로 풀어준다.
             _attemptStartGold = GoldWallet.Gold;

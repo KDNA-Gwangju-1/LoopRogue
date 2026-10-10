@@ -123,6 +123,7 @@ namespace LoopRogue
             else
                 Inventory.Consume(type);
             ApplyItem(type, target);
+            HitFeedback.OnItemUsed(this, type, target);
             EndTurn();
             return true;
         }
@@ -235,6 +236,10 @@ namespace LoopRogue
         private Sprite _idleSprite;
         private Sprite _attackSprite;
         private Coroutine _attackFlashRoutine;
+        private SpriteAnimator _anim; // 전용 도트 그림(Resources/Sprites/Player)이 있으면 4방향 대기·걷기·공격
+
+        private const string PlayerSpriteSet = "Player";
+        private const float PlayerSpriteScale = 1.25f; // 64x64 캔버스에 몸이 40px 남짓 - 예전 그림(48px, 0.9칸)과 비슷한 키
 
         public void Initialize(RoomController room)
         {
@@ -286,12 +291,23 @@ namespace LoopRogue
             // 폴백 중인 그 그림) - Assets/Resources/PlayerSprite.png(평소)+PlayerAttackSprite.png
             // (공격 순간만 잠깐)로 가져와뒀다. 못 찾으면 예전처럼 단색 사각형으로 안전하게 폴백한다
             // (이 경우 공격 모션도 같이 생략 - 바꿀 스프라이트 자체가 없으므로).
-            _idleSprite = Resources.Load<Sprite>("PlayerSprite");
-            _attackSprite = Resources.Load<Sprite>("PlayerAttackSprite");
-
-            _renderer = _idleSprite != null
-                ? VisualUtil.CreateSpriteVisual(gameObject, _idleSprite, GridConstants.CellSize * 0.9f, sortingOrder: 1)
-                : VisualUtil.CreateSquareVisual(gameObject, PlayerColor, GridConstants.CellSize * 0.65f, sortingOrder: 1);
+            // 전용 도트 그림(후드 쓴 검사, 4방향 대기·걷기·공격)이 있으면 그걸로 - 없으면 예전 빌려 쓴 그림.
+            var playerSprite = SpriteAnimator.FirstFrame(PlayerSpriteSet);
+            if (playerSprite != null)
+            {
+                _renderer = VisualUtil.CreateSpriteVisual(gameObject, playerSprite, GridConstants.CellSize * PlayerSpriteScale, sortingOrder: 1);
+                _anim = gameObject.AddComponent<SpriteAnimator>();
+                _anim.Setup(PlayerSpriteSet, _renderer, new Color(0.4f, 0.5f, 0.75f));
+            }
+            else
+            {
+                _idleSprite = Resources.Load<Sprite>("PlayerSprite");
+                _attackSprite = Resources.Load<Sprite>("PlayerAttackSprite");
+                _renderer = _idleSprite != null
+                    ? VisualUtil.CreateSpriteVisual(gameObject, _idleSprite, GridConstants.CellSize * 0.9f, sortingOrder: 1)
+                    : VisualUtil.CreateSquareVisual(gameObject, PlayerColor, GridConstants.CellSize * 0.65f, sortingOrder: 1);
+            }
+            StatusIcons.AttachToPlayer(this); // 보호막·반사 부적·거미줄 면역 표시
 
             Stats.OnArmorEffect = message => _room.ShowMessage(message);
             Stats.OnRevived = MoveToSafeTile;
@@ -517,7 +533,7 @@ namespace LoopRogue
             if (occupant is EnemyActor enemy)
             {
                 BeginAction();
-                PlayAttackFlash();
+                PlayAttackFlash(direction);
                 if (StrikeEnemy(enemy, direction, 1f))
                     return; // 다음 방/승리 전환은 이미 끝났다 - 새 방 몹은 이번 턴엔 안 움직인다.
                 if (NormalAttackRelicHits(targetPos, direction))
@@ -525,10 +541,10 @@ namespace LoopRogue
             }
             else if (occupant is RoomEventActor ev)
             {
-                // 이벤트 칸 - 발동시키고 그 칸으로 이동(한 턴 소모).
+                // 이벤트 칸 - 발동시키고 그 칸으로 이동(한 턴 소모). 피의 제단처럼 고르는 창이 뜨면 칸이 남아 있어 제자리.
                 BeginAction();
-                _room.TriggerEvent(ev);
-                Map.MoveActor(this, targetPos);
+                if (_room.TriggerEvent(ev))
+                    Map.MoveActor(this, targetPos);
             }
             else if (occupant == null)
             {
@@ -568,7 +584,8 @@ namespace LoopRogue
                 ? 1f + Relics.BerserkerBonus : 1f; // 유물 "광전사"
             var damage = raw * damageRate * enemy.DamageTakenMultiplier * berserk
                 * WeaponEffectMultiplier(enemy, countCombo: !isSkill)
-                * Curses.DamageDealtMultiplier; // 저주 계약(분노·메마름)
+                * Curses.DamageDealtMultiplier // 저주 계약(분노·메마름)
+                * RunBuffs.DamageDealtMultiplier; // 방 이벤트(숫돌·피의 제단)
             var blocked = !ignoreShield && enemy.IsShieldFront(GridPos);
             if (blocked)
             {
@@ -727,7 +744,7 @@ namespace LoopRogue
 
             if (hit != null)
             {
-                PlayAttackFlash();
+                PlayAttackFlash(dir);
                 var dashRate = Relics.Has(RelicType.ChargeHorn) ? Relics.ChargeHornDashDamage : 1f; // 유물 "돌진의 뿔"
                 if (StrikeEnemy(hit, dir, dashRate, isSkill: true))
                     return true;
@@ -839,8 +856,14 @@ namespace LoopRogue
         /// 애니메이션 클립 없이 프레임 하나만 있어도 "공격했다"는 느낌은 충분히 준다. 연속 공격 시
         /// 이전 되돌리기 코루틴이 남아있으면 새로 시작(StoryRPG SpiritSummonEffect의 알파 되돌리기와
         /// 같은 패턴).</summary>
-        private void PlayAttackFlash()
+        /// <param name="direction">때린 쪽(도트 그림이면 그 방향 공격 모션) - 회전 베기처럼 없으면 지금 보는 쪽</param>
+        private void PlayAttackFlash(Vector2Int direction = default)
         {
+            if (_anim != null)
+            {
+                _anim.PlayAttack(direction);
+                return;
+            }
             if (_attackSprite == null || _idleSprite == null)
                 return; // 폴백(단색 사각형) 중이면 바꿀 스프라이트 자체가 없다.
 

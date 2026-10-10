@@ -102,11 +102,17 @@ namespace LoopRogue
             var marker = new GameObject("TalkMarker");
             marker.transform.SetParent(transform, false);
             var parentScale = GridConstants.CellSize * size;
-            VisualUtil.CreateSquareVisual(marker, new Color(1f, 0.85f, 0.25f), GridConstants.CellSize * 0.2f / parentScale, sortingOrder: 2);
-            marker.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
             _markerBaseY = GridConstants.CellSize * markerHeight / parentScale;
             marker.transform.localPosition = new Vector3(0f, _markerBaseY, 0f);
             _marker = marker.transform;
+            // 노란 느낌표 도트 그림 - 없거나 봇 중이면 예전 노란 마름모.
+            var alert = Fx.Play("npc_alert", marker.transform.position + Vector3.up * GridConstants.CellSize * 0.15f, 0.35f,
+                fps: 6f, loop: true, sortingOrder: 9, parent: marker.transform);
+            if (alert == null)
+            {
+                VisualUtil.CreateSquareVisual(marker, new Color(1f, 0.85f, 0.25f), GridConstants.CellSize * 0.2f / parentScale, sortingOrder: 2);
+                marker.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
+            }
 
             if (type == NpcType.Merchant)
                 RollStock(stage);

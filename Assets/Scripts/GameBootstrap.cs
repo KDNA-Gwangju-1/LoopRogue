@@ -99,8 +99,12 @@ namespace LoopRogue
             var hud = hudGo.AddComponent<GameHUD>();
             hud.Initialize(player);
 
+            var rooms = BuildStageRooms(stage);
+            if (TestMap.Active)
+                rooms = TestMap.BuildRooms(rooms); // 에디터 메뉴 "테스트 맵" - [이벤트 전부 깐 방, 이 층 보스방]
             var loopManager = new LoopManager();
-            loopManager.Initialize(room, player, hud, BuildStageRooms(stage), stage);
+            loopManager.Initialize(room, player, hud, rooms, stage);
+            TestMap.Attach(room, player);
         }
 
         /// <summary>스테이지 하나 = 일반 방 10개 + 보스방 1개("방도 10개 유지해야 해, 스펙업 수단을
