@@ -179,6 +179,7 @@ namespace LoopRogue
 
             foreach (Transform child in _relicPanel.transform)
                 Destroy(child.gameObject);
+            _relicCards.Clear();
 
             var title = CreateLabel(_relicPanel.transform, Loc.T("보스 처치! 유물을 하나 고르세요 (영구 적용)"), new Vector2(10f, -45f), new Vector2(-10f, -10f));
             title.alignment = TextAnchor.MiddleCenter;
@@ -197,6 +198,7 @@ namespace LoopRogue
                 var relicColor = Relics.IsBossRelic(relic) ? new Color(0.85f, 0.35f, 0.25f, 0.35f) : new Color(0.7f, 0.4f, 1f, 0.25f);
                 var relicImage = cardGo.AddComponent<Image>();
                 relicImage.color = PixelUi.Slice(relicImage, "Button") ? PixelUi.Tint(relicColor, 0.5f) : relicColor;
+                _relicCards.Add((rect, relicImage, relicImage.color));
 
                 var text = CreateLabel(cardGo.transform, string.Empty, Vector2.zero, Vector2.zero);
                 text.rectTransform.anchorMin = Vector2.zero;
@@ -232,6 +234,8 @@ namespace LoopRogue
                 return;
 
             var index = GameInput.Down(Key.Digit1) ? 0 : GameInput.Down(Key.Digit2) ? 1 : GameInput.Down(Key.Digit3) ? 2 : -1;
+            if (index < 0)
+                index = ClickedCard(_relicCards);
             ChooseRelic(index);
         }
 
@@ -305,10 +309,8 @@ namespace LoopRogue
             _deathPanel.SetActive(false);
         }
 
-        /// <summary>업그레이드 카드는 마우스 클릭이 아니라 숫자키 1/2/3으로 고른다 - 이 프로토타입은
-        /// EventSystem/InputSystemUIInputModule을 아예 안 만들어뒀다(런타임에 AddComponent로만
-        /// 붙이면 기본 액션 바인딩이 비어있어 클릭이 씹힐 수 있다는 게 알려진 함정 - 이동 입력과
-        /// 똑같이 Keyboard.current로 직접 읽는 이 방식이 훨씬 확실하다).</summary>
+        /// <summary>업그레이드 카드는 숫자키 1/2/3 또는 카드 클릭(터치)으로 고른다 - EventSystem 없이(런타임에 붙이면 기본 액션
+        /// 바인딩이 비어 클릭이 씹히는 함정) 다른 버튼처럼 GameInput + 사각형 히트테스트(ClickedCard)로 직접 읽는다.</summary>
         private void HandleUpgradeSelection()
         {
             if (_pendingOptions == null)
@@ -319,8 +321,34 @@ namespace LoopRogue
             if (GameInput.Down(Key.Digit1)) index = 0;
             else if (GameInput.Down(Key.Digit2)) index = 1;
             else if (GameInput.Down(Key.Digit3)) index = 2;
+            if (index < 0)
+                index = ClickedCard(_upgradeCards);
 
             ChooseUpgrade(index);
+        }
+
+        // ---- 카드 클릭 - 레벨업 카드·보스 유물 카드를 마우스(터치)로도 고른다. 마우스를 올린 카드는 밝게. ----
+        private readonly List<(RectTransform Rect, Image Image, Color Color)> _upgradeCards = new List<(RectTransform, Image, Color)>();
+        private readonly List<(RectTransform Rect, Image Image, Color Color)> _relicCards = new List<(RectTransform, Image, Color)>();
+
+        /// <summary>이번 프레임 클릭한 카드 번호(없으면 -1). 마우스가 올라간 카드는 밝게 칠한다.</summary>
+        private static int ClickedCard(List<(RectTransform Rect, Image Image, Color Color)> cards)
+        {
+            if (PauseMenu.BlocksInput || OptionsPanel.BlocksInput)
+                return -1;
+            var pos = GameInput.PointerPosition;
+            var clicked = -1;
+            for (var i = 0; i < cards.Count; i++)
+            {
+                var (rect, image, color) = cards[i];
+                if (rect == null)
+                    continue;
+                var over = RectTransformUtility.RectangleContainsScreenPoint(rect, pos, null);
+                image.color = over ? Color.Lerp(color, Color.white, 0.35f) : color;
+                if (over && GameInput.PointerDown)
+                    clicked = i;
+            }
+            return clicked;
         }
 
         public void ChooseUpgrade(int index)
@@ -601,6 +629,7 @@ namespace LoopRogue
         {
             foreach (Transform child in _upgradePanel.transform)
                 Destroy(child.gameObject);
+            _upgradeCards.Clear();
 
             _pendingOptions = options;
 
@@ -619,6 +648,7 @@ namespace LoopRogue
 
                 var cardImage = cardGo.AddComponent<Image>();
                 cardImage.color = PixelUi.Slice(cardImage, "Button") ? PixelUi.Tint(CardColor(option.Category), 0.5f) : CardColor(option.Category);
+                _upgradeCards.Add((rect, cardImage, cardImage.color));
 
                 var textGo = new GameObject("Text", typeof(RectTransform));
                 textGo.transform.SetParent(cardGo.transform, false);
