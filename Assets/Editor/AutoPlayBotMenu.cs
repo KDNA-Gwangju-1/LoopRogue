@@ -6,10 +6,10 @@ namespace LoopRogue.EditorTools
     /// 스스로 꺼지고 Play를 멈춘다(로그는 프로젝트 폴더 BotLogs/). 저장 데이터는 시작할 때 초기화된다.</summary>
     public static class AutoPlayBotMenu
     {
-        [MenuItem("LoopRogue/자동 플레이 봇으로 시작 (저장 초기화됨)")]
+        [MenuItem("LoopRogue/자동 플레이 봇으로 시작 (저장 백업 후 초기화)")]
         private static void StartBot()
         {
-            if (EditorApplication.isPlaying)
+            if (EditorApplication.isPlaying || !BackupBeforeBot())
                 return;
             EditorPrefs.SetBool(AutoPlayBot.EnabledPrefKey, true);
             EditorPrefs.SetString(AutoPlayBot.ModePrefKey, "");
@@ -22,7 +22,7 @@ namespace LoopRogue.EditorTools
         [MenuItem("LoopRogue/보스 배율 찾기 (봇)")]
         private static void StartBossSweep()
         {
-            if (EditorApplication.isPlaying)
+            if (EditorApplication.isPlaying || !BackupBeforeBot())
                 return;
             EditorPrefs.SetBool(AutoPlayBot.EnabledPrefKey, true);
             EditorPrefs.SetString(AutoPlayBot.ModePrefKey, AutoPlayBot.BossSweepMode);
@@ -32,7 +32,7 @@ namespace LoopRogue.EditorTools
         [MenuItem("LoopRogue/층별 순수 난이도 측정 (봇)")]
         private static void StartStageTest()
         {
-            if (EditorApplication.isPlaying)
+            if (EditorApplication.isPlaying || !BackupBeforeBot())
                 return;
             EditorPrefs.SetBool(AutoPlayBot.EnabledPrefKey, true);
             EditorPrefs.SetString(AutoPlayBot.ModePrefKey, AutoPlayBot.StageTestMode);
@@ -73,8 +73,7 @@ namespace LoopRogue.EditorTools
             if (EditorPrefs.GetBool(TestRestorePendingKey, false))
             {
                 EditorPrefs.SetBool(TestRestorePendingKey, false);
-                RunReg($"delete \"{PrefsRegistryKey}\" /f");
-                if (RunReg($"import \"{TestBackupPath}\""))
+                if (RestoreFrom(TestBackupPath))
                     UnityEngine.Debug.Log("[테스트 맵] 저장을 테스트 시작 전으로 되돌렸습니다.");
             }
             if (EditorPrefs.GetBool(TestStartAfterStopKey, false))
@@ -102,16 +101,59 @@ namespace LoopRogue.EditorTools
 
         private static void StartHandoff(int stage)
         {
-            if (EditorApplication.isPlaying)
-                return;
-            UnityEngine.PlayerPrefs.Save(); // 메모리에만 있는 값까지 레지스트리에 쓴 뒤 백업
-            if (!RunReg($"export \"{PrefsRegistryKey}\" \"{BackupPath}\" /y")
-                && !EditorUtility.DisplayDialog("저장 백업 실패", "지금 저장을 백업하지 못했습니다. 그래도 저장을 초기화하고 봇을 시작할까요?", "시작", "취소"))
+            if (EditorApplication.isPlaying || !BackupBeforeBot())
                 return;
             EditorPrefs.SetBool(AutoPlayBot.EnabledPrefKey, true);
             EditorPrefs.SetString(AutoPlayBot.ModePrefKey, AutoPlayBot.HandoffMode);
             EditorPrefs.SetInt(AutoPlayBot.HandoffStagePrefKey, stage);
             EditorApplication.isPlaying = true;
+        }
+
+        /// <summary>봇은 저장을 지우고 시작하므로 그 전에 진짜 저장을 BotLogs/save_backup.reg로 백업한다. 아직 되돌리지 않은 백업이 있으면
+        /// 덮어쓰지 않는다 - 예전엔 봇을 두 번 돌리면 두 번째 백업이 봇 저장을 담아 진짜 저장이 사라졌다. 시작해도 되면 true.</summary>
+        private static bool BackupBeforeBot()
+        {
+            if (EditorPrefs.GetBool(BotBackupPendingKey, false) && System.IO.File.Exists(BackupPath))
+                return true; // 이미 진짜 저장이 백업돼 있다("봇 전 저장 되돌리기"를 하기 전까지 그대로 둔다)
+            UnityEngine.PlayerPrefs.Save(); // 메모리에만 있는 값까지 레지스트리에 쓴 뒤 백업
+            if (RunReg($"export \"{PrefsRegistryKey}\" \"{BackupPath}\" /y"))
+            {
+                EditorPrefs.SetBool(BotBackupPendingKey, true);
+                return true;
+            }
+            return EditorUtility.DisplayDialog("저장 백업 실패", "지금 저장을 백업하지 못했습니다. 그래도 저장을 초기화하고 봇을 시작할까요?", "시작", "취소");
+        }
+
+        private const string BotBackupPendingKey = "LoopRogue_BotBackupPending";
+
+        /// <summary>Play를 멈추면 봇 켜짐 표시를 항상 지운다 - 예전엔 봇을 중간에 멈추면 표시가 남아, 다음 평범한 Play에서 봇이 다시 켜져
+        /// 저장을 지웠다. 테스트 맵 도중 에디터가 꺼졌다면(되돌리기가 남아 있으면) 에디터가 다시 켜질 때 바로 되돌린다
+        /// (예전엔 며칠 뒤 아무 Play를 멈출 때 옛 백업으로 되돌아갔다).</summary>
+        [InitializeOnLoadMethod]
+        private static void HookSafety()
+        {
+            EditorApplication.playModeStateChanged += state =>
+            {
+                if (state != PlayModeStateChange.ExitingPlayMode)
+                    return;
+                EditorPrefs.SetBool(AutoPlayBot.EnabledPrefKey, false);
+                EditorPrefs.SetString(AutoPlayBot.ModePrefKey, "");
+            };
+            if (!EditorApplication.isPlayingOrWillChangePlaymode && EditorPrefs.GetBool(TestRestorePendingKey, false))
+            {
+                EditorPrefs.SetBool(TestRestorePendingKey, false);
+                if (RestoreFrom(TestBackupPath))
+                    UnityEngine.Debug.Log("[테스트 맵] 지난번 테스트가 끝나기 전에 에디터가 꺼져서, 저장을 테스트 시작 전으로 되돌렸습니다.");
+            }
+        }
+
+        /// <summary>백업 파일로 저장을 되돌린다 - 파일이 없거나 비정상이면 지우지도 않는다(예전엔 지운 뒤 가져오기가 실패하면 저장이 비었다).</summary>
+        private static bool RestoreFrom(string path)
+        {
+            if (!System.IO.File.Exists(path) || new System.IO.FileInfo(path).Length < 64)
+                return false;
+            RunReg($"delete \"{PrefsRegistryKey}\" /f");
+            return RunReg($"import \"{path}\"");
         }
 
         /// <summary>에디터 PlayerPrefs는 레지스트리(HKCU\Software\Unity\UnityEditor\회사\제품)에 있다 - 통째로 .reg로 내보낸다.</summary>
@@ -143,8 +185,9 @@ namespace LoopRogue.EditorTools
             }
             if (!EditorUtility.DisplayDialog("저장 되돌리기", "지금 저장을 지우고 봇 시작 전 저장으로 되돌릴까요?", "되돌리기", "취소"))
                 return;
-            RunReg($"delete \"{PrefsRegistryKey}\" /f");
-            var ok = RunReg($"import \"{BackupPath}\"");
+            var ok = RestoreFrom(BackupPath);
+            if (ok)
+                EditorPrefs.SetBool(BotBackupPendingKey, false); // 진짜 저장으로 돌아왔다 - 다음 봇은 새로 백업
             EditorUtility.DisplayDialog("저장 되돌리기", ok ? "되돌렸습니다." : "되돌리기 실패 - 콘솔 로그를 확인하세요.", "확인");
         }
 

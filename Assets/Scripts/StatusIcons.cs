@@ -17,6 +17,7 @@ namespace LoopRogue
             public float SizeCells;
             public int SortingOrder;
             public Fx Instance;
+            public bool Missing; // 그림 파일이 없음 - 다시 시도하지 않는다
         }
 
         private readonly List<Entry> _entries = new List<Entry>();
@@ -46,12 +47,14 @@ namespace LoopRogue
                 return;
             foreach (var e in _entries)
             {
-                if (e.Instance != null || !e.IsOn())
+                if (e.Instance != null || e.Missing || !e.IsOn())
                     continue;
                 var pos = transform.position + Vector3.up * GridConstants.CellSize * e.OffsetCells;
                 e.Instance = LoopRogue.Fx.Play(e.Fx, pos, e.SizeCells, fps: 8f, loop: true, sortingOrder: e.SortingOrder, parent: transform);
                 if (e.Instance != null)
                     e.Instance.KeepAlive = e.IsOn;
+                else
+                    e.Missing = LoopRogue.Fx.Frames(e.Fx).Length == 0;
             }
         }
     }

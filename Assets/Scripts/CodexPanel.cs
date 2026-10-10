@@ -19,7 +19,8 @@ namespace LoopRogue
         private const float PanelHeight = 600f;
         private const float GridLeft = 28f;
         private const float GridTop = 76f;
-        private const int MaxCells = 24; // 가장 많은 분류(유물 22)보다 넉넉히
+        private static int MaxCells => System.Linq.Enumerable.Max(System.Linq.Enumerable.Select(
+            System.Linq.Enumerable.GroupBy(Codex.All, e => e.Category), g => System.Linq.Enumerable.Count(g))); // 가장 많은 분류에 맞춤
 
         private static readonly Color Silhouette = new Color(0.02f, 0.02f, 0.03f, 0.9f);
         private static readonly Color CellNormal = new Color(0.35f, 0.38f, 0.45f, 1f);
@@ -78,6 +79,7 @@ namespace LoopRogue
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1280f, 720f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand; // 16:9가 아닌 화면에서도 잘리지 않게
             var panel = canvasGo.AddComponent<CodexPanel>();
             panel.Build(canvasGo.transform);
             return panel;

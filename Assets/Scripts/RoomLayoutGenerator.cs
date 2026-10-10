@@ -84,7 +84,11 @@ namespace LoopRogue
             if (far.Count < def.EnemyCount)
                 far = free.Where(c => Distance(c, layout.PlayerStart) >= 2).ToList();
             if (far.Count < def.EnemyCount)
-                return null;
+            {
+                if (withWalls)
+                    return null; // 다시 뽑기
+                far = free; // 마지막 안전망(벽 없음) - 거리 조건 없이 들어가는 만큼만
+            }
 
             Shuffle(far, rng);
             layout.EnemyPositions = far.Take(def.EnemyCount)
@@ -107,6 +111,8 @@ namespace LoopRogue
                     layout.EventPosition = c;
                     break;
                 }
+                if (!layout.EventPosition.HasValue && withWalls)
+                    return null; // 이벤트 칸(층마다 확정인 보물상자 포함)을 놓을 자리가 없으면 다시 뽑기
             }
 
             return layout;

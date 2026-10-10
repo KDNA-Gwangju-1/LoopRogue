@@ -21,7 +21,19 @@ namespace LoopRogue
         public static event Action Changed;
 
         /// <summary>자동 플레이 봇 중엔 항상 한국어 - 봇이 카드 이름 등 한국어 문장으로 판단하고 로그도 한국어로 남긴다.</summary>
-        public static bool ForceKorean;
+        public static bool ForceKorean
+        {
+            get => _forceKorean;
+            set
+            {
+                if (_forceKorean == value)
+                    return;
+                _forceKorean = value;
+                Version++; // 이미 만든 번역 표(LocCache)를 다시 만들게
+            }
+        }
+
+        private static bool _forceKorean;
 
         private static Dictionary<string, string> _table;
 
@@ -66,7 +78,7 @@ namespace LoopRogue
 
         public static string T(string korean)
         {
-            if (ForceKorean || Current == GameLanguage.Korean || string.IsNullOrEmpty(korean))
+            if (_forceKorean || Current == GameLanguage.Korean || string.IsNullOrEmpty(korean))
                 return korean;
             EnsureTable();
             return _table.TryGetValue(korean, out var translated) && translated.Length > 0 ? translated : korean;

@@ -31,6 +31,8 @@ namespace LoopRogue
             public Key Key;
             public Func<bool> Visible;
             public bool Repeat;
+            public Text Label;
+            public string LabelKey;
         }
 
         private readonly List<Button> _buttons = new List<Button>();
@@ -61,21 +63,28 @@ namespace LoopRogue
 
         private void FindScene()
         {
-            if (_searched && _hud != null)
-                return;
+            if (_searched)
+                return; // 씬이 바뀌면 sceneLoaded가 다시 찾게 한다
             _searched = true;
             _hud = FindAnyObjectByType<GameHUD>();
             _player = FindAnyObjectByType<PlayerActor>();
         }
 
         // ---- 언제 보일지 ----
-        private bool Playing() => InMain && _hud != null && _player != null && !_player.Stats.IsDead && _hud.PendingUpgradeOptions == null
-                                  && _hud.PendingRelicOptions == null && !_hud.IsDeathChoiceOpen && !_hud.IsStageClearOpen
-                                  && !OptionsPanel.IsOpen && FindEnding() == null;
-        private bool Choosing() => InMain && _hud != null && (_hud.PendingUpgradeOptions != null || _hud.PendingRelicOptions != null);
+        /// <summary>방향 패드 - 평소 + 시작 방 고르기(←/→로 방을 고른다).</summary>
+        private bool PadVisible() => InMain && _hud != null && _player != null && !_player.Stats.IsDead && _hud.PendingUpgradeOptions == null
+                                     && _hud.PendingRelicOptions == null && !_hud.IsDeathChoiceOpen && !_hud.IsStageClearOpen
+                                     && !OptionsPanel.IsOpen && !PauseMenu.IsOpen && FindEnding() == null;
+        /// <summary>대기·대화·능력치 - 실제로 방 안에서 움직일 때만.</summary>
+        private bool Playing() => PadVisible() && !_hud.IsRoomSelectOpen;
+        private bool Choosing() => InMain && _hud != null && (_hud.PendingUpgradeOptions != null || _hud.PendingRelicOptions != null)
+                                   && !PauseMenu.IsOpen;
         private bool DeathOpen() => InMain && _hud != null && _hud.IsDeathChoiceOpen;
-        private bool ConfirmOpen() => (InMain && _hud != null && (_hud.IsStageClearOpen || _hud.IsDeathChoiceOpen)) || FindEnding() != null;
-        private bool MenuAllowed() => !OptionsPanel.IsOpen && FindEnding() == null && !Choosing();
+        private bool ConfirmOpen() => (InMain && _hud != null && (_hud.IsStageClearOpen || _hud.IsDeathChoiceOpen || _hud.IsRoomSelectOpen))
+                                      || FindEnding() != null;
+        private bool MenuAllowed() => !OptionsPanel.IsOpen && FindEnding() == null && !Choosing()
+                                      && (!InMain || (_hud != null && !_hud.IsStatPanelOpen && !_hud.IsRoomSelectOpen && !_hud.IsDeathChoiceOpen
+                                                      && !_hud.IsStageClearOpen));
 
         private EndingScreen _ending;
         private EndingScreen FindEnding()
@@ -95,36 +104,39 @@ namespace LoopRogue
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1280f, 720f);
-            scaler.matchWidthOrHeight = 0.5f;
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand; // 16:9가 아닌 화면에서도 잘리지 않게
             var root = canvasGo.transform;
 
             // 왼쪽 아래 방향 패드
             var pad = new Vector2(150f, 170f);
             const float step = 92f, size = 86f;
-            Add(root, "▲", Corner.BottomLeft, pad + new Vector2(0f, step), size, Key.W, Playing, repeat: true);
-            Add(root, "▼", Corner.BottomLeft, pad + new Vector2(0f, -step), size, Key.S, Playing, repeat: true);
-            Add(root, "◀", Corner.BottomLeft, pad + new Vector2(-step, 0f), size, Key.A, Playing, repeat: true);
-            Add(root, "▶", Corner.BottomLeft, pad + new Vector2(step, 0f), size, Key.D, Playing, repeat: true);
+            Add(root, "▲", Corner.BottomLeft, pad + new Vector2(0f, step), size, Key.W, PadVisible, repeat: true);
+            Add(root, "▼", Corner.BottomLeft, pad + new Vector2(0f, -step), size, Key.S, PadVisible, repeat: true);
+            Add(root, "◀", Corner.BottomLeft, pad + new Vector2(-step, 0f), size, Key.A, PadVisible, repeat: true);
+            Add(root, "▶", Corner.BottomLeft, pad + new Vector2(step, 0f), size, Key.D, PadVisible, repeat: true);
 
-            // 오른쪽 아래 - 대기 / 대화(F)
-            Add(root, Loc.T("대기"), Corner.BottomRight, new Vector2(-130f, 150f), 110f, Key.Space, Playing);
-            Add(root, Loc.T("대화"), Corner.BottomRight, new Vector2(-250f, 95f), 80f, Key.F, Playing);
+            // 오른쪽 아래 - 대기 / 대화(F) / 능력치(Tab)
+            Add(root, "대기", Corner.BottomRight, new Vector2(-130f, 150f), 110f, Key.Space, Playing);
+            Add(root, "대화", Corner.BottomRight, new Vector2(-250f, 95f), 80f, Key.F, Playing);
+            Add(root, "능력치", Corner.BottomRight, new Vector2(-250f, 195f), 80f, Key.Tab, Playing);
 
-            // 오른쪽 위 - 메뉴(Esc) / 능력치(Tab)
-            Add(root, Loc.T("메뉴"), Corner.TopRight, new Vector2(-70f, -150f), 76f, Key.Escape, MenuAllowed);
-            Add(root, Loc.T("능력치"), Corner.TopRight, new Vector2(-70f, -236f), 76f, Key.Tab, Playing);
+            // 오른쪽 위 - 메뉴(Esc). 게임 밖(타이틀·로비)에선 Esc가 "뒤로"라 이름도 바꾼다(Update).
+            _menuButton = Add(root, "메뉴", Corner.TopRight, new Vector2(-70f, -150f), 76f, Key.Escape, MenuAllowed);
 
-            // 화면 가운데 아래 - 그때 필요한 선택
-            Add(root, "1", Corner.Bottom, new Vector2(-130f, 230f), 90f, Key.Digit1, Choosing);
-            Add(root, "2", Corner.Bottom, new Vector2(0f, 230f), 90f, Key.Digit2, Choosing);
-            Add(root, "3", Corner.Bottom, new Vector2(130f, 230f), 90f, Key.Digit3, Choosing);
-            Add(root, Loc.T("확인"), Corner.Bottom, new Vector2(-90f, 230f), 120f, Key.Enter, ConfirmOpen, wide: true);
-            Add(root, Loc.T("로비"), Corner.Bottom, new Vector2(90f, 230f), 120f, Key.L, DeathOpen, wide: true);
+            // 화면 가운데 아래(하단 스킬 줄 바로 위) - 그때 필요한 선택. 카드·사망 창 글자를 가리지 않게 낮게.
+            Add(root, "1", Corner.Bottom, new Vector2(-130f, 135f), 84f, Key.Digit1, Choosing);
+            Add(root, "2", Corner.Bottom, new Vector2(0f, 135f), 84f, Key.Digit2, Choosing);
+            Add(root, "3", Corner.Bottom, new Vector2(130f, 135f), 84f, Key.Digit3, Choosing);
+            Add(root, "확인", Corner.Bottom, new Vector2(-90f, 135f), 120f, Key.Enter, ConfirmOpen, wide: true);
+            Add(root, "로비", Corner.Bottom, new Vector2(90f, 135f), 120f, Key.L, DeathOpen, wide: true);
         }
 
         private enum Corner { BottomLeft, BottomRight, TopRight, Bottom }
 
-        private void Add(Transform parent, string label, Corner corner, Vector2 pos, float size, Key key, Func<bool> visible,
+        private Button _menuButton;
+
+        /// <param name="label">한국어 글자(번역 열쇠) - 숫자·화살표는 그대로 보인다.</param>
+        private Button Add(Transform parent, string label, Corner corner, Vector2 pos, float size, Key key, Func<bool> visible,
             bool repeat = false, bool wide = false)
         {
             var image = HudUi.CreateImage(parent, "Touch_" + key, PadColor);
@@ -147,19 +159,28 @@ namespace LoopRogue
             HudUi.Stretch(text.rectTransform, 0f);
             text.gameObject.AddComponent<Outline>().effectColor = new Color(0f, 0f, 0f, 0.9f);
 
-            var button = new Button { Rect = rect, Image = image, Key = key, Visible = visible, Repeat = repeat };
+            var button = new Button { Rect = rect, Image = image, Key = key, Visible = visible, Repeat = repeat, Label = text, LabelKey = label };
             _buttons.Add(button);
             GameInput.RegisterTap(rect, key, () => button.Visible());
+            return button;
         }
 
         private void Update()
         {
             FindScene();
+            if (_menuButton != null)
+                _menuButton.LabelKey = InMain ? "메뉴" : "뒤로";
             foreach (var b in _buttons)
             {
                 var show = b.Visible();
                 if (b.Rect.gameObject.activeSelf != show)
                     b.Rect.gameObject.SetActive(show);
+                if (show)
+                {
+                    var text = Loc.T(b.LabelKey); // 지금 언어
+                    if (b.Label.text != text)
+                        b.Label.text = text;
+                }
             }
 
             // 누른 버튼 반짝 + 방향 패드 꾹 누르기 반복

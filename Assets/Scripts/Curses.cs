@@ -85,6 +85,7 @@ namespace LoopRogue
 
         /// <summary>GameHUD 왼쪽 위 의뢰 줄 아래 - 받은 저주 요약. 없으면 null.</summary>
         public static string TrackerText =>
-            Active.Count == 0 ? null : Loc.T("<color=#C890FF>저주:</color> ") + string.Join(" / ", Active.Select(d => d.Name));
+            Active.Count == 0 ? null : Loc.T("<color=#C890FF>저주:</color> ") +
+                                       string.Join(" / ", Active.Select(d => All.FirstOrDefault(a => a.Id == d.Id)?.Name ?? d.Name)); // 지금 언어 이름
     }
 }

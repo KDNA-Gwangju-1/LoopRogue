@@ -16,7 +16,13 @@ namespace LoopRogue
         /// <summary>엔딩 후 처음으로 돌아갈 때 남기는 것(사용자 결정: 도감 + 업적·칭호) - 업적 진행용 누적 기록(누적 사망·상인 구매)과
         /// 노인의 누적 사망 대사 기록도 업적과 같이 남긴다. 나머지(골드·층·장비·영약·유물·아이템·런·퀘스트·이용권)는 전부 처음부터.</summary>
         private static readonly string[] KeptStrings = { "LoopRogue_Codex", "LoopRogue_Achievements", "LoopRogue_Title" };
-        private static readonly string[] KeptInts = { "LoopRogue_MerchantBuys", "LoopRogue_TotalDeaths", "LoopRogue_LoopMilestoneSeen", ClearsKey };
+        private static readonly string[] KeptInts =
+        {
+            "LoopRogue_MerchantBuys", "LoopRogue_TotalDeaths", "LoopRogue_LoopMilestoneSeen", ClearsKey,
+            // 마지막 업적(10층 클리어) 보상 이용권이 엔딩 직후 지워지던 문제 + 처치 업적 진행이 처음부터 다시 세지던 문제.
+            // 누적 처치를 남기면 이미 받은 처치 보상 기록도 같이 남겨야 같은 보상을 또 받지 않는다.
+            "LoopRogue_GachaTickets", "LoopRogue_SlotTickets", "LoopRogue_Quest_Kills", "LoopRogue_Quest_KillClaimed",
+        };
 
         public static void ResetAll()
         {

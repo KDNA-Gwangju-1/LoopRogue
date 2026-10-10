@@ -54,6 +54,7 @@ namespace LoopRogue
         private int _listScroll;  // 맨 위에 보이는 항목 번호
         private int _listCursor;  // 고르고 있는 항목 번호
         private bool _dragging;
+        private float _touchDrag;
         private int _listOpenedFrame;
 
         public static void Open(Action onClose = null)
@@ -288,6 +289,21 @@ namespace LoopRogue
                 _listScroll = Mathf.Clamp(_listScroll - Math.Sign(wheel), 0, MaxScroll);
                 RefreshList();
             }
+            // 터치 - 목록 위를 끌면 항목 높이만큼 끌 때마다 한 칸(위로 끌면 아래 항목이 올라온다)
+            if (!_dragging && GameInput.PointerHeld)
+            {
+                _touchDrag += GameInput.TouchDragY;
+                var step = ListItemHeight * Mathf.Max(0.01f, _list.transform.lossyScale.y);
+                while (Mathf.Abs(_touchDrag) >= step)
+                {
+                    var dir = Math.Sign(_touchDrag);
+                    _listScroll = Mathf.Clamp(_listScroll + dir, 0, MaxScroll);
+                    _touchDrag -= dir * step;
+                    RefreshList();
+                }
+            }
+            else
+                _touchDrag = 0f;
 
             var pos = GameInput.PointerPosition;
             if (GameInput.PointerDown)
@@ -397,6 +413,7 @@ namespace LoopRogue
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1280f, 720f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand; // 16:9가 아닌 화면에서도 잘리지 않게
 
             var dim = HudUi.CreateImage(canvasGo.transform, "Dim", new Color(0f, 0f, 0f, 0.65f));
             HudUi.Stretch(dim.rectTransform, 0f);

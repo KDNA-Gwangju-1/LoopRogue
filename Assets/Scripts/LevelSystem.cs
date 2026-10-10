@@ -142,29 +142,40 @@ namespace LoopRogue
 
         public void AddExp(int amount)
         {
-            if (amount <= 0 || IsChoosingUpgrade || IsMaxLevel)
+            if (amount <= 0 || IsMaxLevel)
                 return;
 
             Exp += amount;
-            if (Exp >= ExpToNext)
-            {
-                Exp -= ExpToNext;
-                Level++;
-                ExpToNext = ExpToNextFor(Level);
-                if (IsMaxLevel)
-                    Exp = 0;
-                OnLevelUp?.Invoke(Level);
-                PresentUpgradeChoices();
-                return; // 남은 exp는 다음 처치 때 이어서 - 한 킬로 여러 레벨 오르는 케이스는 범위 밖.
-            }
-
-            OnExpChanged?.Invoke();
+            // 카드를 고르는 중이면 경험치만 쌓아두고 레벨업은 고른 뒤에(ChooseUpgrade) - 예전엔 회전 베기로 여러 마리를 잡으면
+            // 첫 마리로 레벨업한 뒤 나머지 경험치가 통째로 버려졌다.
+            if (IsChoosingUpgrade || !TryLevelUp())
+                OnExpChanged?.Invoke();
         }
 
-        /// <summary>레벨업 없이 카드 한 번 고르기(축복 제단 이벤트). 이미 고르는 중이면 무시.</summary>
+        /// <summary>경험치가 찼으면 한 레벨 올리고 카드를 보여준다(한 번에 한 레벨 - 남으면 카드를 고른 뒤 또).</summary>
+        private bool TryLevelUp()
+        {
+            if (IsMaxLevel || Exp < ExpToNext)
+                return false;
+            Exp -= ExpToNext;
+            Level++;
+            ExpToNext = ExpToNextFor(Level);
+            if (IsMaxLevel)
+                Exp = 0;
+            OnLevelUp?.Invoke(Level);
+            PresentUpgradeChoices();
+            return true;
+        }
+
+        /// <summary>고르는 중에 받은 보너스 카드(축복 제단·도전의 깃발·운명의 주사위 등) - 지금 카드를 고른 뒤 이어서 보여준다.</summary>
+        private int _pendingBonusUpgrades;
+
+        /// <summary>레벨업 없이 카드 한 번 고르기(축복 제단 등). 이미 고르는 중이면 미뤄뒀다가 그다음에.</summary>
         public void GrantBonusUpgrade()
         {
-            if (!IsChoosingUpgrade)
+            if (IsChoosingUpgrade)
+                _pendingBonusUpgrades++;
+            else
                 PresentUpgradeChoices();
         }
 
@@ -204,6 +215,15 @@ namespace LoopRogue
             LastChoiceFrame = UnityEngine.Time.frameCount;
             option.Apply(_stats);
             IsChoosingUpgrade = false;
+            // 고르는 사이 쌓인 경험치로 또 레벨업하거나, 미뤄둔 보너스 카드가 있으면 이어서 보여준다.
+            if (TryLevelUp())
+                return;
+            if (_pendingBonusUpgrades > 0)
+            {
+                _pendingBonusUpgrades--;
+                PresentUpgradeChoices();
+                return;
+            }
             OnExpChanged?.Invoke();
         }
     }

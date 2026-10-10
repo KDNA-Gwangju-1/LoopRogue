@@ -156,7 +156,7 @@ namespace LoopRogue
                 case RoomEventType.ElixirSpring:
                     return DrinkElixir(player, roomClearGold);
                 default:
-                    RunBuffs.AddDamage(RunBuffs.WhetstoneDamage, Loc.T("숫돌"));
+                    RunBuffs.AddDamage(RunBuffs.WhetstoneDamage, "숫돌"); // 이름은 한국어 열쇠(효과 줄에서 번역)
                     return Loc.F("숫돌! 이번 시도 동안 주는 피해 +{0:0}%", (RunBuffs.WhetstoneDamage - 1f) * 100f);
             }
         }
@@ -195,7 +195,7 @@ namespace LoopRogue
         private static string OfferBlood(PlayerActor player, float cost, string gain)
         {
             player.Stats.LoseHealth(cost);
-            RunBuffs.AddDamage(RunBuffs.BloodAltarDamage, Loc.T("피의 제단"));
+            RunBuffs.AddDamage(RunBuffs.BloodAltarDamage, "피의 제단");
             ActorJuice.Get(player).Flash(new Color(1f, 0.3f, 0.3f));
             return Loc.F("피의 제단! 체력 -{0:0}, {1}", cost, gain);
         }

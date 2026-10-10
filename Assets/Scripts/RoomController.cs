@@ -172,6 +172,8 @@ namespace LoopRogue
             BuildFloor(layout, def.IsBossRoom);
 
             Map.PlaceActor(_player, layout.PlayerStart);
+            if (_player.TryGetComponent<SpriteAnimator>(out var playerAnim))
+                playerAnim.SnapToGrid(); // 옛 방 칸에서 미끄러져 들어오는 걷기 모션이 나오지 않게
             PositionCamera(layout);
             if (!def.IsBossRoom && !def.IsTestRoom) // 보스방·테스트 방은 안개 없이 전부 보이게(사용자 결정 - 보스 패턴/소환 몹을 다 보고 싸우게)
                 FogOfWar.Create(this, _player, layout, _roomObjects);
@@ -270,6 +272,11 @@ namespace LoopRogue
         }
 
         /// <summary>지금 층의 방 클리어 골드(보너스 반영) - 이벤트·저주 계약 보상의 기준.</summary>
+        /// <summary>처치·방 클리어 골드 배율 - 골드 카드(하한 -50%) + 반지 "행운" + 유물 "탐욕" + 칭호, × 저주 계약(황금·무모).</summary>
+        private float GoldBonus =>
+            (1f + _player.Stats.EffectiveGoldBonus + EquipmentEffects.ExtraGoldBonus + Relics.ExtraGoldBonus + Achievements.TitleGoldBonus)
+            * Curses.GoldMultiplier;
+
         public int RoomClearGold =>
             Mathf.RoundToInt(GoldPerRoomClear * StageScaling.RewardMultiplier(_stage) * (1f + _player.Stats.EffectiveGoldBonus));
 
@@ -423,7 +430,7 @@ namespace LoopRogue
             if (cells.Count == 0)
                 return null;
             var pos = cells[Rng.Next(cells.Count)];
-            var kinds = _current.EnemyKinds;
+            var kinds = _current.EnemyKinds?.Where(k => !elite || k != EnemyKind.Bomber).ToList(); // 정예 폭탄병은 스스로 터져 도전 보상이 막혔다
             var kind = kinds != null && kinds.Count > 0 ? kinds[Rng.Next(kinds.Count)] : EnemyKind.Melee;
             var enemy = SpawnEnemy(pos, _current, kind, healthRatio, attackRatio);
             if (elite)
@@ -748,9 +755,7 @@ namespace LoopRogue
         public bool NotifyEnemyDefeated(EnemyActor enemy)
         {
             var stageMultiplier = StageScaling.RewardMultiplier(_stage);
-            var goldBonus = (1f + _player.Stats.EffectiveGoldBonus + EquipmentEffects.ExtraGoldBonus + Relics.ExtraGoldBonus // + 반지 "행운" + 유물 "탐욕" // 골드 증감 카드(하한 -50%)
-                            + Achievements.TitleGoldBonus) // + 칭호
-                            * Curses.GoldMultiplier; // × 저주 계약(황금·무모)
+            var goldBonus = GoldBonus;
             // 반복 보상 감소는 일반 몹/방 클리어에만(보스 처치는 항상 100%).
             var repeat = StageProgress.RepeatRewardMultiplier;
             ClearBombTelegraph(enemy); // 불 붙은 폭발병을 잡으면 불발
@@ -799,9 +804,7 @@ namespace LoopRogue
             Achievements.Check(); // 누적 처치 업적 - 몹마다 보지 않고 방을 비울 때 한 번
             if (!_current.IsBossRoom)
             {
-                var goldBonus = (1f + _player.Stats.EffectiveGoldBonus + EquipmentEffects.ExtraGoldBonus + Relics.ExtraGoldBonus // + 반지 "행운" + 유물 "탐욕"
-                                + Achievements.TitleGoldBonus) // + 칭호
-                                * Curses.GoldMultiplier; // × 저주 계약
+                var goldBonus = GoldBonus;
                 GoldWallet.Add(Mathf.RoundToInt(GoldPerRoomClear * StageScaling.RewardMultiplier(_stage) * goldBonus * StageProgress.RepeatRewardMultiplier));
                 _player.Stats.Heal(_player.Stats.MaxHealth * (RoomClearHealRate + (Relics.Has(RelicType.RegenMoss) ? Relics.RegenMossHealRate : 0f)) // + 유물 "재생의 이끼"
                                    * Curses.RoomHealMultiplier); // × 저주 "메마른 저주"
@@ -896,8 +899,10 @@ namespace LoopRogue
 
             foreach (var enemy in snapshot)
             {
-                if (enemy == null || enemy.Stats.IsDead)
-                    continue;
+                if (_roomCleared)
+                    return; // 반사 부적 등으로 이번 몹 턴 도중 보스가 죽어 방이 끝났다 - 남은 졸개는 행동하지 않는다
+                if (enemy == null || enemy.Stats.IsDead || !_enemies.Contains(enemy))
+                    continue; // 보스와 함께 치워진 졸개(Destroy는 프레임 끝이라 아직 null이 아니다)
 
                 enemy.TakeTurn(_player, claimedSlots, this);
                 CheckTrap(enemy);
@@ -911,12 +916,13 @@ namespace LoopRogue
             }
 
             // 가시로 죽은 몹은 몹 턴이 다 끝난 뒤에 처치 처리(턴 도중에 방이 넘어가지 않게).
-            foreach (var dead in _thornsKills.ToArray())
+            var thornsKills = _thornsKills.ToArray();
+            _thornsKills.Clear(); // 처치 도중 방이 넘어가도 같은 몹을 다음 턴에 또 처치하지 않게 먼저 비운다
+            foreach (var dead in thornsKills)
             {
                 if (dead != null && _player.ClaimKill(dead))
                     return;
             }
-            _thornsKills.Clear();
 
             EndOfEnemyTurns();
         }

@@ -357,6 +357,16 @@ namespace LoopRogue
         /// 봇 측정에서 보스전 사망이 목표의 10~25%로 떨어져서 시도마다로 줄였다(사용자 결정 C안).</summary>
         public void OnAttemptStarted()
         {
+            // 죽거나 로비를 다녀와 새 시도 - 지난 시도에 걸어둔 보호막·반사 부적·거미줄·면역·쿨타임·조준이 넘어오지 않게.
+            Stats.BlockNextHit = false;
+            ReflectTurns = 0;
+            RootedTurns = 0;
+            WebImmuneTurns = 0;
+            DashCooldown = 0;
+            SpinCooldown = 0;
+            IsAimingDash = false;
+            AimingItem = null;
+            _comboCount = 0;
             Stats.UndyingReady = EquipmentEffects.Has(ItemSlot.Armor, 3);
             Stats.EmergencyHealReady = EquipmentEffects.Has(ItemSlot.Armor, 4);
             Stats.ReviveReady = Relics.Has(RelicType.SecondWind); // 유물 "두 번째 숨"
@@ -543,10 +553,12 @@ namespace LoopRogue
             }
             else if (occupant is RoomEventActor ev)
             {
-                // 이벤트 칸 - 발동시키고 그 칸으로 이동(한 턴 소모). 피의 제단처럼 고르는 창이 뜨면 칸이 남아 있어 제자리.
+                // 이벤트 칸 - 발동시키고 그 칸으로 이동(한 턴 소모). 피의 제단처럼 고르는 창이 뜨면 칸이 남아 있고 턴도 안 쓴다
+                // (예전엔 창이 떠 있는 동안 몹이 한 번 움직였다).
+                if (!_room.TriggerEvent(ev))
+                    return;
                 BeginAction();
-                if (_room.TriggerEvent(ev))
-                    Map.MoveActor(this, targetPos);
+                Map.MoveActor(this, targetPos);
             }
             else if (occupant == null)
             {

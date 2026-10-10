@@ -167,6 +167,7 @@ namespace LoopRogue
         /// <summary>섬광탄 - 예고해둔 공격(저격 후속 포함)을 없던 일로.</summary>
         public void CancelPending(RoomController room)
         {
+            _cancelled = true; // Resolve 도중(반사 → 거울 깨기)이면 후속 패턴을 걸지 않게
             _pending = null;
             _pendingTiles.Clear();
             _mirrorWaves.Clear();
@@ -279,10 +280,13 @@ namespace LoopRogue
             return true;
         }
 
+        private bool _cancelled;
+
         private void Resolve(PlayerActor player, RoomController room)
         {
             var type = _pending.Value;
             _pending = null;
+            _cancelled = false;
             room.ClearTelegraph();
             if (type == BossPatternType.MirrorShards && _mirrorWaves.Count > 0)
             {
@@ -315,6 +319,13 @@ namespace LoopRogue
                     DamagePopup.Spawn(_boss.transform.position, reflected, new Color(0.6f, 0.9f, 1f), isCritical: true);
                     room.ShowMessage(Loc.T("반사 부적! 보스의 공격을 되돌렸다"));
                     room.HandleBossDamagedByItem(_boss);
+                    if (_boss.Stats.IsDead)
+                    {
+                        // 반사로 보스가 죽었다 - 저격 2발·남은 거울 파편을 다시 깔지 않는다(클리어한 방에 예고가 남던 문제).
+                        _pendingTiles.Clear();
+                        _mirrorWaves.Clear();
+                        return;
+                    }
                 }
                 else
                 {
@@ -325,6 +336,13 @@ namespace LoopRogue
                 }
             }
             _pendingTiles.Clear();
+            if (_cancelled)
+            {
+                // 이번 발동 중에 거울이 깨져 취소됐다 - 후속 패턴 없음, 돌진 기절도 거울 깨기 기절과 겹치지 않게.
+                _stunTurns = 0;
+                _mirrorWaves.Clear();
+                return;
+            }
 
             // 저격은 2연속 - 1발(X자)이 끝나면 곧바로 그 순간 플레이어 자리 기준 마름모를 예고한다.
             // "상하좌우로 움직여 1발을 피하고 → 대기해서 2발을 피하는" 패턴.

@@ -43,6 +43,7 @@ namespace LoopRogue
                 VirtualDown.Add(k);
             PendingInject.Clear();
             _pointerConsumed = false;
+            LastTappedRect = null;
 
             var pointer = Pointer.current;
             if (pointer == null || !pointer.press.wasPressedThisFrame)
@@ -98,16 +99,16 @@ namespace LoopRogue
         public static Vector2 PointerPosition => Pointer.current != null ? Pointer.current.position.ReadValue() : Vector2.zero;
         public static Vector2 PointerDelta => Pointer.current != null ? Pointer.current.delta.ReadValue() : Vector2.zero;
 
-        /// <summary>스크롤 - 마우스 휠 + 터치는 손가락 끌기(위로 끌면 아래 내용이 올라오게).</summary>
-        public static float ScrollY
+        /// <summary>마우스 휠(방향만 쓸 것 - 크기는 OS마다 다르다).</summary>
+        public static float ScrollY => Mouse.current != null ? Mouse.current.scroll.ReadValue().y : 0f;
+
+        /// <summary>터치 손가락 끌기 - 이번 프레임 세로 이동(화면 픽셀, 위로 끌면 +). 누르고 있지 않으면 0.</summary>
+        public static float TouchDragY
         {
             get
             {
-                var y = Mouse.current != null ? Mouse.current.scroll.ReadValue().y : 0f;
                 var touch = Touchscreen.current;
-                if (touch != null && touch.primaryTouch.press.isPressed)
-                    y -= touch.primaryTouch.delta.ReadValue().y * 0.05f;
-                return y;
+                return touch != null && touch.primaryTouch.press.isPressed ? touch.primaryTouch.delta.ReadValue().y : 0f;
             }
         }
     }

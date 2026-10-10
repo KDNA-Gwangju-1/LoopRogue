@@ -61,6 +61,7 @@ namespace LoopRogue
         private bool _clearedCurrentRoom; // 지금 방을 이번 시도에 클리어했는지(인계 판단용 - 사망 후 같은 방 이름으로 다시 깔려도 초기화)
         private int _savedVSync;
         private int _savedTargetFrameRate;
+        private bool _savedRunInBackground;
         private static readonly List<Behaviour> DisabledByBot = new List<Behaviour>();
 
         private bool _sweep;
@@ -291,6 +292,7 @@ namespace LoopRogue
             GameHUD.AutoPlayActive = true; // 시작 방 고르기 창을 안 띄움(봇은 항상 방1부터)
             _savedVSync = QualitySettings.vSyncCount;
             _savedTargetFrameRate = Application.targetFrameRate;
+            _savedRunInBackground = Application.runInBackground;
             Application.targetFrameRate = -1;
             QualitySettings.vSyncCount = 0;
             Application.runInBackground = true; // 에디터 창이 포커스를 잃어도 느려지지 않게
@@ -872,6 +874,7 @@ namespace LoopRogue
             DisabledByBot.Clear();
             QualitySettings.vSyncCount = _savedVSync;
             Application.targetFrameRate = _savedTargetFrameRate;
+            Application.runInBackground = _savedRunInBackground;
             UnityEditor.EditorPrefs.SetBool(EnabledPrefKey, false);
             UnityEditor.EditorPrefs.SetString(ModePrefKey, "");
             Destroy(gameObject); // OnDestroy가 연출 억제(DamagePopup.Suppressed)·봇 표시를 끈다

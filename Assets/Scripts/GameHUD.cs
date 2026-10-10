@@ -68,6 +68,12 @@ namespace LoopRogue
         private Text _roomSelectTitle;
         private RoomMapView _roomMap;
         private Action<int> _onRoomSelected;
+
+        /// <summary>층 입장 시작 방 고르기 창이 떠 있는지(모바일 "확인" 버튼용).</summary>
+        public bool IsRoomSelectOpen => _onRoomSelected != null;
+
+        /// <summary>오른쪽 위 능력치 창이 열려 있는지(모바일 "메뉴" 버튼이 그 위를 가리지 않게).</summary>
+        public bool IsStatPanelOpen => _statPanel != null && _statPanel.Root.activeSelf;
         private int _roomCount;
 
         public void Initialize(PlayerActor player)
@@ -322,9 +328,10 @@ namespace LoopRogue
             if (_pendingOptions == null || index < 0 || index >= _pendingOptions.Count)
                 return;
 
-            _player.Levels.ChooseUpgrade(_pendingOptions[index]);
+            var option = _pendingOptions[index];
             _pendingOptions = null;
             _upgradePanel.SetActive(false);
+            _player.Levels.ChooseUpgrade(option); // 이어서 레벨업·보너스 카드가 있으면 여기서 다시 ShowUpgradeChoices
         }
 
         private void Refresh()
@@ -368,10 +375,11 @@ namespace LoopRogue
 
         private void HandleStatPanelToggle()
         {
+            if (PauseMenu.BlocksInput || OptionsPanel.BlocksInput || NpcDialogUI.BlocksInput || InventoryUI.IsOpen)
+                return; // 다른 창 뒤에서 능력치 창이 몰래 열리고 닫히지 않게
             var toggle = GameInput.Down(Key.Tab);
 
-            var mouse = Pointer.current;
-            if (!PauseMenu.BlocksInput && mouse != null && GameInput.PointerDown &&
+            if (GameInput.PointerDown &&
                 RectTransformUtility.RectangleContainsScreenPoint(_statButtonRect, GameInput.PointerPosition, null))
                 toggle = true;
 
@@ -640,6 +648,7 @@ namespace LoopRogue
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1280f, 720f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand; // 16:9가 아닌 화면에서도 잘리지 않게
             canvasGo.AddComponent<GraphicRaycaster>();
             _canvasRect = canvasGo.GetComponent<RectTransform>();
 
@@ -970,6 +979,13 @@ namespace LoopRogue
                 if (wheel != 0f && RectTransformUtility.RectangleContainsScreenPoint(_rect, pos, null))
                 {
                     _offset -= Mathf.Sign(wheel) * WheelStep;
+                    ApplyScroll();
+                }
+                // 터치 - 글 위를 손가락으로 끌면 끈 만큼(화면 픽셀 → 캔버스 단위) 따라 움직인다.
+                var drag = GameInput.TouchDragY;
+                if (drag != 0f && !_dragging && RectTransformUtility.RectangleContainsScreenPoint(_rect, pos, null))
+                {
+                    _offset += drag / Mathf.Max(0.01f, _rect.lossyScale.y);
                     ApplyScroll();
                 }
 
