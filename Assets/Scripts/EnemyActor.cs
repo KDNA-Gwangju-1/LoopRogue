@@ -83,7 +83,12 @@ namespace LoopRogue
 
         private BossBrain _brain;
 
-        public string DisplayName => IsBoss ? "보스" : IsMinion ? "졸개" : Kind switch
+        private int _bossStage;
+        public int BossStage => _bossStage; // 층 보스면 그 층(도감 키), 아니면 0
+        private int _morphStage; // 거울 가면 기사가 지금 비추고 있는 보스 층(0 = 본모습)
+        private bool _enraged;
+
+        public string DisplayName => IsBoss ? BossDisplayName : IsMinion ? "졸개" : Kind switch
         {
             EnemyKind.Ranged => "궁수",
             EnemyKind.Shield => "방패병",
@@ -146,15 +151,80 @@ namespace LoopRogue
             transform.rotation = Quaternion.Euler(0f, 0f, angle);
         }
 
-        /// <summary>보스 전용 - 스테이지별 예고 공격 패턴을 붙인다.</summary>
-        public void SetupBossPatterns(List<BossPatternType> patterns, int stage) => _brain = new BossBrain(this, patterns, stage);
+        private string BossDisplayName =>
+            _bossStage <= 0 ? "보스"
+            : _morphStage > 0 ? $"{BossBrain.BossName(_bossStage)}({BossBrain.BossName(_morphStage)})"
+            : $"{_bossStage}층 보스 · {BossBrain.BossName(_bossStage)}";
+
+        /// <summary>보스 전용 - 스테이지별 예고 공격 패턴을 붙이고 그 층 보스 그림(Resources/Sprites/Boss{층})을 입힌다.</summary>
+        public void SetupBossPatterns(List<BossPatternType> patterns, int stage)
+        {
+            _brain = new BossBrain(this, patterns, stage);
+            _bossStage = stage;
+            ApplyBossSprite(stage);
+        }
+
+        /// <summary>보스 도트 그림(4방향 대기·걷기·공격)으로 - 그림이 없으면 예전 검붉은 사각형 그대로.</summary>
+        private bool ApplyBossSprite(int stage)
+        {
+            var setName = $"Boss{stage}";
+            var first = SpriteAnimator.FirstFrame(setName);
+            if (first == null)
+                return false;
+            var renderer = VisualUtil.CreateSpriteVisual(gameObject, first, GridConstants.CellSize * BossSpriteScale, sortingOrder: 0);
+            var anim = GetComponent<SpriteAnimator>();
+            if (anim == null)
+                anim = gameObject.AddComponent<SpriteAnimator>();
+            anim.Setup(setName, renderer, BossDebrisColor(stage));
+            anim.Face(Facing);
+            ApplyBossTint(renderer);
+            return true;
+        }
+
+        /// <summary>64x64 캔버스에 몸이 40px 남짓이라 1.6배 - 일반 몹보다 확실히 크게.</summary>
+        private const float BossSpriteScale = 1.6f;
+
+        private static Color BossDebrisColor(int stage) => stage switch
+        {
+            1 => new Color(0.5f, 0.33f, 0.2f),
+            2 => new Color(0.48f, 0.6f, 0.33f),
+            3 => new Color(0.5f, 0.5f, 0.55f),
+            4 => new Color(0.84f, 0.23f, 0.3f),
+            5 => new Color(0.66f, 0.24f, 0.59f),
+            6 => new Color(0.4f, 0.9f, 0.85f),
+            7 => new Color(0.23f, 0.19f, 0.32f),
+            8 => new Color(0.56f, 0.28f, 0.18f),
+            9 => new Color(0.4f, 1f, 0.6f),
+            _ => new Color(0.75f, 0.8f, 0.9f),
+        };
+
+        /// <summary>거울 가면 기사가 비춘 모습은 은빛으로(진짜 그 층 보스와 구분), 광폭화하면 붉게.</summary>
+        private void ApplyBossTint(SpriteRenderer renderer)
+        {
+            if (renderer == null)
+                return;
+            var sprite = GetComponent<SpriteAnimator>() != null;
+            if (_enraged)
+                renderer.color = sprite ? new Color(1f, 0.55f, 0.5f) : new Color(1f, 0.25f, 0.2f);
+            else
+                renderer.color = _morphStage > 0 ? new Color(0.78f, 0.86f, 1f) : Color.white;
+        }
+
+        /// <summary>10층 거울 가면 기사 전용 - 그 층 보스 모습으로 바뀐다(다음 변신까지 유지). 그림이 없으면 이름만 바뀐다.</summary>
+        public void MorphInto(int stage)
+        {
+            if (stage == _morphStage)
+                return;
+            _morphStage = stage;
+            ApplyBossSprite(stage);
+            ActorJuice.Get(this).Flash(Color.white); // 변신하는 순간 번쩍
+        }
 
         /// <summary>보스 광폭화 표시 - 붉게 물들인다(BossBrain이 HP 절반 이하가 되는 순간 한 번 부른다).</summary>
         public void MarkEnraged()
         {
-            var renderer = GetComponent<SpriteRenderer>();
-            if (renderer != null)
-                renderer.color = new Color(1f, 0.25f, 0.2f);
+            _enraged = true;
+            ApplyBossTint(GetComponent<SpriteRenderer>());
         }
 
         /// <summary>보스 소환 졸개로 표시 - 색을 어둡게 해서 일반 몹과 구분.</summary>

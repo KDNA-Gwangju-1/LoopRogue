@@ -39,6 +39,93 @@ namespace LoopRogue.EditorTools
             EditorApplication.isPlaying = true;
         }
 
+        // ---- N층 보스방 앞까지 봇이 진행 → 사람에게 인계 ----
+        // 새 저장으로 시작하므로(봇 공통) 시작 전에 지금 저장을 BotLogs/save_backup.reg로 백업한다 - "봇 전 저장 되돌리기"로 복구.
+        private const string HandoffMenu = "LoopRogue/봇으로 N층 보스방 앞까지 (저장 백업 후 초기화)/";
+        [MenuItem(HandoffMenu + "1층")] private static void Handoff1() => StartHandoff(1);
+        [MenuItem(HandoffMenu + "2층")] private static void Handoff2() => StartHandoff(2);
+        [MenuItem(HandoffMenu + "3층")] private static void Handoff3() => StartHandoff(3);
+        [MenuItem(HandoffMenu + "4층")] private static void Handoff4() => StartHandoff(4);
+        [MenuItem(HandoffMenu + "5층")] private static void Handoff5() => StartHandoff(5);
+        [MenuItem(HandoffMenu + "6층")] private static void Handoff6() => StartHandoff(6);
+        [MenuItem(HandoffMenu + "7층")] private static void Handoff7() => StartHandoff(7);
+        [MenuItem(HandoffMenu + "8층")] private static void Handoff8() => StartHandoff(8);
+        [MenuItem(HandoffMenu + "9층")] private static void Handoff9() => StartHandoff(9);
+        [MenuItem(HandoffMenu + "10층")] private static void Handoff10() => StartHandoff(10);
+
+        private static void StartHandoff(int stage)
+        {
+            if (EditorApplication.isPlaying)
+                return;
+            UnityEngine.PlayerPrefs.Save(); // 메모리에만 있는 값까지 레지스트리에 쓴 뒤 백업
+            if (!RunReg($"export \"{PrefsRegistryKey}\" \"{BackupPath}\" /y")
+                && !EditorUtility.DisplayDialog("저장 백업 실패", "지금 저장을 백업하지 못했습니다. 그래도 저장을 초기화하고 봇을 시작할까요?", "시작", "취소"))
+                return;
+            EditorPrefs.SetBool(AutoPlayBot.EnabledPrefKey, true);
+            EditorPrefs.SetString(AutoPlayBot.ModePrefKey, AutoPlayBot.HandoffMode);
+            EditorPrefs.SetInt(AutoPlayBot.HandoffStagePrefKey, stage);
+            EditorApplication.isPlaying = true;
+        }
+
+        /// <summary>에디터 PlayerPrefs는 레지스트리(HKCU\Software\Unity\UnityEditor\회사\제품)에 있다 - 통째로 .reg로 내보낸다.</summary>
+        private static string PrefsRegistryKey =>
+            $@"HKCU\Software\Unity\UnityEditor\{PlayerSettings.companyName}\{PlayerSettings.productName}";
+
+        private static string BackupPath
+        {
+            get
+            {
+                var dir = System.IO.Path.GetFullPath(System.IO.Path.Combine(UnityEngine.Application.dataPath, "..", "BotLogs"));
+                System.IO.Directory.CreateDirectory(dir);
+                return System.IO.Path.Combine(dir, "save_backup.reg");
+            }
+        }
+
+        [MenuItem("LoopRogue/봇 전 저장 되돌리기")]
+        private static void RestoreSave()
+        {
+            if (EditorApplication.isPlaying)
+            {
+                EditorUtility.DisplayDialog("저장 되돌리기", "Play를 멈춘 뒤에 해주세요.", "확인");
+                return;
+            }
+            if (!System.IO.File.Exists(BackupPath))
+            {
+                EditorUtility.DisplayDialog("저장 되돌리기", "백업 파일이 없습니다.\n" + BackupPath, "확인");
+                return;
+            }
+            if (!EditorUtility.DisplayDialog("저장 되돌리기", "지금 저장을 지우고 봇 시작 전 저장으로 되돌릴까요?", "되돌리기", "취소"))
+                return;
+            RunReg($"delete \"{PrefsRegistryKey}\" /f");
+            var ok = RunReg($"import \"{BackupPath}\"");
+            EditorUtility.DisplayDialog("저장 되돌리기", ok ? "되돌렸습니다." : "되돌리기 실패 - 콘솔 로그를 확인하세요.", "확인");
+        }
+
+        private static bool RunReg(string args)
+        {
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo("reg.exe", args)
+                {
+                    UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true, RedirectStandardOutput = true,
+                };
+                using (var p = System.Diagnostics.Process.Start(psi))
+                {
+                    var err = p.StandardError.ReadToEnd();
+                    p.StandardOutput.ReadToEnd();
+                    p.WaitForExit();
+                    if (p.ExitCode != 0)
+                        UnityEngine.Debug.LogError($"[AutoPlayBot] reg {args} 실패: {err}");
+                    return p.ExitCode == 0;
+                }
+            }
+            catch (System.Exception e)
+            {
+                UnityEngine.Debug.LogError($"[AutoPlayBot] reg 실행 실패: {e.Message}");
+                return false;
+            }
+        }
+
         [MenuItem("LoopRogue/자동 플레이 봇 강제 끄기")]
         private static void StopBot()
         {

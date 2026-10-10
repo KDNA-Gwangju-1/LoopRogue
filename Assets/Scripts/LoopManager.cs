@@ -171,6 +171,24 @@ namespace LoopRogue
 
         private void ShowStageClear()
         {
+            // 마지막 층 - 엔딩을 보여주고 처음으로(도감·업적·칭호만 남김). 자동 플레이 봇은 예전처럼 클리어 창으로(봇이 판 종료로 센다).
+            if (_stage >= StageProgress.MaxStage && !GameHUD.AutoPlayActive)
+            {
+                var record = new EndingScreen.Record
+                {
+                    Clears = SaveReset.GameClears + 1,
+                    TotalDeaths = LoopRecord.TotalDeaths,
+                    Level = _player.Levels.Level,
+                    CodexFound = Codex.FoundCount(),
+                    CodexTotal = Codex.TotalCount(),
+                };
+                EndingScreen.Show(record, () => !_player.Levels.IsChoosingUpgrade, () =>
+                {
+                    SaveReset.ResetForNewGame();
+                    UnityEngine.SceneManagement.SceneManager.LoadScene("Title");
+                });
+                return;
+            }
             _hud.ShowStageClear(_stage, SkipLobbyAfterStageClear ? SaveProgressAndReloadMain : (System.Action)SaveProgressAndLoadLobby);
         }
 

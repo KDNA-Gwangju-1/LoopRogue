@@ -51,13 +51,25 @@ namespace LoopRogue
             { 1, 1.55f }, { 2, 1.54f }, { 3, 1.44f }, { 4, 1.62f }, { 5, 1.9f }, { 6, 1.51f }, { 7, 1.6f }, { 8, 1.93f }, { 9, 1.5f }, { 10, 1.64f },
         };
 
+        /// <summary>"N층 보스방 앞까지" 모드 - 새 저장으로 한 판을 평소처럼(성장·장비 포함) 빠르게 돌다가 목표 층의 마지막 일반 방(방10)을
+        /// 클리어하면 그 자리에서 멈추고 화면·연출을 다시 켜서 사람에게 넘긴다(출구로 걸어가면 보스방). 목표 전에 막히면(사망 한도·끼임·시간)
+        /// 그 자리에서 넘긴다.</summary>
+        public const string HandoffMode = "handoff";
+        public const string HandoffStagePrefKey = "LoopRogue_AutoPlayBot_HandoffStage";
+        private bool _handoff;
+        private int _handoffStage;
+        private bool _clearedCurrentRoom; // 지금 방을 이번 시도에 클리어했는지(인계 판단용 - 사망 후 같은 방 이름으로 다시 깔려도 초기화)
+        private int _savedVSync;
+        private int _savedTargetFrameRate;
+        private static readonly List<Behaviour> DisabledByBot = new List<Behaviour>();
+
         private bool _sweep;
         private const int TrialsPerStage = 30;
         private const string ReferenceFileName = "reference_snapshots.tsv";
 
         private bool _stageTest;
         private int TrialsPerCase => _sweep ? SweepTrials : TrialsPerStage;
-        private int SessionRuns => _stageTest ? _testCases.Count * TrialsPerCase : RunsPerSession;
+        private int SessionRuns => _stageTest ? _testCases.Count * TrialsPerCase : _handoff ? 1 : RunsPerSession;
 
         /// <summary>각 층을 "몇 층 입장 상태로" 시험할지 - 0 = 그 층 입장 상태, -1 = 한 층 앞 입장 상태.
         /// 그 층 입장 상태에는 바로 앞 층에서 죽으며 파밍한 성장이 이미 들어있어서, 앞 층 상태로도 같이 재야
@@ -253,6 +265,10 @@ namespace LoopRogue
             var mode = UnityEditor.EditorPrefs.GetString(ModePrefKey, "");
             _sweep = mode == BossSweepMode;
             _stageTest = mode == StageTestMode || _sweep;
+            _handoff = mode == HandoffMode;
+            _handoffStage = Mathf.Clamp(UnityEditor.EditorPrefs.GetInt(HandoffStagePrefKey, 1), 1, StageProgress.MaxStage);
+            if (_handoff)
+                path = Path.Combine(Path.GetDirectoryName(path), "handoff_" + Path.GetFileName(path).Substring(4));
             if (_stageTest)
             {
                 path = Path.Combine(Path.GetDirectoryName(path), (_sweep ? "bosssweep_" : "stagetest_") + Path.GetFileName(path).Substring(4));
@@ -272,6 +288,8 @@ namespace LoopRogue
 
             DamagePopup.Suppressed = true;
             GameHUD.AutoPlayActive = true; // 시작 방 고르기 창을 안 띄움(봇은 항상 방1부터)
+            _savedVSync = QualitySettings.vSyncCount;
+            _savedTargetFrameRate = Application.targetFrameRate;
             Application.targetFrameRate = -1;
             QualitySettings.vSyncCount = 0;
             Application.runInBackground = true; // 에디터 창이 포커스를 잃어도 느려지지 않게
@@ -279,6 +297,7 @@ namespace LoopRogue
             _sessionStartTime = Time.realtimeSinceStartup;
             Log(_stageTest
                 ? $"=== {(_sweep ? "보스 배율 찾기" : "층별 순수 난이도 측정")}: {_testCases.Count}조합 × {TrialsPerCase}회 (기준 상태에서 시작, 그 층 보스를 잡으면 종료) ==="
+                : _handoff ? $"=== {_handoffStage}층 보스방 앞까지 자동 진행 후 인계 ==="
                 : $"=== 자동 플레이 {RunsPerSession}판 연속 시작 ===");
             BeginRun();
         }
@@ -821,10 +840,40 @@ namespace LoopRogue
         /// 씬이 바뀔 때마다 새로 만들어지므로 매번 다시 끈다.</summary>
         private static void DisableRendering()
         {
+            DisabledByBot.RemoveAll(b => b == null);
             foreach (var cam in FindObjectsByType<Camera>(FindObjectsSortMode.None))
-                cam.enabled = false;
+                Disable(cam);
             foreach (var canvas in FindObjectsByType<Canvas>(FindObjectsSortMode.None))
-                canvas.enabled = false;
+                Disable(canvas);
+        }
+
+        private static void Disable(Behaviour b)
+        {
+            if (!b.enabled)
+                return;
+            b.enabled = false;
+            DisabledByBot.Add(b); // 인계할 때 봇이 끈 것만 다시 켠다(게임이 원래 꺼둔 건 그대로)
+        }
+
+        /// <summary>인계 - 봇을 끄고 화면·연출을 되돌린 뒤 지금 상태 그대로 사람에게 넘긴다.</summary>
+        private void HandOff(string reason)
+        {
+            if (_sessionFinished)
+                return;
+            _sessionFinished = true;
+            Log($"인계: {reason} | {StatLine()}");
+            Debug.Log($"[AutoPlayBot] 인계 - {reason}");
+
+            foreach (var b in DisabledByBot)
+                if (b != null)
+                    b.enabled = true;
+            DisabledByBot.Clear();
+            QualitySettings.vSyncCount = _savedVSync;
+            Application.targetFrameRate = _savedTargetFrameRate;
+            UnityEditor.EditorPrefs.SetBool(EnabledPrefKey, false);
+            UnityEditor.EditorPrefs.SetString(ModePrefKey, "");
+            Destroy(gameObject); // OnDestroy가 연출 억제(DamagePopup.Suppressed)·봇 표시를 끈다
+            _room?.ShowMessage($"봇 인계: {reason}");
         }
 
         /// <summary>한 번의 판단/행동. 계속 진행해도 되면 true, 이번 프레임은 그만(씬 전환 등)이면 false.</summary>
@@ -854,6 +903,7 @@ namespace LoopRogue
                     Ev("room_clear", ("cleared", _lastRoomName), ("room_turns", _roomTurns));
                 }
                 _lastRoomName = _room.RoomName;
+                _clearedCurrentRoom = false;
                 _roomTurns = 0;
                 _turnsSinceProgress = 0;
                 _lastEnemyHealthSum = float.MaxValue;
@@ -898,6 +948,14 @@ namespace LoopRogue
             if (_hud.IsStageClearOpen)
             {
                 OnStageClear();
+                return false;
+            }
+
+            // 인계 모드 - 목표 층 마지막 일반 방(방10)을 클리어하고 레벨업/유물 고르기까지 끝나면 그 자리에서 넘긴다.
+            if (_handoff && _clearedCurrentRoom && !_room.IsBossRoom && StageProgress.CurrentStage == _handoffStage
+                && _room.RoomName != null && _room.RoomName.EndsWith("-10"))
+            {
+                HandOff($"{_handoffStage}층 방10 클리어 - 출구로 가면 {BossBrain.BossName(_handoffStage)} 보스방");
                 return false;
             }
 
@@ -1076,6 +1134,7 @@ namespace LoopRogue
         {
             var damage = (float)((CharacterStats.IncomingDamageTotal - _roomDamageStart) / Mathf.Max(1f, _player.Stats.MaxHealth));
             _roomDamageStart = CharacterStats.IncomingDamageTotal;
+            _clearedCurrentRoom = RoomController.LastClearedRoom == _room.RoomName;
             if (RoomController.LastClearedWasBoss)
                 return;
 
@@ -1796,6 +1855,12 @@ namespace LoopRogue
         {
             if (_run == null || _runEnding)
                 return;
+            if (_handoff)
+            {
+                // 목표 층 전에 막힘(사망 한도·끼임·시간 제한) - 판을 끝내지 않고 지금 자리에서 넘긴다.
+                HandOff($"{_handoffStage}층 도착 전에 멈춤({StageProgress.CurrentStage}층) - {reason}");
+                return;
+            }
 
             _run.EndReason = reason;
             _run.Completed = completed;

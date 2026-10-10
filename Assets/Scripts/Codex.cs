@@ -9,7 +9,7 @@ namespace LoopRogue
     {
         Monster,
         Relic,
-        Boss, // 아직 항목 없음 - 로비 도감 메뉴에 "준비 중"으로만 보인다
+        Boss, // 층 보스 10종 - 처음 쓰러뜨리면 기록
     }
 
     /// <summary>도감 항목 하나 - 발견 전엔 실루엣 + "???" + 해금 힌트, 발견하면 그림·이름·설명이 보인다.</summary>
@@ -25,7 +25,7 @@ namespace LoopRogue
         public Func<string> Note;     // 발견 후 덧붙이는 상태(유물 보유 여부 등) - 없으면 null
     }
 
-    /// <summary>도감 - 몬스터 5 / 유물 22(보스 도감은 준비 중). 발견 기록은 영구 저장(PlayerPrefs). 몬스터는 처음 처치할 때, 유물은 보스 보상
+    /// <summary>도감 - 몬스터 5 / 유물 22 / 보스 10. 발견 기록은 영구 저장(PlayerPrefs). 몬스터는 처음 처치할 때, 유물은 보스 보상
     /// 후보로 처음 보거나 얻을 때 기록된다(각 기록 지점이 Discover를 부른다). 새로 기록되면 Discovered 이벤트로 지금 씬 UI가 알린다.
     /// 그림은 몬스터 = 각 도트 그림 첫 프레임, 유물 = Resources/UI/Relics.</summary>
     public static class Codex
@@ -70,10 +70,46 @@ namespace LoopRogue
                 "거미줄을 쏴서 몇 턴 동안 이동과 대시를 막는다. 공격과 회전 베기는 된다. 정화제로 바로 풀린다.");
             AddMonster(list, "Bomber", "고블린 폭탄병", "Bomber", new Color(1f, 0.55f, 0.1f),
                 "심지에 불을 붙이면 다음 턴에 주변 3x3이 터진다(주황 칸). 터지기 전에 잡으면 불발.");
-            // 층 보스는 보스 도감(준비 중)으로 따로 - 그림이 생기면 CodexCategory.Boss 항목으로 추가한다.
+
+            AddBoss(list, 1, new Color(0.5f, 0.33f, 0.2f),
+                "엄니를 앞세워 플레이어 쪽 일직선으로 최대 5칸 돌진한다. 돌진할 줄에서 옆으로 비키자. 돌진한 뒤엔 2턴 동안 비틀거린다 - 때릴 기회.");
+            AddBoss(list, 2, new Color(0.48f, 0.6f, 0.33f),
+                "몽둥이로 자기 주변 3x3을 내려찍는다. 예고가 뜨면 한 칸 더 떨어지자.");
+            AddBoss(list, 3, new Color(0.5f, 0.5f, 0.55f),
+                "땅을 쳐서 자기 가로줄과 세로줄 전체를 가른다. 골렘과 같은 줄에 서지 말고 대각선 쪽에 붙자.");
+            AddBoss(list, 4, new Color(0.84f, 0.23f, 0.3f),
+                "예고 없이 붉은 슬라임 졸개를 부르고(최대 2마리), 번갈아 주변 3x3을 짓누른다. 졸개부터 정리하자.");
+            AddBoss(list, 5, new Color(0.66f, 0.24f, 0.59f),
+                "포자 파동이 군주에게서 1칸, 3칸 떨어진 고리를 덮친다. 딱 2칸 떨어진 고리가 안전하다. 박자가 빠르다.");
+            AddBoss(list, 6, new Color(0.4f, 0.9f, 0.85f),
+                "두 발 연속 저격. 1발은 플레이어 자리와 대각선 4칸(X자) - 상하좌우로 한 칸 움직여 피한다. 2발은 그 자리의 상하좌우 4칸 - 제자리에서 대기하면 피한다.");
+            AddBoss(list, 7, new Color(0.23f, 0.19f, 0.32f),
+                "쌍단검으로 플레이어 자리를 기준으로 대각선 4줄을 벤다. 상하좌우로 비켜서 대각선에서 벗어나자.");
+            AddBoss(list, 8, new Color(0.56f, 0.28f, 0.18f),
+                "돌진과 도끼 내려찍기(주변 3x3)를 번갈아 쓴다. 돌진 뒤 비틀거릴 때가 기회.");
+            AddBoss(list, 9, new Color(0.4f, 1f, 0.6f),
+                "십자 마법(가로줄·세로줄 전체)과 두 발 저격을 번갈아 쓴다. 같은 줄을 피하고, 저격은 움직이고 → 대기.");
+            AddBoss(list, 10, new Color(0.75f, 0.8f, 0.9f),
+                "깨진 거울 가면에 다른 보스를 비춰 그 모습으로 변신하고 그 보스의 패턴을 쓴다(멧돼지·오우거·골렘·슬라임 킹·버섯 군주·" +
+                "망령 궁수·암살자 중 무작위, 같은 패턴은 연달아 안 씀). 변신한 모습을 보고 다음 패턴을 읽자.");
 
             return list.ToArray();
         }
+
+        private static void AddBoss(List<CodexEntry> list, int stage, Color color, string description) =>
+            list.Add(new CodexEntry
+            {
+                Key = BossKey(stage),
+                Category = CodexCategory.Boss,
+                Name = BossBrain.BossName(stage),
+                Description = () => $"{description}\n<color=#9AA0AA>{stage}층 보스 · 패턴: " +
+                                    $"{string.Join(", ", BossBrain.StagePatterns(stage).Select(BossBrain.PatternName))}</color>",
+                Hint = $"{stage}층 보스를 처음 쓰러뜨리면 기록된다",
+                Image = () => SpriteAnimator.FirstFrame($"Boss{stage}"),
+                FallbackColor = color,
+            });
+
+        public static string BossKey(int stage) => "B:" + stage;
 
         private static void AddMonster(List<CodexEntry> list, string key, string name, string spriteSet, Color color, string description) =>
             list.Add(new CodexEntry
@@ -89,9 +125,9 @@ namespace LoopRogue
 
         public static string RelicKey(RelicType r) => "R:" + r;
 
-        /// <summary>처치한 몹의 도감 키 - 졸개(= 슬라임 모습)도 슬라임으로, 보스는 아직 항목이 없어 기록되지 않는다.</summary>
+        /// <summary>처치한 몹의 도감 키 - 졸개(= 슬라임 모습)도 슬라임으로, 층 보스는 보스 도감(변신 중인 10층 보스도 10층으로).</summary>
         public static string MonsterKey(EnemyActor e) =>
-            e.IsBoss ? "M:Boss" : e.IsMinion || e.Kind == EnemyKind.Melee ? "M:Slime" : "M:" + e.Kind;
+            e.IsBoss ? BossKey(e.BossStage) : e.IsMinion || e.Kind == EnemyKind.Melee ? "M:Slime" : "M:" + e.Kind;
 
         public static void Reload()
         {
@@ -142,6 +178,9 @@ namespace LoopRogue
             var changed = false;
             foreach (var r in Relics.OwnedRelics())
                 changed |= Found.Add(RelicKey(r));
+            // 보스 도감이 생기기 전에 이미 넘어간 층의 보스(지금 층보다 앞 층 = 그 층 보스를 잡았다)
+            for (var s = 1; s < StageProgress.CurrentStage && s <= StageProgress.MaxStage; s++)
+                changed |= Found.Add(BossKey(s));
             if (changed)
                 PlayerPrefs.SetString(Key, string.Join(",", Found));
         }

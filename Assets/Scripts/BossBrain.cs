@@ -91,7 +91,38 @@ namespace LoopRogue
             _normalTurnsThisCycle = Rng.Next(min, max + 1);
         }
 
-        /// <summary>스테이지별 패턴 목록 - 1~7은 하나씩, 8~9는 두 개를 번갈아, 10은 전부 돌아가며.</summary>
+        /// <summary>10층 = 거울 가면 기사(다른 보스로 변신하며 그 보스의 패턴을 쓴다).</summary>
+        public const int MirrorStage = 10;
+
+        /// <summary>층 보스 이름 - 그림은 Resources/Sprites/Boss{층}.</summary>
+        public static string BossName(int stage) => stage switch
+        {
+            1 => "거대 멧돼지",
+            2 => "오우거",
+            3 => "돌 골렘",
+            4 => "슬라임 킹",
+            5 => "버섯 군주",
+            6 => "망령 궁수",
+            7 => "그림자 암살자",
+            8 => "미노타우로스",
+            9 => "리치",
+            _ => "거울 가면 기사",
+        };
+
+        /// <summary>거울 가면 기사가 이 패턴을 쓸 때 변신하는 보스(그 패턴의 원래 주인 층) - 0이면 변신 안 함.</summary>
+        public static int MorphStage(BossPatternType type) => type switch
+        {
+            BossPatternType.Charge => 1,
+            BossPatternType.Slam => 2,
+            BossPatternType.Cross => 3,
+            BossPatternType.Summon => 4,
+            BossPatternType.Ring => 5,
+            BossPatternType.Snipe => 6,
+            BossPatternType.Diagonal => 7,
+            _ => 0,
+        };
+
+        /// <summary>스테이지별 패턴 목록 - 1~7은 하나씩, 8~9는 두 개를 번갈아, 10은 전부 무작위(NextPattern).</summary>
         public static List<BossPatternType> StagePatterns(int stage) => stage switch
         {
             1 => new List<BossPatternType> { BossPatternType.Charge }, // 1/2 서로 바꿈(사용자 요청) - 돌진이 봇 테스트에서 가장 쉬운 패턴이라 입문용
@@ -162,13 +193,12 @@ namespace LoopRogue
 
             _normalTurns = 0;
             RollNormalTurns();
-            var type = _patterns[_patternIndex];
-            _patternIndex = (_patternIndex + 1) % _patterns.Count;
+            var type = NextPattern();
 
             if (type == BossPatternType.Summon)
             {
                 room.SpawnMinions(_boss, MaxMinions);
-                room.ShowMessage($"보스의 {PatternName(type)}!");
+                room.ShowMessage(TryMorph(type, out var morph) ? $"{morph} ({PatternName(type)})" : $"보스의 {PatternName(type)}!");
                 return true;
             }
 
@@ -178,6 +208,39 @@ namespace LoopRogue
 
             _pending = type;
             room.ShowTelegraph(_pendingTiles);
+            if (TryMorph(type, out var message))
+                room.ShowMessage(message);
+            return true;
+        }
+
+        /// <summary>다음 패턴 - 1~9층은 목록 순서대로, 10층은 무작위(같은 패턴 연속은 안 나옴).</summary>
+        private BossPatternType NextPattern()
+        {
+            if (_stage < MirrorStage || _patterns.Count < 2)
+            {
+                var next = _patterns[_patternIndex];
+                _patternIndex = (_patternIndex + 1) % _patterns.Count;
+                return next;
+            }
+            BossPatternType pick;
+            do
+                pick = _patterns[Rng.Next(_patterns.Count)];
+            while (pick == _lastRandom);
+            _lastRandom = pick;
+            return pick;
+        }
+
+        private BossPatternType? _lastRandom;
+
+        /// <summary>10층 거울 가면 기사 - 쓰는 패턴의 원래 주인(1~7층 보스)으로 변신하고, 다음 변신까지 그 모습으로 싸운다.</summary>
+        private bool TryMorph(BossPatternType type, out string message)
+        {
+            message = null;
+            var target = MorphStage(type);
+            if (_stage < MirrorStage || target == 0)
+                return false;
+            _boss.MorphInto(target);
+            message = $"{BossName(MirrorStage)}가 {BossName(target)}의 모습을 비췄다!";
             return true;
         }
 
@@ -186,6 +249,10 @@ namespace LoopRogue
             var type = _pending.Value;
             _pending = null;
             room.ClearTelegraph();
+
+            // 패턴이 터지는 순간 공격 모션(그림이 있을 때만) - 돌진은 돌진한 방향, 나머지는 플레이어 쪽.
+            if (_boss.TryGetComponent<SpriteAnimator>(out var anim))
+                anim.PlayAttack(type == BossPatternType.Charge ? _chargeDirection : player.GridPos - _boss.GridPos);
 
             if (type == BossPatternType.Charge)
             {
