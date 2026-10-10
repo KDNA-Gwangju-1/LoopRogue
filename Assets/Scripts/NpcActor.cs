@@ -49,9 +49,9 @@ namespace LoopRogue
 
         public string DisplayName => Type switch
         {
-            NpcType.Merchant => "떠돌이 상인",
-            NpcType.Wanderer => "길 잃은 모험가",
-            _ => "그림자 거래상",
+            NpcType.Merchant => Loc.T("떠돌이 상인"),
+            NpcType.Wanderer => Loc.T("길 잃은 모험가"),
+            _ => Loc.T("그림자 거래상"),
         };
 
         private RoomController _room;
@@ -189,7 +189,7 @@ namespace LoopRogue
             if (NpcDialogUI.Instance == null)
                 return;
             if (Type == NpcType.Merchant)
-                ShowShop(_talkedOnce ? "또 왔나? 천천히 골라 보게." : MerchantGreeting());
+                ShowShop(_talkedOnce ? Loc.T("또 왔나? 천천히 골라 보게.") : MerchantGreeting());
             else if (Type == NpcType.Wanderer)
                 ShowWanderer();
             else
@@ -201,24 +201,27 @@ namespace LoopRogue
 
         private List<CurseDeal> _deals;
 
-        private static readonly string[] CurseGreetings =
+        private static readonly LocCache<string[]> CurseGreetingsCache = new LocCache<string[]>(() => new string[]
+
         {
-            "...살아 있는 자의 냄새로군. 힘이 필요하지 않나? 값은... 조금만 받지.",
-            "...살아 있는 자의 냄새로군. 힘이 필요하지 않나? 값은... 조금만 받지.",
-            "또 왔군. 고리를 도는 자들은 결국 나를 찾게 되어 있지.",
-            "네 죽음의 냄새가 짙어졌어. {0}번... 거래하기 딱 좋은 숫자야.",
-            "{0}번이나 죽고도 아직 계약을 망설이나? 흐흐.",
-            "고리의 단골이여. 오늘은 무엇을 내어 주겠나?",
-        };
+            Loc.T("...살아 있는 자의 냄새로군. 힘이 필요하지 않나? 값은... 조금만 받지."),
+            Loc.T("...살아 있는 자의 냄새로군. 힘이 필요하지 않나? 값은... 조금만 받지."),
+            Loc.T("또 왔군. 고리를 도는 자들은 결국 나를 찾게 되어 있지."),
+            Loc.T("네 죽음의 냄새가 짙어졌어. {0}번... 거래하기 딱 좋은 숫자야."),
+            Loc.T("{0}번이나 죽고도 아직 계약을 망설이나? 흐흐."),
+            Loc.T("고리의 단골이여. 오늘은 무엇을 내어 주겠나?"),
+        });
+
+        private static string[] CurseGreetings => CurseGreetingsCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
 
         private void ShowCurse()
         {
             var choices = _deals.Select(d => new NpcDialogUI.Choice(
-                $"<color=#C890FF>{d.Name}</color>  <color=#FF8080>대가: {d.Cost}</color>  <color=#8CE08C>얻는 것: {d.Gain}</color>",
+                Loc.F("<color=#C890FF>{0}</color>  <color=#FF8080>대가: {1}</color>  <color=#8CE08C>얻는 것: {2}</color>", d.Name, d.Cost, d.Gain),
                 () => TakeDeal(d))).ToList();
-            choices.Add(new NpcDialogUI.Choice("거절한다", null));
+            choices.Add(new NpcDialogUI.Choice(Loc.T("거절한다"), null));
             NpcDialogUI.Instance.Show(DisplayName,
-                $"{LoopLine(CurseGreetings)}\n<size=13><color=#9AA0AA>계약은 하나만. 배율 효과는 이번 시도 동안(죽거나 층을 넘기면 풀린다).</color></size>",
+                Loc.F("{0}\n<size=13><color=#9AA0AA>계약은 하나만. 배율 효과는 이번 시도 동안(죽거나 층을 넘기면 풀린다).</color></size>", LoopLine(CurseGreetings)),
                 choices);
         }
 
@@ -235,35 +238,44 @@ namespace LoopRogue
 
         // ---- 루프 회차별 대사(LoopRecord.Tier: 0번 / 1~4 / 5~19 / 20~49 / 50~99 / 100번 이상 죽음) ----
 
-        private static readonly string[] MerchantGreetings =
-        {
-            "어이, 이런 곳에서 산 사람을 다 보는군! 오늘 들고 온 건 이것뿐이네.",
-            "어이, 이런 곳에서 산 사람을 다 보는군! 오늘 들고 온 건 이것뿐이네.",
-            "또 자넨가! 이번 고리에서도 살아 있군. 물건 보고 가게.",
-            "단골이 다 됐군. 자네 쓰러지는 소리는 이제 벽 너머에서도 알아듣는다네.",
-            "{0}번이나 죽고도 지갑을 들고 다니다니, 대단한 손님이야.",
-            "자네 몫으로 고리 저편에서 물건을 챙겨 왔지. 농담 아니야. ...{0}번째 손님이니 말이야.",
-        };
+        private static readonly LocCache<string[]> MerchantGreetingsCache = new LocCache<string[]>(() => new string[]
 
-        private static readonly string[] WandererOpenings =
         {
-            "...너도 이 고리에 갇혔구나.",
-            "...너도 이 고리에 갇혔구나. 아직 몇 번 안 돌았지? 눈빛이 맑아.",
-            "...어디서 본 얼굴인데. 너, 몇 번째야? 나는... 세는 걸 잊었어.",
-            "또 만났네. 넌 기억하는구나... 다행이다. 난 자꾸 잊어버리거든.",
-            "{0}번이라고? ...그럼 이번엔 정말 끝까지 갈 수 있을지도 몰라.",
-            "{0}번이나 돌아온 사람은 처음 봐. 아니, 처음이 아닌가... 모르겠어.",
-        };
+            Loc.T("어이, 이런 곳에서 산 사람을 다 보는군! 오늘 들고 온 건 이것뿐이네."),
+            Loc.T("어이, 이런 곳에서 산 사람을 다 보는군! 오늘 들고 온 건 이것뿐이네."),
+            Loc.T("또 자넨가! 이번 고리에서도 살아 있군. 물건 보고 가게."),
+            Loc.T("단골이 다 됐군. 자네 쓰러지는 소리는 이제 벽 너머에서도 알아듣는다네."),
+            Loc.T("{0}번이나 죽고도 지갑을 들고 다니다니, 대단한 손님이야."),
+            Loc.T("자네 몫으로 고리 저편에서 물건을 챙겨 왔지. 농담 아니야. ...{0}번째 손님이니 말이야."),
+        });
 
-        private static readonly string[] WandererWaiting =
+        private static string[] MerchantGreetings => MerchantGreetingsCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
+
+        private static readonly LocCache<string[]> WandererOpeningsCache = new LocCache<string[]>(() => new string[]
+
         {
-            "몇 번을 쓰러져도 괜찮아. 끝까지만 가 줘.",
-            "몇 번을 쓰러져도 괜찮아. 끝까지만 가 줘.",
-            "쓰러져도 돌아오잖아. 그러니까 괜찮아, 천천히 가.",
-            "쓰러질 때마다 네가 조금씩 강해지는 게 보여.",
-            "{0}번... 그만큼 넘어졌으면 이제 일어서는 법도 알겠지.",
-            "넌 이미 고리보다 질겨. 끝에서 기다릴게.",
-        };
+            Loc.T("...너도 이 고리에 갇혔구나."),
+            Loc.T("...너도 이 고리에 갇혔구나. 아직 몇 번 안 돌았지? 눈빛이 맑아."),
+            Loc.T("...어디서 본 얼굴인데. 너, 몇 번째야? 나는... 세는 걸 잊었어."),
+            Loc.T("또 만났네. 넌 기억하는구나... 다행이다. 난 자꾸 잊어버리거든."),
+            Loc.T("{0}번이라고? ...그럼 이번엔 정말 끝까지 갈 수 있을지도 몰라."),
+            Loc.T("{0}번이나 돌아온 사람은 처음 봐. 아니, 처음이 아닌가... 모르겠어."),
+        });
+
+        private static string[] WandererOpenings => WandererOpeningsCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
+
+        private static readonly LocCache<string[]> WandererWaitingCache = new LocCache<string[]>(() => new string[]
+
+        {
+            Loc.T("몇 번을 쓰러져도 괜찮아. 끝까지만 가 줘."),
+            Loc.T("몇 번을 쓰러져도 괜찮아. 끝까지만 가 줘."),
+            Loc.T("쓰러져도 돌아오잖아. 그러니까 괜찮아, 천천히 가."),
+            Loc.T("쓰러질 때마다 네가 조금씩 강해지는 게 보여."),
+            Loc.T("{0}번... 그만큼 넘어졌으면 이제 일어서는 법도 알겠지."),
+            Loc.T("넌 이미 고리보다 질겨. 끝에서 기다릴게."),
+        });
+
+        private static string[] WandererWaiting => WandererWaitingCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
 
         private static string LoopLine(string[] lines) => string.Format(lines[LoopRecord.Tier], LoopRecord.TotalDeaths);
 
@@ -279,16 +291,16 @@ namespace LoopRogue
                 new StockEntry
                 {
                     Kind = StockKind.SlotTicket,
-                    Name = $"슬롯 이용권 {SlotTicketBundle}장",
-                    Description = () => $"로비 도박장 일반 베팅 {SlotTicketBundle}회 무료 (보유 {SlotMachine.Tickets}장)",
+                    Name = Loc.F("슬롯 이용권 {0}장", SlotTicketBundle),
+                    Description = () => Loc.F("로비 도박장 일반 베팅 {0}회 무료 (보유 {1}장)", SlotTicketBundle, SlotMachine.Tickets),
                     Price = Mathf.RoundToInt(SlotMachine.GetBet(false) * SlotTicketBundle * SlotTicketDiscount),
                     Apply = () => SlotMachine.AddTickets(SlotTicketBundle),
                 },
                 new StockEntry
                 {
                     Kind = StockKind.GachaTicket,
-                    Name = "뽑기권",
-                    Description = () => $"로비 뽑기 상점에서 검·갑옷·반지 아무거나 1회 무료 (보유 {GachaSystem.Tickets}장)",
+                    Name = Loc.T("뽑기권"),
+                    Description = () => Loc.F("로비 뽑기 상점에서 검·갑옷·반지 아무거나 1회 무료 (보유 {0}장)", GachaSystem.Tickets),
                     Price = GachaSystem.TicketPrice,
                     Apply = () => GachaSystem.AddTickets(1),
                 },
@@ -302,7 +314,7 @@ namespace LoopRogue
                 pool.Add(new StockEntry
                 {
                     Kind = StockKind.Potion,
-                    Name = $"{StatPotionWallet.Name(potion)} 영약",
+                    Name = Loc.F("{0} 영약", StatPotionWallet.Name(potion)),
                     Description = () => StatPotionWallet.Description(potion),
                     Price = StatPotionWallet.FirstCost,
                     Apply = () => ApplyPotion(potion),
@@ -321,7 +333,7 @@ namespace LoopRogue
                     Name = ItemInfo.Name(item),
                     Description = () => ItemInfo.Description(item),
                     Price = itemPrice,
-                    BlockedReason = () => Inventory.Has(item) ? "이미 가지고 있음" : null,
+                    BlockedReason = () => Inventory.Has(item) ? Loc.T("이미 가지고 있음") : null,
                     Apply = () => Inventory.Give(item),
                 });
             }
@@ -356,19 +368,19 @@ namespace LoopRogue
             foreach (var entry in _stock)
             {
                 var e = entry;
-                var blocked = e.Sold ? "품절" : e.BlockedReason?.Invoke();
+                var blocked = e.Sold ? Loc.T("품절") : e.BlockedReason?.Invoke();
                 var affordable = GoldWallet.Gold >= e.Price;
                 var suffix = blocked != null ? $"  <color=#888888>({blocked})</color>"
-                    : affordable ? string.Empty : "  <color=#FF8080>(골드 부족)</color>";
+                    : affordable ? string.Empty : Loc.T("  <color=#FF8080>(골드 부족)</color>");
                 choices.Add(new NpcDialogUI.Choice(
                     $"{e.Name}  <color=#FFD966>{e.Price}G</color>  <size=12><color=#AAB0BA>{e.Description()}</color></size>{suffix}",
                     () => Buy(e),
                     enabled: blocked == null && affordable));
             }
-            choices.Add(new NpcDialogUI.Choice("떠난다", null));
+            choices.Add(new NpcDialogUI.Choice(Loc.T("떠난다"), null));
 
             NpcDialogUI.Instance.Show(DisplayName,
-                $"{line}\n<color=#FFD966>보유 골드: {GoldWallet.Gold}</color>  <size=13><color=#9AA0AA>(이용권·뽑기권·영약은 영구, 1회용 아이템은 죽으면 잃는다)</color></size>",
+                Loc.F("{0}\n<color=#FFD966>보유 골드: {1}</color>  <size=13><color=#9AA0AA>(이용권·뽑기권·영약은 영구, 1회용 아이템은 죽으면 잃는다)</color></size>", line, GoldWallet.Gold),
                 choices);
         }
 
@@ -376,7 +388,7 @@ namespace LoopRogue
         {
             if (!TryPurchase(entry))
                 return;
-            ShowShop($"{entry.Name}, 좋은 선택이야. 또 필요한 건 없나?");
+            ShowShop(Loc.F("{0}, 좋은 선택이야. 또 필요한 건 없나?", entry.Name));
         }
 
         private bool TryPurchase(StockEntry entry)
@@ -433,47 +445,47 @@ namespace LoopRogue
         private void ShowWanderer()
         {
             var ui = NpcDialogUI.Instance;
-            var leave = new NpcDialogUI.Choice("떠난다", null);
+            var leave = new NpcDialogUI.Choice(Loc.T("떠난다"), null);
 
             // 방 10 - 보고 받으러 나온 모험가
             if (_isReport)
             {
                 if (!RunQuest.Active)
                 {
-                    ui.Show(DisplayName, "고마워, 정말로. ...이번 고리에서는 너를 기억할 수 있을 것 같아.", new[] { leave });
+                    ui.Show(DisplayName, Loc.T("고마워, 정말로. ...이번 고리에서는 너를 기억할 수 있을 것 같아."), new[] { leave });
                     return;
                 }
                 ui.Show(DisplayName,
-                    $"정말 여기까지 왔구나! 보스 방이 바로 저 너머야.\n약속한 대로 <color=#FFD966>{RunQuest.RewardText}</color>를 줄게.",
-                    new[] { new NpcDialogUI.Choice("보상을 받는다", ClaimReward), leave });
+                    Loc.F("정말 여기까지 왔구나! 보스 방이 바로 저 너머야.\n약속한 대로 <color=#FFD966>{0}</color>를 줄게.", RunQuest.RewardText),
+                    new[] { new NpcDialogUI.Choice(Loc.T("보상을 받는다"), ClaimReward), leave });
                 return;
             }
 
             if (RunQuest.Active)
             {
                 ui.Show(DisplayName,
-                    $"내 부탁 잊지 않았지? <color=#FFD966>{RunQuest.Goal}</color>\n{LoopLine(WandererWaiting)}",
+                    Loc.F("내 부탁 잊지 않았지? <color=#FFD966>{0}</color>\n{1}", RunQuest.Goal, LoopLine(WandererWaiting)),
                     new[] { leave });
                 return;
             }
 
             ui.Show(DisplayName,
-                $"{LoopLine(WandererOpenings)} 부탁 하나만 하자. 이 층 끝, 보스 방 바로 앞인 <color=#FFD966>방 {RunQuest.ReportRoom}</color>까지 가 줘.\n" +
-                $"거기서 기다릴게. 오면 <color=#FFD966>{RunQuest.RewardText}</color>를 줄게.  " +
-                "<size=13><color=#9AA0AA>(죽어도 의뢰는 남는다)</color></size>",
+                Loc.F("{0} 부탁 하나만 하자. 이 층 끝, 보스 방 바로 앞인 <color=#FFD966>방 {1}</color>까지 가 줘.\n", LoopLine(WandererOpenings), RunQuest.ReportRoom) +
+                Loc.F("거기서 기다릴게. 오면 <color=#FFD966>{0}</color>를 줄게.  ", RunQuest.RewardText) +
+                Loc.T("<size=13><color=#9AA0AA>(죽어도 의뢰는 남는다)</color></size>"),
                 new[]
                 {
-                    new NpcDialogUI.Choice("의뢰를 받는다", AcceptQuest),
-                    new NpcDialogUI.Choice("거절한다", null),
+                    new NpcDialogUI.Choice(Loc.T("의뢰를 받는다"), AcceptQuest),
+                    new NpcDialogUI.Choice(Loc.T("거절한다"), null),
                 });
         }
 
         private void AcceptQuest()
         {
             RunQuest.Accept();
-            _room.ShowMessage($"의뢰를 받았다: {RunQuest.Goal}");
-            NpcDialogUI.Instance.Show(DisplayName, $"고마워! 방 {RunQuest.ReportRoom}에서 기다릴게. 먼저 가 있을게... 어떻게 가냐고? 나도 몰라.",
-                new[] { new NpcDialogUI.Choice("떠난다", null) });
+            _room.ShowMessage(Loc.F("의뢰를 받았다: {0}", RunQuest.Goal));
+            NpcDialogUI.Instance.Show(DisplayName, Loc.F("고마워! 방 {0}에서 기다릴게. 먼저 가 있을게... 어떻게 가냐고? 나도 몰라.", RunQuest.ReportRoom),
+                new[] { new NpcDialogUI.Choice(Loc.T("떠난다"), null) });
         }
 
         private void ClaimReward()
@@ -481,8 +493,8 @@ namespace LoopRogue
             var message = RunQuest.Complete();
             if (message != null)
                 _room.ShowMessage(message);
-            NpcDialogUI.Instance.Show(DisplayName, "받아. ...보스한테 지지 마. 다음 고리에서 또 부탁할지도 모르니까.",
-                new[] { new NpcDialogUI.Choice("떠난다", null) });
+            NpcDialogUI.Instance.Show(DisplayName, Loc.T("받아. ...보스한테 지지 마. 다음 고리에서 또 부탁할지도 모르니까."),
+                new[] { new NpcDialogUI.Choice(Loc.T("떠난다"), null) });
         }
     }
 }

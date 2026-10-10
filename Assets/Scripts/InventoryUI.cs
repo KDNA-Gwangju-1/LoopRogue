@@ -151,13 +151,13 @@ namespace LoopRogue
                 cell.Frame.color = selected ? HudSlot.FrameActive : owned ? HudSlot.FrameReady : HudSlot.FrameNormal;
                 cell.Fill.color = selected ? CellCursorFill : owned ? HudSlot.FillOwned : HudSlot.FillNormal;
                 cell.Key.text = quick >= 0 ? $"[{quick + 1}]" : string.Empty;
-                cell.Label.text = $"{ItemInfo.Name(type)}\n<size=11>{(owned ? "보유" : "-")}</size>";
+                cell.Label.text = $"{ItemInfo.Name(type)}\n<size=11>{(owned ? Loc.T("보유") : "-")}</size>";
                 cell.Label.color = owned ? Color.white : HudSlot.TextDim;
                 cell.Icon.color = owned ? Color.white : new Color(0.4f, 0.4f, 0.45f);
             }
             var cur = (ItemType)_cursor;
-            _detailName.text = $"{ItemInfo.Name(cur)}{(Inventory.Has(cur) ? "" : "  <color=#888888>(없음)</color>")}";
-            _detail.text = $"{ItemInfo.Description(cur)}\n<color=#9AA0AA>방향키·클릭: 고르기   1/2/3 키·아래 퀵슬롯 클릭: 등록(등록된 것만 사용 가능)   I: 닫기</color>";
+            _detailName.text = $"{ItemInfo.Name(cur)}{(Inventory.Has(cur) ? "" : Loc.T("  <color=#888888>(없음)</color>"))}";
+            _detail.text = Loc.F("{0}\n<color=#9AA0AA>방향키·클릭: 고르기   1/2/3 키·아래 퀵슬롯 클릭: 등록(등록된 것만 사용 가능)   I: 닫기</color>", ItemInfo.Description(cur));
 
             for (var s = 0; s < Inventory.QuickSlotCount; s++)
             {
@@ -178,8 +178,8 @@ namespace LoopRogue
                 var icon = item.HasValue && !flashing ? ItemIcon(item.Value) : null;
                 slot.SetIcon(icon);
                 slot.Icon.color = owned ? Color.white : new Color(0.4f, 0.4f, 0.45f);
-                slot.Label.text = !item.HasValue ? "<size=11>비어\n있음</size>"
-                    : flashing ? "사용!"
+                slot.Label.text = !item.HasValue ? Loc.T("<size=11>비어\n있음</size>")
+                    : flashing ? Loc.T("사용!")
                     : icon != null ? string.Empty
                     : ItemInfo.Name(item.Value).Replace(" ", "\n");
                 slot.Label.color = owned || flashing ? Color.white : HudSlot.TextDim;
@@ -214,7 +214,7 @@ namespace LoopRogue
             // 가방 칸 - 퀵슬롯 오른쪽, 클릭하면 인벤토리 창 여닫기.
             _bagSlot = new HudSlot(canvas, "BagSlot", bottom, new Vector2(ActionBarLayout.BagX, ActionBarLayout.SlotCenterY), size, "I");
             _bagSlot.SetIcon(PixelUi.Icon("Bag"));
-            _bagSlot.Label.text = _bagSlot.Icon.enabled ? string.Empty : "가방";
+            _bagSlot.Label.text = _bagSlot.Icon.enabled ? string.Empty : Loc.T("가방");
         }
 
         private void BuildPanel(Transform canvas)
@@ -246,7 +246,7 @@ namespace LoopRogue
 
             var title = HudUi.CreateText(headerImage.transform, "Title", 17, TextAnchor.MiddleLeft);
             title.supportRichText = true;
-            title.text = "<b>인벤토리</b>   <size=12><color=#9AA0AA>모두 1회용 · 종류마다 1개 · 죽으면 전부 잃음</color></size>";
+            title.text = Loc.T("<b>인벤토리</b>   <size=12><color=#9AA0AA>모두 1회용 · 종류마다 1개 · 죽으면 전부 잃음</color></size>");
             HudUi.Stretch(title.rectTransform, 0f);
             title.rectTransform.offsetMin = new Vector2(16f, 0f);
 

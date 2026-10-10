@@ -265,8 +265,8 @@ namespace LoopRogue
             Map.PlaceActor(_npc, pos.Value);
             _npc.PlayAppearEffect();
             ShowMessage(report
-                ? $"{_npc.DisplayName}이(가) 기다리고 있었다! (옆에서 F: 보고)"
-                : $"{_npc.DisplayName}이(가) 나타났다! (옆에서 F: 대화)");
+                ? Loc.F("{0}이(가) 기다리고 있었다! (옆에서 F: 보고)", _npc.DisplayName)
+                : Loc.F("{0}이(가) 나타났다! (옆에서 F: 대화)", _npc.DisplayName));
         }
 
         /// <summary>지금 층의 방 클리어 골드(보너스 반영) - 이벤트·저주 계약 보상의 기준.</summary>
@@ -460,7 +460,7 @@ namespace LoopRogue
                 var gold = RoomClearGold * MimicGoldRooms;
                 GoldWallet.Add(gold);
                 var item = Inventory.GiveRandomMissing();
-                ShowMessage($"미믹 처치! 골드 +{gold}{(item.HasValue ? $", {ItemInfo.Name(item.Value)} 획득" : "")}");
+                ShowMessage(Loc.F("미믹 처치! 골드 +{0}{1}", gold, (item.HasValue ? Loc.F(", {0} 획득", ItemInfo.Name(item.Value)) : "")));
                 HitFeedback.OnGold(enemy.transform.position);
             }
             if (_challengeEnemies.Remove(enemy) && _challengeEnemies.Count == 0)
@@ -468,7 +468,7 @@ namespace LoopRogue
                 var gold = RoomClearGold * ChallengeGoldRooms;
                 GoldWallet.Add(gold);
                 _player.Levels.GrantBonusUpgrade();
-                ShowMessage($"도전 성공! 골드 +{gold}, 레벨업 카드 1장");
+                ShowMessage(Loc.F("도전 성공! 골드 +{0}, 레벨업 카드 1장", gold));
                 HitFeedback.OnLevelUp(_player);
             }
         }
@@ -516,6 +516,54 @@ namespace LoopRogue
                 _telegraphObjects.Add(SpawnTelegraphTile(t, TelegraphColor, -5));
             }
             RebuildDangerTiles();
+        }
+
+        private static readonly Color TelegraphLaterColor = new Color(0.7f, 0.45f, 1f, 0.35f);
+
+        /// <summary>거울 파편 - 여러 웨이브를 한꺼번에 예고. 칸마다 몇 번째에 터지는지 숫자를 적고, 바로 다음(waves[0]) 칸은 진한 빨강,
+        /// 나중 칸은 옅은 보라. 실제 위험 칸(봇·위험 표시 기준)은 바로 다음 웨이브만.</summary>
+        public void ShowTelegraphWaves(IReadOnlyList<HashSet<Vector2Int>> waves, int firstNumber)
+        {
+            ClearTelegraph();
+            HitFeedback.OnTelegraph();
+            if (waves.Count == 0)
+                return;
+            _bossDangerTiles.UnionWith(waves[0]);
+            var numbers = new Dictionary<Vector2Int, List<int>>();
+            for (var i = 0; i < waves.Count; i++)
+                foreach (var t in waves[i])
+                {
+                    if (!numbers.TryGetValue(t, out var list))
+                        numbers[t] = list = new List<int>();
+                    list.Add(firstNumber + i);
+                }
+            foreach (var pair in numbers)
+            {
+                var next = pair.Value[0] == firstNumber;
+                _telegraphObjects.Add(SpawnTelegraphTile(pair.Key, next ? TelegraphColor : TelegraphLaterColor, next ? -5 : -6));
+                _telegraphObjects.Add(SpawnTelegraphLabel(pair.Key, string.Join(" ", pair.Value), next));
+            }
+            RebuildDangerTiles();
+        }
+
+        /// <summary>예고 칸 위 숫자(월드 글자) - 다음 웨이브 숫자는 흰색으로 크게.</summary>
+        private GameObject SpawnTelegraphLabel(Vector2Int t, string text, bool next)
+        {
+            var go = new GameObject("TelegraphNumber");
+            go.transform.SetParent(transform, false);
+            go.transform.position = new Vector3(t.x * GridConstants.CellSize, t.y * GridConstants.CellSize, -0.4f);
+            var mesh = go.AddComponent<TextMesh>();
+            mesh.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            mesh.text = text;
+            mesh.fontSize = 48;
+            mesh.characterSize = next ? 0.075f : 0.06f;
+            mesh.anchor = TextAnchor.MiddleCenter;
+            mesh.alignment = TextAlignment.Center;
+            mesh.color = next ? Color.white : new Color(0.85f, 0.75f, 1f, 0.9f);
+            var renderer = go.GetComponent<MeshRenderer>();
+            renderer.material = mesh.font.material;
+            renderer.sortingOrder = 4;
+            return go;
         }
 
         /// <summary>보스 예고만 지운다(폭발병 예고는 그대로).</summary>
@@ -806,7 +854,7 @@ namespace LoopRogue
             go.transform.position = new Vector3(best.Value.x * GridConstants.CellSize, best.Value.y * GridConstants.CellSize, 0f);
             go.AddComponent<ExitMarker>();
             _roomObjects.Add(go);
-            ShowMessage("출구가 열렸다! (파란 칸)");
+            ShowMessage(Loc.T("출구가 열렸다! (파란 칸)"));
         }
 
         /// <summary>플레이어가 pos로 막 옮겨왔을 때 - 출구면 다음 방으로 보내고 true(호출부는 이번 턴을 그대로 끝낸다).</summary>
@@ -985,7 +1033,7 @@ namespace LoopRogue
             if (go != null)
                 Destroy(go);
             enemy.Stun(ItemInfo.TrapStunTurns);
-            ShowMessage($"{enemy.DisplayName}이(가) 덫에 걸렸다! ({ItemInfo.TrapStunTurns}턴 기절)");
+            ShowMessage(Loc.F("{0}이(가) 덫에 걸렸다! ({1}턴 기절)", enemy.DisplayName, ItemInfo.TrapStunTurns));
         }
 
         public void PlaceDecoy(Vector2Int pos)

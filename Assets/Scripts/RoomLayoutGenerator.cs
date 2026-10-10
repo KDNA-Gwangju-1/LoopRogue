@@ -22,7 +22,6 @@ namespace LoopRogue
         private const int MinSize = 5;
         private const int MaxSize = 18;
         private const float NormalWallDensity = 0.08f; // 일반 방 면적의 8%
-        private const float BossWallDensity = 0.04f;   // 보스방은 기둥 몇 개만(패턴 피할 엄폐물)
         private const int MinEnemyDistance = 5;        // 시작 칸에서 몹까지 최소 거리(맨해튼) - 방을 키우면서 3 -> 5(입장하자마자 시야 안에 몰려 있지 않게)
         private const int MaxTries = 30;
 
@@ -62,10 +61,10 @@ namespace LoopRogue
                     reserved.Add(bossPos + new Vector2Int(dx, dy));
             }
 
-            if (withWalls)
+            // 보스방은 벽 없이 탁 트인 방(사용자 요청) - 보스 패턴을 기둥 뒤에 숨어 피하는 대신 움직여서 피하게.
+            if (withWalls && !def.IsBossRoom)
             {
-                var density = def.IsBossRoom ? BossWallDensity : NormalWallDensity;
-                var wallCount = Mathf.RoundToInt(layout.Width * layout.Height * density);
+                var wallCount = Mathf.RoundToInt(layout.Width * layout.Height * NormalWallDensity);
                 PlaceWallShapes(layout, reserved, wallCount, def.IsBossRoom, rng);
 
                 if (!AllFloorConnected(layout))

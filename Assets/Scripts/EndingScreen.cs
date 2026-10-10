@@ -24,12 +24,15 @@ namespace LoopRogue
         private const float LineSeconds = 0.9f;
         private const float BossSeconds = 0.18f;
 
-        private static readonly string[] StoryLines =
+        private static readonly LocCache<string[]> StoryLinesCache = new LocCache<string[]>(() => new string[]
+
         {
-            "거울 가면이 산산이 부서졌다.",
-            "가면에 비치던 얼굴들이 흩어지고, 끝없이 되풀이되던 고리가 멈췄다.",
-            "하지만 던전은 다시 숨을 쉰다. 기록만이 남아 다음 모험가를 기다린다.",
-        };
+            Loc.T("거울 가면이 산산이 부서졌다."),
+            Loc.T("가면에 비치던 얼굴들이 흩어지고, 끝없이 되풀이되던 고리가 멈췄다."),
+            Loc.T("하지만 던전은 다시 숨을 쉰다. 기록만이 남아 다음 모험가를 기다린다."),
+        });
+
+        private static string[] StoryLines => StoryLinesCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
 
         private Func<bool> _canShow;
         private Action _onDone;
@@ -72,7 +75,7 @@ namespace LoopRogue
             }
             shade.color = new Color(0.03f, 0.02f, 0.05f, 0.94f);
 
-            var title = Label(canvasGo.transform, "고리를 끊었다", 40, new Vector2(0f, 270f), new Color(1f, 0.85f, 0.45f));
+            var title = Label(canvasGo.transform, Loc.T("고리를 끊었다"), 40, new Vector2(0f, 270f), new Color(1f, 0.85f, 0.45f));
             title.fontStyle = FontStyle.Bold;
             yield return FadeIn(title);
 
@@ -101,13 +104,13 @@ namespace LoopRogue
             }
 
             var r = _record;
-            var stats = $"{r.Clears}번째 클리어   ·   누적 사망 {r.TotalDeaths}회   ·   레벨 {r.Level}   ·   도감 {r.CodexFound}/{r.CodexTotal}";
+            var stats = Loc.F("{0}번째 클리어   ·   누적 사망 {1}회   ·   레벨 {2}   ·   도감 {3}/{4}", r.Clears, r.TotalDeaths, r.Level, r.CodexFound, r.CodexTotal);
             yield return FadeIn(Label(canvasGo.transform, stats, 20, new Vector2(0f, -110f), new Color(1f, 0.85f, 0.45f)));
             yield return FadeIn(Label(canvasGo.transform,
-                "처음으로 돌아갑니다 - <color=#B9A0FF>도감·업적·칭호</color>는 남고, 골드·장비·유물·레벨은 처음부터.",
+                Loc.T("처음으로 돌아갑니다 - <color=#B9A0FF>도감·업적·칭호</color>는 남고, 골드·장비·유물·레벨은 처음부터."),
                 16, new Vector2(0f, -160f), new Color(0.75f, 0.77f, 0.85f)));
 
-            _prompt = Label(canvasGo.transform, "[Enter] 처음으로", 22, new Vector2(0f, -250f), Color.white);
+            _prompt = Label(canvasGo.transform, Loc.T("[Enter] 처음으로"), 22, new Vector2(0f, -250f), Color.white);
             _prompt.fontStyle = FontStyle.Bold;
             _ready = true;
         }

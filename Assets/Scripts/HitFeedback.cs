@@ -148,6 +148,7 @@ namespace LoopRogue
                 BossPatternType.Snipe => "boss_snipe",
                 BossPatternType.SnipeFollowUp => "boss_snipe",
                 BossPatternType.Diagonal => "boss_diag",
+                BossPatternType.MirrorShards => "morph",         // 거울 조각이 칸마다 터진다
                 _ => null,
             };
             if (name != null)
@@ -245,6 +246,16 @@ namespace LoopRogue
             if (!Enabled)
                 return;
             Fx.Play("summon", position, 1.5f, fps: 14f, sortingOrder: 2);
+        }
+
+        /// <summary>거울 깨기 - 크게 흔들리며 거울 조각이 더 크게 터진다.</summary>
+        public static void OnMirrorBroken(EnemyActor boss)
+        {
+            if (!Enabled)
+                return;
+            Fx.Play("morph", boss.transform.position, 4.2f, fps: 14f, sortingOrder: 8);
+            CameraShake.Shake(0.25f, 0.3f);
+            SfxPlayer.Play(Sfx.Crit);
         }
 
         /// <summary>거울 가면 기사가 다른 보스로 변신 - 거울 조각이 터져 나간다.</summary>

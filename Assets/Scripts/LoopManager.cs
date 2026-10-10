@@ -67,7 +67,7 @@ namespace LoopRogue
             _hud.gameObject.AddComponent<PauseMenu>().Setup(RetreatToLobby,
                 () => !_roomController.IsInputLocked && !_player.Levels.IsChoosingUpgrade && !_player.Stats.IsDead && !InventoryUI.IsOpen
                       && !NpcDialogUI.BlocksInput, // 대화창을 Esc로 닫은 그 프레임에 메뉴가 바로 열리지 않게
-                lobbyLabel: $"로비로 이동 (이번 시도 골드 {Relics.DeathPenaltyRate * 100f:0}% 손실)  [L]",
+                lobbyLabel: Loc.F("로비로 이동 (이번 시도 골드 {0:0}% 손실)  [L]", Relics.DeathPenaltyRate * 100f),
                 goToTitle: RetreatToTitle);
         }
 

@@ -91,13 +91,13 @@ namespace LoopRogue
         public bool IsMimic { get; private set; } // 방 이벤트 "미믹" - 잡으면 큰 보상(RoomController)
         public bool IsElite { get; private set; } // 방 이벤트 "도전의 깃발" 정예
 
-        public string DisplayName => IsBoss ? BossDisplayName : IsMinion ? "졸개" : IsMimic ? "미믹" : (IsElite ? "정예 " : "") + Kind switch
+        public string DisplayName => IsBoss ? BossDisplayName : IsMinion ? Loc.T("졸개") : IsMimic ? Loc.T("미믹") : (IsElite ? Loc.T("정예 ") : "") + Kind switch
         {
-            EnemyKind.Ranged => "궁수",
-            EnemyKind.Shield => "방패병",
-            EnemyKind.Spider => "거미",
-            EnemyKind.Bomber => "폭발병",
-            _ => "몬스터",
+            EnemyKind.Ranged => Loc.T("궁수"),
+            EnemyKind.Shield => Loc.T("방패병"),
+            EnemyKind.Spider => Loc.T("거미"),
+            EnemyKind.Bomber => Loc.T("폭발병"),
+            _ => Loc.T("몬스터"),
         };
 
         /// <summary>폭발 범위 - 자기 칸 포함 주변 3x3 중 방 안이고 벽이 아닌 칸.</summary>
@@ -155,9 +155,9 @@ namespace LoopRogue
         }
 
         private string BossDisplayName =>
-            _bossStage <= 0 ? "보스"
+            _bossStage <= 0 ? Loc.T("보스")
             : _morphStage > 0 ? $"{BossBrain.BossName(_bossStage)}({BossBrain.BossName(_morphStage)})"
-            : $"{_bossStage}층 보스 · {BossBrain.BossName(_bossStage)}";
+            : Loc.F("{0}층 보스 · {1}", _bossStage, BossBrain.BossName(_bossStage));
 
         /// <summary>보스 전용 - 스테이지별 예고 공격 패턴을 붙이고 그 층 보스 그림(Resources/Sprites/Boss{층})을 입힌다.</summary>
         public void SetupBossPatterns(List<BossPatternType> patterns, int stage)
@@ -165,6 +165,8 @@ namespace LoopRogue
             _brain = new BossBrain(this, patterns, stage);
             _bossStage = stage;
             ApplyBossSprite(stage);
+            if (stage >= BossBrain.MirrorStage)
+                Stats.OnDamaged += OnMirrorKnightDamaged;
         }
 
         /// <summary>보스 도트 그림(4방향 대기·걷기·공격)으로 - 그림이 없으면 예전 검붉은 사각형 그대로.</summary>
@@ -222,6 +224,79 @@ namespace LoopRogue
             ApplyBossSprite(stage);
             ActorJuice.Get(this).Flash(Color.white); // 변신하는 순간 번쩍
             HitFeedback.OnMorph(this);
+            _mirrorDamage = 0f; // 새로 비춘 거울은 멀쩡하다
+            RefreshMirrorCrack();
+        }
+
+        // ---- 거울 깨기(10층) - 다른 보스를 비추는 동안 최대 체력의 MirrorBreakRatio만큼 맞으면 거울이 깨져 본모습 + 기절 ----
+        public const float MirrorBreakRatio = 0.08f;
+        public const int MirrorBreakStunTurns = 2;
+        private float _mirrorDamage;
+        private SpriteRenderer _crackIcon;
+
+        /// <summary>지금 비춘 거울이 얼마나 깨졌는지(0~1) - 본모습이면 0.</summary>
+        public float MirrorCrack => _morphStage > 0 ? Mathf.Clamp01(_mirrorDamage / (Stats.MaxHealth * MirrorBreakRatio)) : 0f;
+
+        private void OnMirrorKnightDamaged(float amount)
+        {
+            if (_morphStage == 0 || Stats.IsDead)
+                return;
+            _mirrorDamage += amount;
+            if (_mirrorDamage < Stats.MaxHealth * MirrorBreakRatio)
+            {
+                RefreshMirrorCrack();
+                return;
+            }
+            // 깨졌다 - 본모습으로 돌아오고, 예고해둔 패턴은 취소되고, 잠깐 기절(섬광탄과 같은 처리)
+            var room = _turnRoom != null ? _turnRoom : FindAnyObjectByType<RoomController>();
+            RevertForm();
+            if (room != null)
+                CancelBossPattern(room);
+            Stun(MirrorBreakStunTurns);
+            HitFeedback.OnMirrorBroken(this);
+            room?.ShowMessage(Loc.F("거울이 깨졌다! {0}가 본모습으로 돌아와 {1}턴 동안 비틀거린다", BossBrain.BossName(BossBrain.MirrorStage), MirrorBreakStunTurns));
+        }
+
+        /// <summary>머리 위 거울 아이콘 - 금 간 정도(4단계). 본모습이거나 그림이 없거나 봇 중이면 숨긴다.</summary>
+        private void RefreshMirrorCrack()
+        {
+            var frames = DamagePopup.Suppressed ? null : Fx.Frames("mirror_crack");
+            var show = _morphStage > 0 && frames != null && frames.Length > 0 && !Stats.IsDead;
+            if (!show)
+            {
+                if (_crackIcon != null)
+                    _crackIcon.gameObject.SetActive(false);
+                return;
+            }
+            if (_crackIcon == null)
+            {
+                var go = new GameObject("MirrorCrack");
+                go.transform.SetParent(transform, false);
+                _crackIcon = go.AddComponent<SpriteRenderer>();
+                _crackIcon.sortingOrder = 9;
+            }
+            _crackIcon.gameObject.SetActive(true);
+            var index = Mathf.Min(frames.Length - 1, Mathf.FloorToInt(MirrorCrack * (frames.Length - 1) + 0.0001f));
+            _crackIcon.sprite = frames[index];
+            // 부모(보스) 크기와 상관없이 0.45칸, 머리 위
+            var parentScale = Mathf.Max(0.0001f, transform.lossyScale.x);
+            var size = GridConstants.CellSize * 0.45f / (frames[0].rect.width / frames[0].pixelsPerUnit);
+            _crackIcon.transform.localScale = Vector3.one * size / parentScale;
+            _crackIcon.transform.localPosition = new Vector3(0f, GridConstants.CellSize * 0.95f / parentScale, 0f);
+        }
+
+        /// <summary>거울 가면 기사가 자기 패턴(거울 파편)을 쓸 때 - 비추던 모습을 풀고 본모습으로. 이미 본모습이면 false.</summary>
+        public bool RevertForm()
+        {
+            if (_morphStage == 0)
+                return false;
+            _morphStage = 0;
+            ApplyBossSprite(_bossStage);
+            ActorJuice.Get(this).Flash(Color.white);
+            HitFeedback.OnMorph(this);
+            _mirrorDamage = 0f;
+            RefreshMirrorCrack();
+            return true;
         }
 
         /// <summary>보스 광폭화 표시 - 붉게 물들인다(BossBrain이 HP 절반 이하가 되는 순간 한 번 부른다).</summary>

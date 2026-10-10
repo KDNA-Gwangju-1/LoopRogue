@@ -20,8 +20,7 @@ namespace LoopRogue
 
         public static void ResetAll()
         {
-            PlayerPrefs.DeleteAll();
-            PlayerPrefs.Save();
+            GameSettings.Preserve(() => PlayerPrefs.DeleteAll()); // 설정(볼륨·화면)은 남긴다
             ReloadAll();
         }
 
@@ -38,7 +37,7 @@ namespace LoopRogue
                 if (PlayerPrefs.HasKey(key))
                     ints[key] = PlayerPrefs.GetInt(key);
 
-            PlayerPrefs.DeleteAll();
+            GameSettings.Preserve(() => PlayerPrefs.DeleteAll());
             foreach (var pair in strings)
                 PlayerPrefs.SetString(pair.Key, pair.Value);
             foreach (var pair in ints)

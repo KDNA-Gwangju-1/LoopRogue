@@ -165,7 +165,7 @@ namespace LoopRogue
             return confirm;
         }
 
-        public static string RoomLabel(int index, int roomCount) => index == roomCount - 1 ? "보스방" : $"방 {index + 1}";
+        public static string RoomLabel(int index, int roomCount) => index == roomCount - 1 ? Loc.T("보스방") : Loc.F("방 {0}", index + 1);
 
         private void Refresh()
         {
@@ -186,8 +186,8 @@ namespace LoopRogue
 
             var room = _rooms[Selected];
             _info.text = room.IsBossRoom
-                ? $"보스방  {room.Width}x{room.Height}\n보스 패턴 {room.BossPatterns.Count}종"
-                : $"{RoomLabel(Selected, _rooms.Count)}  {room.Width}x{room.Height}\n몹 {room.EnemyCount}마리  체력 {room.EnemyMaxHealth:0} / 공격력 {room.EnemyAttackPower:0}";
+                ? Loc.F("보스방  {0}x{1}\n보스 패턴 {2}종", room.Width, room.Height, room.BossPatterns.Count)
+                : Loc.F("{0}  {1}x{2}\n몹 {3}마리  체력 {4:0} / 공격력 {5:0}", RoomLabel(Selected, _rooms.Count), room.Width, room.Height, room.EnemyCount, room.EnemyMaxHealth, room.EnemyAttackPower);
 
             // 정보 상자를 고른 칸 바로 아래로
             _infoRect.anchoredPosition = new Vector2(_cellRects[Selected].anchoredPosition.x, -30f);

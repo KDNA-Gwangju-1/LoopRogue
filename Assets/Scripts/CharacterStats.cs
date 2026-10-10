@@ -60,9 +60,15 @@ namespace LoopRogue
 
         public bool IsDead => CurrentHealth <= 0f;
 
+        /// <summary>실제로 깎인 체력 - 거울 가면 기사가 "거울 깨기" 누적 피해를 세는 데 쓴다.</summary>
+        public System.Action<float> OnDamaged;
+
         public void TakeDamage(float amount)
         {
+            var before = CurrentHealth;
             CurrentHealth = Mathf.Max(0f, CurrentHealth - amount);
+            if (before > CurrentHealth)
+                OnDamaged?.Invoke(before - CurrentHealth);
         }
 
         /// <summary>공격력 그대로 넘기지 않고 이걸 거치면 크리 확률을 굴려서 필요하면
@@ -117,7 +123,7 @@ namespace LoopRogue
             {
                 UndyingReady = false;
                 toHealth = Mathf.Max(0f, CurrentHealth - 1f);
-                OnArmorEffect?.Invoke("불굴! 체력 1로 버텼다");
+                OnArmorEffect?.Invoke(Loc.T("불굴! 체력 1로 버텼다"));
             }
             TakeDamage(toHealth);
 
@@ -125,13 +131,13 @@ namespace LoopRogue
             {
                 ReviveReady = false;
                 CurrentHealth = MaxHealth * Relics.SecondWindHealRate;
-                OnArmorEffect?.Invoke("두 번째 숨! 다시 일어섰다");
+                OnArmorEffect?.Invoke(Loc.T("두 번째 숨! 다시 일어섰다"));
                 OnRevived?.Invoke();
             }
             if (IsDead && RunBuffs.ConsumeRevive()) // 방 이벤트 "시간의 모래시계"
             {
                 CurrentHealth = MaxHealth * RunBuffs.ReviveHealth;
-                OnArmorEffect?.Invoke($"시간의 모래시계가 깨졌다! 체력 {RunBuffs.ReviveHealth * 100f:0}%로 되살아났다");
+                OnArmorEffect?.Invoke(Loc.F("시간의 모래시계가 깨졌다! 체력 {0:0}%로 되살아났다", RunBuffs.ReviveHealth * 100f));
                 OnRevived?.Invoke();
             }
 
@@ -139,7 +145,7 @@ namespace LoopRogue
             {
                 EmergencyHealReady = false;
                 Heal(MaxHealth * EquipmentEffects.EmergencyHealRate);
-                OnArmorEffect?.Invoke("응급 처치! 체력 회복");
+                OnArmorEffect?.Invoke(Loc.T("응급 처치! 체력 회복"));
             }
 
             IncomingDamageTotal += damage;

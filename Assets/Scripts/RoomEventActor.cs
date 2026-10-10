@@ -52,17 +52,17 @@ namespace LoopRogue
 
         public static string Name(RoomEventType type) => type switch
         {
-            RoomEventType.TreasureChest => "보물상자",
-            RoomEventType.HealingSpring => "회복 샘",
-            RoomEventType.BlessingAltar => "축복 제단",
-            RoomEventType.CursedChest => "저주받은 상자",
-            RoomEventType.Mimic => "미믹",
-            RoomEventType.BloodAltar => "피의 제단",
-            RoomEventType.ChallengeFlag => "도전의 깃발",
-            RoomEventType.Hourglass => "시간의 모래시계",
-            RoomEventType.FateDice => "운명의 주사위",
-            RoomEventType.ElixirSpring => "영약의 샘",
-            _ => "숫돌",
+            RoomEventType.TreasureChest => Loc.T("보물상자"),
+            RoomEventType.HealingSpring => Loc.T("회복 샘"),
+            RoomEventType.BlessingAltar => Loc.T("축복 제단"),
+            RoomEventType.CursedChest => Loc.T("저주받은 상자"),
+            RoomEventType.Mimic => Loc.T("미믹"),
+            RoomEventType.BloodAltar => Loc.T("피의 제단"),
+            RoomEventType.ChallengeFlag => Loc.T("도전의 깃발"),
+            RoomEventType.Hourglass => Loc.T("시간의 모래시계"),
+            RoomEventType.FateDice => Loc.T("운명의 주사위"),
+            RoomEventType.ElixirSpring => Loc.T("영약의 샘"),
+            _ => Loc.T("숫돌"),
         };
 
         public void Initialize(RoomEventType type)
@@ -121,43 +121,43 @@ namespace LoopRogue
                     var item = Inventory.GiveRandomMissing(); // 없는 아이템 중 하나
                     var extra = Relics.Has(RelicType.TreasureHunter) ? Inventory.GiveRandomMissing() : null; // 유물 "보물 사냥꾼"
                     return item.HasValue
-                        ? $"보물상자! 골드 +{gold}, {ItemInfo.Name(item.Value)}{(extra.HasValue ? $", {ItemInfo.Name(extra.Value)}" : "")} 획득"
-                        : $"보물상자! 골드 +{gold} (아이템은 이미 다 있다)";
+                        ? Loc.F("보물상자! 골드 +{0}, {1}{2} 획득", gold, ItemInfo.Name(item.Value), (extra.HasValue ? $", {ItemInfo.Name(extra.Value)}" : ""))
+                        : Loc.F("보물상자! 골드 +{0} (아이템은 이미 다 있다)", gold);
                 }
                 case RoomEventType.HealingSpring:
                     player.Stats.FullHeal();
                     HitFeedback.OnHeal(player);
-                    return "회복 샘! 체력이 전부 회복됐다";
+                    return Loc.T("회복 샘! 체력이 전부 회복됐다");
                 case RoomEventType.BlessingAltar:
                     player.Levels.GrantBonusUpgrade();
-                    return "축복 제단! 레벨업 카드를 한 장 더 고른다";
+                    return Loc.T("축복 제단! 레벨업 카드를 한 장 더 고른다");
                 case RoomEventType.CursedChest:
                     if (Rng.NextDouble() < 0.5)
                     {
                         var gold = roomClearGold * CursedJackpotMultiplier;
                         GoldWallet.Add(gold);
-                        return $"저주받은 상자... 대박! 골드 +{gold}";
+                        return Loc.F("저주받은 상자... 대박! 골드 +{0}", gold);
                     }
                     player.Stats.LoseCurrentHealthPercent(CursedHealthLossRate);
-                    return $"저주받은 상자... 저주! 현재 체력 -{CursedHealthLossRate * 100f:0}%";
+                    return Loc.F("저주받은 상자... 저주! 현재 체력 -{0:0}%", CursedHealthLossRate * 100f);
                 case RoomEventType.Mimic:
                     room.SpawnMimic(GridPos);
-                    return "보물상자가 아니었다! 미믹이 덤벼든다 - 잡으면 큰 보상";
+                    return Loc.T("보물상자가 아니었다! 미믹이 덤벼든다 - 잡으면 큰 보상");
                 case RoomEventType.BloodAltar:
                     return TriggerBloodAltar(player, room, out consumed);
                 case RoomEventType.ChallengeFlag:
                     room.StartChallenge(GridPos);
-                    return "도전의 깃발! 정예 몹이 나타났다 - 전부 잡으면 골드 + 레벨업 카드";
+                    return Loc.T("도전의 깃발! 정예 몹이 나타났다 - 전부 잡으면 골드 + 레벨업 카드");
                 case RoomEventType.Hourglass:
                     RunBuffs.AddRevive();
-                    return $"시간의 모래시계! 이번 시도에서 한 번, 쓰러져도 체력 {RunBuffs.ReviveHealth * 100f:0}%로 되살아난다";
+                    return Loc.F("시간의 모래시계! 이번 시도에서 한 번, 쓰러져도 체력 {0:0}%로 되살아난다", RunBuffs.ReviveHealth * 100f);
                 case RoomEventType.FateDice:
                     return RollFateDice(player, room, roomClearGold);
                 case RoomEventType.ElixirSpring:
                     return DrinkElixir(player, roomClearGold);
                 default:
-                    RunBuffs.AddDamage(RunBuffs.WhetstoneDamage, "숫돌");
-                    return $"숫돌! 이번 시도 동안 주는 피해 +{(RunBuffs.WhetstoneDamage - 1f) * 100f:0}%";
+                    RunBuffs.AddDamage(RunBuffs.WhetstoneDamage, Loc.T("숫돌"));
+                    return Loc.F("숫돌! 이번 시도 동안 주는 피해 +{0:0}%", (RunBuffs.WhetstoneDamage - 1f) * 100f);
             }
         }
 
@@ -165,29 +165,29 @@ namespace LoopRogue
         private string TriggerBloodAltar(PlayerActor player, RoomController room, out bool consumed)
         {
             var cost = player.Stats.MaxHealth * RunBuffs.BloodAltarHealthCost;
-            var gain = $"이번 시도 동안 주는 피해 +{(RunBuffs.BloodAltarDamage - 1f) * 100f:0}%";
+            var gain = Loc.F("이번 시도 동안 주는 피해 +{0:0}%", (RunBuffs.BloodAltarDamage - 1f) * 100f);
             if (GameHUD.AutoPlayActive || NpcDialogUI.Instance == null)
             {
                 consumed = true;
                 if (player.Stats.CurrentHealth - cost < player.Stats.MaxHealth * 0.35f)
-                    return "피의 제단... 지금 체력으로는 바칠 수 없다(그냥 지나간다)";
+                    return Loc.T("피의 제단... 지금 체력으로는 바칠 수 없다(그냥 지나간다)");
                 return OfferBlood(player, cost, gain);
             }
 
             consumed = false; // 고르기 전까지 칸은 그대로
             var canPay = player.Stats.CurrentHealth > cost;
-            NpcDialogUI.Instance.Show("피의 제단",
-                $"검붉은 제단이 피를 원한다.\n<color=#FF8080>최대 체력의 {RunBuffs.BloodAltarHealthCost * 100f:0}% ({cost:0})</color>를 바치면 " +
+            NpcDialogUI.Instance.Show(Loc.T("피의 제단"),
+                Loc.F("검붉은 제단이 피를 원한다.\n<color=#FF8080>최대 체력의 {0:0}% ({1:0})</color>를 바치면 ", RunBuffs.BloodAltarHealthCost * 100f, cost) +
                 $"<color=#FFD966>{gain}</color>.",
                 new[]
                 {
-                    new NpcDialogUI.Choice(canPay ? $"피를 바친다 (체력 -{cost:0})" : "피를 바친다 (체력이 모자라다)", () =>
+                    new NpcDialogUI.Choice(canPay ? Loc.F("피를 바친다 (체력 -{0:0})", cost) : Loc.T("피를 바친다 (체력이 모자라다)"), () =>
                     {
                         NpcDialogUI.Instance.Close();
                         room.ShowMessage(OfferBlood(player, cost, gain));
                         room.ConsumeEvent(this);
                     }, enabled: canPay),
-                    new NpcDialogUI.Choice("그냥 지나간다", () => NpcDialogUI.Instance.Close()),
+                    new NpcDialogUI.Choice(Loc.T("그냥 지나간다"), () => NpcDialogUI.Instance.Close()),
                 });
             return null;
         }
@@ -195,9 +195,9 @@ namespace LoopRogue
         private static string OfferBlood(PlayerActor player, float cost, string gain)
         {
             player.Stats.LoseHealth(cost);
-            RunBuffs.AddDamage(RunBuffs.BloodAltarDamage, "피의 제단");
+            RunBuffs.AddDamage(RunBuffs.BloodAltarDamage, Loc.T("피의 제단"));
             ActorJuice.Get(player).Flash(new Color(1f, 0.3f, 0.3f));
-            return $"피의 제단! 체력 -{cost:0}, {gain}";
+            return Loc.F("피의 제단! 체력 -{0:0}, {1}", cost, gain);
         }
 
         private static string RollFateDice(PlayerActor player, RoomController room, int roomClearGold)
@@ -208,32 +208,32 @@ namespace LoopRogue
             {
                 case 1:
                     player.Stats.LoseCurrentHealthPercent(DiceHealthLossRate);
-                    result = $"불운... 현재 체력 -{DiceHealthLossRate * 100f:0}%";
+                    result = Loc.F("불운... 현재 체력 -{0:0}%", DiceHealthLossRate * 100f);
                     break;
                 case 2:
                     var spawned = room.SpawnEventEnemies(DiceExtraEnemies, 1f, 1f, elite: false);
-                    result = spawned > 0 ? $"몹 {spawned}마리가 굴러 나왔다!" : "아무 일도 없었다";
+                    result = spawned > 0 ? Loc.F("몹 {0}마리가 굴러 나왔다!", spawned) : Loc.T("아무 일도 없었다");
                     break;
                 case 3:
                     var gold = roomClearGold * DiceGoldMultiplier;
                     GoldWallet.Add(gold);
-                    result = $"골드 +{gold}";
+                    result = Loc.F("골드 +{0}", gold);
                     break;
                 case 4:
                     player.Stats.Heal(player.Stats.MaxHealth * DiceHealRate);
                     HitFeedback.OnHeal(player);
-                    result = $"체력 {DiceHealRate * 100f:0}% 회복";
+                    result = Loc.F("체력 {0:0}% 회복", DiceHealRate * 100f);
                     break;
                 case 5:
                     var item = Inventory.GiveRandomMissing();
-                    result = item.HasValue ? $"{ItemInfo.Name(item.Value)} 획득" : "아이템이 이미 가득하다";
+                    result = item.HasValue ? Loc.F("{0} 획득", ItemInfo.Name(item.Value)) : Loc.T("아이템이 이미 가득하다");
                     break;
                 default:
                     player.Levels.GrantBonusUpgrade();
-                    result = "대박! 레벨업 카드 1장";
+                    result = Loc.T("대박! 레벨업 카드 1장");
                     break;
             }
-            return $"운명의 주사위 [{face}] - {result}";
+            return Loc.F("운명의 주사위 [{0}] - {1}", face, result);
         }
 
         /// <summary>영약의 샘 - 해금된 영약 중 하나를 1개(로비에서 사는 것과 같은 영구 효과, 지금 스탯에도 바로 반영).
@@ -245,7 +245,7 @@ namespace LoopRogue
             {
                 var gold = roomClearGold * DiceGoldMultiplier;
                 GoldWallet.Add(gold);
-                return $"영약의 샘... 아직 모르는 맛이다. 바닥의 동전 골드 +{gold}";
+                return Loc.F("영약의 샘... 아직 모르는 맛이다. 바닥의 동전 골드 +{0}", gold);
             }
             var type = types[Rng.Next(types.Count)];
             var attackBefore = RunProgress.CurrentPermanentAttack();
@@ -259,7 +259,7 @@ namespace LoopRogue
             stats.Heal(healthGain);
             stats.CriticalChanceRate += RunProgress.CurrentPermanentCritical() - criticalBefore;
             HitFeedback.OnHeal(player);
-            return $"영약의 샘! {StatPotionWallet.Name(type)} 1개 (영구)";
+            return Loc.F("영약의 샘! {0} 1개 (영구)", StatPotionWallet.Name(type));
         }
     }
 }

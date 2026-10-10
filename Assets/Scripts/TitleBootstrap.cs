@@ -41,8 +41,8 @@ namespace LoopRogue
 
         private void Update()
         {
-            if (PauseMenu.BlocksInput)
-                return; // Esc 메뉴가 열려 있으면 뒤의 타이틀 버튼은 안 눌리게.
+            if (PauseMenu.BlocksInput || OptionsPanel.BlocksInput)
+                return; // Esc 메뉴·설정 창이 열려 있으면 뒤의 타이틀 버튼은 안 눌리게.
 
             HandleMouseClick();
             UpdateHover();
@@ -103,7 +103,7 @@ namespace LoopRogue
 
             SaveReset.ResetAll();
             SetResetButtonState(confirming: false);
-            _resetLabel.text = "초기화 완료!";
+            _resetLabel.text = Loc.T("초기화 완료!");
         }
 
         private void SetResetButtonState(bool confirming)
@@ -113,7 +113,7 @@ namespace LoopRogue
                 _resetImage.color = confirming ? ResetConfirmTint : Color.white;
             else
                 _resetImage.color = confirming ? ResetConfirmColor : ResetButtonColor;
-            _resetLabel.text = confirming ? "정말 초기화? 한 번 더 클릭" : "데이터 초기화";
+            _resetLabel.text = confirming ? Loc.T("정말 초기화? 한 번 더 클릭") : Loc.T("데이터 초기화");
         }
 
         private static void QuitGame()
@@ -140,13 +140,15 @@ namespace LoopRogue
 
             // 크기는 4의 배수 - 도트 그림(80x14 / 80x12 / 60x10)을 정확히 4배로.
             CreateButton(canvasGo.transform, "StartButton", StartButtonColor, -50f, 320f, 56f,
-                "게임 시작  [Enter]", 24, StartGame, "Start", new Color(1f, 0.9f, 0.65f));
-            CreateButton(canvasGo.transform, "QuitButton", ButtonColor, -125f, 320f, 48f,
-                "종료", 20, QuitGame, "Quit");
+                Loc.T("게임 시작  [Enter]"), 24, StartGame, "Start", new Color(1f, 0.9f, 0.65f));
+            CreateButton(canvasGo.transform, "OptionsButton", ButtonColor, -122f, 320f, 48f,
+                Loc.T("설정"), 20, () => OptionsPanel.Open(), "Quit");
+            CreateButton(canvasGo.transform, "QuitButton", ButtonColor, -184f, 320f, 48f,
+                Loc.T("종료"), 20, QuitGame, "Quit");
 
             // 키보드 단축키는 일부러 안 둔다 - 실수로 눌려서 데이터가 날아가면 안 되니 마우스로만.
-            var resetRect = CreateButton(canvasGo.transform, "ResetButton", ResetButtonColor, -210f, 240f, 40f,
-                "데이터 초기화", 16, OnResetClicked, "Reset", new Color(1f, 0.82f, 0.78f));
+            var resetRect = CreateButton(canvasGo.transform, "ResetButton", ResetButtonColor, -262f, 240f, 40f,
+                Loc.T("데이터 초기화"), 16, OnResetClicked, "Reset", new Color(1f, 0.82f, 0.78f));
             _resetImage = resetRect.GetComponent<Image>();
             _resetLabel = resetRect.GetComponentInChildren<Text>();
         }

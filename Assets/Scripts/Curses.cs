@@ -25,25 +25,26 @@ namespace LoopRogue
     /// 주는 피해(PlayerActor.StrikeEnemy), 받는 피해(CharacterStats.TakeIncomingDamage), 골드 획득·방 클리어 회복(RoomController).</summary>
     public static class Curses
     {
-        public static readonly CurseDeal[] All =
+        private static readonly LocCache<CurseDeal[]> AllCache = new LocCache<CurseDeal[]>(() => new CurseDeal[]
         {
-            new CurseDeal { Id = "Rage", Name = "분노의 계약", Cost = "받는 피해 +30%", Gain = "주는 피해 +40%",
+            new CurseDeal { Id = "Rage", Name = Loc.T("분노의 계약"), Cost = Loc.T("받는 피해 +30%"), Gain = Loc.T("주는 피해 +40%"),
                 DamageTaken = 1.3f, DamageDealt = 1.4f },
-            new CurseDeal { Id = "Blood", Name = "피의 계약", Cost = "지금 체력 40% 잃음", Gain = "레벨업 카드 1장",
+            new CurseDeal { Id = "Blood", Name = Loc.T("피의 계약"), Cost = Loc.T("지금 체력 40% 잃음"), Gain = Loc.T("레벨업 카드 1장"),
                 HealthCost = 0.4f, Instant = (p, _) => { p.Levels.GrantBonusUpgrade(); return null; } },
-            new CurseDeal { Id = "Gold", Name = "황금의 저주", Cost = "골드 획득 -50%", Gain = "지금 골드 대량 획득",
-                GoldGain = 0.5f, Instant = (_, roomGold) => { var g = roomGold * GoldDealRooms; GoldWallet.Add(g); return $"골드 +{g}"; } },
-            new CurseDeal { Id = "Dry", Name = "메마른 저주", Cost = "방 클리어 회복 없음", Gain = "주는 피해 +25%",
+            new CurseDeal { Id = "Gold", Name = Loc.T("황금의 저주"), Cost = Loc.T("골드 획득 -50%"), Gain = Loc.T("지금 골드 대량 획득"),
+                GoldGain = 0.5f, Instant = (_, roomGold) => { var g = roomGold * GoldDealRooms; GoldWallet.Add(g); return Loc.F("골드 +{0}", g); } },
+            new CurseDeal { Id = "Dry", Name = Loc.T("메마른 저주"), Cost = Loc.T("방 클리어 회복 없음"), Gain = Loc.T("주는 피해 +25%"),
                 RoomHeal = 0f, DamageDealt = 1.25f },
-            new CurseDeal { Id = "Glutton", Name = "탐식의 계약", Cost = "지금 체력 25% 잃음", Gain = "없는 아이템 2개",
+            new CurseDeal { Id = "Glutton", Name = Loc.T("탐식의 계약"), Cost = Loc.T("지금 체력 25% 잃음"), Gain = Loc.T("없는 아이템 2개"),
                 HealthCost = 0.25f, Instant = (_, __) =>
                 {
                     var got = new[] { Inventory.GiveRandomMissing(), Inventory.GiveRandomMissing() }.Where(i => i.HasValue).Select(i => ItemInfo.Name(i.Value)).ToList();
-                    return got.Count > 0 ? string.Join(", ", got) + " 획득" : "아이템이 이미 가득하다";
+                    return got.Count > 0 ? string.Join(", ", got) + Loc.T(" 획득") : Loc.T("아이템이 이미 가득하다");
                 } },
-            new CurseDeal { Id = "Reckless", Name = "무모한 계약", Cost = "받는 피해 +20%", Gain = "골드 획득 +60%",
+            new CurseDeal { Id = "Reckless", Name = Loc.T("무모한 계약"), Cost = Loc.T("받는 피해 +20%"), Gain = Loc.T("골드 획득 +60%"),
                 DamageTaken = 1.2f, GoldGain = 1.6f },
-        };
+        });
+        public static CurseDeal[] All => AllCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
 
         /// <summary>황금의 저주로 바로 받는 골드 = 방 클리어 골드 × 이 값.</summary>
         private const int GoldDealRooms = 12;
@@ -66,7 +67,7 @@ namespace LoopRogue
                 player.Stats.LoseCurrentHealthPercent(deal.HealthCost);
             var result = deal.Instant?.Invoke(player, roomClearGold);
             Active.Add(deal);
-            return result != null ? $"{deal.Name} 성립! {result}" : $"{deal.Name} 성립!";
+            return result != null ? Loc.F("{0} 성립! {1}", deal.Name, result) : Loc.F("{0} 성립!", deal.Name);
         }
 
         private static float Product(Func<CurseDeal, float> pick)
@@ -84,6 +85,6 @@ namespace LoopRogue
 
         /// <summary>GameHUD 왼쪽 위 의뢰 줄 아래 - 받은 저주 요약. 없으면 null.</summary>
         public static string TrackerText =>
-            Active.Count == 0 ? null : "<color=#C890FF>저주:</color> " + string.Join(" / ", Active.Select(d => d.Name));
+            Active.Count == 0 ? null : Loc.T("<color=#C890FF>저주:</color> ") + string.Join(" / ", Active.Select(d => d.Name));
     }
 }

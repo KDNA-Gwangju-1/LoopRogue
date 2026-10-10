@@ -32,7 +32,7 @@ namespace LoopRogue
         public static void AddRevive()
         {
             ReviveCharges++;
-            Names.Add("모래시계");
+            Names.Add(Loc.T("모래시계"));
         }
 
         /// <summary>부활이 남아 있으면 하나 쓰고 true.</summary>
@@ -41,12 +41,12 @@ namespace LoopRogue
             if (ReviveCharges <= 0)
                 return false;
             ReviveCharges--;
-            Names.Remove("모래시계");
+            Names.Remove(Loc.T("모래시계"));
             return true;
         }
 
         /// <summary>GameHUD 왼쪽 위 의뢰·저주 줄 아래 - 이번 시도 효과 요약. 없으면 null.</summary>
         public static string TrackerText =>
-            Names.Count == 0 ? null : "<color=#8CE0FF>효과:</color> " + string.Join(" / ", Names);
+            Names.Count == 0 ? null : Loc.T("<color=#8CE0FF>효과:</color> ") + string.Join(" / ", Names);
     }
 }

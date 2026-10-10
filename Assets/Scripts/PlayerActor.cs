@@ -119,7 +119,7 @@ namespace LoopRogue
 
             BeginAction();
             if (EquipmentEffects.Has(ItemSlot.Accessory, 2) && ItemRng.NextDouble() < EquipmentEffects.ItemSaveChance)
-                _room.ShowMessage($"절약! {ItemInfo.Name(type)}이(가) 남았다"); // 반지 "절약"
+                _room.ShowMessage(Loc.F("절약! {0}이(가) 남았다", ItemInfo.Name(type))); // 반지 "절약"
             else
                 Inventory.Consume(type);
             ApplyItem(type, target);
@@ -134,29 +134,29 @@ namespace LoopRogue
             {
                 case ItemType.Torch:
                     _room.PlaceTorch(target);
-                    _room.ShowMessage("횃불을 놓았다");
+                    _room.ShowMessage(Loc.T("횃불을 놓았다"));
                     break;
                 case ItemType.Bomb:
                     _room.ThrowBomb(target);
-                    _room.ShowMessage("폭탄을 던졌다! 다음 턴에 터진다");
+                    _room.ShowMessage(Loc.T("폭탄을 던졌다! 다음 턴에 터진다"));
                     break;
                 case ItemType.Decoy:
                     _room.PlaceDecoy(target);
-                    _room.ShowMessage($"미끼! {ItemInfo.DecoyTurns}턴 동안 몹들이 허수아비를 노린다");
+                    _room.ShowMessage(Loc.F("미끼! {0}턴 동안 몹들이 허수아비를 노린다", ItemInfo.DecoyTurns));
                     break;
                 case ItemType.Trap:
                     _room.PlaceTrap(target);
-                    _room.ShowMessage("덫을 놓았다");
+                    _room.ShowMessage(Loc.T("덫을 놓았다"));
                     break;
                 case ItemType.Smoke:
                     foreach (var e in _room.EnemiesWithin(GridPos, ItemInfo.SmokeRadius))
                         e.Stun(ItemInfo.SmokeStunTurns);
-                    _room.ShowMessage($"연막! 주변 몹이 {ItemInfo.SmokeStunTurns}턴 동안 플레이어를 못 찾는다");
+                    _room.ShowMessage(Loc.F("연막! 주변 몹이 {0}턴 동안 플레이어를 못 찾는다", ItemInfo.SmokeStunTurns));
                     break;
                 case ItemType.Cleanse:
                     RootedTurns = 0;
                     WebImmuneTurns = ItemInfo.CleanseImmuneTurns;
-                    _room.ShowMessage("정화제! 거미줄이 풀렸다");
+                    _room.ShowMessage(Loc.T("정화제! 거미줄이 풀렸다"));
                     break;
                 case ItemType.Flash:
                 {
@@ -167,23 +167,23 @@ namespace LoopRogue
                     }
                     foreach (var e in _room.EnemiesWithin(GridPos, ItemInfo.FlashRadius).Where(m => !m.IsBoss))
                         e.Stun(ItemInfo.FlashEnemyStunTurns);
-                    _room.ShowMessage("섬광탄! 보스의 공격이 취소됐다");
+                    _room.ShowMessage(Loc.T("섬광탄! 보스의 공격이 취소됐다"));
                     break;
                 }
                 case ItemType.Reflect:
                     ReflectTurns = ItemInfo.ReflectTurns;
-                    _room.ShowMessage($"반사 부적! {ItemInfo.ReflectTurns}턴 안에 맞는 보스 공격을 되돌린다");
+                    _room.ShowMessage(Loc.F("반사 부적! {0}턴 안에 맞는 보스 공격을 되돌린다", ItemInfo.ReflectTurns));
                     break;
                 case ItemType.Weakness:
                     foreach (var e in _room.EnemiesWithin(GridPos, ItemInfo.WeaknessRadius))
                         e.MarkVulnerable(ItemInfo.WeaknessTurns);
                     foreach (var e in _room.Enemies.Where(b => b != null && b.IsBoss && !b.Stats.IsDead))
                         e.MarkVulnerable(ItemInfo.WeaknessTurns);
-                    _room.ShowMessage("약점 표식! 받는 피해가 늘어난다");
+                    _room.ShowMessage(Loc.T("약점 표식! 받는 피해가 늘어난다"));
                     break;
                 case ItemType.Barrier:
                     Stats.BlockNextHit = true;
-                    _room.ShowMessage("보호막! 다음 피해 1회 무효");
+                    _room.ShowMessage(Loc.T("보호막! 다음 피해 1회 무효"));
                     break;
             }
         }
@@ -220,7 +220,7 @@ namespace LoopRogue
             }
             AimingItem = null;
             if (!TryUseItem(type, null))
-                _room.ShowMessage("지금은 쓸 수 없다");
+                _room.ShowMessage(Loc.T("지금은 쓸 수 없다"));
         }
 
         /// <summary>자동 플레이 봇용.</summary>
@@ -429,7 +429,7 @@ namespace LoopRogue
                 if (item.HasValue && Inventory.Has(item.Value))
                     SelectItem(item.Value);
                 else
-                    _room.ShowMessage($"퀵슬롯 {slot + 1}이 비어 있다 (I: 인벤토리)");
+                    _room.ShowMessage(Loc.F("퀵슬롯 {0}이 비어 있다 (I: 인벤토리)", slot + 1));
                 return;
             }
 
@@ -448,7 +448,7 @@ namespace LoopRogue
                     var item = AimingItem.Value;
                     AimingItem = null;
                     if (!TryUseItem(item, direction.Value))
-                        _room.ShowMessage("그쪽으로는 쓸 수 없다");
+                        _room.ShowMessage(Loc.T("그쪽으로는 쓸 수 없다"));
                     return;
                 }
                 else
@@ -460,9 +460,9 @@ namespace LoopRogue
                 if (IsAimingDash)
                     IsAimingDash = false;
                 else if (RootedTurns > 0)
-                    _room.ShowMessage("거미줄에 묶여 대시할 수 없다!");
+                    _room.ShowMessage(Loc.T("거미줄에 묶여 대시할 수 없다!"));
                 else if (DashCooldown > 0)
-                    _room.ShowMessage($"대시는 {DashCooldown}턴 뒤에 쓸 수 있다");
+                    _room.ShowMessage(Loc.F("대시는 {0}턴 뒤에 쓸 수 있다", DashCooldown));
                 else
                     IsAimingDash = true;
                 return;
@@ -472,9 +472,9 @@ namespace LoopRogue
             {
                 IsAimingDash = false;
                 if (SpinCooldown > 0)
-                    _room.ShowMessage($"회전 베기는 {SpinCooldown}턴 뒤에 쓸 수 있다");
+                    _room.ShowMessage(Loc.F("회전 베기는 {0}턴 뒤에 쓸 수 있다", SpinCooldown));
                 else if (!TrySpin())
-                    _room.ShowMessage("주변에 적이 없다");
+                    _room.ShowMessage(Loc.T("주변에 적이 없다"));
                 return;
             }
 
@@ -484,7 +484,7 @@ namespace LoopRogue
                 {
                     IsAimingDash = false;
                     if (!TryDash(direction.Value))
-                        _room.ShowMessage("그쪽으로는 대시할 수 없다");
+                        _room.ShowMessage(Loc.T("그쪽으로는 대시할 수 없다"));
                 }
                 return; // 방향 고르는 중엔 대기 키도 무시
             }
@@ -501,7 +501,7 @@ namespace LoopRogue
             var npc = _room.FindNpcNear(GridPos);
             if (npc == null)
             {
-                _room.ShowMessage("주변에 말을 걸 상대가 없다");
+                _room.ShowMessage(Loc.T("주변에 말을 걸 상대가 없다"));
                 return;
             }
             IsAimingDash = false;
@@ -520,13 +520,13 @@ namespace LoopRogue
 
             if (occupant is NpcActor npc)
             {
-                _room.ShowMessage($"{npc.DisplayName} - F 키로 대화"); // 부딪혀도 턴 소모 없음
+                _room.ShowMessage(Loc.F("{0} - F 키로 대화", npc.DisplayName)); // 부딪혀도 턴 소모 없음
                 return;
             }
 
             if (RootedTurns > 0 && !(occupant is EnemyActor))
             {
-                _room.ShowMessage("거미줄에 묶여 움직일 수 없다! (공격·회전 베기·대기는 가능)");
+                _room.ShowMessage(Loc.T("거미줄에 묶여 움직일 수 없다! (공격·회전 베기·대기는 가능)"));
                 return; // 턴 소모 없음
             }
 
@@ -618,7 +618,7 @@ namespace LoopRogue
             {
                 var drop = Inventory.GiveRandomMissing();
                 if (drop.HasValue)
-                    _room.ShowMessage($"{enemy.DisplayName}이(가) {ItemInfo.Name(drop.Value)}을(를) 떨어뜨렸다!");
+                    _room.ShowMessage(Loc.F("{0}이(가) {1}을(를) 떨어뜨렸다!", enemy.DisplayName, ItemInfo.Name(drop.Value)));
             }
             Map.RemoveActor(enemy);
             Destroy(enemy.gameObject);

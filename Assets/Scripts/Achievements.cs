@@ -30,18 +30,18 @@ namespace LoopRogue
 
         public string EffectText => Effect switch
         {
-            TitleEffect.Gold => $"골드 +{Value * 100f:0}%",
-            TitleEffect.Exp => $"경험치 +{Value * 100f:0}%",
-            TitleEffect.Attack => $"공격력 +{Value:0}",
-            TitleEffect.Health => $"최대 체력 +{Value:0}",
-            _ => $"치명타 +{Value * 100f:0}%p",
+            TitleEffect.Gold => Loc.F("골드 +{0:0}%", Value * 100f),
+            TitleEffect.Exp => Loc.F("경험치 +{0:0}%", Value * 100f),
+            TitleEffect.Attack => Loc.F("공격력 +{0:0}", Value),
+            TitleEffect.Health => Loc.F("최대 체력 +{0:0}", Value),
+            _ => Loc.F("치명타 +{0:0}%p", Value * 100f),
         };
 
         public string RewardText =>
             string.Join(", ", new[]
             {
-                SlotTickets > 0 ? $"슬롯 이용권 {SlotTickets}장" : null,
-                GachaTickets > 0 ? $"뽑기권 {GachaTickets}장" : null,
+                SlotTickets > 0 ? Loc.F("슬롯 이용권 {0}장", SlotTickets) : null,
+                GachaTickets > 0 ? Loc.F("뽑기권 {0}장", GachaTickets) : null,
             }.Where(s => s != null));
     }
 
@@ -55,60 +55,63 @@ namespace LoopRogue
         private const string TitleKey = "LoopRogue_Title";
         private const string MerchantBuysKey = "LoopRogue_MerchantBuys";
 
-        public static readonly AchievementDef[] All =
+        private static readonly LocCache<AchievementDef[]> AllCache = new LocCache<AchievementDef[]>(() => new AchievementDef[]
+
         {
-            new AchievementDef { SteamId = "ACH_DEATH_1", Name = "첫 번째 귀환", Description = "처음으로 죽고 돌아온다",
-                Title = "갓 돌아온 자", Effect = TitleEffect.Exp, Value = 0.03f, SlotTickets = 3,
+            new AchievementDef { SteamId = "ACH_DEATH_1", Name = Loc.T("첫 번째 귀환"), Description = Loc.T("처음으로 죽고 돌아온다"),
+                Title = Loc.T("갓 돌아온 자"), Effect = TitleEffect.Exp, Value = 0.03f, SlotTickets = 3,
                 Condition = () => LoopRecord.TotalDeaths >= 1 },
-            new AchievementDef { SteamId = "ACH_DEATH_10", Name = "고리의 손님", Description = "10번 죽고 돌아온다",
-                Title = "단골 귀환자", Effect = TitleEffect.Gold, Value = 0.03f, GachaTickets = 1,
+            new AchievementDef { SteamId = "ACH_DEATH_10", Name = Loc.T("고리의 손님"), Description = Loc.T("10번 죽고 돌아온다"),
+                Title = Loc.T("단골 귀환자"), Effect = TitleEffect.Gold, Value = 0.03f, GachaTickets = 1,
                 Condition = () => LoopRecord.TotalDeaths >= 10 },
-            new AchievementDef { SteamId = "ACH_DEATH_50", Name = "세는 걸 멈추지 마", Description = "50번 죽고 돌아온다",
-                Title = "고리의 산증인", Effect = TitleEffect.Health, Value = 15f, GachaTickets = 2,
+            new AchievementDef { SteamId = "ACH_DEATH_50", Name = Loc.T("세는 걸 멈추지 마"), Description = Loc.T("50번 죽고 돌아온다"),
+                Title = Loc.T("고리의 산증인"), Effect = TitleEffect.Health, Value = 15f, GachaTickets = 2,
                 Condition = () => LoopRecord.TotalDeaths >= 50 },
-            new AchievementDef { SteamId = "ACH_DEATH_100", Name = "백 번째 문", Description = "100번 죽고 돌아온다",
-                Title = "불굴의 귀환자", Effect = TitleEffect.Attack, Value = 4f, GachaTickets = 3,
+            new AchievementDef { SteamId = "ACH_DEATH_100", Name = Loc.T("백 번째 문"), Description = Loc.T("100번 죽고 돌아온다"),
+                Title = Loc.T("불굴의 귀환자"), Effect = TitleEffect.Attack, Value = 4f, GachaTickets = 3,
                 Condition = () => LoopRecord.TotalDeaths >= 100 },
-            new AchievementDef { SteamId = "ACH_STAGE_2", Name = "첫 문지기", Description = "1층 보스를 쓰러뜨린다",
-                Title = "문지기 사냥꾼", Effect = TitleEffect.Attack, Value = 2f, SlotTickets = 5,
+            new AchievementDef { SteamId = "ACH_STAGE_2", Name = Loc.T("첫 문지기"), Description = Loc.T("1층 보스를 쓰러뜨린다"),
+                Title = Loc.T("문지기 사냥꾼"), Effect = TitleEffect.Attack, Value = 2f, SlotTickets = 5,
                 Condition = () => StageProgress.CurrentStage >= 2 },
-            new AchievementDef { SteamId = "ACH_STAGE_5", Name = "고리의 절반", Description = "5층에 도달한다",
-                Title = "중층의 방랑자", Effect = TitleEffect.Health, Value = 10f, GachaTickets = 2,
+            new AchievementDef { SteamId = "ACH_STAGE_5", Name = Loc.T("고리의 절반"), Description = Loc.T("5층에 도달한다"),
+                Title = Loc.T("중층의 방랑자"), Effect = TitleEffect.Health, Value = 10f, GachaTickets = 2,
                 Condition = () => StageProgress.CurrentStage >= 5 },
-            new AchievementDef { SteamId = "ACH_STAGE_10", Name = "심연의 입구", Description = "10층에 도달한다",
-                Title = "심연의 도전자", Effect = TitleEffect.Crit, Value = 0.02f, GachaTickets = 3,
+            new AchievementDef { SteamId = "ACH_STAGE_10", Name = Loc.T("심연의 입구"), Description = Loc.T("10층에 도달한다"),
+                Title = Loc.T("심연의 도전자"), Effect = TitleEffect.Crit, Value = 0.02f, GachaTickets = 3,
                 Condition = () => StageProgress.CurrentStage >= StageProgress.MaxStage },
-            new AchievementDef { SteamId = "ACH_CLEAR_10", Name = "고리를 끊은 자", Description = "10층 보스를 쓰러뜨린다",
-                Title = "고리를 끊은 자", Effect = TitleEffect.Attack, Value = 6f, GachaTickets = 5 },
-            new AchievementDef { SteamId = "ACH_KILL_100", Name = "첫 사냥", Description = "몬스터를 누적 100마리 처치한다",
-                Title = "풋내기 사냥꾼", Effect = TitleEffect.Exp, Value = 0.02f, SlotTickets = 3,
+            new AchievementDef { SteamId = "ACH_CLEAR_10", Name = Loc.T("고리를 끊은 자"), Description = Loc.T("10층 보스를 쓰러뜨린다"),
+                Title = Loc.T("고리를 끊은 자"), Effect = TitleEffect.Attack, Value = 6f, GachaTickets = 5 },
+            new AchievementDef { SteamId = "ACH_KILL_100", Name = Loc.T("첫 사냥"), Description = Loc.T("몬스터를 누적 100마리 처치한다"),
+                Title = Loc.T("풋내기 사냥꾼"), Effect = TitleEffect.Exp, Value = 0.02f, SlotTickets = 3,
                 Condition = () => LobbyQuests.LifetimeKills >= 100 },
-            new AchievementDef { SteamId = "ACH_KILL_500", Name = "사냥꾼의 길", Description = "몬스터를 누적 500마리 처치한다",
-                Title = "사냥꾼", Effect = TitleEffect.Gold, Value = 0.04f, GachaTickets = 1,
+            new AchievementDef { SteamId = "ACH_KILL_500", Name = Loc.T("사냥꾼의 길"), Description = Loc.T("몬스터를 누적 500마리 처치한다"),
+                Title = Loc.T("사냥꾼"), Effect = TitleEffect.Gold, Value = 0.04f, GachaTickets = 1,
                 Condition = () => LobbyQuests.LifetimeKills >= 500 },
-            new AchievementDef { SteamId = "ACH_KILL_3000", Name = "학살자", Description = "몬스터를 누적 3000마리 처치한다",
-                Title = "학살자", Effect = TitleEffect.Attack, Value = 3f, GachaTickets = 3,
+            new AchievementDef { SteamId = "ACH_KILL_3000", Name = Loc.T("학살자"), Description = Loc.T("몬스터를 누적 3000마리 처치한다"),
+                Title = Loc.T("학살자"), Effect = TitleEffect.Attack, Value = 3f, GachaTickets = 3,
                 Condition = () => LobbyQuests.LifetimeKills >= 3000 },
-            new AchievementDef { SteamId = "ACH_ETERNAL", Name = "영원을 손에", Description = "'영원' 등급 장비를 장착한다",
-                Title = "영원의 소유자", Effect = TitleEffect.Crit, Value = 0.02f, SlotTickets = 10,
+            new AchievementDef { SteamId = "ACH_ETERNAL", Name = Loc.T("영원을 손에"), Description = Loc.T("'영원' 등급 장비를 장착한다"),
+                Title = Loc.T("영원의 소유자"), Effect = TitleEffect.Crit, Value = 0.02f, SlotTickets = 10,
                 Condition = () => Enum.GetValues(typeof(ItemSlot)).Cast<ItemSlot>().Any(s => EquipmentWallet.GetEquipped(s) == ItemGrade.Eternal) },
-            new AchievementDef { SteamId = "ACH_JACKPOT", Name = "잭팟!", Description = "운명의 슬롯에서 3개를 맞춘다",
-                Title = "행운아", Effect = TitleEffect.Gold, Value = 0.05f, SlotTickets = 10 },
-            new AchievementDef { SteamId = "ACH_MERCHANT_10", Name = "단골손님", Description = "떠돌이 상인에게 물건을 10번 산다",
-                Title = "상인의 친구", Effect = TitleEffect.Gold, Value = 0.03f, GachaTickets = 1,
+            new AchievementDef { SteamId = "ACH_JACKPOT", Name = Loc.T("잭팟!"), Description = Loc.T("운명의 슬롯에서 3개를 맞춘다"),
+                Title = Loc.T("행운아"), Effect = TitleEffect.Gold, Value = 0.05f, SlotTickets = 10 },
+            new AchievementDef { SteamId = "ACH_MERCHANT_10", Name = Loc.T("단골손님"), Description = Loc.T("떠돌이 상인에게 물건을 10번 산다"),
+                Title = Loc.T("상인의 친구"), Effect = TitleEffect.Gold, Value = 0.03f, GachaTickets = 1,
                 Condition = () => MerchantBuys >= 10 },
-            new AchievementDef { SteamId = "ACH_WANDERER", Name = "약속을 지킨 자", Description = "길 잃은 모험가의 의뢰를 완료한다",
-                Title = "모험가의 은인", Effect = TitleEffect.Exp, Value = 0.05f, GachaTickets = 3 },
-            new AchievementDef { SteamId = "ACH_RELIC_5", Name = "유물 수집가", Description = "유물을 5개 모은다",
-                Title = "유물 수집가", Effect = TitleEffect.Exp, Value = 0.04f, SlotTickets = 5,
+            new AchievementDef { SteamId = "ACH_WANDERER", Name = Loc.T("약속을 지킨 자"), Description = Loc.T("길 잃은 모험가의 의뢰를 완료한다"),
+                Title = Loc.T("모험가의 은인"), Effect = TitleEffect.Exp, Value = 0.05f, GachaTickets = 3 },
+            new AchievementDef { SteamId = "ACH_RELIC_5", Name = Loc.T("유물 수집가"), Description = Loc.T("유물을 5개 모은다"),
+                Title = Loc.T("유물 수집가"), Effect = TitleEffect.Exp, Value = 0.04f, SlotTickets = 5,
                 Condition = () => Relics.OwnedCount >= 5 },
-            new AchievementDef { SteamId = "ACH_CODEX_HALF", Name = "기록하는 자", Description = "도감을 절반 채운다",
-                Title = "기록관", Effect = TitleEffect.Exp, Value = 0.03f, SlotTickets = 5,
+            new AchievementDef { SteamId = "ACH_CODEX_HALF", Name = Loc.T("기록하는 자"), Description = Loc.T("도감을 절반 채운다"),
+                Title = Loc.T("기록관"), Effect = TitleEffect.Exp, Value = 0.03f, SlotTickets = 5,
                 Condition = () => Codex.FoundCount() * 2 >= Codex.TotalCount() },
-            new AchievementDef { SteamId = "ACH_CODEX_ALL", Name = "모든 것을 본 자", Description = "도감을 전부 채운다",
-                Title = "고리의 사서", Effect = TitleEffect.Gold, Value = 0.05f, GachaTickets = 5,
+            new AchievementDef { SteamId = "ACH_CODEX_ALL", Name = Loc.T("모든 것을 본 자"), Description = Loc.T("도감을 전부 채운다"),
+                Title = Loc.T("고리의 사서"), Effect = TitleEffect.Gold, Value = 0.05f, GachaTickets = 5,
                 Condition = () => Codex.FoundCount() >= Codex.TotalCount() },
-        };
+        });
+
+        public static AchievementDef[] All => AllCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
 
         /// <summary>업적을 달성할 때마다 - 지금 씬의 UI(GameHUD 배너, 로비 결과 줄)가 구독해서 알린다.</summary>
         public static event Action<AchievementDef> Unlocked;

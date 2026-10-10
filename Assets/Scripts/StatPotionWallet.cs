@@ -78,16 +78,16 @@ namespace LoopRogue
 
         public static string Name(PotionType type) => type switch
         {
-            PotionType.Attack => "공격력",
-            PotionType.Health => "체력",
-            _ => "치명타",
+            PotionType.Attack => Loc.T("공격력"),
+            PotionType.Health => Loc.T("체력"),
+            _ => Loc.T("치명타"),
         };
 
         public static string Description(PotionType type) => type switch
         {
-            PotionType.Attack => $"공격력 +{AttackPerPotion:0.#} (영구)",
-            PotionType.Health => $"최대 체력 +{HealthPerPotion:0.#} (영구)",
-            _ => $"치명타 확률 +{CriticalChancePerPotion * 100f:0.#}%p (영구)",
+            PotionType.Attack => Loc.F("공격력 +{0:0.#} (영구)", AttackPerPotion),
+            PotionType.Health => Loc.F("최대 체력 +{0:0.#} (영구)", HealthPerPotion),
+            _ => Loc.F("치명타 확률 +{0:0.#}%p (영구)", CriticalChancePerPotion * 100f),
         };
 
         /// <summary>골드 계산은 호출부(상인)가 이미 끝낸 영약 1개 추가 - 로비에서 산 것과 똑같이 센다(다음 로비 가격도 오른다).</summary>

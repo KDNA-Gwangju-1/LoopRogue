@@ -48,7 +48,7 @@ namespace LoopRogue
             var voice = _instance._voices[_instance._nextVoice];
             _instance._nextVoice = (_instance._nextVoice + 1) % VoiceCount;
             voice.pitch = Random.Range(0.92f, 1.08f);
-            voice.PlayOneShot(clip, MasterVolume);
+            voice.PlayOneShot(clip, MasterVolume * GameSettings.SfxVolume); // × 설정 "효과음"(전체 볼륨은 AudioListener)
         }
 
         private static SfxPlayer Create()

@@ -40,11 +40,11 @@ namespace LoopRogue
             }
         }
 
-        public static string Goal => $"방 {ReportRoom}을 비우고 모험가에게 보고";
+        public static string Goal => Loc.F("방 {0}을 비우고 모험가에게 보고", ReportRoom);
 
         public static int RewardGold => Mathf.RoundToInt(RewardGoldBase * StageScaling.RewardMultiplier(StageProgress.CurrentStage));
 
-        public static string RewardText => $"골드 {RewardGold} + 뽑기권 {RewardGachaTickets}장";
+        public static string RewardText => Loc.F("골드 {0} + 뽑기권 {1}장", RewardGold, RewardGachaTickets);
 
         public static void Accept() => SetActive(true);
 
@@ -58,11 +58,11 @@ namespace LoopRogue
             GoldWallet.Add(gold);
             GachaSystem.AddTickets(RewardGachaTickets);
             Achievements.Unlock("ACH_WANDERER");
-            return $"모험가의 의뢰 완료! 골드 +{gold}, 뽑기권 +{RewardGachaTickets}";
+            return Loc.F("모험가의 의뢰 완료! 골드 +{0}, 뽑기권 +{1}", gold, RewardGachaTickets);
         }
 
         /// <summary>GameHUD 왼쪽 위 의뢰 줄. 의뢰가 없으면 null.</summary>
-        public static string TrackerText => Active ? $"의뢰: {Goal}" : null;
+        public static string TrackerText => Active ? Loc.F("의뢰: {0}", Goal) : null;
 
         private static void SetActive(bool active)
         {

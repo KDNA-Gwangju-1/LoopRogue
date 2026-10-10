@@ -8,7 +8,8 @@ namespace LoopRogue
     /// 베팅액은 골드 보상과 같은 곡선(RewardMultiplier)으로 커져서 스테이지가 올라도 체감 크기가 비슷하다.</summary>
     public static class SlotMachine
     {
-        public static readonly string[] Symbols = { "검", "방패", "왕관", "해골", "보석" };
+        private static readonly LocCache<string[]> SymbolsCache = new LocCache<string[]>(() => new string[] { Loc.T("검"), Loc.T("방패"), Loc.T("왕관"), Loc.T("해골"), Loc.T("보석") });
+        public static string[] Symbols => SymbolsCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
 
         private const int BaseBet = 20;
         public const int HighBetMultiplier = 10;

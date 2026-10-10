@@ -64,31 +64,33 @@ namespace LoopRogue
         public const float BerserkerThreshold = 0.5f;
         public const float BerserkerBonus = 0.3f;
 
-        private static readonly Dictionary<RelicType, (string Name, string Description)> Info = new Dictionary<RelicType, (string, string)>
+        private static readonly LocCache<Dictionary<RelicType, (string Name, string Description)>> InfoCache = new LocCache<Dictionary<RelicType, (string Name, string Description)>>(() => new Dictionary<RelicType, (string, string)>
         {
-            { RelicType.ChargeHorn, ("돌진의 뿔", "대시 거리 3→4칸, 대시 공격 피해 +50%") },
-            { RelicType.EarthHammer, ("대지의 망치", "일반 공격 시 대상 상하좌우 몹에게도 20% 피해") },
-            { RelicType.CrossCrest, ("십자 문장", "회전 베기가 상하좌우 2칸까지 닿음") },
-            { RelicType.PhantomBanner, ("망령의 깃발", "방에 들어갈 때 옆에 허수아비가 생김") },
-            { RelicType.PulseCore, ("파동의 핵", "회전 베기에 맞은 몹 1턴 기절") },
-            { RelicType.SniperEye, ("저격수의 눈", "치명타 피해 +50%p") },
-            { RelicType.PiercingSeal, ("관통의 인장", "일반 공격이 대상 뒤 1칸 몹에게도 30% 피해") },
-            { RelicType.TyrantPlate, ("폭군의 갑주", "대시로 내려선 자리 주변 8칸 몹에게 30% 피해") },
-            { RelicType.Executioner, ("사형 집행자", "체력 15% 이하인 일반 몹은 한 대에 처치") },
-            { RelicType.CrownOfEnd, ("끝의 왕관", "공격력 +10, 최대체력 +50") },
-            { RelicType.BloodPact, ("피의 계약", "최대체력(성장분) -20%, 흡혈 상한 50%→70%") },
-            { RelicType.ChainBlast, ("연쇄 폭발", "일반 몹 처치 시 주변 8칸 몹에게 공격력 20% 피해") },
-            { RelicType.SecondWind, ("두 번째 숨", "시도마다 1회, 죽으면 체력 30%로 부활") },
-            { RelicType.TreasureHunter, ("보물 사냥꾼", "보물상자에서 아이템 2개, 몹 아이템 드롭 +3%p") },
-            { RelicType.SpinningBlade, ("회전 칼날", "회전 베기 피해 80%→120%") },
-            { RelicType.HunterEye, ("사냥꾼의 눈", "시야 +2칸, 출구가 처음부터 보임") },
-            { RelicType.Greed, ("탐욕", "골드 +40%, 데스 패널티 40%→60%") },
-            { RelicType.Gale, ("질풍", "대시 쿨타임 -2턴(최소 1턴)") },
-            { RelicType.RegenMoss, ("재생의 이끼", "방 클리어 시 체력 15% 추가 회복") },
-            { RelicType.IronSkin, ("철의 피부", "받는 피해 -10%(카드 피해 감소와 별도)") },
-            { RelicType.Berserker, ("광전사", "체력 50% 이하일 때 주는 피해 +30%") },
-            { RelicType.FirstStrike, ("첫 일격", "방마다 첫 공격은 치명타 확정") },
-        };
+            { RelicType.ChargeHorn, (Loc.T("돌진의 뿔"), Loc.T("대시 거리 3→4칸, 대시 공격 피해 +50%")) },
+            { RelicType.EarthHammer, (Loc.T("대지의 망치"), Loc.T("일반 공격 시 대상 상하좌우 몹에게도 20% 피해")) },
+            { RelicType.CrossCrest, (Loc.T("십자 문장"), Loc.T("회전 베기가 상하좌우 2칸까지 닿음")) },
+            { RelicType.PhantomBanner, (Loc.T("망령의 깃발"), Loc.T("방에 들어갈 때 옆에 허수아비가 생김")) },
+            { RelicType.PulseCore, (Loc.T("파동의 핵"), Loc.T("회전 베기에 맞은 몹 1턴 기절")) },
+            { RelicType.SniperEye, (Loc.T("저격수의 눈"), Loc.T("치명타 피해 +50%p")) },
+            { RelicType.PiercingSeal, (Loc.T("관통의 인장"), Loc.T("일반 공격이 대상 뒤 1칸 몹에게도 30% 피해")) },
+            { RelicType.TyrantPlate, (Loc.T("폭군의 갑주"), Loc.T("대시로 내려선 자리 주변 8칸 몹에게 30% 피해")) },
+            { RelicType.Executioner, (Loc.T("사형 집행자"), Loc.T("체력 15% 이하인 일반 몹은 한 대에 처치")) },
+            { RelicType.CrownOfEnd, (Loc.T("끝의 왕관"), Loc.T("공격력 +10, 최대체력 +50")) },
+            { RelicType.BloodPact, (Loc.T("피의 계약"), Loc.T("최대체력(성장분) -20%, 흡혈 상한 50%→70%")) },
+            { RelicType.ChainBlast, (Loc.T("연쇄 폭발"), Loc.T("일반 몹 처치 시 주변 8칸 몹에게 공격력 20% 피해")) },
+            { RelicType.SecondWind, (Loc.T("두 번째 숨"), Loc.T("시도마다 1회, 죽으면 체력 30%로 부활")) },
+            { RelicType.TreasureHunter, (Loc.T("보물 사냥꾼"), Loc.T("보물상자에서 아이템 2개, 몹 아이템 드롭 +3%p")) },
+            { RelicType.SpinningBlade, (Loc.T("회전 칼날"), Loc.T("회전 베기 피해 80%→120%")) },
+            { RelicType.HunterEye, (Loc.T("사냥꾼의 눈"), Loc.T("시야 +2칸, 출구가 처음부터 보임")) },
+            { RelicType.Greed, (Loc.T("탐욕"), Loc.T("골드 +40%, 데스 패널티 40%→60%")) },
+            { RelicType.Gale, (Loc.T("질풍"), Loc.T("대시 쿨타임 -2턴(최소 1턴)")) },
+            { RelicType.RegenMoss, (Loc.T("재생의 이끼"), Loc.T("방 클리어 시 체력 15% 추가 회복")) },
+            { RelicType.IronSkin, (Loc.T("철의 피부"), Loc.T("받는 피해 -10%(카드 피해 감소와 별도)")) },
+            { RelicType.Berserker, (Loc.T("광전사"), Loc.T("체력 50% 이하일 때 주는 피해 +30%")) },
+            { RelicType.FirstStrike, (Loc.T("첫 일격"), Loc.T("방마다 첫 공격은 치명타 확정")) },
+        });
+
+        private static Dictionary<RelicType, (string Name, string Description)> Info => InfoCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
 
         private const string OwnedKey = "LoopRogue_Relics_Owned";
         private const string OfferedKey = "LoopRogue_Relics_OfferedStages";

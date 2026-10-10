@@ -41,12 +41,14 @@ namespace LoopRogue
             public float BaseHealthBonus;
         }
 
-        public static readonly Dictionary<ItemSlot, SlotTemplate> Templates = new Dictionary<ItemSlot, SlotTemplate>
+        private static readonly LocCache<Dictionary<ItemSlot, SlotTemplate>> TemplatesCache = new LocCache<Dictionary<ItemSlot, SlotTemplate>>(() => new Dictionary<ItemSlot, SlotTemplate>
         {
-            { ItemSlot.Weapon, new SlotTemplate { BaseName = "검", BaseAttackBonus = 2f, BaseHealthBonus = 0f } },
-            { ItemSlot.Armor, new SlotTemplate { BaseName = "갑옷", BaseAttackBonus = 0f, BaseHealthBonus = 10f } },
-            { ItemSlot.Accessory, new SlotTemplate { BaseName = "반지", BaseAttackBonus = 1f, BaseHealthBonus = 5f } },
-        };
+            { ItemSlot.Weapon, new SlotTemplate { BaseName = Loc.T("검"), BaseAttackBonus = 2f, BaseHealthBonus = 0f } },
+            { ItemSlot.Armor, new SlotTemplate { BaseName = Loc.T("갑옷"), BaseAttackBonus = 0f, BaseHealthBonus = 10f } },
+            { ItemSlot.Accessory, new SlotTemplate { BaseName = Loc.T("반지"), BaseAttackBonus = 1f, BaseHealthBonus = 5f } },
+        });
+
+        public static Dictionary<ItemSlot, SlotTemplate> Templates => TemplatesCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
 
         /// <summary>StoryRPG ItemGradeDataSO의 이름/스탯보너스 역할을 하나로 합쳤다 - 여긴 등급마다
         /// "고정값을 더하는" 대신 "배율을 곱하는" 방식(단순 프로토타입이라 계산 하나로 통일). 뽑기 확률은
@@ -58,18 +60,20 @@ namespace LoopRogue
             public Color Color;
         }
 
-        public static readonly Dictionary<ItemGrade, GradeInfo> Grades = new Dictionary<ItemGrade, GradeInfo>
+        private static readonly LocCache<Dictionary<ItemGrade, GradeInfo>> GradesCache = new LocCache<Dictionary<ItemGrade, GradeInfo>>(() => new Dictionary<ItemGrade, GradeInfo>
         {
-            { ItemGrade.Common, new GradeInfo { Name = "일반", Multiplier = 1f, Color = Color.white } },
-            { ItemGrade.Uncommon, new GradeInfo { Name = "고급", Multiplier = 1.5f, Color = new Color(0.4f, 0.9f, 0.4f) } },
-            { ItemGrade.Rare, new GradeInfo { Name = "희귀", Multiplier = 2.2f, Color = new Color(0.3f, 0.6f, 1f) } },
-            { ItemGrade.Epic, new GradeInfo { Name = "영웅", Multiplier = 3.2f, Color = new Color(0.7f, 0.3f, 1f) } },
-            { ItemGrade.Legendary, new GradeInfo { Name = "전설", Multiplier = 4.8f, Color = new Color(1f, 0.65f, 0.1f) } },
-            { ItemGrade.Mythic, new GradeInfo { Name = "신화", Multiplier = 7f, Color = new Color(1f, 0.3f, 0.3f) } },
-            { ItemGrade.Ancient, new GradeInfo { Name = "고대", Multiplier = 10f, Color = new Color(0.3f, 0.95f, 0.9f) } },
-            { ItemGrade.Transcendent, new GradeInfo { Name = "초월", Multiplier = 15f, Color = new Color(1f, 0.5f, 0.85f) } },
-            { ItemGrade.Eternal, new GradeInfo { Name = "영원", Multiplier = 22f, Color = new Color(1f, 0.95f, 0.5f) } },
-        };
+            { ItemGrade.Common, new GradeInfo { Name = Loc.T("일반"), Multiplier = 1f, Color = Color.white } },
+            { ItemGrade.Uncommon, new GradeInfo { Name = Loc.T("고급"), Multiplier = 1.5f, Color = new Color(0.4f, 0.9f, 0.4f) } },
+            { ItemGrade.Rare, new GradeInfo { Name = Loc.T("희귀"), Multiplier = 2.2f, Color = new Color(0.3f, 0.6f, 1f) } },
+            { ItemGrade.Epic, new GradeInfo { Name = Loc.T("영웅"), Multiplier = 3.2f, Color = new Color(0.7f, 0.3f, 1f) } },
+            { ItemGrade.Legendary, new GradeInfo { Name = Loc.T("전설"), Multiplier = 4.8f, Color = new Color(1f, 0.65f, 0.1f) } },
+            { ItemGrade.Mythic, new GradeInfo { Name = Loc.T("신화"), Multiplier = 7f, Color = new Color(1f, 0.3f, 0.3f) } },
+            { ItemGrade.Ancient, new GradeInfo { Name = Loc.T("고대"), Multiplier = 10f, Color = new Color(0.3f, 0.95f, 0.9f) } },
+            { ItemGrade.Transcendent, new GradeInfo { Name = Loc.T("초월"), Multiplier = 15f, Color = new Color(1f, 0.5f, 0.85f) } },
+            { ItemGrade.Eternal, new GradeInfo { Name = Loc.T("영원"), Multiplier = 22f, Color = new Color(1f, 0.95f, 0.5f) } },
+        });
+
+        public static Dictionary<ItemGrade, GradeInfo> Grades => GradesCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
 
         public static string DisplayName(ItemSlot slot, ItemGrade grade) =>
             $"[{Grades[grade].Name}] {Templates[slot].BaseName}";

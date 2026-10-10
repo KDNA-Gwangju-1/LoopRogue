@@ -44,30 +44,30 @@ namespace LoopRogue
 
         public static string Name(ItemType type) => type switch
         {
-            ItemType.Torch => "횃불",
-            ItemType.Bomb => "폭탄",
-            ItemType.Decoy => "미끼",
-            ItemType.Smoke => "연막탄",
-            ItemType.Cleanse => "정화제",
-            ItemType.Flash => "섬광탄",
-            ItemType.Trap => "덫",
-            ItemType.Reflect => "반사 부적",
-            ItemType.Weakness => "약점 표식",
-            _ => "보호막",
+            ItemType.Torch => Loc.T("횃불"),
+            ItemType.Bomb => Loc.T("폭탄"),
+            ItemType.Decoy => Loc.T("미끼"),
+            ItemType.Smoke => Loc.T("연막탄"),
+            ItemType.Cleanse => Loc.T("정화제"),
+            ItemType.Flash => Loc.T("섬광탄"),
+            ItemType.Trap => Loc.T("덫"),
+            ItemType.Reflect => Loc.T("반사 부적"),
+            ItemType.Weakness => Loc.T("약점 표식"),
+            _ => Loc.T("보호막"),
         };
 
         public static string Description(ItemType type) => type switch
         {
-            ItemType.Torch => "옆 칸에 설치 - 그 주변이 계속 밝게 보인다",
-            ItemType.Bomb => $"던지면 최대 {BombRange}칸 앞에 떨어져 다음 턴 3x3 폭발(공격력 {BombDamageRate:0}배, 벽도 부숨, 방패 무시)",
-            ItemType.Decoy => $"옆 칸에 허수아비 - {DecoyTurns}턴 동안 몹들이 허수아비를 노린다",
-            ItemType.Smoke => $"주변 {SmokeRadius}칸 몹이 {SmokeStunTurns}턴 동안 플레이어를 못 찾는다(행동 못 함)",
-            ItemType.Cleanse => $"거미줄 즉시 해제 + {CleanseImmuneTurns}턴 동안 거미줄 무시",
-            ItemType.Flash => $"보스의 예고 공격 취소 + {FlashBossStunTurns}턴 기절, 주변 몹 {FlashEnemyStunTurns}턴 기절",
-            ItemType.Trap => $"옆 칸에 설치 - 밟은 몹(보스 포함) {TrapStunTurns}턴 기절",
-            ItemType.Reflect => $"{ReflectTurns}턴 안에 맞는 보스 예고 공격 1회를 되돌린다(보스 최대 체력 {ReflectBossDamageRate * 100f:0}%)",
-            ItemType.Weakness => $"주변 {WeaknessRadius}칸 몹과 보스가 {WeaknessTurns}턴 동안 받는 피해 +{(WeaknessDamageMultiplier - 1f) * 100f:0}%",
-            _ => "다음에 받는 피해 1회 무효",
+            ItemType.Torch => Loc.T("옆 칸에 설치 - 그 주변이 계속 밝게 보인다"),
+            ItemType.Bomb => Loc.F("던지면 최대 {0}칸 앞에 떨어져 다음 턴 3x3 폭발(공격력 {1:0}배, 벽도 부숨, 방패 무시)", BombRange, BombDamageRate),
+            ItemType.Decoy => Loc.F("옆 칸에 허수아비 - {0}턴 동안 몹들이 허수아비를 노린다", DecoyTurns),
+            ItemType.Smoke => Loc.F("주변 {0}칸 몹이 {1}턴 동안 플레이어를 못 찾는다(행동 못 함)", SmokeRadius, SmokeStunTurns),
+            ItemType.Cleanse => Loc.F("거미줄 즉시 해제 + {0}턴 동안 거미줄 무시", CleanseImmuneTurns),
+            ItemType.Flash => Loc.F("보스의 예고 공격 취소 + {0}턴 기절, 주변 몹 {1}턴 기절", FlashBossStunTurns, FlashEnemyStunTurns),
+            ItemType.Trap => Loc.F("옆 칸에 설치 - 밟은 몹(보스 포함) {0}턴 기절", TrapStunTurns),
+            ItemType.Reflect => Loc.F("{0}턴 안에 맞는 보스 예고 공격 1회를 되돌린다(보스 최대 체력 {1:0}%)", ReflectTurns, ReflectBossDamageRate * 100f),
+            ItemType.Weakness => Loc.F("주변 {0}칸 몹과 보스가 {1}턴 동안 받는 피해 +{2:0}%", WeaknessRadius, WeaknessTurns, (WeaknessDamageMultiplier - 1f) * 100f),
+            _ => Loc.T("다음에 받는 피해 1회 무효"),
         };
 
         /// <summary>방향을 골라야 하는 아이템(대시처럼 키 → 방향키).</summary>

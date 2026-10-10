@@ -117,14 +117,14 @@ namespace LoopRogue
         private void OnAchievementUnlocked(AchievementDef def)
         {
             var reward = def.RewardText;
-            ShowResult($"업적 달성! {def.Name} - 칭호 「{def.Title}」{(reward.Length > 0 ? $" + {reward}" : "")}", new Color(1f, 0.85f, 0.4f));
+            ShowResult(Loc.F("업적 달성! {0} - 칭호 「{1}」{2}", def.Name, def.Title, (reward.Length > 0 ? $" + {reward}" : "")), new Color(1f, 0.85f, 0.4f));
             RefreshGachaDisplay(); // 보상 뽑기권·이용권 장수
             RefreshSlotDisplay();
         }
 
         private void Update()
         {
-            _goldText.text = $"보유 골드: {GoldWallet.Gold - _slotPendingPayout}";
+            _goldText.text = Loc.F("보유 골드: {0}", GoldWallet.Gold - _slotPendingPayout);
             RefreshGuideButton();
             UpdateHover();
 
@@ -175,11 +175,11 @@ namespace LoopRogue
 
                 case LobbyView.Potion:
                     if (keyboard.aKey.wasPressedThisFrame)
-                        DoPotionBuy(PotionType.Attack, "공격력");
+                        DoPotionBuy(PotionType.Attack, Loc.T("공격력"));
                     if (keyboard.hKey.wasPressedThisFrame)
-                        DoPotionBuy(PotionType.Health, "체력");
+                        DoPotionBuy(PotionType.Health, Loc.T("체력"));
                     if (keyboard.cKey.wasPressedThisFrame)
-                        DoPotionBuy(PotionType.Critical, "치명타");
+                        DoPotionBuy(PotionType.Critical, Loc.T("치명타"));
                     break;
 
                 case LobbyView.Casino:
@@ -228,9 +228,9 @@ namespace LoopRogue
             _shade.color = new Color(0f, 0f, 0f, view == LobbyView.Hub ? 0.2f : 0.45f);
             _titleText.text = view switch
             {
-                LobbyView.Gacha => "뽑기 상점",
-                LobbyView.Potion => "영약 상점",
-                LobbyView.Casino => "도박장",
+                LobbyView.Gacha => Loc.T("뽑기 상점"),
+                LobbyView.Potion => Loc.T("영약 상점"),
+                LobbyView.Casino => Loc.T("도박장"),
                 _ => $"Stage {StageProgress.CurrentStage}/{StageProgress.MaxStage}",
             };
         }
@@ -241,18 +241,18 @@ namespace LoopRogue
         {
             if (!StatPotionWallet.IsUnlocked(type))
             {
-                ShowResult($"{label} 영약은 스테이지 {StatPotionWallet.CriticalUnlockStage}부터 구매할 수 있습니다.", Color.white);
+                ShowResult(Loc.F("{0} 영약은 스테이지 {1}부터 구매할 수 있습니다.", label, StatPotionWallet.CriticalUnlockStage), Color.white);
                 return;
             }
 
             var cost = StatPotionWallet.GetNextCost(type);
             if (!StatPotionWallet.TryBuy(type))
             {
-                ShowResult($"골드가 모자랍니다! ({label} 영약 비용: {cost})", Color.white);
+                ShowResult(Loc.F("골드가 모자랍니다! ({0} 영약 비용: {1})", label, cost), Color.white);
                 return;
             }
 
-            ShowResult($"{label} 영약 구매! (영구 적용, 다음 시작부터)", new Color(0.4f, 1f, 0.5f));
+            ShowResult(Loc.F("{0} 영약 구매! (영구 적용, 다음 시작부터)", label), new Color(0.4f, 1f, 0.5f));
             RefreshPotionDisplay();
             RefreshCriticalDisplay();
         }
@@ -260,12 +260,12 @@ namespace LoopRogue
         private void RefreshPotionDisplay()
         {
             _potionText.text =
-                $"영약 누적 - 공격력+{StatPotionWallet.TotalAttackBonus():0.#}   체력+{StatPotionWallet.TotalHealthBonus():0.#}   |   유물 {Relics.OwnedCount}개";
+                Loc.F("영약 누적 - 공격력+{0:0.#}   체력+{1:0.#}   |   유물 {2}개", StatPotionWallet.TotalAttackBonus(), StatPotionWallet.TotalHealthBonus(), Relics.OwnedCount);
 
             _attackButtonText.text =
-                $"[A] 공격력 영약 구매 (다음 비용 {StatPotionWallet.GetNextCost(PotionType.Attack)}골드)";
+                Loc.F("[A] 공격력 영약 구매 (다음 비용 {0}골드)", StatPotionWallet.GetNextCost(PotionType.Attack));
             _healthButtonText.text =
-                $"[H] 체력 영약 구매 (다음 비용 {StatPotionWallet.GetNextCost(PotionType.Health)}골드)";
+                Loc.F("[H] 체력 영약 구매 (다음 비용 {0}골드)", StatPotionWallet.GetNextCost(PotionType.Health));
         }
 
         private void RefreshCriticalDisplay()
@@ -274,8 +274,8 @@ namespace LoopRogue
             _criticalButtonImage.color = ButtonTint(unlocked ? ButtonColor : ButtonLockedColor);
 
             _criticalButtonText.text = unlocked
-                ? $"[C] 치명타확률+{StatPotionWallet.TotalCriticalChanceBonus() * 100f:0.#}% 구매 (다음 비용 {StatPotionWallet.GetNextCost(PotionType.Critical)}골드)"
-                : $"치명타 영약: 스테이지 {StatPotionWallet.CriticalUnlockStage}부터 구매 가능(비공개)";
+                ? Loc.F("[C] 치명타확률+{0:0.#}% 구매 (다음 비용 {1}골드)", StatPotionWallet.TotalCriticalChanceBonus() * 100f, StatPotionWallet.GetNextCost(PotionType.Critical))
+                : Loc.F("치명타 영약: 스테이지 {0}부터 구매 가능(비공개)", StatPotionWallet.CriticalUnlockStage);
         }
 
         private void DoGachaPull(ItemSlot slot)
@@ -283,7 +283,7 @@ namespace LoopRogue
             var result = GachaSystem.Pull(slot);
             if (result == null)
             {
-                ShowResult($"골드가 모자랍니다! (뽑기 비용: {GachaSystem.GetPullCost(slot)})", Color.white);
+                ShowResult(Loc.F("골드가 모자랍니다! (뽑기 비용: {0})", GachaSystem.GetPullCost(slot)), Color.white);
                 return;
             }
 
@@ -291,12 +291,12 @@ namespace LoopRogue
             var name = EquipmentData.DisplayName(r.Slot, r.Grade);
             var color = EquipmentData.Grades[r.Grade].Color;
 
-            var message = r.Equipped ? $"{name} 획득! 장착했습니다." : $"{name}... 이미 더 좋은 장비가 있어 버려짐.";
+            var message = r.Equipped ? Loc.F("{0} 획득! 장착했습니다.", name) : Loc.F("{0}... 이미 더 좋은 장비가 있어 버려짐.", name);
             var newTier = EquipmentEffects.TierOf(r.Grade);
             if (r.Equipped && newTier > 0)
-                message += $"  새 효과: {EquipmentEffects.Name(slot, newTier)} ({EquipmentEffects.Description(slot, newTier)})";
+                message += Loc.F("  새 효과: {0} ({1})", EquipmentEffects.Name(slot, newTier), EquipmentEffects.Description(slot, newTier));
             if (r.ShopLeveledUp)
-                message += $"  {EquipmentData.Templates[slot].BaseName} 상점 Lv{GachaSystem.GetShopLevel(slot)} 달성!";
+                message += Loc.F("  {0} 상점 Lv{1} 달성!", EquipmentData.Templates[slot].BaseName, GachaSystem.GetShopLevel(slot));
 
             ShowResult(message, color);
             RefreshEquipmentDisplay();
@@ -318,7 +318,7 @@ namespace LoopRogue
             var results = GachaSystem.PullMulti(slot);
             if (results == null)
             {
-                ShowResult($"골드가 모자랍니다! (10연차 비용: {cost})", Color.white);
+                ShowResult(Loc.F("골드가 모자랍니다! (10연차 비용: {0})", cost), Color.white);
                 return;
             }
 
@@ -335,10 +335,10 @@ namespace LoopRogue
 
             var name = EquipmentData.DisplayName(slot, best.Grade);
             var message = anyEquipped
-                ? $"10연차 최고: {name} - 장착했습니다!"
-                : $"10연차 최고: {name}... 이미 더 좋은 장비가 있음.";
+                ? Loc.F("10연차 최고: {0} - 장착했습니다!", name)
+                : Loc.F("10연차 최고: {0}... 이미 더 좋은 장비가 있음.", name);
             if (leveledUp)
-                message += $"  {EquipmentData.Templates[slot].BaseName} 상점 Lv{GachaSystem.GetShopLevel(slot)} 달성!";
+                message += Loc.F("  {0} 상점 Lv{1} 달성!", EquipmentData.Templates[slot].BaseName, GachaSystem.GetShopLevel(slot));
 
             ShowResult(message, EquipmentData.Grades[best.Grade].Color);
             RefreshEquipmentDisplay();
@@ -352,14 +352,14 @@ namespace LoopRogue
                 var slot = pair.Key;
                 var level = GachaSystem.GetShopLevel(slot);
                 var next = GachaSystem.GetPullsForNextLevel(slot);
-                var progress = next.HasValue ? $"{GachaSystem.GetPullCount(slot)}/{next.Value}회" : "MAX";
-                var price = GachaSystem.Tickets > 0 ? $"뽑기권 {GachaSystem.Tickets}장" : $"{GachaSystem.GetPullCost(slot)}G"; // 뽑기권이 있으면 먼저 쓴다
+                var progress = next.HasValue ? Loc.F("{0}/{1}회", GachaSystem.GetPullCount(slot), next.Value) : "MAX";
+                var price = GachaSystem.Tickets > 0 ? Loc.F("뽑기권 {0}장", GachaSystem.Tickets) : $"{GachaSystem.GetPullCost(slot)}G"; // 뽑기권이 있으면 먼저 쓴다
                 pair.Value.text =
-                    $"[{(int)slot + 1}] {EquipmentData.Templates[slot].BaseName} 뽑기 ({price})\n상점 Lv{level} ({progress})";
+                    Loc.F("[{0}] {1} 뽑기 ({2})\n상점 Lv{3} ({4})", (int)slot + 1, EquipmentData.Templates[slot].BaseName, price, level, progress);
             }
 
             foreach (var pair in _gachaMultiButtonTexts)
-                pair.Value.text = $"[Shift+{(int)pair.Key + 1}] 10연차 ({GachaSystem.GetMultiPullCost(pair.Key)}G)";
+                pair.Value.text = Loc.F("[Shift+{0}] 10연차 ({1}G)", (int)pair.Key + 1, GachaSystem.GetMultiPullCost(pair.Key));
 
             // 확률표 - 그 슬롯 지금 상점 레벨 기준, 아직 안 열린 등급은 "-".
             foreach (var pair in _chanceColumns)
@@ -381,7 +381,7 @@ namespace LoopRogue
             var result = SlotMachine.Spin(high);
             if (result == null)
             {
-                ShowResult($"골드가 모자랍니다! (베팅액: {SlotMachine.GetBet(high)})", Color.white);
+                ShowResult(Loc.F("골드가 모자랍니다! (베팅액: {0})", SlotMachine.GetBet(high)), Color.white);
                 return;
             }
 
@@ -421,16 +421,16 @@ namespace LoopRogue
             if (result.MatchCount == 3)
             {
                 SetSlotLook(dim: false, win: true);
-                ShowResult($"잭팟! 3개 일치 - {result.Payout}골드 획득!", new Color(1f, 0.85f, 0.3f));
+                ShowResult(Loc.F("잭팟! 3개 일치 - {0}골드 획득!", result.Payout), new Color(1f, 0.85f, 0.3f));
             }
             else if (result.MatchCount == 2)
             {
-                ShowResult($"2개 일치 - {result.Payout}골드 돌려받음 (베팅 {result.Bet})", new Color(0.6f, 0.9f, 1f));
+                ShowResult(Loc.F("2개 일치 - {0}골드 돌려받음 (베팅 {1})", result.Payout, result.Bet), new Color(0.6f, 0.9f, 1f));
             }
             else
             {
                 SetSlotLook(dim: true, win: false);
-                ShowResult(result.UsedTicket ? "꽝... 이용권 1장을 썼습니다." : $"꽝... {result.Bet}골드를 잃었습니다.", new Color(1f, 0.5f, 0.5f));
+                ShowResult(result.UsedTicket ? Loc.T("꽝... 이용권 1장을 썼습니다.") : Loc.F("꽝... {0}골드를 잃었습니다.", result.Bet), new Color(1f, 0.5f, 0.5f));
             }
         }
 
@@ -464,9 +464,9 @@ namespace LoopRogue
         private void RefreshSlotDisplay()
         {
             _slotButtonText.text = SlotMachine.Tickets > 0 // 이용권이 있으면 먼저 쓴다
-                ? $"[S] 돌리기 (이용권 {SlotMachine.Tickets}장)"
-                : $"[S] 돌리기 ({SlotMachine.GetBet(false)}G)";
-            _slotHighButtonText.text = $"[Shift+S] {SlotMachine.HighBetMultiplier}배 베팅 ({SlotMachine.GetBet(true)}G)";
+                ? Loc.F("[S] 돌리기 (이용권 {0}장)", SlotMachine.Tickets)
+                : Loc.F("[S] 돌리기 ({0}G)", SlotMachine.GetBet(false));
+            _slotHighButtonText.text = Loc.F("[Shift+S] {0}배 베팅 ({1}G)", SlotMachine.HighBetMultiplier, SlotMachine.GetBet(true));
         }
 
         private void RefreshEquipmentDisplay()
@@ -480,13 +480,13 @@ namespace LoopRogue
         {
             var grade = EquipmentWallet.GetEquipped(slot);
             if (!grade.HasValue)
-                return $"{slot}: (미장착)";
+                return Loc.F("{0}: (미장착)", slot);
 
             var atk = EquipmentData.AttackBonus(slot, grade.Value);
             var hp = EquipmentData.HealthBonus(slot, grade.Value);
             var tier = EquipmentEffects.TierOf(grade.Value);
-            var effects = tier > 0 ? $"  <color=#FFD966>효과 {tier}/{EquipmentEffects.MaxTier}</color>" : ""; // 효과 설명은 게임 중 Tab 상태창
-            return $"{slot}: {EquipmentData.DisplayName(slot, grade.Value)} (공격력+{atk:0.#} 체력+{hp:0.#}){effects}";
+            var effects = tier > 0 ? Loc.F("  <color=#FFD966>효과 {0}/{1}</color>", tier, EquipmentEffects.MaxTier) : ""; // 효과 설명은 게임 중 Tab 상태창
+            return Loc.F("{0}: {1} (공격력+{2:0.#} 체력+{3:0.#}){4}", slot, EquipmentData.DisplayName(slot, grade.Value), atk, hp, effects);
         }
 
         private void ShowResult(string message, Color color)
@@ -524,7 +524,7 @@ namespace LoopRogue
             // 모든 화면 공통: 제목(화면 이름) / 골드 / 결과 안내 한 줄
             CreatePanel(root, 0f, 282f, 200f, 80f);
             _titleText = CreateLabel(root, "Title", string.Empty, 26, FontStyle.Bold, Color.white, 300f, 560f);
-            _goldText = CreateLabel(root, "GoldText", "보유 골드: 0", 18, FontStyle.Bold,
+            _goldText = CreateLabel(root, "GoldText", Loc.T("보유 골드: 0"), 18, FontStyle.Bold,
                 new Color(1f, 0.85f, 0.3f), 262f, 560f);
             _resultText = CreateLabel(root, "ResultText", string.Empty, 18, FontStyle.Normal, Color.white, 222f, 1000f);
             _resultText.gameObject.SetActive(false);
@@ -642,7 +642,7 @@ namespace LoopRogue
         /// <summary>상점 안 화면 맨 아래 공통 "로비로" 버튼.</summary>
         private void CreateBackButton(Transform view) =>
             CreateButton(view, "BackButton", ButtonLockedColor, -300f, 220f, 40f,
-                out _, "[Esc] 로비로", 17, Color.white, () => ShowView(LobbyView.Hub));
+                out _, Loc.T("[Esc] 로비로"), 17, Color.white, () => ShowView(LobbyView.Hub));
 
         private void BuildHubView(Transform parent)
         {
@@ -651,9 +651,9 @@ namespace LoopRogue
             // 상점 입구 3개 - 한 줄로
             var shops = new[]
             {
-                (LobbyView.Gacha, "[1] 뽑기 상점", "검·갑옷·반지 뽑기", new Color(0.3f, 0.3f, 0.5f)),
-                (LobbyView.Potion, "[2] 영약 상점", "공격력·체력·치명타", new Color(0.22f, 0.4f, 0.3f)),
-                (LobbyView.Casino, "[3] 도박장", "운명의 슬롯", new Color(0.5f, 0.3f, 0.15f)),
+                (LobbyView.Gacha, Loc.T("[1] 뽑기 상점"), Loc.T("검·갑옷·반지 뽑기"), new Color(0.3f, 0.3f, 0.5f)),
+                (LobbyView.Potion, Loc.T("[2] 영약 상점"), Loc.T("공격력·체력·치명타"), new Color(0.22f, 0.4f, 0.3f)),
+                (LobbyView.Casino, Loc.T("[3] 도박장"), Loc.T("운명의 슬롯"), new Color(0.5f, 0.3f, 0.15f)),
             };
             for (var i = 0; i < shops.Length; i++)
             {
@@ -701,9 +701,9 @@ namespace LoopRogue
             }
 
             CreateButton(view, "StartButton", StartButtonColor, -160f, 480f, 50f,
-                out _, $"[Enter / Space] 스테이지 {StageProgress.CurrentStage} 시작", 20, Color.white, StartRun);
+                out _, Loc.F("[Enter / Space] 스테이지 {0} 시작", StageProgress.CurrentStage), 20, Color.white, StartRun);
 
-            CreateLabel(view, "HubHint", "Esc: 타이틀로", 13, FontStyle.Normal, new Color(0.6f, 0.6f, 0.65f), -215f, 400f);
+            CreateLabel(view, "HubHint", Loc.T("Esc: 타이틀로"), 13, FontStyle.Normal, new Color(0.6f, 0.6f, 0.65f), -215f, 400f);
         }
 
         private Text _guideButtonText;
@@ -714,8 +714,8 @@ namespace LoopRogue
 
         private void RefreshGuideButton()
         {
-            SetIfChanged(_achievementButtonText, $"[5] 업적·칭호 <color=#FFD966>({Achievements.UnlockedCount}/{Achievements.All.Length})</color>");
-            SetIfChanged(_codexButtonText, $"[6] 도감 <color=#B9A0FF>({Codex.FoundCount()}/{Codex.TotalCount()})</color>");
+            SetIfChanged(_achievementButtonText, Loc.F("[5] 업적·칭호 <color=#FFD966>({0}/{1})</color>", Achievements.UnlockedCount, Achievements.All.Length));
+            SetIfChanged(_codexButtonText, Loc.F("[6] 도감 <color=#B9A0FF>({0}/{1})</color>", Codex.FoundCount(), Codex.TotalCount()));
 
             var pending = LobbyQuests.PendingCount;
             var hasWord = LobbyGuide.HasSomethingToSay; // 회차 특별 대사가 기다리고 있으면 "!"
@@ -723,7 +723,7 @@ namespace LoopRogue
             if (key == _guidePendingShown)
                 return;
             _guidePendingShown = key;
-            var marks = (hasWord ? " <color=#B9A0FF>(!)</color>" : "") + (pending > 0 ? $" <color=#FFD966>(보상 {pending})</color>" : "");
+            var marks = (hasWord ? " <color=#B9A0FF>(!)</color>" : "") + (pending > 0 ? Loc.F(" <color=#FFD966>(보상 {0})</color>", pending) : "");
             _guideButtonText.text = $"[4] {LobbyGuide.Name}{marks}";
         }
 
@@ -763,13 +763,13 @@ namespace LoopRogue
             var view = CreateView(parent, LobbyView.Potion);
 
             CreateButton(view, "AttackPotionButton", ButtonColor, 20f, 480f, 38f,
-                out _attackButtonText, string.Empty, 17, Color.white, () => DoPotionBuy(PotionType.Attack, "공격력"));
+                out _attackButtonText, string.Empty, 17, Color.white, () => DoPotionBuy(PotionType.Attack, Loc.T("공격력")));
 
             CreateButton(view, "HealthPotionButton", ButtonColor, -25f, 480f, 38f,
-                out _healthButtonText, string.Empty, 17, Color.white, () => DoPotionBuy(PotionType.Health, "체력"));
+                out _healthButtonText, string.Empty, 17, Color.white, () => DoPotionBuy(PotionType.Health, Loc.T("체력")));
 
             var criticalRect = CreateButton(view, "CriticalPotionButton", ButtonColor, -70f, 480f, 38f,
-                out _criticalButtonText, string.Empty, 17, Color.white, () => DoPotionBuy(PotionType.Critical, "치명타"));
+                out _criticalButtonText, string.Empty, 17, Color.white, () => DoPotionBuy(PotionType.Critical, Loc.T("치명타")));
             _criticalButtonImage = criticalRect.GetComponent<Image>();
 
             CreateBackButton(view);
@@ -780,7 +780,7 @@ namespace LoopRogue
             var view = CreateView(parent, LobbyView.Casino);
             CreatePanel(view, 0f, 115f, 440f, 170f);
 
-            var slotTitle = CreateLabel(view, "SlotTitle", "운명의 슬롯\n3개 일치 10배 / 2개 일치 0.5배",
+            var slotTitle = CreateLabel(view, "SlotTitle", Loc.T("운명의 슬롯\n3개 일치 10배 / 2개 일치 0.5배"),
                 18, FontStyle.Bold, new Color(1f, 0.85f, 0.3f), 168f, 400f);
             slotTitle.rectTransform.sizeDelta = new Vector2(400f, 52f);
 
@@ -843,11 +843,11 @@ namespace LoopRogue
             var grades = (ItemGrade[])Enum.GetValues(typeof(ItemGrade));
             var height = (grades.Length + 2) * 19f;
 
-            var title = CreateLabel(parent, "ChanceTitle", "등급 확률 (상점 레벨별)", 16, FontStyle.Bold,
+            var title = CreateLabel(parent, "ChanceTitle", Loc.T("등급 확률 (상점 레벨별)"), 16, FontStyle.Bold,
                 new Color(1f, 0.85f, 0.3f), tableY + height / 2f + 16f, 300f);
             title.rectTransform.anchoredPosition = new Vector2(tableX, title.rectTransform.anchoredPosition.y);
 
-            var names = new System.Text.StringBuilder("등급\n");
+            var names = new System.Text.StringBuilder(Loc.T("등급\n"));
             foreach (var g in grades)
             {
                 var info = EquipmentData.Grades[g];

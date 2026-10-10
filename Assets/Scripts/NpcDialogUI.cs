@@ -258,7 +258,7 @@ namespace LoopRogue
             }
 
             var hint = HudUi.CreateText(_panel.transform, "Hint", 12, TextAnchor.LowerRight);
-            hint.text = "숫자키·클릭: 고르기   W/S·Enter: 커서로 고르기   Esc/F: 닫기";
+            hint.text = Loc.T("숫자키·클릭: 고르기   W/S·Enter: 커서로 고르기   Esc/F: 닫기");
             hint.color = new Color(0.6f, 0.63f, 0.7f);
             var hintRect = hint.rectTransform;
             hintRect.anchorMin = new Vector2(0f, 0f);

@@ -27,12 +27,13 @@ namespace LoopRogue
         private static readonly Color CellCursor = new Color(1f, 0.82f, 0.35f, 1f);
 
         /// <summary>분류 카드 - 이름, 대표 그림, 한 줄 설명.</summary>
-        private static readonly (CodexCategory Category, string Name, string Blurb)[] Books =
+        private static readonly LocCache<(CodexCategory Category, string Name, string Blurb)[]> BooksCache = new LocCache<(CodexCategory Category, string Name, string Blurb)[]>(() => new (CodexCategory Category, string Name, string Blurb)[]
         {
-            (CodexCategory.Monster, "몬스터 도감", "던전에서 처치한 몹의 기록"),
-            (CodexCategory.Relic, "유물 도감", "층 보스가 남긴 유물의 기록"),
-            (CodexCategory.Boss, "보스 도감", "층을 지키는 문지기들의 기록"),
-        };
+            (CodexCategory.Monster, Loc.T("몬스터 도감"), Loc.T("던전에서 처치한 몹의 기록")),
+            (CodexCategory.Relic, Loc.T("유물 도감"), Loc.T("층 보스가 남긴 유물의 기록")),
+            (CodexCategory.Boss, Loc.T("보스 도감"), Loc.T("층을 지키는 문지기들의 기록")),
+        });
+        private static (CodexCategory Category, string Name, string Blurb)[] Books => BooksCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
 
         private static Sprite BookImage(CodexCategory category) => category switch
         {
@@ -106,8 +107,8 @@ namespace LoopRogue
             _menuRoot.SetActive(true);
             _gridRoot.SetActive(false);
             _backButton.gameObject.SetActive(false);
-            _header.text = $"<b>도감</b>   <color=#FFD966>{Codex.FoundCount()}/{Codex.TotalCount()}</color>  " +
-                           "<size=13><color=#9AA0AA>살펴볼 도감을 고르세요</color></size>";
+            _header.text = Loc.F("<b>도감</b>   <color=#FFD966>{0}/{1}</color>  ", Codex.FoundCount(), Codex.TotalCount()) +
+                           Loc.T("<size=13><color=#9AA0AA>살펴볼 도감을 고르세요</color></size>");
             RefreshMenu();
         }
 
@@ -254,7 +255,7 @@ namespace LoopRogue
                 icon.color = ready ? Color.white : Silhouette; // 준비 중인 도감은 표지 그림도 실루엣
                 label.text = ready
                     ? $"<b>[{i + 1}] {name}</b>\n<size=13><color=#C8CCD6>{blurb}</color></size>\n<color=#FFD966>{Codex.FoundCount(category)} / {Codex.TotalCount(category)}</color>"
-                    : $"<b><color=#9A9AA2>[{i + 1}] {name}</color></b>\n<size=13><color=#7A7A82>{blurb}</color></size>\n<color=#B9A0FF>준비 중</color>";
+                    : Loc.F("<b><color=#9A9AA2>[{0}] {1}</color></b>\n<size=13><color=#7A7A82>{2}</color></size>\n<color=#B9A0FF>준비 중</color>", i + 1, name, blurb);
             }
         }
 
@@ -262,7 +263,7 @@ namespace LoopRogue
         {
             var book = Books.First(b => b.Category == _category);
             _header.text = $"<b>{book.Name}</b>   <color=#FFD966>{Codex.FoundCount(_category)}/{Codex.TotalCount(_category)}</color>  " +
-                           "<size=13><color=#9AA0AA>방향키·클릭: 고르기   Esc: 도감 목록으로</color></size>";
+                           Loc.T("<size=13><color=#9AA0AA>방향키·클릭: 고르기   Esc: 도감 목록으로</color></size>");
 
             for (var i = 0; i < _cells.Count; i++)
             {
@@ -286,7 +287,7 @@ namespace LoopRogue
             var note = isFound ? current.Note?.Invoke() : null;
             _detailBody.text = isFound
                 ? $"{current.Description()}{(note != null ? $"\n\n{note}" : "")}"
-                : $"<color=#9AA0AA>아직 발견하지 못했다.</color>\n\n<color=#B9A0FF>단서</color>  {current.Hint}";
+                : Loc.F("<color=#9AA0AA>아직 발견하지 못했다.</color>\n\n<color=#B9A0FF>단서</color>  {0}", current.Hint);
         }
 
         /// <summary>그림(없으면 단색 사각형)을 넣고, 발견 전이면 검은 실루엣으로 칠한다.</summary>
@@ -321,7 +322,7 @@ namespace LoopRogue
             _header.supportRichText = true;
             Place(_header.rectTransform, GridLeft + 46f, 14f, PanelWidth - 260f, 36f);
 
-            _backButton = CreateSmallButton("BackButton", "< 도감 목록", PanelWidth - 190f, 16f, 130f);
+            _backButton = CreateSmallButton("BackButton", Loc.T("< 도감 목록"), PanelWidth - 190f, 16f, 130f);
             var close = CreateSmallButton("CloseButton", "X", PanelWidth - 50f, 16f, 30f);
             close.GetComponent<Image>().color = new Color(1f, 0.6f, 0.6f);
             _closeButton = close;
@@ -374,7 +375,7 @@ namespace LoopRogue
             }
 
             var hint = HudUi.CreateText(_menuRoot.transform, "Hint", 13, TextAnchor.MiddleCenter);
-            hint.text = "←/→·1/2/3·클릭: 고르기   Enter: 열기   Esc: 닫기";
+            hint.text = Loc.T("←/→·1/2/3·클릭: 고르기   Enter: 열기   Esc: 닫기");
             hint.color = new Color(0.6f, 0.63f, 0.7f);
             Place(hint.rectTransform, 0f, PanelHeight - 50f, PanelWidth, 30f);
         }

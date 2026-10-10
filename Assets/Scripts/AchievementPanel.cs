@@ -120,9 +120,9 @@ namespace LoopRogue
         private void Refresh()
         {
             var equipped = Achievements.EquippedTitle;
-            _header.text = $"<b>업적 · 칭호</b>   <color=#FFD966>{Achievements.UnlockedCount}/{Achievements.All.Length}</color>   " +
-                           $"<size=14>장착: {(equipped != null ? $"<color=#FFD966>「{equipped.Title}」</color> ({equipped.EffectText})" : "<color=#888888>없음</color>")}</size>" +
-                           (SteamBridge.Initialized ? "   <size=12><color=#8FC8FF>스팀 연동됨</color></size>" : "");
+            _header.text = Loc.F("<b>업적 · 칭호</b>   <color=#FFD966>{0}/{1}</color>   ", Achievements.UnlockedCount, Achievements.All.Length) +
+                           Loc.F("<size=14>장착: {0}</size>", (equipped != null ? $"<color=#FFD966>「{equipped.Title}」</color> ({equipped.EffectText})" : Loc.T("<color=#888888>없음</color>"))) +
+                           (SteamBridge.Initialized ? Loc.T("   <size=12><color=#8FC8FF>스팀 연동됨</color></size>") : "");
 
             for (var i = 0; i < _rows.Count; i++)
             {
@@ -133,7 +133,7 @@ namespace LoopRogue
                 var color = i == _cursor ? RowCursor : isEquipped ? RowEquipped : unlocked ? RowUnlocked : RowLocked;
                 image.color = image.sprite != null ? PixelUi.Tint(color, 0.5f) : color;
 
-                var mark = isEquipped ? "<color=#FFD966>[장착]</color>" : unlocked ? "<color=#8CE08C>[달성]</color>" : "<color=#777777>[ - ]</color>";
+                var mark = isEquipped ? Loc.T("<color=#FFD966>[장착]</color>") : unlocked ? Loc.T("<color=#8CE08C>[달성]</color>") : "<color=#777777>[ - ]</color>";
                 var nameColor = unlocked ? "#FFFFFF" : "#9A9AA2";
                 var detailColor = unlocked ? "#C8CCD6" : "#7A7A82";
                 text.text = $"{mark}  <color={nameColor}><b>{def.Name}</b></color>  <color={detailColor}>{def.Description}</color>" +
@@ -198,7 +198,7 @@ namespace LoopRogue
             }
 
             var hint = HudUi.CreateText(_panel.transform, "Hint", 12, TextAnchor.MiddleCenter);
-            hint.text = "W/S·마우스: 고르기   Enter·클릭: 칭호 장착/해제 (달성한 업적만)   Esc: 닫기   ·   칭호 효과는 다음 던전 입장부터";
+            hint.text = Loc.T("W/S·마우스: 고르기   Enter·클릭: 칭호 장착/해제 (달성한 업적만)   Esc: 닫기   ·   칭호 효과는 다음 던전 입장부터");
             hint.color = new Color(0.6f, 0.63f, 0.7f);
             var hintRect = hint.rectTransform;
             hintRect.anchorMin = Vector2.zero;

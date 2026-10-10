@@ -95,7 +95,7 @@ namespace LoopRogue
 
         private void Start()
         {
-            _room.ShowMessage("테스트 맵 - 이벤트 11종 / [R] 다시 깔기 / 몹을 다 잡고 출구로 가면 보스방");
+            _room.ShowMessage(Loc.T("테스트 맵 - 이벤트 11종 / [R] 다시 깔기 / 몹을 다 잡고 출구로 가면 보스방"));
         }
 
         private void Update()
@@ -108,7 +108,7 @@ namespace LoopRogue
             RunBuffs.Reset();
             _player.Stats.FullHeal();
             _room.LoadRoom(_testRoom);
-            _room.ShowMessage("테스트 방을 다시 깔았다(효과 초기화, 체력 회복)");
+            _room.ShowMessage(Loc.T("테스트 방을 다시 깔았다(효과 초기화, 체력 회복)"));
         }
     }
 }

@@ -287,6 +287,7 @@ namespace LoopRogue
             Debug.Log($"[AutoPlayBot] 시작 ({(_stageTest ? "층별 순수 난이도 측정, " : "")}{SessionRuns}판) - 로그: {path}");
 
             DamagePopup.Suppressed = true;
+            Loc.ForceKorean = true; // 봇 판단(카드 이름 비교)·로그는 한국어 기준
             GameHUD.AutoPlayActive = true; // 시작 방 고르기 창을 안 띄움(봇은 항상 방1부터)
             _savedVSync = QualitySettings.vSyncCount;
             _savedTargetFrameRate = Application.targetFrameRate;
@@ -305,6 +306,7 @@ namespace LoopRogue
         private void OnDestroy()
         {
             DamagePopup.Suppressed = false;
+            Loc.ForceKorean = false;
             GameHUD.AutoPlayActive = false;
             LoopManager.SkipLobbyAfterStageClear = false;
             SceneManager.sceneLoaded -= OnSceneLoaded;
@@ -470,7 +472,7 @@ namespace LoopRogue
         /// <summary>저장을 전부 지우고 기준 상태를 써넣은 뒤 각 저장 클래스가 다시 읽게 한다(SaveReset.ResetAll과 같은 순서).</summary>
         private static void ApplyPrefs(Dictionary<string, object> prefs, int stage)
         {
-            PlayerPrefs.DeleteAll();
+            GameSettings.Preserve(() => PlayerPrefs.DeleteAll());
             foreach (var pair in prefs)
             {
                 if (pair.Value is float f)
