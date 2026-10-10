@@ -406,18 +406,15 @@ namespace LoopRogue
             if (!CanAct)
                 return;
 
-            var keyboard = Keyboard.current;
-            if (keyboard == null)
-                return;
 
             Vector2Int? direction = null;
-            if (keyboard.wKey.wasPressedThisFrame || keyboard.upArrowKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.W) || GameInput.Down(Key.UpArrow))
                 direction = Vector2Int.up;
-            else if (keyboard.sKey.wasPressedThisFrame || keyboard.downArrowKey.wasPressedThisFrame)
+            else if (GameInput.Down(Key.S) || GameInput.Down(Key.DownArrow))
                 direction = Vector2Int.down;
-            else if (keyboard.aKey.wasPressedThisFrame || keyboard.leftArrowKey.wasPressedThisFrame)
+            else if (GameInput.Down(Key.A) || GameInput.Down(Key.LeftArrow))
                 direction = Vector2Int.left;
-            else if (keyboard.dKey.wasPressedThisFrame || keyboard.rightArrowKey.wasPressedThisFrame)
+            else if (GameInput.Down(Key.D) || GameInput.Down(Key.RightArrow))
                 direction = Vector2Int.right;
 
             if (InventoryUI.LastCloseFrame == Time.frameCount)
@@ -427,8 +424,8 @@ namespace LoopRogue
             var choseCardThisFrame = Levels.LastChoiceFrame == Time.frameCount;
             for (var slot = 0; slot < Inventory.QuickSlotCount && !choseCardThisFrame; slot++)
             {
-                var key = slot == 0 ? keyboard.digit1Key : slot == 1 ? keyboard.digit2Key : keyboard.digit3Key;
-                if (!key.wasPressedThisFrame)
+                var key = slot == 0 ? Key.Digit1 : slot == 1 ? Key.Digit2 : Key.Digit3;
+                if (!GameInput.Down(key))
                     continue;
                 var item = Inventory.QuickSlot(slot);
                 if (item.HasValue && Inventory.Has(item.Value))
@@ -438,7 +435,7 @@ namespace LoopRogue
                 return;
             }
 
-            if (keyboard.fKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.F))
             {
                 TryTalk();
                 return;
@@ -446,7 +443,7 @@ namespace LoopRogue
 
             if (AimingItem.HasValue)
             {
-                if (keyboard.qKey.wasPressedThisFrame || keyboard.eKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.Q) || GameInput.Down(Key.E))
                     AimingItem = null; // 스킬 키를 누르면 아이템 고르기 취소(아래에서 스킬 처리)
                 else if (direction.HasValue)
                 {
@@ -460,7 +457,7 @@ namespace LoopRogue
                     return; // 방향 고르는 중
             }
 
-            if (keyboard.qKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.Q))
             {
                 if (IsAimingDash)
                     IsAimingDash = false;
@@ -473,7 +470,7 @@ namespace LoopRogue
                 return;
             }
 
-            if (keyboard.eKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.E))
             {
                 IsAimingDash = false;
                 if (SpinCooldown > 0)
@@ -496,7 +493,7 @@ namespace LoopRogue
 
             if (direction.HasValue)
                 TryAct(direction.Value);
-            else if (keyboard.spaceKey.wasPressedThisFrame)
+            else if (GameInput.Down(Key.Space))
                 Wait(); // 스페이스바 = 제자리 대기(한 턴 넘기기)
         }
 

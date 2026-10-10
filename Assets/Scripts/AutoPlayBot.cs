@@ -48,7 +48,7 @@ namespace LoopRogue
         /// <summary>GameBootstrap.BossPatternBalance의 현재 값(제안값 계산용 - 바꾸면 여기도 같이).</summary>
         private static readonly Dictionary<int, float> CurrentBossBalance = new Dictionary<int, float>
         {
-            { 1, 1.55f }, { 2, 1.54f }, { 3, 1.44f }, { 4, 1.62f }, { 5, 1.9f }, { 6, 1.51f }, { 7, 1.6f }, { 8, 1.93f }, { 9, 1.5f }, { 10, 1.64f },
+            { 1, 1.55f }, { 2, 1.54f }, { 3, 1.44f }, { 4, 1.62f }, { 5, 1.9f }, { 6, 1.51f }, { 7, 1.6f }, { 8, 1.93f }, { 9, 1.5f }, { 10, 2.5f },
         };
 
         /// <summary>"N층 보스방 앞까지" 모드 - 새 저장으로 한 판을 평소처럼(성장·장비 포함) 빠르게 돌다가 목표 층의 마지막 일반 방(방10)을

@@ -120,8 +120,7 @@ namespace LoopRogue
             if (!_ready || _done)
                 return;
             _prompt.color = new Color(1f, 1f, 1f, 0.55f + 0.45f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 2.5f)));
-            var keyboard = Keyboard.current;
-            if (keyboard == null || !(keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame))
+            if (!(GameInput.Down(Key.Enter) || GameInput.Down(Key.NumpadEnter)))
                 return;
             _done = true;
             _onDone?.Invoke();

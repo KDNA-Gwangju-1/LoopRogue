@@ -6,7 +6,7 @@ using UnityEngine.UI;
 namespace LoopRogue
 {
     /// <summary>로비의 업적·칭호 창 - 업적 목록(달성 여부/조건/칭호 효과/보상)과 칭호 장착. W/S·마우스로 고르고 Enter·클릭 = 장착(이미 장착한 걸
-    /// 고르면 해제), Esc·닫기 = 닫기. 대화창(NpcDialogUI)과 같은 이유로 EventSystem 없이 Keyboard/Mouse.current로 직접 읽고 자체 캔버스에 그린다.</summary>
+    /// 고르면 해제), Esc·닫기 = 닫기. 대화창(NpcDialogUI)과 같은 이유로 EventSystem 없이 Keyboard/Pointer.current로 직접 읽고 자체 캔버스에 그린다.</summary>
     public class AchievementPanel : MonoBehaviour
     {
         private const float RowHeight = 27f;
@@ -65,29 +65,27 @@ namespace LoopRogue
             if (!IsOpen || Time.frameCount == _openedFrame)
                 return;
 
-            var keyboard = Keyboard.current;
-            if (keyboard != null)
             {
-                if (keyboard.escapeKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.Escape))
                 {
                     Close();
                     return;
                 }
                 var count = Achievements.All.Length;
-                if (keyboard.upArrowKey.wasPressedThisFrame || keyboard.wKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.UpArrow) || GameInput.Down(Key.W))
                     _cursor = (_cursor + count - 1) % count;
-                if (keyboard.downArrowKey.wasPressedThisFrame || keyboard.sKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.DownArrow) || GameInput.Down(Key.S))
                     _cursor = (_cursor + 1) % count;
-                if (keyboard.enterKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.Enter) || GameInput.Down(Key.Space))
                     ToggleEquip(_cursor);
             }
 
-            var mouse = Mouse.current;
+            var mouse = Pointer.current;
             if (mouse != null)
             {
-                var pos = mouse.position.ReadValue();
-                var moved = mouse.delta.ReadValue().sqrMagnitude > 0f;
-                if (mouse.leftButton.wasPressedThisFrame && RectTransformUtility.RectangleContainsScreenPoint(_closeButton, pos, null))
+                var pos = GameInput.PointerPosition;
+                var moved = GameInput.PointerDelta.sqrMagnitude > 0f;
+                if (GameInput.PointerDown && RectTransformUtility.RectangleContainsScreenPoint(_closeButton, pos, null))
                 {
                     Close();
                     return;
@@ -98,7 +96,7 @@ namespace LoopRogue
                         continue;
                     if (moved)
                         _cursor = i;
-                    if (mouse.leftButton.wasPressedThisFrame)
+                    if (GameInput.PointerDown)
                     {
                         _cursor = i;
                         ToggleEquip(i);

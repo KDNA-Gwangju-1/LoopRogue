@@ -56,8 +56,7 @@ namespace LoopRogue
             if (_panel == null || OptionsPanel.BlocksInput)
                 return; // 설정 창이 떠 있으면 그 창이 Esc·클릭을 받는다(닫히면 이 메뉴로 돌아옴)
 
-            var keyboard = Keyboard.current;
-            if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.Escape))
             {
                 if (IsOpen)
                     SetOpen(false);
@@ -69,29 +68,29 @@ namespace LoopRogue
             if (!IsOpen)
                 return;
 
-            if (keyboard != null && keyboard.lKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.L))
             {
                 GoToLobby();
                 return;
             }
 
-            if (keyboard != null && keyboard.oKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.O))
             {
                 OptionsPanel.Open();
                 return;
             }
 
-            if (_goToTitle != null && keyboard != null && keyboard.tKey.wasPressedThisFrame)
+            if (_goToTitle != null && GameInput.Down(Key.T))
             {
                 GoToTitle();
                 return;
             }
 
-            var mouse = Mouse.current;
-            if (mouse == null || !mouse.leftButton.wasPressedThisFrame)
+            var mouse = Pointer.current;
+            if (mouse == null || !GameInput.PointerDown)
                 return;
 
-            var screenPos = mouse.position.ReadValue();
+            var screenPos = GameInput.PointerPosition;
             foreach (var (rect, onClick) in _buttons)
             {
                 if (RectTransformUtility.RectangleContainsScreenPoint(rect, screenPos, null))

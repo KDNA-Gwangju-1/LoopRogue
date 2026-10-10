@@ -100,8 +100,7 @@ namespace LoopRogue
 
         private void Update()
         {
-            var keyboard = Keyboard.current;
-            if (keyboard == null || !keyboard.rKey.wasPressedThisFrame || _testRoom == null || _room.RoomName != _testRoom.RoomName)
+            if (!GameInput.Down(Key.R) || _testRoom == null || _room.RoomName != _testRoom.RoomName)
                 return; // 보스방에선 안 됨(방 순서가 꼬인다)
             if (_room.IsInputLocked || NpcDialogUI.BlocksInput || _player.Stats.IsDead || _player.Levels.IsChoosingUpgrade)
                 return;

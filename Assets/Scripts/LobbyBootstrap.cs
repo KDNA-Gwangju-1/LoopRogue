@@ -12,7 +12,7 @@ namespace LoopRogue
     /// InputSystemUIInputModule을 런타임 AddComponent로 붙이면 기본 액션 바인딩이 비어있어 클릭이
     /// 씹힐 수 있다는 함정 때문에 전부 키보드로만 진행했는데, "상점 UI처럼 버튼으로도 구매 가능하게"
     /// 요청이 와서 그 함정 자체를 우회하는 방식으로 버튼 클릭을 추가했다: UGUI Button/EventSystem을
-    /// 아예 안 쓰고, 매 프레임 Mouse.current로 좌클릭 여부만 읽어서 RectTransformUtility.
+    /// 아예 안 쓰고, 매 프레임 Pointer.current로 좌클릭 여부만 읽어서 RectTransformUtility.
     /// RectangleContainsScreenPoint로 등록된 버튼 사각형들과 직접 히트테스트한다(Screen Space
     /// Overlay 캔버스라 카메라 인자 없이도 정확함) - EventSystem이 전혀 필요 없어서 바인딩 문제가
     /// 생길 여지 자체가 없다. 키보드 단축키는 기존 그대로 유지(버튼과 같은 메서드를 호출).</summary>
@@ -136,70 +136,67 @@ namespace LoopRogue
             if (HandleMouseClick())
                 return;
 
-            var keyboard = Keyboard.current;
-            if (keyboard == null)
-                return;
 
-            var shift = keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed;
+            var shift = GameInput.Held(Key.LeftShift) || GameInput.Held(Key.RightShift);
             switch (_view)
             {
                 case LobbyView.Hub:
-                    if (keyboard.digit1Key.wasPressedThisFrame)
+                    if (GameInput.Down(Key.Digit1))
                         ShowView(LobbyView.Gacha);
-                    else if (keyboard.digit2Key.wasPressedThisFrame)
+                    else if (GameInput.Down(Key.Digit2))
                         ShowView(LobbyView.Potion);
-                    else if (keyboard.digit3Key.wasPressedThisFrame)
+                    else if (GameInput.Down(Key.Digit3))
                         ShowView(LobbyView.Casino);
-                    else if (keyboard.digit4Key.wasPressedThisFrame)
+                    else if (GameInput.Down(Key.Digit4))
                         LobbyGuide.Talk();
-                    else if (keyboard.digit5Key.wasPressedThisFrame)
+                    else if (GameInput.Down(Key.Digit5))
                         _achievementPanel.Open();
-                    else if (keyboard.digit6Key.wasPressedThisFrame)
+                    else if (GameInput.Down(Key.Digit6))
                         _codexPanel.Open();
-                    else if (keyboard.enterKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame)
+                    else if (GameInput.Down(Key.Enter) || GameInput.Down(Key.Space))
                         StartRun();
                     // Esc = 타이틀로(로비엔 진행 중인 전투가 없어서 확인 없이 바로 이동 - 골드/장비는 전부 영구 저장).
-                    else if (keyboard.escapeKey.wasPressedThisFrame)
+                    else if (GameInput.Down(Key.Escape))
                         SceneManager.LoadScene("Title");
                     return;
 
                 case LobbyView.Gacha:
                     // 숫자키 = 1회, Shift+숫자키 = 10연차
-                    if (keyboard.digit1Key.wasPressedThisFrame)
+                    if (GameInput.Down(Key.Digit1))
                         DoGacha(ItemSlot.Weapon, shift);
-                    if (keyboard.digit2Key.wasPressedThisFrame)
+                    if (GameInput.Down(Key.Digit2))
                         DoGacha(ItemSlot.Armor, shift);
-                    if (keyboard.digit3Key.wasPressedThisFrame)
+                    if (GameInput.Down(Key.Digit3))
                         DoGacha(ItemSlot.Accessory, shift);
                     break;
 
                 case LobbyView.Potion:
-                    if (keyboard.aKey.wasPressedThisFrame)
+                    if (GameInput.Down(Key.A))
                         DoPotionBuy(PotionType.Attack, Loc.T("공격력"));
-                    if (keyboard.hKey.wasPressedThisFrame)
+                    if (GameInput.Down(Key.H))
                         DoPotionBuy(PotionType.Health, Loc.T("체력"));
-                    if (keyboard.cKey.wasPressedThisFrame)
+                    if (GameInput.Down(Key.C))
                         DoPotionBuy(PotionType.Critical, Loc.T("치명타"));
                     break;
 
                 case LobbyView.Casino:
-                    if (keyboard.sKey.wasPressedThisFrame)
+                    if (GameInput.Down(Key.S))
                         DoSlotSpin(shift);
                     break;
             }
 
-            if (keyboard.escapeKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.Escape))
                 ShowView(LobbyView.Hub);
         }
 
         /// <summary>눌린 버튼이 있으면 실행하고 true. 꺼진 화면의 버튼은 건너뛴다.</summary>
         private bool HandleMouseClick()
         {
-            var mouse = Mouse.current;
-            if (mouse == null || !mouse.leftButton.wasPressedThisFrame)
+            var mouse = Pointer.current;
+            if (mouse == null || !GameInput.PointerDown)
                 return false;
 
-            var screenPos = mouse.position.ReadValue();
+            var screenPos = GameInput.PointerPosition;
             foreach (var (rect, onClick) in _buttons)
             {
                 if (rect.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(rect, screenPos, null))
@@ -606,10 +603,10 @@ namespace LoopRogue
 
         private void UpdateHover()
         {
-            var mouse = Mouse.current;
+            var mouse = Pointer.current;
             if (mouse == null || _buttonHoverSprite == null)
                 return;
-            var screenPos = mouse.position.ReadValue();
+            var screenPos = GameInput.PointerPosition;
             foreach (var (rect, image) in _skinnedButtons)
             {
                 if (!rect.gameObject.activeInHierarchy)
@@ -658,52 +655,45 @@ namespace LoopRogue
             for (var i = 0; i < shops.Length; i++)
             {
                 var (target, name, desc, color) = shops[i];
-                var card = CreateButton(view, $"{target}Entrance", color, -30f, 250f, 100f,
-                    out var label, $"<size=20><b>{name}</b></size>\n{desc}", 15, Color.white, () => ShowView(target), (i - 1) * 270f);
-                label.supportRichText = true;
-
-                // 왼쪽 아이콘(보물상자 / 물약병 / 주사위), 글자는 오른쪽으로
-                var icon = Resources.Load<Sprite>($"UI/Lobby/Icon_{target}");
-                if (icon == null)
-                {
-                    label.rectTransform.sizeDelta = new Vector2(230f, 90f);
-                    continue;
-                }
-                var iconGo = new GameObject("Icon", typeof(RectTransform));
-                iconGo.transform.SetParent(card, false);
-                iconGo.AddComponent<Image>().sprite = icon;
-                var iconRect = iconGo.GetComponent<RectTransform>();
-                iconRect.sizeDelta = new Vector2(icon.rect.width, icon.rect.height) * PixelScale;
-                iconRect.anchoredPosition = new Vector2(-72f, 0f);
-                label.rectTransform.sizeDelta = new Vector2(160f, 90f);
-                label.rectTransform.anchoredPosition = new Vector2(40f, 0f);
+                CreateHubCard(view, $"{target}Entrance", color, -30f, (i - 1) * 270f, $"Icon_{target}",
+                    $"<size=20><b>{name}</b></size>\n{desc}", () => ShowView(target));
             }
 
-            // NPC "시간지기 노인" - 상점 입구와 시작 버튼 사이. 받을 보상이 있으면 버튼에 표시(RefreshGuideButton).
-            // 노인 / 업적·칭호 / 도감 - 상점 입구와 시작 버튼 사이 한 줄.
-            CreateButton(view, "GuideButton", new Color(0.35f, 0.3f, 0.2f), -107f, 250f, 32f,
-                out _guideButtonText, string.Empty, 15, Color.white, LobbyGuide.Talk, -265f);
-            CreateButton(view, "AchievementButton", new Color(0.4f, 0.32f, 0.12f), -107f, 250f, 32f,
-                out _achievementButtonText, string.Empty, 15, Color.white, () => _achievementPanel.Open());
-            var codexButton = CreateButton(view, "CodexButton", new Color(0.3f, 0.22f, 0.42f), -107f, 250f, 32f,
-                out _codexButtonText, string.Empty, 15, Color.white, () => _codexPanel.Open(), 265f);
-            // 책 아이콘(16x16 도트 2배) - 버튼 왼쪽, 글자는 오른쪽으로 조금 민다.
-            var bookSprite = Resources.Load<Sprite>("UI/Relics/Codex_Book");
-            if (bookSprite != null)
-            {
-                var bookGo = new GameObject("BookIcon", typeof(RectTransform));
-                bookGo.transform.SetParent(codexButton, false);
-                bookGo.AddComponent<Image>().sprite = bookSprite;
-                var bookRect = bookGo.GetComponent<RectTransform>();
-                bookRect.sizeDelta = new Vector2(32f, 32f);
-                bookRect.anchoredPosition = new Vector2(-92f, 0f);
-                _codexButtonText.rectTransform.anchoredPosition = new Vector2(16f, 0f);
-            }
+            // 노인 / 업적·칭호 / 도감 - 상점 입구와 같은 크기의 카드(왼쪽 아이콘 + 제목·설명) 한 줄(사용자 요청).
+            // 받을 보상·새 이야기·달성 수는 RefreshGuideButton이 설명 줄에 채운다.
+            _guideButtonText = CreateHubCard(view, "GuideButton", new Color(0.35f, 0.3f, 0.2f), -140f, -270f, "Icon_Guide",
+                string.Empty, LobbyGuide.Talk);
+            _achievementButtonText = CreateHubCard(view, "AchievementButton", new Color(0.4f, 0.32f, 0.12f), -140f, 0f, "Icon_Achievement",
+                string.Empty, () => _achievementPanel.Open());
+            _codexButtonText = CreateHubCard(view, "CodexButton", new Color(0.3f, 0.22f, 0.42f), -140f, 270f, "Icon_Codex",
+                string.Empty, () => _codexPanel.Open());
 
-            CreateButton(view, "StartButton", StartButtonColor, -160f, 480f, 50f,
+            CreateButton(view, "StartButton", StartButtonColor, -235f, 480f, 50f,
                 out _, Loc.F("[Enter / Space] 스테이지 {0} 시작", StageProgress.CurrentStage), 20, Color.white, StartRun);
 
-            CreateLabel(view, "HubHint", Loc.T("Esc: 타이틀로"), 13, FontStyle.Normal, new Color(0.6f, 0.6f, 0.65f), -215f, 400f);
+            CreateLabel(view, "HubHint", Loc.T("Esc: 타이틀로"), 13, FontStyle.Normal, new Color(0.6f, 0.6f, 0.65f), -290f, 400f);
+        }
+
+        /// <summary>허브 카드(250x100) - 왼쪽에 22x22 도트 아이콘(4배), 오른쪽에 두 줄 글자(제목 크게 + 설명). 아이콘이 없으면 글자만 가운데.</summary>
+        private Text CreateHubCard(Transform view, string goName, Color color, float y, float x, string iconName, string content, Action onClick)
+        {
+            var card = CreateButton(view, goName, color, y, 250f, 100f, out var label, content, 15, Color.white, onClick, x);
+            label.supportRichText = true;
+            var icon = Resources.Load<Sprite>($"UI/Lobby/{iconName}");
+            if (icon == null)
+            {
+                label.rectTransform.sizeDelta = new Vector2(230f, 90f);
+                return label;
+            }
+            var iconGo = new GameObject("Icon", typeof(RectTransform));
+            iconGo.transform.SetParent(card, false);
+            iconGo.AddComponent<Image>().sprite = icon;
+            var iconRect = iconGo.GetComponent<RectTransform>();
+            iconRect.sizeDelta = new Vector2(icon.rect.width, icon.rect.height) * PixelScale;
+            iconRect.anchoredPosition = new Vector2(-72f, 0f);
+            label.rectTransform.sizeDelta = new Vector2(160f, 90f);
+            label.rectTransform.anchoredPosition = new Vector2(40f, 0f);
+            return label;
         }
 
         private Text _guideButtonText;
@@ -714,8 +704,8 @@ namespace LoopRogue
 
         private void RefreshGuideButton()
         {
-            SetIfChanged(_achievementButtonText, Loc.F("[5] 업적·칭호 <color=#FFD966>({0}/{1})</color>", Achievements.UnlockedCount, Achievements.All.Length));
-            SetIfChanged(_codexButtonText, Loc.F("[6] 도감 <color=#B9A0FF>({0}/{1})</color>", Codex.FoundCount(), Codex.TotalCount()));
+            SetIfChanged(_achievementButtonText, $"<size=20><b>{Loc.T("[5] 업적·칭호")}</b></size>\n<color=#FFD966>{Achievements.UnlockedCount} / {Achievements.All.Length}</color>");
+            SetIfChanged(_codexButtonText, $"<size=20><b>{Loc.T("[6] 도감")}</b></size>\n<color=#B9A0FF>{Codex.FoundCount()} / {Codex.TotalCount()}</color>");
 
             var pending = LobbyQuests.PendingCount;
             var hasWord = LobbyGuide.HasSomethingToSay; // 회차 특별 대사가 기다리고 있으면 "!"
@@ -723,8 +713,10 @@ namespace LoopRogue
             if (key == _guidePendingShown)
                 return;
             _guidePendingShown = key;
-            var marks = (hasWord ? " <color=#B9A0FF>(!)</color>" : "") + (pending > 0 ? Loc.F(" <color=#FFD966>(보상 {0})</color>", pending) : "");
-            _guideButtonText.text = $"[4] {LobbyGuide.Name}{marks}";
+            var desc = pending > 0 ? $"<color=#FFD966>{Loc.F("보상 {0}개 받기", pending)}</color>"
+                : hasWord ? $"<color=#B9A0FF>{Loc.T("할 이야기가 있다(!)")}</color>"
+                : Loc.T("이야기·조언·의뢰");
+            _guideButtonText.text = $"<size=20><b>[4] {LobbyGuide.Name}</b></size>\n{desc}";
         }
 
         private static void SetIfChanged(Text text, string value)

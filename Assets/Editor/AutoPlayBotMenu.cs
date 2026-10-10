@@ -173,6 +173,15 @@ namespace LoopRogue.EditorTools
             }
         }
 
+        /// <summary>모바일 화면 버튼을 에디터에서 켜고 끈다(마우스로 탭 대신 클릭해서 시험). 다음 Play부터 적용.</summary>
+        [MenuItem("LoopRogue/모바일 터치 버튼 미리보기 (켜기·끄기)")]
+        private static void ToggleTouchPreview()
+        {
+            var on = !EditorPrefs.GetBool(TouchControls.PreviewPrefKey, false);
+            EditorPrefs.SetBool(TouchControls.PreviewPrefKey, on);
+            EditorUtility.DisplayDialog("모바일 터치 버튼", on ? "켰습니다. 다음 Play부터 화면 버튼이 보입니다." : "껐습니다.", "확인");
+        }
+
         [MenuItem("LoopRogue/자동 플레이 봇 강제 끄기")]
         private static void StopBot()
         {

@@ -153,8 +153,7 @@ namespace LoopRogue
             if (_pendingOptions != null)
                 return;
 
-            var keyboard = Keyboard.current;
-            if (keyboard == null || !keyboard.enterKey.wasPressedThisFrame)
+            if (!GameInput.Down(Key.Enter))
                 return;
 
             ConfirmStageClear();
@@ -226,10 +225,7 @@ namespace LoopRogue
             if (_pendingOptions != null)
                 return;
 
-            var keyboard = Keyboard.current;
-            if (keyboard == null)
-                return;
-            var index = keyboard.digit1Key.wasPressedThisFrame ? 0 : keyboard.digit2Key.wasPressedThisFrame ? 1 : keyboard.digit3Key.wasPressedThisFrame ? 2 : -1;
+            var index = GameInput.Down(Key.Digit1) ? 0 : GameInput.Down(Key.Digit2) ? 1 : GameInput.Down(Key.Digit3) ? 2 : -1;
             ChooseRelic(index);
         }
 
@@ -289,13 +285,10 @@ namespace LoopRogue
             if (_onContinueAfterDeath == null)
                 return;
 
-            var keyboard = Keyboard.current;
-            if (keyboard == null)
-                return;
 
             if (_roomMap.HandleInput())
                 ChooseDeathContinue(_roomMap.Selected);
-            else if (keyboard.lKey.wasPressedThisFrame)
+            else if (GameInput.Down(Key.L))
                 ChooseDeathLobby();
         }
 
@@ -315,14 +308,11 @@ namespace LoopRogue
             if (_pendingOptions == null)
                 return;
 
-            var keyboard = Keyboard.current;
-            if (keyboard == null)
-                return;
 
             var index = -1;
-            if (keyboard.digit1Key.wasPressedThisFrame) index = 0;
-            else if (keyboard.digit2Key.wasPressedThisFrame) index = 1;
-            else if (keyboard.digit3Key.wasPressedThisFrame) index = 2;
+            if (GameInput.Down(Key.Digit1)) index = 0;
+            else if (GameInput.Down(Key.Digit2)) index = 1;
+            else if (GameInput.Down(Key.Digit3)) index = 2;
 
             ChooseUpgrade(index);
         }
@@ -378,11 +368,11 @@ namespace LoopRogue
 
         private void HandleStatPanelToggle()
         {
-            var toggle = Keyboard.current != null && Keyboard.current.tabKey.wasPressedThisFrame;
+            var toggle = GameInput.Down(Key.Tab);
 
-            var mouse = Mouse.current;
-            if (!PauseMenu.BlocksInput && mouse != null && mouse.leftButton.wasPressedThisFrame &&
-                RectTransformUtility.RectangleContainsScreenPoint(_statButtonRect, mouse.position.ReadValue(), null))
+            var mouse = Pointer.current;
+            if (!PauseMenu.BlocksInput && mouse != null && GameInput.PointerDown &&
+                RectTransformUtility.RectangleContainsScreenPoint(_statButtonRect, GameInput.PointerPosition, null))
                 toggle = true;
 
             if (!toggle)
@@ -404,7 +394,7 @@ namespace LoopRogue
         {
             if (!_statPanel.Root.activeSelf || PauseMenu.BlocksInput)
                 return;
-            var mouse = Mouse.current;
+            var mouse = Pointer.current;
             _statPanel.HandleMouse(mouse);
             if (_ownedRelicPanel.Root.activeSelf)
                 _ownedRelicPanel.HandleMouse(mouse);
@@ -815,6 +805,9 @@ namespace LoopRogue
             _spinSlot = new HudSlot(parent, "SpinSlot", bottom,
                 new Vector2(ActionBarLayout.SkillX(1), ActionBarLayout.SlotCenterY), slotSize, "E");
             _spinSlot.SetIcon(PixelUi.Icon("Skill_Spin"));
+            // 모바일 - 스킬 칸을 탭하면 Q/E(행동할 수 있을 때만)
+            GameInput.RegisterTap(_dashSlot.Rect, Key.Q, () => _player != null && _player.CanAct);
+            GameInput.RegisterTap(_spinSlot.Rect, Key.E, () => _player != null && _player.CanAct);
             _spinSlot.Label.text = _spinSlot.Icon.enabled ? string.Empty : Loc.T("회전\n베기");
 
             _hpBar = new HudBar(parent, "HpBar", new Vector2(ActionBarLayout.HpBarCenterX, ActionBarLayout.HpBarBottom),
@@ -868,7 +861,7 @@ namespace LoopRogue
 
         /// <summary>글이 길면 마우스 휠이나 스크롤바 드래그로 넘겨 보는 글 패널. 이 프로젝트엔 EventSystem이
         /// 없어서(HandleUpgradeSelection 주석 참고) ScrollRect 대신 RectMask2D로 자르고, 휠·드래그는
-        /// Mouse.current + 사각형 히트테스트로 직접 읽는다. 패널 높이는 글 길이에 맞추되 maxHeight에서 멈춘다.</summary>
+        /// Pointer.current + 사각형 히트테스트로 직접 읽는다. 패널 높이는 글 길이에 맞추되 maxHeight에서 멈춘다.</summary>
         private sealed class ScrollTextPanel
         {
             private const float Padding = 18f; // 도트 패널 테두리(5px x4) 안쪽
@@ -963,7 +956,7 @@ namespace LoopRogue
                 ApplyScroll();
             }
 
-            public void HandleMouse(Mouse mouse)
+            public void HandleMouse(Pointer mouse)
             {
                 if (mouse == null || MaxOffset <= 0f)
                 {
@@ -971,18 +964,18 @@ namespace LoopRogue
                     return;
                 }
 
-                var pos = mouse.position.ReadValue();
+                var pos = GameInput.PointerPosition;
                 // 휠 값 크기는 Input System 버전/OS마다 달라서(±1 또는 ±120) 방향만 쓴다.
-                var wheel = mouse.scroll.ReadValue().y;
+                var wheel = GameInput.ScrollY;
                 if (wheel != 0f && RectTransformUtility.RectangleContainsScreenPoint(_rect, pos, null))
                 {
                     _offset -= Mathf.Sign(wheel) * WheelStep;
                     ApplyScroll();
                 }
 
-                if (mouse.leftButton.wasPressedThisFrame && RectTransformUtility.RectangleContainsScreenPoint(_barRect, pos, null))
+                if (GameInput.PointerDown && RectTransformUtility.RectangleContainsScreenPoint(_barRect, pos, null))
                     _dragging = true;
-                if (!mouse.leftButton.isPressed)
+                if (!GameInput.PointerHeld)
                     _dragging = false;
 
                 // 막대 위쪽(피벗)이 0, 아래로 갈수록 음수 - 손잡이 가운데가 마우스를 따라간다.

@@ -10,7 +10,7 @@ namespace LoopRogue
     /// <summary>NPC 대화창 - 화면 아래쪽에 이름표 + 대사 + 선택지 목록. Main(던전 NPC)과 Lobby(안내자)가 같이 쓴다.
     /// 선택지를 고르면 그 선택지의 동작이 실행되고, 동작 안에서 Show를 다시 부르면 내용이 바뀐 채로 계속 열려 있다(상점 구매 후 갱신 등).
     /// 조작: 숫자키 = 바로 고르기, 방향키(W/S)로 커서 + Enter/Space, 마우스 클릭, Esc/F = 닫기.
-    /// 다른 UI와 같은 이유로 EventSystem 없이 Keyboard/Mouse.current와 사각형 히트테스트로 직접 읽는다. 자체 캔버스를 HUD보다 위에 그린다.</summary>
+    /// 다른 UI와 같은 이유로 EventSystem 없이 Keyboard/Pointer.current와 사각형 히트테스트로 직접 읽는다. 자체 캔버스를 HUD보다 위에 그린다.</summary>
     public class NpcDialogUI : MonoBehaviour
     {
         public readonly struct Choice
@@ -112,10 +112,8 @@ namespace LoopRogue
             if (!IsOpen || Time.frameCount == _openedFrame)
                 return;
 
-            var keyboard = Keyboard.current;
-            if (keyboard != null)
             {
-                if (keyboard.escapeKey.wasPressedThisFrame || keyboard.fKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.Escape) || GameInput.Down(Key.F))
                 {
                     Close();
                     return;
@@ -123,36 +121,36 @@ namespace LoopRogue
 
                 for (var i = 0; i < _choices.Count; i++)
                 {
-                    if (DigitKey(keyboard, i).wasPressedThisFrame)
+                    if (GameInput.Down(DigitKey(i)))
                     {
                         Pick(i);
                         return;
                     }
                 }
 
-                if (keyboard.upArrowKey.wasPressedThisFrame || keyboard.wKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.UpArrow) || GameInput.Down(Key.W))
                     MoveCursor(-1);
-                if (keyboard.downArrowKey.wasPressedThisFrame || keyboard.sKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.DownArrow) || GameInput.Down(Key.S))
                     MoveCursor(1);
-                if (keyboard.enterKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.Enter) || GameInput.Down(Key.Space))
                 {
                     Pick(_cursor);
                     return;
                 }
             }
 
-            var mouse = Mouse.current;
+            var mouse = Pointer.current;
             if (mouse != null)
             {
-                var pos = mouse.position.ReadValue();
-                var moved = mouse.delta.ReadValue().sqrMagnitude > 0f;
+                var pos = GameInput.PointerPosition;
+                var moved = GameInput.PointerDelta.sqrMagnitude > 0f;
                 for (var i = 0; i < _choices.Count; i++)
                 {
                     if (!RectTransformUtility.RectangleContainsScreenPoint(_choiceViews[i].Rect, pos, null))
                         continue;
                     if (moved && _choices[i].Enabled)
                         _cursor = i; // 마우스를 움직여 올리면 커서도 따라온다(가만히 있으면 W/S 커서를 덮어쓰지 않게)
-                    if (mouse.leftButton.wasPressedThisFrame)
+                    if (GameInput.PointerDown)
                     {
                         Pick(i);
                         return;
@@ -163,14 +161,14 @@ namespace LoopRogue
             RefreshChoiceColors();
         }
 
-        private static KeyControl DigitKey(Keyboard keyboard, int index) => index switch
+        private static Key DigitKey(int index) => index switch
         {
-            0 => keyboard.digit1Key,
-            1 => keyboard.digit2Key,
-            2 => keyboard.digit3Key,
-            3 => keyboard.digit4Key,
-            4 => keyboard.digit5Key,
-            _ => keyboard.digit6Key,
+            0 => Key.Digit1,
+            1 => Key.Digit2,
+            2 => Key.Digit3,
+            3 => Key.Digit4,
+            4 => Key.Digit5,
+            _ => Key.Digit6,
         };
 
         private void Pick(int index)

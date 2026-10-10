@@ -106,12 +106,14 @@ namespace LoopRogue
             AddRow(Loc.T("전체 볼륨"), () => Bar(GameSettings.Master), d => GameSettings.SetMaster(GameSettings.Master + d * GameSettings.VolumeStep));
             AddRow(Loc.T("효과음"), () => Bar(GameSettings.Sfx), d => GameSettings.SetSfx(GameSettings.Sfx + d * GameSettings.VolumeStep));
             AddRow(Loc.T("배경음악"), () => Bar(GameSettings.Bgm), d => GameSettings.SetBgm(GameSettings.Bgm + d * GameSettings.VolumeStep));
+            if (!Application.isMobilePlatform) // 폰은 항상 전체 화면 - 화면 모드·해상도 줄을 뺀다
             AddRow(Loc.T("화면 모드"), () => GameSettings.Mode switch
             {
                 GameSettings.ScreenMode.Fullscreen => Loc.T("전체 화면"),
                 GameSettings.ScreenMode.Borderless => Loc.T("테두리 없는 창"),
                 _ => Loc.T("창 모드"),
             }, d => GameSettings.SetMode((GameSettings.ScreenMode)(((int)GameSettings.Mode + d + 3) % 3)));
+            if (!Application.isMobilePlatform)
             _rows.Add(new Row { Label = Loc.T("해상도"), Value = () => $"{GameSettings.Resolution.x} x {GameSettings.Resolution.y}", IsList = true });
             AddRow(Loc.T("수직 동기화"), () => OnOff(GameSettings.VSync), _ => GameSettings.SetVSync(!GameSettings.VSync));
             AddRow(Loc.T("화면 흔들림"), () => OnOff(GameSettings.ScreenShake), _ => GameSettings.SetScreenShake(!GameSettings.ScreenShake));
@@ -140,28 +142,27 @@ namespace LoopRogue
                 return;
             }
 
-            var keyboard = Keyboard.current;
-            if (keyboard != null && Time.frameCount != _openedFrame)
+            if (Time.frameCount != _openedFrame)
             {
-                if (keyboard.escapeKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.Escape))
                 {
                     Close();
                     return;
                 }
-                if (keyboard.upArrowKey.wasPressedThisFrame || keyboard.wKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.UpArrow) || GameInput.Down(Key.W))
                     _cursor = (_cursor + _rows.Count - 1) % _rows.Count;
-                else if (keyboard.downArrowKey.wasPressedThisFrame || keyboard.sKey.wasPressedThisFrame)
+                else if (GameInput.Down(Key.DownArrow) || GameInput.Down(Key.S))
                     _cursor = (_cursor + 1) % _rows.Count;
-                else if (keyboard.leftArrowKey.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame)
+                else if (GameInput.Down(Key.LeftArrow) || GameInput.Down(Key.A))
                     Change(_cursor, -1);
-                else if (keyboard.rightArrowKey.wasPressedThisFrame || keyboard.dKey.wasPressedThisFrame
-                         || keyboard.enterKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame)
+                else if (GameInput.Down(Key.RightArrow) || GameInput.Down(Key.D)
+                         || GameInput.Down(Key.Enter) || GameInput.Down(Key.Space))
                     Change(_cursor, +1);
             }
 
-            var mouse = Mouse.current;
-            if (mouse != null && mouse.leftButton.wasPressedThisFrame && Time.frameCount != _openedFrame)
-                Click(mouse.position.ReadValue());
+            var mouse = Pointer.current;
+            if (mouse != null && GameInput.PointerDown && Time.frameCount != _openedFrame)
+                Click(GameInput.PointerPosition);
 
             Refresh();
         }
@@ -253,27 +254,25 @@ namespace LoopRogue
 
         private void UpdateList()
         {
-            var keyboard = Keyboard.current;
-            var mouse = Mouse.current;
+            var mouse = Pointer.current;
             if (Time.frameCount == _listOpenedFrame)
                 return;
 
-            if (keyboard != null)
             {
-                if (keyboard.escapeKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.Escape))
                 {
                     CloseList();
                     return;
                 }
-                if (keyboard.upArrowKey.wasPressedThisFrame || keyboard.wKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.UpArrow) || GameInput.Down(Key.W))
                     MoveListCursor(-1);
-                else if (keyboard.downArrowKey.wasPressedThisFrame || keyboard.sKey.wasPressedThisFrame)
+                else if (GameInput.Down(Key.DownArrow) || GameInput.Down(Key.S))
                     MoveListCursor(+1);
-                else if (keyboard.pageUpKey.wasPressedThisFrame)
+                else if (GameInput.Down(Key.PageUp))
                     MoveListCursor(-ListVisible);
-                else if (keyboard.pageDownKey.wasPressedThisFrame)
+                else if (GameInput.Down(Key.PageDown))
                     MoveListCursor(+ListVisible);
-                else if (keyboard.enterKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame)
+                else if (GameInput.Down(Key.Enter) || GameInput.Down(Key.Space))
                 {
                     PickResolution(_listCursor);
                     return;
@@ -283,15 +282,15 @@ namespace LoopRogue
             if (mouse == null)
                 return;
 
-            var wheel = mouse.scroll.ReadValue().y;
+            var wheel = GameInput.ScrollY;
             if (Mathf.Abs(wheel) > 0.01f)
             {
                 _listScroll = Mathf.Clamp(_listScroll - Math.Sign(wheel), 0, MaxScroll);
                 RefreshList();
             }
 
-            var pos = mouse.position.ReadValue();
-            if (mouse.leftButton.wasPressedThisFrame)
+            var pos = GameInput.PointerPosition;
+            if (GameInput.PointerDown)
             {
                 if (Hit(_thumb, pos) || Hit(_track, pos))
                 {
@@ -314,7 +313,7 @@ namespace LoopRogue
             }
             if (_dragging)
             {
-                if (!mouse.leftButton.isPressed)
+                if (!GameInput.PointerHeld)
                     _dragging = false;
                 else
                     DragThumb(pos);
@@ -322,7 +321,7 @@ namespace LoopRogue
 
             // 마우스가 올라간 항목을 커서로
             for (var i = 0; i < _listItems.Count; i++)
-                if (!_dragging && _listItems[i].Bg.gameObject.activeSelf && Hit(_listItems[i].Rect, pos) && mouse.delta.ReadValue().sqrMagnitude > 0f)
+                if (!_dragging && _listItems[i].Bg.gameObject.activeSelf && Hit(_listItems[i].Rect, pos) && GameInput.PointerDelta.sqrMagnitude > 0f)
                     _listCursor = _listScroll + i;
             RefreshList();
         }

@@ -132,22 +132,20 @@ namespace LoopRogue
             var before = Selected;
             var confirm = false;
 
-            var keyboard = Keyboard.current;
-            if (keyboard != null)
             {
-                if (keyboard.leftArrowKey.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.LeftArrow) || GameInput.Down(Key.A))
                     Selected = (Selected + count - 1) % count;
-                if (keyboard.rightArrowKey.wasPressedThisFrame || keyboard.dKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.RightArrow) || GameInput.Down(Key.D))
                     Selected = (Selected + 1) % count;
-                if (keyboard.bKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.B))
                     Selected = count - 1;
-                confirm = keyboard.enterKey.wasPressedThisFrame;
+                confirm = GameInput.Down(Key.Enter);
             }
 
-            var mouse = Mouse.current;
-            if (mouse != null && mouse.leftButton.wasPressedThisFrame)
+            var mouse = Pointer.current;
+            if (mouse != null && GameInput.PointerDown)
             {
-                var pos = mouse.position.ReadValue();
+                var pos = GameInput.PointerPosition;
                 for (var i = 0; i < _cellRects.Count; i++)
                 {
                     if (!RectTransformUtility.RectangleContainsScreenPoint(_cellRects[i], pos, null))

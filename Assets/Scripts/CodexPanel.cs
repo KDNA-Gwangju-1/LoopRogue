@@ -138,41 +138,40 @@ namespace LoopRogue
 
         private void UpdateMenu()
         {
-            var keyboard = Keyboard.current;
-            if (keyboard != null)
+            if (true)
             {
-                if (keyboard.escapeKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.Escape))
                 {
                     Close();
                     return;
                 }
-                if (keyboard.leftArrowKey.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.LeftArrow) || GameInput.Down(Key.A))
                     _bookCursor = (_bookCursor + Books.Length - 1) % Books.Length;
-                if (keyboard.rightArrowKey.wasPressedThisFrame || keyboard.dKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.RightArrow) || GameInput.Down(Key.D))
                     _bookCursor = (_bookCursor + 1) % Books.Length;
                 for (var i = 0; i < Books.Length; i++)
                 {
-                    var key = i == 0 ? keyboard.digit1Key : i == 1 ? keyboard.digit2Key : keyboard.digit3Key;
-                    if (key.wasPressedThisFrame)
+                    var key = i == 0 ? Key.Digit1 : i == 1 ? Key.Digit2 : Key.Digit3;
+                    if (GameInput.Down(key))
                     {
                         _bookCursor = i;
                         OpenBook(i);
                         return;
                     }
                 }
-                if (keyboard.enterKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.Enter) || GameInput.Down(Key.Space))
                 {
                     OpenBook(_bookCursor);
                     return;
                 }
             }
 
-            var mouse = Mouse.current;
+            var mouse = Pointer.current;
             if (mouse != null)
             {
-                var pos = mouse.position.ReadValue();
-                var moved = mouse.delta.ReadValue().sqrMagnitude > 0f;
-                if (mouse.leftButton.wasPressedThisFrame && RectTransformUtility.RectangleContainsScreenPoint(_closeButton, pos, null))
+                var pos = GameInput.PointerPosition;
+                var moved = GameInput.PointerDelta.sqrMagnitude > 0f;
+                if (GameInput.PointerDown && RectTransformUtility.RectangleContainsScreenPoint(_closeButton, pos, null))
                 {
                     Close();
                     return;
@@ -183,7 +182,7 @@ namespace LoopRogue
                         continue;
                     if (moved)
                         _bookCursor = i;
-                    if (mouse.leftButton.wasPressedThisFrame)
+                    if (GameInput.PointerDown)
                     {
                         _bookCursor = i;
                         OpenBook(i);
@@ -196,29 +195,28 @@ namespace LoopRogue
 
         private void UpdateGrid()
         {
-            var keyboard = Keyboard.current;
-            if (keyboard != null)
+            if (true)
             {
-                if (keyboard.escapeKey.wasPressedThisFrame || keyboard.backspaceKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.Escape) || GameInput.Down(Key.Backspace))
                 {
                     ShowMenu();
                     return;
                 }
                 var count = _entries.Count;
-                if (keyboard.leftArrowKey.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.LeftArrow) || GameInput.Down(Key.A))
                     MoveCursor((_cursor + count - 1) % count);
-                if (keyboard.rightArrowKey.wasPressedThisFrame || keyboard.dKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.RightArrow) || GameInput.Down(Key.D))
                     MoveCursor((_cursor + 1) % count);
-                if (keyboard.upArrowKey.wasPressedThisFrame || keyboard.wKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.UpArrow) || GameInput.Down(Key.W))
                     MoveCursor(_cursor - Columns >= 0 ? _cursor - Columns : _cursor);
-                if (keyboard.downArrowKey.wasPressedThisFrame || keyboard.sKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.DownArrow) || GameInput.Down(Key.S))
                     MoveCursor(_cursor + Columns < count ? _cursor + Columns : _cursor);
             }
 
-            var mouse = Mouse.current;
-            if (mouse != null && mouse.leftButton.wasPressedThisFrame)
+            var mouse = Pointer.current;
+            if (mouse != null && GameInput.PointerDown)
             {
-                var pos = mouse.position.ReadValue();
+                var pos = GameInput.PointerPosition;
                 if (RectTransformUtility.RectangleContainsScreenPoint(_closeButton, pos, null))
                 {
                     Close();

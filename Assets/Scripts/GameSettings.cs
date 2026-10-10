@@ -47,7 +47,8 @@ namespace LoopRogue
             Load();
             ApplyAudio();
 #if !UNITY_EDITOR
-            ApplyScreen(); // 에디터 Game 창에선 해상도/전체 화면이 안 먹는다
+            if (!Application.isMobilePlatform)
+                ApplyScreen(); // 에디터 Game 창에선 해상도/전체 화면이 안 먹는다, 폰은 항상 전체 화면
 #endif
             ApplyVSync();
         }

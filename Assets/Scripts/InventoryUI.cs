@@ -7,7 +7,7 @@ namespace LoopRogue
     /// <summary>화면 아래 액션바의 퀵슬롯 3칸(1/2/3 키, GameHUD의 Q/E 칸 옆 - 배치는 ActionBarLayout) + 가방 칸 + I 키로 여닫는
     /// 인벤토리 창(아이템 10칸). 아이템은 퀵슬롯에 등록된 것만 쓸 수 있고(사용자 결정), 창은 등록용이다 - 방향키나 클릭으로 고르고
     /// 1/2/3 키나 아래 퀵슬롯 칸 클릭 = 그 퀵슬롯에 등록, I·닫기 버튼 = 닫기. 창이 열려 있는 동안은 게임 입력이 멈춘다
-    /// (PlayerActor.CanAct). 업그레이드 카드와 같은 이유로 EventSystem 없이 Keyboard/Mouse.current로 직접 읽는다.</summary>
+    /// (PlayerActor.CanAct). 업그레이드 카드와 같은 이유로 EventSystem 없이 Keyboard/Pointer.current로 직접 읽는다.</summary>
     public class InventoryUI : MonoBehaviour
     {
         private const int Columns = 5;
@@ -48,17 +48,16 @@ namespace LoopRogue
 
         private void Update()
         {
-            var keyboard = Keyboard.current;
-            if (keyboard == null || _player == null)
+            if (_player == null)
                 return;
 
-            if (keyboard.iKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.I))
                 ToggleOpen();
 
             HandleMouse();
 
             if (IsOpen)
-                HandlePanelInput(keyboard);
+                HandlePanelInput();
 
             Refresh();
         }
@@ -82,10 +81,10 @@ namespace LoopRogue
         /// <summary>가방 칸 = 여닫기. 창이 열려 있을 때만: 칸 클릭 = 고르기, 퀵슬롯 칸 클릭 = 고른 아이템 등록, 닫기 버튼.</summary>
         private void HandleMouse()
         {
-            var mouse = Mouse.current;
-            if (mouse == null || !mouse.leftButton.wasPressedThisFrame || PauseMenu.BlocksInput)
+            var mouse = Pointer.current;
+            if (mouse == null || !GameInput.PointerDown || PauseMenu.BlocksInput)
                 return;
-            var pos = mouse.position.ReadValue();
+            var pos = GameInput.PointerPosition;
 
             if (_bagSlot.Contains(pos))
             {
@@ -118,24 +117,24 @@ namespace LoopRogue
             }
         }
 
-        private void HandlePanelInput(Keyboard keyboard)
+        private void HandlePanelInput()
         {
             var rows = (ItemInfo.Count + Columns - 1) / Columns;
-            if (keyboard.leftArrowKey.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.LeftArrow) || GameInput.Down(Key.A))
                 _cursor = (_cursor + ItemInfo.Count - 1) % ItemInfo.Count;
-            if (keyboard.rightArrowKey.wasPressedThisFrame || keyboard.dKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.RightArrow) || GameInput.Down(Key.D))
                 _cursor = (_cursor + 1) % ItemInfo.Count;
-            if (keyboard.upArrowKey.wasPressedThisFrame || keyboard.wKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.UpArrow) || GameInput.Down(Key.W))
                 _cursor = (_cursor - Columns + Columns * rows) % (Columns * rows) % ItemInfo.Count;
-            if (keyboard.downArrowKey.wasPressedThisFrame || keyboard.sKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.DownArrow) || GameInput.Down(Key.S))
                 _cursor = (_cursor + Columns) % (Columns * rows) % ItemInfo.Count;
 
             var type = (ItemType)_cursor;
-            if (keyboard.digit1Key.wasPressedThisFrame)
+            if (GameInput.Down(Key.Digit1))
                 Inventory.SetQuickSlot(0, type);
-            if (keyboard.digit2Key.wasPressedThisFrame)
+            if (GameInput.Down(Key.Digit2))
                 Inventory.SetQuickSlot(1, type);
-            if (keyboard.digit3Key.wasPressedThisFrame)
+            if (GameInput.Down(Key.Digit3))
                 Inventory.SetQuickSlot(2, type);
         }
 
@@ -209,6 +208,9 @@ namespace LoopRogue
                 _quickSlots[s] = new HudSlot(canvas, $"QuickSlot{s}", bottom,
                     new Vector2(ActionBarLayout.QuickX(s), ActionBarLayout.SlotCenterY), size, (s + 1).ToString());
                 _quickSlots[s].Label.supportRichText = true;
+                // 모바일 - 퀵슬롯 칸을 탭하면 숫자키(행동할 수 있을 때만 - 레벨업 카드 고르는 중엔 숫자가 카드 선택이라)
+                GameInput.RegisterTap(_quickSlots[s].Rect, s == 0 ? Key.Digit1 : s == 1 ? Key.Digit2 : Key.Digit3,
+                    () => _player != null && _player.CanAct);
             }
 
             // 가방 칸 - 퀵슬롯 오른쪽, 클릭하면 인벤토리 창 여닫기.

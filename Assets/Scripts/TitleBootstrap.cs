@@ -8,7 +8,7 @@ using UnityEngine.UI;
 namespace LoopRogue
 {
     /// <summary>타이틀 씬(빌드 0번)의 진입점 - 게임 이름 + "게임 시작"(로비로) / "종료" 버튼. 버튼 클릭은
-    /// LobbyBootstrap과 같은 방식(UGUI Button/EventSystem 없이 Mouse.current + 사각형 히트테스트)이라
+    /// LobbyBootstrap과 같은 방식(UGUI Button/EventSystem 없이 Pointer.current + 사각형 히트테스트)이라
     /// EventSystem 런타임 AddComponent 함정과 무관하다. 키보드로도 Enter/Space = 시작, Esc = 메뉴(PauseMenu).</summary>
     public class TitleBootstrap : MonoBehaviour
     {
@@ -51,21 +51,18 @@ namespace LoopRogue
             if (_resetConfirmUntil > 0f && Time.unscaledTime > _resetConfirmUntil)
                 SetResetButtonState(confirming: false);
 
-            var keyboard = Keyboard.current;
-            if (keyboard == null)
-                return;
 
-            if (keyboard.enterKey.wasPressedThisFrame || keyboard.spaceKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.Enter) || GameInput.Down(Key.Space))
                 StartGame();
         }
 
         private void HandleMouseClick()
         {
-            var mouse = Mouse.current;
-            if (mouse == null || !mouse.leftButton.wasPressedThisFrame)
+            var mouse = Pointer.current;
+            if (mouse == null || !GameInput.PointerDown)
                 return;
 
-            var screenPos = mouse.position.ReadValue();
+            var screenPos = GameInput.PointerPosition;
             foreach (var (rect, onClick) in _buttons)
             {
                 if (RectTransformUtility.RectangleContainsScreenPoint(rect, screenPos, null))
@@ -78,10 +75,10 @@ namespace LoopRogue
 
         private void UpdateHover()
         {
-            var mouse = Mouse.current;
+            var mouse = Pointer.current;
             if (mouse == null)
                 return;
-            var screenPos = mouse.position.ReadValue();
+            var screenPos = GameInput.PointerPosition;
             foreach (var (rect, image, normal, hover) in _hoverButtons)
             {
                 var sprite = RectTransformUtility.RectangleContainsScreenPoint(rect, screenPos, null) ? hover : normal;

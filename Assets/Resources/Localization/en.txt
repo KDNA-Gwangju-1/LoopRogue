@@ -695,3 +695,13 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 다른 보스를 비추는 동안 많이 때리면 머리 위 거울에 금이 가다가 깨진다 - 깨지면 본모습으로 돌아오고, 예고한 패턴이 취소되고, 2턴 동안 비틀거린다.	While it mirrors another boss, hit it hard enough and the mirror above its head cracks and shatters: it returns to its true form, its telegraphed pattern is cancelled, and it staggers for 2 turns.
 주변 {0}칸 몹과 보스가 {1:0}초 동안 받는 피해 +{2:0}%	Mobs and bosses within {0} tiles take +{2:0}% damage for {1:0} seconds
 섬광탄! 보스는 비틀거리지만 거울 파편은 멈추지 않는다	Flashbang! The boss staggers, but the Mirror Shards keep coming
+대기	Wait
+대화	Talk
+능력치	Stats
+확인	OK
+로비	Lobby
+[5] 업적·칭호	[5] Achievements
+[6] 도감	[6] Codex
+보상 {0}개 받기	Claim {0} reward(s)
+할 이야기가 있다(!)	Has something to say (!)
+이야기·조언·의뢰	Stories · Tips · Requests
