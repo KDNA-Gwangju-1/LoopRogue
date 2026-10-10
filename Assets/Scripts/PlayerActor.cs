@@ -14,7 +14,6 @@ namespace LoopRogue
     public class PlayerActor : GridActor
     {
         private static readonly Color PlayerColor = new Color(0.25f, 0.55f, 1f);
-        private const float AttackFlashDuration = 0.18f;
         private const int ExpPerKill = 8;       // 스테이지 배율 곱하기 전 기본값
         private const int ExpPerBossKill = 80;  // 골드처럼 일반 몹의 10배
 
@@ -238,9 +237,6 @@ namespace LoopRogue
 
         private RoomController _room;
         private SpriteRenderer _renderer;
-        private Sprite _idleSprite;
-        private Sprite _attackSprite;
-        private Coroutine _attackFlashRoutine;
         private SpriteAnimator _anim; // 전용 도트 그림(Resources/Sprites/Player)이 있으면 4방향 대기·걷기·공격
 
         private const string PlayerSpriteSet = "Player";
@@ -292,11 +288,8 @@ namespace LoopRogue
             }
             Levels.OnLevelUp += _ => HitFeedback.OnLevelUp(this); // 금빛 기둥
 
-            // StoryRPG의 로그(Rogue) 캐릭터 스프라이트(전용 아트가 아직 없어 어쌔신 스프라이트로
-            // 폴백 중인 그 그림) - Assets/Resources/PlayerSprite.png(평소)+PlayerAttackSprite.png
-            // (공격 순간만 잠깐)로 가져와뒀다. 못 찾으면 예전처럼 단색 사각형으로 안전하게 폴백한다
-            // (이 경우 공격 모션도 같이 생략 - 바꿀 스프라이트 자체가 없으므로).
-            // 전용 도트 그림(후드 쓴 검사, 4방향 대기·걷기·공격)이 있으면 그걸로 - 없으면 예전 빌려 쓴 그림.
+            // 전용 도트 그림(노란 머리 대검 용사, 4방향 대기·걷기·공격 - Resources/Sprites/Player). 없으면 파란 사각형.
+            // (예전에 빌려 쓰던 StoryRPG 어쌔신 그림은 출처가 불확실해서 스팀 출시 전에 지웠다.)
             var playerSprite = SpriteAnimator.FirstFrame(PlayerSpriteSet);
             if (playerSprite != null)
             {
@@ -305,13 +298,7 @@ namespace LoopRogue
                 _anim.Setup(PlayerSpriteSet, _renderer, new Color(0.4f, 0.5f, 0.75f));
             }
             else
-            {
-                _idleSprite = Resources.Load<Sprite>("PlayerSprite");
-                _attackSprite = Resources.Load<Sprite>("PlayerAttackSprite");
-                _renderer = _idleSprite != null
-                    ? VisualUtil.CreateSpriteVisual(gameObject, _idleSprite, GridConstants.CellSize * 0.9f, sortingOrder: 1)
-                    : VisualUtil.CreateSquareVisual(gameObject, PlayerColor, GridConstants.CellSize * 0.65f, sortingOrder: 1);
-            }
+                _renderer = VisualUtil.CreateSquareVisual(gameObject, PlayerColor, GridConstants.CellSize * 0.65f, sortingOrder: 1);
             StatusIcons.AttachToPlayer(this); // 보호막·반사 부적·거미줄 면역 표시
 
             Stats.OnArmorEffect = message => _room.ShowMessage(message);
@@ -866,32 +853,8 @@ namespace LoopRogue
             _room.RunEnemyTurns();
         }
 
-        /// <summary>공격 순간만 잠깐 공격 포즈 스프라이트로 바꿨다가 원래 대기 포즈로 되돌린다 -
-        /// 애니메이션 클립 없이 프레임 하나만 있어도 "공격했다"는 느낌은 충분히 준다. 연속 공격 시
-        /// 이전 되돌리기 코루틴이 남아있으면 새로 시작(StoryRPG SpiritSummonEffect의 알파 되돌리기와
-        /// 같은 패턴).</summary>
-        /// <param name="direction">때린 쪽(도트 그림이면 그 방향 공격 모션) - 회전 베기처럼 없으면 지금 보는 쪽</param>
-        private void PlayAttackFlash(Vector2Int direction = default)
-        {
-            if (_anim != null)
-            {
-                _anim.PlayAttack(direction);
-                return;
-            }
-            if (_attackSprite == null || _idleSprite == null)
-                return; // 폴백(단색 사각형) 중이면 바꿀 스프라이트 자체가 없다.
-
-            if (_attackFlashRoutine != null)
-                StopCoroutine(_attackFlashRoutine);
-            _attackFlashRoutine = StartCoroutine(AttackFlashRoutine());
-        }
-
-        private IEnumerator AttackFlashRoutine()
-        {
-            _renderer.sprite = _attackSprite;
-            yield return new WaitForSeconds(AttackFlashDuration);
-            _renderer.sprite = _idleSprite;
-            _attackFlashRoutine = null;
-        }
+        /// <summary>공격 모션 한 번(도트 그림이 없어 사각형이면 생략).</summary>
+        /// <param name="direction">때린 쪽 - 회전 베기처럼 없으면 지금 보는 쪽</param>
+        private void PlayAttackFlash(Vector2Int direction = default) => _anim?.PlayAttack(direction);
     }
 }
