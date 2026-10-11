@@ -236,6 +236,16 @@ namespace LoopRogue
             SpawnExit();
         }
 
+        /// <summary>자동 플레이 봇 - 퍼즐방이 걸리면 성공으로 친다(레벨업 카드 1장, 시작 방 고르기 다음 방 열림). 방은 깔지 않는다 -
+        /// 호출부(LoopManager)가 곧바로 다음 방을 깐다.</summary>
+        public void SkipPuzzleAsCleared(RoomDefinition def)
+        {
+            PuzzleClearCount++;
+            if (!def.IsTestRoom)
+                StageProgress.MarkRoomCleared(def.RoomNumber);
+            _player.Levels.GrantBonusUpgrade();
+        }
+
         /// <summary>퍼즐 실패 - 입력을 잠그고 "다시 도전 / 이전 방으로" 창(방 1이면 이전 방이 없어서 평소 전투 방으로).</summary>
         public void FailPuzzle(PuzzleBase puzzle, string reason)
         {

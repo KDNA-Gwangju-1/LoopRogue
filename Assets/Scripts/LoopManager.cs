@@ -51,7 +51,10 @@ namespace LoopRogue
 
             _roomController.Initialize(player, this, stage);
             _player.OnAttemptStarted();
-            _roomController.LoadRoom(_rooms[_roomIndex]);
+            if (GameHUD.AutoPlayActive)
+                EnterRoom(); // 봇은 시작 방 고르기 창이 없어서 첫 방도 여기서 퍼즐 확률을 굴린다
+            else
+                _roomController.LoadRoom(_rooms[_roomIndex]); // 사람은 고르기 창 뒤 자리 표시용 - 고른 뒤 EnterRoom
             RefreshHudProgress();
             _attemptStartGold = GoldWallet.Gold;
 
@@ -86,15 +89,25 @@ namespace LoopRogue
         }
 
         /// <summary>지금 방(_roomIndex)에 들어간다 - 일반 방이면 PuzzleBase.Chance 확률로 전투 대신 퍼즐·미니게임 10종 중 하나
-        /// (사용자 결정). 보스방·이벤트 칸이 있는 방(층마다 보물상자 1개 보장)·테스트 맵·자동 플레이 봇은 항상 전투.</summary>
+        /// (사용자 결정). 보스방·이벤트 칸이 있는 방(층마다 보물상자 1개 보장)·테스트 맵은 항상 전투. 자동 플레이 봇은 퍼즐을 풀 줄 몰라서
+        /// 퍼즐방이 걸리면 성공으로 치고(카드 1장) 곧바로 다음 방으로 넘어간다(사용자 결정 - 사람과 같은 확률로 방이 빠지게).</summary>
         private void EnterRoom()
         {
             var def = _rooms[_roomIndex];
-            var puzzleAllowed = !def.IsBossRoom && !def.IsTestRoom && !def.HasEvent && !GameHUD.AutoPlayActive && !TestMap.Active;
-            if (puzzleAllowed && PuzzleBase.TestModeNext(out var testType))
+            var puzzleAllowed = !def.IsBossRoom && !def.IsTestRoom && !def.HasEvent && !TestMap.Active;
+            if (puzzleAllowed && !GameHUD.AutoPlayActive && PuzzleBase.TestModeNext(out var testType))
                 _roomController.LoadPuzzle(def, testType);
             else if (puzzleAllowed && Rng.NextDouble() < PuzzleBase.Chance)
+            {
+                if (GameHUD.AutoPlayActive)
+                {
+                    _roomController.SkipPuzzleAsCleared(def);
+                    _roomIndex++; // 보스방은 퍼즐이 안 나오므로 언젠가 멈춘다
+                    EnterRoom();
+                    return;
+                }
                 _roomController.LoadPuzzle(def, (PuzzleType)Rng.Next(PuzzleBase.TypeCount));
+            }
             else
                 _roomController.LoadRoom(def); // IsInputLocked를 다시 false로 풀어준다.
             RefreshHudProgress();

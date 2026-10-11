@@ -160,6 +160,7 @@ namespace LoopRogue
             public int PatternResolves;   // 보스 예고 공격 발동 횟수
             public int Enrages;           // 보스 광폭화 횟수
             public int Heals, Charges, ChargeHits, Blinks, Splits; // 새 몹: 치유사 회복, 돌진(적중), 도적 순간이동, 분열체 갈라짐
+            public int Puzzles;           // 퍼즐·미니게임 방(봇은 성공으로 치고 넘어감 - 카드 1장씩)
             public int PatternHits;       // 그중 맞은 횟수
             public int Dodges;            // 봇이 예고 칸에서 피한 횟수
             public int CrossfireDetours;  // 궁수 십자포화를 피하려고 최단 경로와 다른 칸으로 간 횟수
@@ -446,6 +447,7 @@ namespace LoopRogue
             EnemyActor.ChargeHitCount = 0;
             EnemyActor.BlinkCount = 0;
             RoomController.SplitCount = 0;
+            RoomController.PuzzleClearCount = 0;
             BossBrain.PatternHitCount = 0;
             RoomController.EventTriggeredCount = 0;
             _lastEventCount = 0;
@@ -1966,6 +1968,7 @@ namespace LoopRogue
             r.ChargeHits = EnemyActor.ChargeHitCount;
             r.Blinks = EnemyActor.BlinkCount;
             r.Splits = RoomController.SplitCount;
+            r.Puzzles = RoomController.PuzzleClearCount;
             r.PatternHits = BossBrain.PatternHitCount;
 
             if (_player != null && _player.Stats != null)
@@ -2128,6 +2131,7 @@ namespace LoopRogue
                 var charges = _results.Sum(r => r.Charges);
                 Log($"5층+ 새 몹(판당): 치유사 회복 {_results.Average(r => r.Heals):0}회 / 돌진 {_results.Average(r => r.Charges):0}회(적중 {(charges > 0 ? _results.Sum(r => r.ChargeHits) * 100f / charges : 0f):0}%) / " +
                     $"도적 순간이동 {_results.Average(r => r.Blinks):0}회 / 분열 {_results.Average(r => r.Splits):0}회");
+                Log($"퍼즐·미니게임 방(판당): {_results.Average(r => r.Puzzles):0.0}개 - 봇은 성공으로 치고 넘어감(레벨업 카드 같은 수)");
                 var bombs = _results.Sum(r => r.BombExplosions);
                 Log($"아이템(판당): 얻음 {_results.Average(r => r.ItemObtained.Sum()):0.0}개 / 씀 {_results.Average(r => r.ItemUsed.Sum()):0.0}개 | 종류별 씀(전체) " +
                 string.Join(" ", Enumerable.Range(0, ItemInfo.Count).Select(i => $"{ItemInfo.Name((ItemType)i)} {_results.Sum(r => r.ItemUsed[i])}")));
