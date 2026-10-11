@@ -26,7 +26,7 @@ namespace LoopRogue
     /// 등록해두면 방을 떠날 때 같이 지워진다. 자동 플레이 봇에겐 퍼즐방이 안 나온다(밸런스 측정 기준 유지).</summary>
     public abstract class PuzzleBase
     {
-        public const float Chance = 0.25f;
+        public const float Chance = 0.15f; // 25% -> 15%(사용자 결정)
         public const int TypeCount = 10;
 
         public static PuzzleBase Create(PuzzleType type) => type switch
