@@ -159,6 +159,7 @@ namespace LoopRogue
             // 방 랜덤화/보스 패턴/이벤트 통계
             public int PatternResolves;   // 보스 예고 공격 발동 횟수
             public int Enrages;           // 보스 광폭화 횟수
+            public int Heals, Charges, ChargeHits, Blinks, Splits; // 새 몹: 치유사 회복, 돌진(적중), 도적 순간이동, 분열체 갈라짐
             public int PatternHits;       // 그중 맞은 횟수
             public int Dodges;            // 봇이 예고 칸에서 피한 횟수
             public int CrossfireDetours;  // 궁수 십자포화를 피하려고 최단 경로와 다른 칸으로 간 횟수
@@ -173,6 +174,7 @@ namespace LoopRogue
             public int ShieldBlocks;      // 방패 정면을 때려 피해가 줄어든 횟수
             public int BombExplosions;    // 폭발병 폭발
             public int BombHits;          // 그중 플레이어가 맞은 횟수
+            public readonly int[] Kills = new int[KillNames.Length]; // 몹 종류별 처치(KillNames 순서)
             public readonly int[] Events = new int[RoomEventActor.TypeCount]; // RoomEventType 순서
 
             // NPC 통계
@@ -191,6 +193,44 @@ namespace LoopRogue
         }
 
         private static readonly string[] StockKindNames = { "영약", "뽑기권", "슬롯이용권", "아이템" };
+
+        /// <summary>처치 통계 분류 - 0~8은 EnemyKind 순서, 분열 조각/정예/미믹/졸개/보스는 따로 센다(한 마리는 한 칸에만).
+        /// 폭발병이 스스로 터진 건 처치가 아니라 여기 안 들어간다(폭발 횟수는 따로 기록).</summary>
+        private static readonly string[] KillNames = { "근접", "궁수", "방패병", "거미", "폭발병", "치유사", "돌진병", "분열체", "도적", "분열 조각", "정예", "미믹", "졸개", "보스" };
+        private static readonly string[] KillKeys = { "melee", "ranged", "shield", "spider", "bomber", "healer", "charger", "splitter", "assassin", "split_child", "elite", "mimic", "minion", "boss" };
+
+        private static int KillIndex(EnemyActor e) =>
+            e.IsBoss ? 13 : e.IsMinion ? 12 : e.IsMimic ? 11 : e.IsElite ? 10 : e.IsSplitChild ? 9 : (int)e.Kind;
+
+        /// <summary>맵 기록 글자 - B 보스, m 졸개, A 궁수, S 방패병, W 거미, O 폭발병, H 치유사, C 돌진병, J 분열체(j 조각), R 도적, M 근접.</summary>
+        private static char EnemyChar(EnemyActor e) =>
+            e.IsBoss ? 'B' : e.IsMinion ? 'm' : e.IsSplitChild ? 'j' : e.Kind switch
+            {
+                EnemyKind.Ranged => 'A',
+                EnemyKind.Shield => 'S',
+                EnemyKind.Spider => 'W',
+                EnemyKind.Bomber => 'O',
+                EnemyKind.Healer => 'H',
+                EnemyKind.Charger => 'C',
+                EnemyKind.Splitter => 'J',
+                EnemyKind.Assassin => 'R',
+                _ => 'M',
+            };
+
+        private void OnEnemyKilled(EnemyActor enemy)
+        {
+            if (_run != null && enemy != null)
+                _run.Kills[KillIndex(enemy)]++;
+        }
+
+        private Dictionary<string, int> KillDict(int[] kills)
+        {
+            var d = new Dictionary<string, int>();
+            for (var i = 0; i < KillKeys.Length; i++)
+                d[KillKeys[i]] = kills[i];
+            d["total"] = kills.Sum();
+            return d;
+        }
 
         private static readonly string[] EventNames = Enumerable.Range(0, RoomEventActor.TypeCount).Select(i => RoomEventActor.Name((RoomEventType)i)).ToArray();
 
@@ -257,6 +297,7 @@ namespace LoopRogue
         private void Start()
         {
             SceneManager.sceneLoaded += OnSceneLoaded;
+            PlayerActor.EnemyKilled += OnEnemyKilled;
             LoopManager.SkipLobbyAfterStageClear = true;
             RoomController.EnemyTurnWatch.Reset();
             RoomController.LoadRoomWatch.Reset();
@@ -312,6 +353,7 @@ namespace LoopRogue
             GameHUD.AutoPlayActive = false;
             LoopManager.SkipLobbyAfterStageClear = false;
             SceneManager.sceneLoaded -= OnSceneLoaded;
+            PlayerActor.EnemyKilled -= OnEnemyKilled;
             _log?.Dispose();
             _events?.Dispose();
         }
@@ -399,6 +441,11 @@ namespace LoopRogue
             _run = new RunResult { Index = _results.Count + 1 };
             BossBrain.PatternResolveCount = 0;
             BossBrain.EnrageCount = 0;
+            EnemyActor.HealCount = 0;
+            EnemyActor.ChargeCount = 0;
+            EnemyActor.ChargeHitCount = 0;
+            EnemyActor.BlinkCount = 0;
+            RoomController.SplitCount = 0;
             BossBrain.PatternHitCount = 0;
             RoomController.EventTriggeredCount = 0;
             _lastEventCount = 0;
@@ -1193,6 +1240,10 @@ namespace LoopRogue
                 ("alive_shield", alive.Count(e => e.Kind == EnemyKind.Shield)),
                 ("alive_spider", alive.Count(e => e.Kind == EnemyKind.Spider)),
                 ("alive_bomber", alive.Count(e => e.Kind == EnemyKind.Bomber)),
+                ("alive_healer", alive.Count(e => e.Kind == EnemyKind.Healer)),
+                ("alive_charger", alive.Count(e => e.Kind == EnemyKind.Charger)),
+                ("alive_splitter", alive.Count(e => e.Kind == EnemyKind.Splitter)),
+                ("alive_assassin", alive.Count(e => e.Kind == EnemyKind.Assassin)),
                 ("alive_minion", alive.Count(e => e.IsMinion)));
 
             Detail($"[사망 #{_stageDeaths}] {_room.RoomName} ({_attemptTurns}턴){bossInfo} | 데스 패널티 골드 -{_hud.LastDeathGoldPenalty} | {StatLine()}");
@@ -1468,9 +1519,17 @@ namespace LoopRogue
             {
                 if (!(map.GetActorAt(start + d) is EnemyActor e) || e.Stats.IsDead)
                     continue;
+                // 우선순위: 방패 정면이 아닌 몹 > 치유사(살려두면 다른 몹을 고친다) > 체력 낮은 몹
                 var front = e.IsShieldFront(start);
-                var better = target == null || (targetFront && !front) ||
-                             (front == targetFront && e.Stats.CurrentHealth < target.Stats.CurrentHealth);
+                bool better;
+                if (target == null)
+                    better = true;
+                else if (front != targetFront)
+                    better = targetFront;
+                else if ((e.Kind == EnemyKind.Healer) != (target.Kind == EnemyKind.Healer))
+                    better = e.Kind == EnemyKind.Healer;
+                else
+                    better = e.Stats.CurrentHealth < target.Stats.CurrentHealth;
                 if (better)
                 {
                     target = e;
@@ -1824,13 +1883,7 @@ namespace LoopRogue
                     var c = actor switch
                     {
                         PlayerActor _ => _room.DangerTiles.Contains(cell) ? '!' : 'P',
-                        EnemyActor e when e.IsBoss => 'B',
-                        EnemyActor e when e.IsMinion => 'm',
-                        EnemyActor e when e.Kind == EnemyKind.Ranged => 'A',
-                        EnemyActor e when e.Kind == EnemyKind.Shield => 'S',
-                        EnemyActor e when e.Kind == EnemyKind.Spider => 'W',
-                        EnemyActor e when e.Kind == EnemyKind.Bomber => 'O',
-                        EnemyActor _ => 'M',
+                        EnemyActor e => EnemyChar(e),
                         RoomEventActor _ => 'E',
                         NpcActor _ => 'N',
                         _ => map.IsWall(cell) ? '#' : _room.DangerTiles.Contains(cell) ? 'x' : '.',
@@ -1840,7 +1893,7 @@ namespace LoopRogue
             }
 
             frame.Enemies = _room.Enemies.Where(e => e != null && !e.Stats.IsDead)
-                .Select(e => (e.IsBoss ? 'B' : e.Kind == EnemyKind.Ranged ? 'A' : e.Kind == EnemyKind.Shield ? 'S' : e.Kind == EnemyKind.Spider ? 'W' : e.Kind == EnemyKind.Bomber ? 'O' : 'M', e.GridPos, e.Stats.CurrentHealth))
+                .Select(e => (EnemyChar(e), e.GridPos, e.Stats.CurrentHealth))
                 .ToArray();
             return frame;
         }
@@ -1875,13 +1928,14 @@ namespace LoopRogue
             CollectFinalState(_run);
             _results.Add(_run);
             Ev("run_end", ("reason", reason), ("completed", completed), ("deaths", _run.TotalDeaths),
-                ("gold_earned", _run.GoldEarned), ("seconds", _run.Seconds));
+                ("gold_earned", _run.GoldEarned), ("seconds", _run.Seconds), ("kills", KillDict(_run.Kills)));
             _events?.Flush();
 
             Debug.Log($"[AutoPlayBot] {_run.Index}/{SessionRuns}판 종료 - 사망 {_run.TotalDeaths}회");
             Log($"{_run.Index,3}판 종료: {reason} | {_run.Seconds:0.0}초, {_run.TotalTurns}턴, 사망 {_run.TotalDeaths}회, " +
                 $"획득 골드 {_run.GoldEarned}, 최종 Lv{_run.FinalLevel} | 최종 장비: {EquipLine()}");
             Log($"      {PurchaseLine(_run)}");
+            Log($"      처치 {_run.Kills.Sum()}마리: {string.Join(" ", Enumerable.Range(0, KillNames.Length).Select(i => $"{KillNames[i]} {_run.Kills[i]}"))}");
 
             _runEnding = true;
         }
@@ -1907,6 +1961,11 @@ namespace LoopRogue
 
             r.PatternResolves = BossBrain.PatternResolveCount;
             r.Enrages = BossBrain.EnrageCount;
+            r.Heals = EnemyActor.HealCount;
+            r.Charges = EnemyActor.ChargeCount;
+            r.ChargeHits = EnemyActor.ChargeHitCount;
+            r.Blinks = EnemyActor.BlinkCount;
+            r.Splits = RoomController.SplitCount;
             r.PatternHits = BossBrain.PatternHitCount;
 
             if (_player != null && _player.Stats != null)
@@ -2064,6 +2123,11 @@ namespace LoopRogue
                 Log($"궁수 십자포화 우회: 판당 {_results.Average(r => r.CrossfireDetours):0}회");
                 Log($"스킬(판당): 회전 베기 {_results.Average(r => r.Spins):0}회 / 대시 공격 {_results.Average(r => r.DashStrikes):0}회 / 대시 회피 {_results.Average(r => r.DashDodges):0.0}회");
                 Log($"새 몹(판당): 거미줄 속박 {_results.Average(r => r.RootedTurns):0}턴 / 방패 옆으로 돌기 {_results.Average(r => r.ShieldFlanks):0}회 / 방패 정면 타격 {_results.Average(r => r.ShieldBlocks):0}회");
+                Log($"처치(판당): 합계 {_results.Average(r => r.Kills.Sum()):0} (중앙값 {Percentile(_results.Select(r => (float)r.Kills.Sum()).ToList(), 0.5f):0}) | " +
+                    string.Join(" / ", Enumerable.Range(0, KillNames.Length).Select(i => $"{KillNames[i]} {_results.Average(r => r.Kills[i]):0.#}")));
+                var charges = _results.Sum(r => r.Charges);
+                Log($"5층+ 새 몹(판당): 치유사 회복 {_results.Average(r => r.Heals):0}회 / 돌진 {_results.Average(r => r.Charges):0}회(적중 {(charges > 0 ? _results.Sum(r => r.ChargeHits) * 100f / charges : 0f):0}%) / " +
+                    $"도적 순간이동 {_results.Average(r => r.Blinks):0}회 / 분열 {_results.Average(r => r.Splits):0}회");
                 var bombs = _results.Sum(r => r.BombExplosions);
                 Log($"아이템(판당): 얻음 {_results.Average(r => r.ItemObtained.Sum()):0.0}개 / 씀 {_results.Average(r => r.ItemUsed.Sum()):0.0}개 | 종류별 씀(전체) " +
                 string.Join(" ", Enumerable.Range(0, ItemInfo.Count).Select(i => $"{ItemInfo.Name((ItemType)i)} {_results.Sum(r => r.ItemUsed[i])}")));

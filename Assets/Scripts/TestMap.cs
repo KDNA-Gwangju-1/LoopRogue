@@ -33,7 +33,8 @@ namespace LoopRogue
         };
 
         private static readonly Vector2Int PlayerStart = new Vector2Int(7, 7);
-        private static readonly Vector2Int[] EnemySpots = { new Vector2Int(1, 14), new Vector2Int(13, 14), new Vector2Int(7, 14) };
+        private static readonly Vector2Int[] EnemySpots = { new Vector2Int(1, 14), new Vector2Int(13, 14), new Vector2Int(7, 14),
+            new Vector2Int(3, 14), new Vector2Int(5, 14), new Vector2Int(9, 14), new Vector2Int(11, 14) }; // 뒤 4칸 = 5층부터 나오는 새 몹
 
         private static RoomDefinition _testRoom;
         private RoomController _room;
@@ -66,7 +67,8 @@ namespace LoopRogue
                 Width = Size,
                 Height = Size,
                 EnemyCount = EnemySpots.Length,
-                EnemyKinds = new List<EnemyKind> { EnemyKind.Melee, EnemyKind.Ranged, EnemyKind.Shield },
+                EnemyKinds = new List<EnemyKind> { EnemyKind.Melee, EnemyKind.Ranged, EnemyKind.Shield,
+                    EnemyKind.Healer, EnemyKind.Charger, EnemyKind.Splitter, EnemyKind.Assassin },
                 EnemyMaxHealth = EnemyHealth,
                 EnemyAttackPower = EnemyAttack,
                 IsTestRoom = true,

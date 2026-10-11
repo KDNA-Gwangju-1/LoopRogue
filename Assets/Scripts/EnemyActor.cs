@@ -3,7 +3,9 @@ using UnityEngine;
 
 namespace LoopRogue
 {
-    /// <summary>적 종류 - 근접(기본)/원거리(궁수)/방패병(정면 공격 80% 감소, 삼각형)/거미(거미줄로 1턴 속박).</summary>
+    /// <summary>적 종류 - 근접(기본)/원거리(궁수)/방패병(정면 공격 80% 감소, 삼각형)/거미(거미줄로 1턴 속박)/폭발병,
+    /// 5층부터 하나씩: 치유사(아군 회복)/돌진병(일직선 예고 돌진)/분열체(죽으면 둘로 갈라짐)/도적(플레이어 뒤로 순간이동).
+    /// 순서는 봇 처치 통계(AutoPlayBot.KillNames)와 맞춰져 있으니 끝에만 추가할 것.</summary>
     public enum EnemyKind
     {
         Melee,
@@ -11,6 +13,10 @@ namespace LoopRogue
         Shield,
         Spider,
         Bomber,
+        Healer,
+        Charger,
+        Splitter,
+        Assassin,
     }
 
     /// <summary>일반 몹/보스 공통 - 턴제라 실시간 이동 대신 TurnManager 역할을 하는
@@ -54,6 +60,45 @@ namespace LoopRogue
         /// 폭발은 플레이어만 맞는다(공격력 × 이 배율, 다른 몹은 안 맞음). 터지기 전에 잡으면 불발.</summary>
         public const float BlastDamageRate = 3f;
         private bool _fuseLit;
+
+        /// <summary>치유사: HealCooldownTurns마다 사거리 안에서 체력 비율이 가장 낮은 다친 아군(자기 제외, 보스 제외)을 최대 체력의
+        /// HealRate만큼 회복시킨다. 궁수처럼 거리를 두고 두 턴에 한 번만 움직인다 - 먼저 쫓아가 잡아야 하는 몹.</summary>
+        public const int HealRange = 5;
+        public const float HealRate = 0.3f;
+        private const int HealCooldownTurns = 3;
+        private const int HealerPreferredDistance = 4;
+        private int _healCooldown = 1;
+
+        /// <summary>돌진병: 같은 줄 2~ChargeRange칸이고 사이에 벽이 없으면 그 줄을 예고(빨강)하고, 자기 다음 턴에 예고한 줄을 따라
+        /// 끝까지 달린다. 달리다 플레이어를 만나면 공격력 × ChargeDamageRate, 몹/벽을 만나면 그 앞에서 멈춘다. 돌진한 뒤엔
+        /// ChargeRecoverTurns턴 동안 숨을 고른다(때릴 기회). 그 밖엔 근접 몹처럼 다가간다.</summary>
+        public const int ChargeRange = 5;
+        public const float ChargeDamageRate = 2f;
+        private const int ChargeCooldownTurns = 4;
+        private const int ChargeRecoverTurns = 1;
+        private int _chargeCooldown = 1;
+        private Vector2Int? _chargeDir;
+        private List<Vector2Int> _chargeTiles;
+
+        /// <summary>분열체: 죽으면 그 자리 근처에 작은 분열체 SplitCount마리(체력·공격력 비율 Split*Ratio, 더는 안 갈라짐)가 나온다.
+        /// 갈라진 조각은 골드/경험치/아이템이 없고, 갓 나온 턴은 굳어서 움직이지 않는다.</summary>
+        public const int SplitCount = 2;
+        public const float SplitHealthRatio = 0.4f;
+        public const float SplitAttackRatio = 0.6f;
+        public bool IsSplitChild { get; private set; }
+        private int _spawnFreezeTurns;
+
+        /// <summary>도적: 플레이어와 BlinkMinDistance~BlinkMaxDistance칸 떨어져 있고 순간이동이 준비됐으면 플레이어 옆 빈 칸 중
+        /// 자기에게서 가장 먼 칸(= 등 뒤)으로 순간이동한다(그 턴은 이동만). 순간이동 직후 첫 공격은 공격력 × BackstabRate.</summary>
+        private const int BlinkMinDistance = 3;
+        private const int BlinkMaxDistance = 7;
+        private const int BlinkCooldownTurns = 5;
+        public const float BackstabRate = 1.5f;
+        private int _blinkCooldown = 2;
+        private bool _backstabReady;
+
+        /// <summary>골드·경험치·아이템을 안 주는 몹(보스 졸개, 분열 조각).</summary>
+        public bool NoReward => IsMinion || IsSplitChild;
 
         /// <summary>이번 턴에 노리는 칸(플레이어 또는 미끼)과 미끼.</summary>
         private Vector2Int _tp;
@@ -103,12 +148,16 @@ namespace LoopRogue
         public bool IsMimic { get; private set; } // 방 이벤트 "미믹" - 잡으면 큰 보상(RoomController)
         public bool IsElite { get; private set; } // 방 이벤트 "도전의 깃발" 정예
 
-        public string DisplayName => IsBoss ? BossDisplayName : IsMinion ? Loc.T("졸개") : IsMimic ? Loc.T("미믹") : (IsElite ? Loc.T("정예 ") : "") + Kind switch
+        public string DisplayName => IsBoss ? BossDisplayName : IsMinion ? Loc.T("졸개") : IsMimic ? Loc.T("미믹") : IsSplitChild ? Loc.T("분열 조각") : (IsElite ? Loc.T("정예 ") : "") + Kind switch
         {
             EnemyKind.Ranged => Loc.T("궁수"),
             EnemyKind.Shield => Loc.T("방패병"),
             EnemyKind.Spider => Loc.T("거미"),
             EnemyKind.Bomber => Loc.T("폭발병"),
+            EnemyKind.Healer => Loc.T("치유사"),
+            EnemyKind.Charger => Loc.T("돌진병"),
+            EnemyKind.Splitter => Loc.T("분열체"),
+            EnemyKind.Assassin => Loc.T("도적"),
             _ => Loc.T("몬스터"),
         };
 
@@ -367,6 +416,25 @@ namespace LoopRogue
         private const float ShieldSpriteScale = 1.35f;
         private const string BomberSpriteSet = "Bomber";
         private const float BomberSpriteScale = 1.3f;
+        private const float NewEnemySpriteScale = 1.3f; // 새 몹 4종도 48x48 캔버스(폭발병과 같은 크기)
+        private const float SplitChildScale = 0.7f;
+
+        /// <summary>5층부터 나오는 새 몹 4종의 그림 세트(Resources/Sprites/{세트})와 처치 파편 색 - 그림이 없으면 같은 색 사각형.</summary>
+        public static (string Set, Color Color) NewKindVisual(EnemyKind kind) => kind switch
+        {
+            EnemyKind.Healer => ("Shaman", new Color(0.35f, 0.9f, 0.55f)),
+            EnemyKind.Charger => ("OrcCharger", new Color(0.8f, 0.4f, 0.25f)),
+            EnemyKind.Splitter => ("Jelly", new Color(0.35f, 0.6f, 1f)),
+            _ => ("Rogue", new Color(0.5f, 0.4f, 0.7f)),
+        };
+
+        /// <summary>분열체가 죽어 갈라진 조각으로 표시 - 작게, 더는 안 갈라지고 갓 나온 턴은 굳어 있다.</summary>
+        public void MarkAsSplitChild()
+        {
+            IsSplitChild = true;
+            _spawnFreezeTurns = 1;
+            transform.localScale *= SplitChildScale;
+        }
 
         public void Initialize(float maxHealth, float attackPower, bool isBoss, EnemyKind kind = EnemyKind.Melee)
         {
@@ -427,6 +495,20 @@ namespace LoopRogue
                 color = new Color(0.6f, 0.3f, 0.85f); // 거미는 보라색
                 scale = GridConstants.CellSize * 0.5f;
             }
+            else if (Kind >= EnemyKind.Healer)
+            {
+                // 5층부터 나오는 새 몹 4종(고블린 주술사·오크 돌격병·분열 젤리·그림자 도적) - 대기·걷기·공격 4방향.
+                var (set, kindColor) = NewKindVisual(Kind);
+                var first = SpriteAnimator.FirstFrame(set);
+                if (first != null)
+                {
+                    var spriteRenderer = VisualUtil.CreateSpriteVisual(gameObject, first, GridConstants.CellSize * NewEnemySpriteScale, sortingOrder: 0);
+                    gameObject.AddComponent<SpriteAnimator>().Setup(set, spriteRenderer, kindColor);
+                    return;
+                }
+                color = kindColor;
+                scale = GridConstants.CellSize * 0.55f;
+            }
             else if (Kind == EnemyKind.Bomber)
             {
                 // 고블린 폭탄병 도트 그림(대기·걷기 4방향 + 불붙음) - 그림 파일이 없으면 예전 주황 사각형.
@@ -468,6 +550,11 @@ namespace LoopRogue
 
             if (VulnerableTurns > 0)
                 VulnerableTurns--;
+            if (_spawnFreezeTurns > 0)
+            {
+                _spawnFreezeTurns--; // 갓 갈라진 분열 조각 - 한 턴 굳어 있음
+                return;
+            }
             if (StunTurns > 0)
             {
                 StunTurns--; // 기절(섬광탄/연막탄/덫) - 아무것도 안 함
@@ -492,8 +579,197 @@ namespace LoopRogue
                 TakeSpiderTurn(player, claimedSlots);
             else if (Kind == EnemyKind.Bomber)
                 TakeBomberTurn(player, claimedSlots, room);
+            else if (Kind == EnemyKind.Healer)
+                TakeHealerTurn(player, room);
+            else if (Kind == EnemyKind.Charger)
+                TakeChargerTurn(player, claimedSlots, room);
+            else if (Kind == EnemyKind.Assassin)
+                TakeAssassinTurn(player, claimedSlots, room);
             else
-                TakeMeleeTurn(player, claimedSlots);
+                TakeMeleeTurn(player, claimedSlots); // 분열체도 걷는 건 근접 몹과 같다
+        }
+
+        /// <summary>봇 통계용 - 치유사 회복 횟수, 돌진 횟수와 그중 플레이어 적중, 도적 순간이동 횟수.</summary>
+        public static int HealCount, ChargeCount, ChargeHitCount, BlinkCount;
+
+        /// <summary>치유사: 1) 회복이 준비됐고 사거리 안에 다친 아군이 있으면 회복 2) 붙어 있으면 물러나기(못 물러나면 근접 공격)
+        /// 3) 아니면 선호 거리 쪽으로 한 칸(두 턴에 한 번). 회복할 아군이 없으면 회복은 아껴둔다.</summary>
+        private void TakeHealerTurn(PlayerActor player, RoomController room)
+        {
+            if (_healCooldown > 0)
+                _healCooldown--;
+            if (_retreatCooldown > 0)
+                _retreatCooldown--;
+
+            if (_healCooldown == 0)
+            {
+                EnemyActor best = null;
+                var bestRate = HealThreshold;
+                foreach (var e in room.Enemies)
+                {
+                    if (e == null || e == this || e.IsBoss || e.Stats.IsDead || Distance(GridPos, e.GridPos) > HealRange)
+                        continue;
+                    var rate = e.Stats.CurrentHealth / Mathf.Max(1f, e.Stats.MaxHealth);
+                    if (rate < bestRate)
+                    {
+                        bestRate = rate;
+                        best = e;
+                    }
+                }
+                if (best != null)
+                {
+                    _healCooldown = HealCooldownTurns;
+                    var amount = best.Stats.MaxHealth * HealRate;
+                    best.Stats.Heal(amount);
+                    HealCount++;
+                    if (TryGetComponent<SpriteAnimator>(out var anim))
+                        anim.PlayAttack(best.GridPos - GridPos);
+                    DamagePopup.Spawn(best.transform.position, amount, new Color(0.4f, 1f, 0.5f));
+                    Fx.Play("heal", best.transform.position, 1.1f, fps: 14f, sortingOrder: 8);
+                    return;
+                }
+            }
+
+            if (Distance(GridPos, _tp) == 1)
+            {
+                if (!TryMoveToSpot(mustIncreaseDistance: true, HealerPreferredDistance, requireLine: false))
+                    HitTarget(player);
+                return;
+            }
+            TryMoveToSpot(mustIncreaseDistance: false, HealerPreferredDistance, requireLine: false);
+        }
+
+        /// <summary>체력 비율이 이보다 낮은 아군만 회복한다(거의 멀쩡한 몹에 회복을 낭비하지 않게).</summary>
+        private const float HealThreshold = 0.9f;
+
+        /// <summary>돌진병: 예고해둔 돌진이 있으면 달린다. 돌진 직후엔 숨 고르기. 아니면 같은 줄에서 돌진을 예고하거나, 근접 몹처럼 다가간다.</summary>
+        private void TakeChargerTurn(PlayerActor player, HashSet<Vector2Int> claimedSlots, RoomController room)
+        {
+            if (_chargeDir.HasValue)
+            {
+                ResolveCharge(player, room);
+                return;
+            }
+            if (_chargeCooldown > 0)
+            {
+                _chargeCooldown--;
+                if (_chargeCooldown >= ChargeCooldownTurns - ChargeRecoverTurns)
+                    return; // 돌진 직후 숨 고르기
+            }
+
+            if (_chargeCooldown == 0 && !IsAdjacentTo(_tp) && CanShoot(_tp, ChargeRange))
+            {
+                var dir = new Vector2Int(System.Math.Sign(_tp.x - GridPos.x), System.Math.Sign(_tp.y - GridPos.y));
+                var tiles = new List<Vector2Int>();
+                for (var p = GridPos + dir; tiles.Count < ChargeRange && Map.IsInBounds(p) && !Map.IsWall(p); p += dir)
+                    tiles.Add(p);
+                _chargeDir = dir;
+                _chargeTiles = tiles;
+                if (TryGetComponent<SpriteAnimator>(out var anim))
+                    anim.Face(dir);
+                room.ShowEnemyTelegraph(this, tiles, RoomController.ChargeTelegraphColor);
+                HitFeedback.OnTelegraph(); // 보스 예고와 같은 경고음
+                return;
+            }
+
+            TakeMeleeTurn(player, claimedSlots);
+        }
+
+        /// <summary>예고한 줄을 따라 달린다 - 플레이어(또는 미끼)를 만나면 들이받고 그 앞에서, 다른 몹/벽이면 그 앞에서 멈춘다.</summary>
+        private void ResolveCharge(PlayerActor player, RoomController room)
+        {
+            var dir = _chargeDir.Value;
+            var tiles = _chargeTiles;
+            _chargeDir = null;
+            _chargeTiles = null;
+            _chargeCooldown = ChargeCooldownTurns;
+            room.ClearEnemyTelegraph(this);
+            ChargeCount++;
+
+            var stop = GridPos;
+            GridActor hit = null;
+            foreach (var p in tiles)
+            {
+                var actor = Map.GetActorAt(p);
+                if (actor != null)
+                {
+                    hit = actor;
+                    break;
+                }
+                if (!Map.IsWalkable(p))
+                    break;
+                stop = p;
+            }
+            if (stop != GridPos)
+                Map.MoveActor(this, stop);
+
+            if (TryGetComponent<SpriteAnimator>(out var anim))
+                anim.PlayAttack(dir);
+            if (hit != null && hit == _decoyTarget)
+            {
+                _decoyTarget.TakeHit(this, Stats.AttackPower * ChargeDamageRate);
+                return;
+            }
+            if (!(hit is PlayerActor))
+                return;
+            ChargeHitCount++;
+            var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower * ChargeDamageRate);
+            room.ApplyThorns(this, dealt);
+            DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.35f, 0.35f), isCritical: true);
+            HitFeedback.OnPlayerHurt(player, this);
+        }
+
+        /// <summary>도적: 붙어 있으면 공격(순간이동 직후 첫 공격은 기습). 떨어져 있고 순간이동이 준비됐으면 플레이어 등 뒤로. 아니면 다가간다.</summary>
+        private void TakeAssassinTurn(PlayerActor player, HashSet<Vector2Int> claimedSlots, RoomController room)
+        {
+            if (_blinkCooldown > 0)
+                _blinkCooldown--;
+
+            var dist = Distance(GridPos, _tp);
+            if (dist == 1)
+            {
+                HitTarget(player, melee: true, rate: _backstabReady ? BackstabRate : 1f);
+                _backstabReady = false;
+                return;
+            }
+
+            if (_blinkCooldown == 0 && dist >= BlinkMinDistance && dist <= BlinkMaxDistance)
+            {
+                Vector2Int? best = null;
+                var bestScore = int.MinValue;
+                foreach (var d in Directions)
+                {
+                    var c = _tp + d;
+                    if (!Map.IsWalkable(c) || claimedSlots.Contains(c) || room.IsDangerTile(c))
+                        continue;
+                    var score = Distance(c, GridPos);
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        best = c;
+                    }
+                }
+                if (best.HasValue)
+                {
+                    var from = transform.position;
+                    claimedSlots.Add(best.Value);
+                    Map.MoveActor(this, best.Value);
+                    if (TryGetComponent<SpriteAnimator>(out var anim))
+                    {
+                        anim.SnapToGrid(); // 걸어가는 모션 대신 순간이동
+                        anim.Face(_tp - GridPos);
+                    }
+                    _blinkCooldown = BlinkCooldownTurns;
+                    _backstabReady = true;
+                    BlinkCount++;
+                    var smoke = new Color(0.6f, 0.5f, 0.8f);
+                    Fx.Play("death_smoke", from, 1f, tint: smoke);
+                    Fx.Play("death_smoke", transform.position, 1f, tint: smoke);
+                    return;
+                }
+            }
+
+            TakeMeleeTurn(player, claimedSlots);
         }
 
         /// <summary>폭발병: 불이 붙어 있으면 터진다(그 자리에서 - 플레이어가 도망갔어도). 붙어 있으면 불을 붙인다(공격 안 함).
@@ -702,7 +978,7 @@ namespace LoopRogue
             if (dist == 1)
             {
                 // 물러날 수 있으면(쿨타임 끝) 한 칸 물러나고, 아니면 그 자리에서 근접 공격.
-                if (!TryMoveToBestSpot(player, mustIncreaseDistance: true))
+                if (!TryMoveToSpot(mustIncreaseDistance: true, RangedPreferredDistance, requireLine: true))
                     HitTarget(player);
                 return;
             }
@@ -714,7 +990,7 @@ namespace LoopRogue
                 return;
             }
 
-            TryMoveToBestSpot(player, mustIncreaseDistance: false);
+            TryMoveToSpot(mustIncreaseDistance: false, RangedPreferredDistance, requireLine: true);
         }
 
         private bool CanShoot(Vector2Int target, int range)
@@ -738,14 +1014,15 @@ namespace LoopRogue
         }
 
         /// <summary>이웃 빈 칸 중 점수가 제일 좋은 곳으로 한 칸 - 지금 자리보다 나을 때만 움직인다.
-        /// 점수: 줄 어긋남(작을수록 좋음)이 최우선, 플레이어에게 붙는 칸(거리 1)은 금지, 그다음 선호 거리와의 차이.</summary>
-        private bool TryMoveToBestSpot(PlayerActor player, bool mustIncreaseDistance)
+        /// 점수: 줄 어긋남(작을수록 좋음, 궁수만)이 최우선, 플레이어에게 붙는 칸(거리 1)은 금지, 그다음 선호 거리와의 차이.
+        /// 궁수·치유사 공통(둘 다 두 턴에 한 번만 이동).</summary>
+        private bool TryMoveToSpot(bool mustIncreaseDistance, int preferredDistance, bool requireLine)
         {
             var currentDist = Distance(GridPos, _tp);
             if (_retreatCooldown > 0)
-                return false; // 궁수는 두 턴에 한 번만 이동
+                return false; // 두 턴에 한 번만 이동
 
-            var bestScore = mustIncreaseDistance ? int.MaxValue : SpotScore(GridPos, _tp);
+            var bestScore = mustIncreaseDistance ? int.MaxValue : SpotScore(GridPos, _tp, preferredDistance, requireLine);
             Vector2Int? best = null;
 
             foreach (var d in Directions)
@@ -757,7 +1034,7 @@ namespace LoopRogue
                 if (mustIncreaseDistance && newDist <= currentDist)
                     continue;
 
-                var score = SpotScore(p, _tp);
+                var score = SpotScore(p, _tp, preferredDistance, requireLine);
                 if (score < bestScore)
                 {
                     bestScore = score;
@@ -773,15 +1050,17 @@ namespace LoopRogue
             return true;
         }
 
-        private static int SpotScore(Vector2Int pos, Vector2Int playerPos)
+        private static int SpotScore(Vector2Int pos, Vector2Int playerPos, int preferredDistance, bool requireLine)
         {
             var dx = Mathf.Abs(playerPos.x - pos.x);
             var dy = Mathf.Abs(playerPos.y - pos.y);
             var dist = dx + dy;
-            var misalign = Mathf.Min(dx, dy);
             var tooClose = dist <= 1 ? 1000 : 0;
+            if (!requireLine)
+                return tooClose + Mathf.Abs(dist - preferredDistance);
+            var misalign = Mathf.Min(dx, dy);
             var outOfRange = Mathf.Max(dx, dy) > RangedAttackRange ? 5 : 0;
-            return tooClose + misalign * 10 + outOfRange + Mathf.Abs(dist - RangedPreferredDistance);
+            return tooClose + misalign * 10 + outOfRange + Mathf.Abs(dist - preferredDistance);
         }
 
         private static int Distance(Vector2Int a, Vector2Int b) => Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
@@ -791,24 +1070,25 @@ namespace LoopRogue
         /// <summary>노리는 대상을 때린다 - 미끼면 미끼가 맞고, 아니면 플레이어.</summary>
         private RoomController _turnRoom;
 
-        private void HitTarget(PlayerActor player, bool melee = true)
+        /// <param name="rate">공격력 배율(도적 기습 1.5배 등)</param>
+        private void HitTarget(PlayerActor player, bool melee = true, float rate = 1f)
         {
             if (TryGetComponent<SpriteAnimator>(out var anim)) // 때린 쪽을 바라보고 공격 모션(그림에 공격 프레임이 있을 때만)
                 anim.PlayAttack((_decoyTarget != null ? _decoyTarget.GridPos : player.GridPos) - GridPos);
             if (_decoyTarget != null)
             {
-                _decoyTarget.TakeHit(this, Stats.AttackPower);
+                _decoyTarget.TakeHit(this, Stats.AttackPower * rate);
                 return;
             }
-            HitPlayer(player, melee);
+            HitPlayer(player, melee, rate);
         }
 
-        private void HitPlayer(PlayerActor player, bool melee)
+        private void HitPlayer(PlayerActor player, bool melee, float rate)
         {
-            var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower);
+            var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower * rate);
             if (melee)
                 _turnRoom?.ApplyThorns(this, dealt); // 갑옷 "가시"
-            DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.35f, 0.35f));
+            DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.35f, 0.35f), isCritical: rate > 1f);
             HitFeedback.OnPlayerHurt(player, this);
         }
 

@@ -62,6 +62,9 @@ namespace LoopRogue
         /// <summary>방패병 정면을 때려서 피해가 줄어든 누적 횟수(봇 통계용).</summary>
         public static int ShieldBlockCount;
 
+        /// <summary>플레이어가 몹을 잡은 순간(봇 통계용) - 직접 타격·폭탄·반사 등 ClaimKill 공통 경로에서 부른다.</summary>
+        public static event Action<EnemyActor> EnemyKilled;
+
         /// <summary>거미줄에 맞았을 때(EnemyActor 거미가 부른다). 정화제 효과 중엔 무시.</summary>
         public void ApplyRoot(int turns)
         {
@@ -613,22 +616,25 @@ namespace LoopRogue
         /// 폭탄/반사 부적 공통. 방이 넘어갔으면 true.</summary>
         public bool ClaimKill(EnemyActor enemy)
         {
+            EnemyKilled?.Invoke(enemy);
             HitFeedback.OnEnemyKilled(enemy);
             var blastTargets = CollectChainBlastTargets(enemy);
-            if (!enemy.IsBoss && !enemy.IsMinion && ItemRng.NextDouble() < EquipmentEffects.MobDropChance + Relics.DropBonus)
+            if (!enemy.IsBoss && !enemy.NoReward && ItemRng.NextDouble() < EquipmentEffects.MobDropChance + Relics.DropBonus)
             {
                 var drop = Inventory.GiveRandomMissing();
                 if (drop.HasValue)
                     _room.ShowMessage(Loc.F("{0}이(가) {1}을(를) 떨어뜨렸다!", enemy.DisplayName, ItemInfo.Name(drop.Value)));
             }
             Map.RemoveActor(enemy);
+            if (enemy.Kind == EnemyKind.Splitter && !enemy.IsSplitChild)
+                _room.SpawnSplitChildren(enemy); // 분열체는 죽으면 둘로 갈라진다(처치 처리 전에 - 방이 빈 걸로 안 치게)
             Destroy(enemy.gameObject);
             Stats.Heal(Stats.MaxHealth * Stats.KillHealRate); // 처치 회복 카드
 
             // 경험치도 골드처럼 StageScaling 배율을 곱한다(몹은 스테이지마다 세지는데 경험치만
             // 고정이면 뒤로 갈수록 레벨이 안 오름). 보스 처치 경험치는 스테이지 클리어 화면보다
             // 먼저 들어가야 해서 NotifyEnemyDefeated(보스면 곧바로 클리어 처리)보다 앞에서 준다.
-            var baseExp = enemy.IsMinion ? 0 : enemy.IsBoss ? ExpPerBossKill : ExpPerKill; // 졸개는 경험치 없음
+            var baseExp = enemy.NoReward ? 0 : enemy.IsBoss ? ExpPerBossKill : ExpPerKill; // 졸개·분열 조각은 경험치 없음
             var repeat = enemy.IsBoss ? 1f : StageProgress.RepeatRewardMultiplier; // 반복 보상 감소(보스는 제외)
             Levels.AddExp(Mathf.RoundToInt(baseExp * StageScaling.RewardMultiplier(_room.Stage) * (1f + Stats.EffectiveExpBonus + Achievements.TitleExpBonus) * repeat)); // + 칭호
 

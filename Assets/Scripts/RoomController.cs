@@ -48,6 +48,16 @@ namespace LoopRogue
         /// <summary>폭발병은 약간 약한 대신 폭발(공격력 ×3)이 아프다.</summary>
         private const float BomberHealthRatio = 0.8f;
         private const float BomberAttackRatio = 1f;
+        /// <summary>5층부터: 치유사는 약하고(먼저 잡아야 할 몹), 돌진병은 단단한 대신 돌진(공격력 ×2)이 예고된다,
+        /// 분열체는 단단하고 죽으면 둘로 갈라진다, 도적는 약한 대신 등 뒤로 순간이동해 기습(×1.5)한다.</summary>
+        private const float HealerHealthRatio = 0.7f;
+        private const float HealerAttackRatio = 0.6f;
+        private const float ChargerHealthRatio = 1.2f;
+        private const float ChargerAttackRatio = 1f;
+        private const float SplitterHealthRatio = 1.2f;
+        private const float SplitterAttackRatio = 0.9f;
+        private const float AssassinHealthRatio = 0.7f;
+        private const float AssassinAttackRatio = 1.1f;
 
         private const int GoldPerKill = 4;       // "쓸 곳은 많은데 수급이 부족하다" 피드백으로 전부 2배(2/20/5 → 4/40/10)
         private const int GoldPerBossKill = 40;
@@ -124,6 +134,7 @@ namespace LoopRogue
 
         /// <summary>예고된 공격 칸(보스 예고 + 불 붙은 폭발병 3x3, 다음 그 몹 턴에 발동) - 비어 있으면 예고 중인 공격 없음.</summary>
         public IReadOnlyCollection<Vector2Int> DangerTiles => _dangerTiles;
+        public bool IsDangerTile(Vector2Int pos) => _dangerTiles.Contains(pos);
 
         /// <summary>이 방에 아직 안 밟은 이벤트 칸이 있으면 그 액터(여러 개면 처음 것).</summary>
         public RoomEventActor Event => _events.Count > 0 ? _events[0] : null;
@@ -210,6 +221,10 @@ namespace LoopRogue
                 EnemyKind.Shield => (ShieldHealthRatio, ShieldAttackRatio),
                 EnemyKind.Spider => (SpiderHealthRatio, SpiderAttackRatio),
                 EnemyKind.Bomber => (BomberHealthRatio, BomberAttackRatio),
+                EnemyKind.Healer => (HealerHealthRatio, HealerAttackRatio),
+                EnemyKind.Charger => (ChargerHealthRatio, ChargerAttackRatio),
+                EnemyKind.Splitter => (SplitterHealthRatio, SplitterAttackRatio),
+                EnemyKind.Assassin => (AssassinHealthRatio, AssassinAttackRatio),
                 _ => (1f, 1f),
             };
             var enemy = go.AddComponent<EnemyActor>();
@@ -513,6 +528,34 @@ namespace LoopRogue
             }
         }
 
+        /// <summary>분열체가 죽은 자리(이미 맵에서 빠진 뒤) 근처 빈 칸에 작은 분열 조각을 만든다 - 조각은 더 갈라지지 않는다.
+        /// 처치 처리(NotifyEnemyDefeated) 전에 불러야 방이 비었다고 판정되지 않는다.</summary>
+        public void SpawnSplitChildren(EnemyActor parent)
+        {
+            var cells = new List<Vector2Int>();
+            if (Map.IsWalkable(parent.GridPos))
+                cells.Add(parent.GridPos);
+            foreach (var p in new[] { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right }.Select(d => parent.GridPos + d).OrderBy(_ => Rng.Next()))
+                if (Map.IsWalkable(p) && ExitPosition != p)
+                    cells.Add(p);
+
+            foreach (var pos in cells.Take(EnemyActor.SplitCount))
+            {
+                var go = new GameObject("SplitChild");
+                go.transform.SetParent(transform, false);
+                var child = go.AddComponent<EnemyActor>();
+                child.Initialize(parent.Stats.MaxHealth * EnemyActor.SplitHealthRatio, parent.Stats.AttackPower * EnemyActor.SplitAttackRatio,
+                    isBoss: false, EnemyKind.Splitter);
+                child.MarkAsSplitChild();
+                Map.PlaceActor(child, pos);
+                _enemies.Add(child);
+            }
+            SplitCount++;
+        }
+
+        /// <summary>봇 통계용 - 분열체가 갈라진 횟수.</summary>
+        public static int SplitCount;
+
         public void ShowTelegraph(IEnumerable<Vector2Int> tiles)
         {
             ClearTelegraph();
@@ -619,13 +662,21 @@ namespace LoopRogue
         }
 
         /// <summary>폭발병이 불을 붙였을 때 - 3x3 주황 예고.</summary>
-        public void ShowBombTelegraph(EnemyActor bomber, List<Vector2Int> tiles)
+        public void ShowBombTelegraph(EnemyActor bomber, List<Vector2Int> tiles) => ShowEnemyTelegraph(bomber, tiles, BombTelegraphColor);
+
+        /// <summary>돌진병 돌진 예고 색 - 보스 예고(빨강)보다 조금 주황 쪽.</summary>
+        public static readonly Color ChargeTelegraphColor = new Color(1f, 0.3f, 0.2f, 0.45f);
+
+        /// <summary>일반 몹 하나의 예고 칸(폭발병 3x3, 돌진병 돌진 줄) - 몹마다 따로 들고 있다가 발동하거나 그 몹이 죽으면 지운다.</summary>
+        public void ShowEnemyTelegraph(EnemyActor enemy, List<Vector2Int> tiles, Color color)
         {
-            ClearBombTelegraph(bomber);
-            var objects = tiles.Select(t => SpawnTelegraphTile(t, BombTelegraphColor, -4)).ToList();
-            _bombs[bomber] = (tiles, objects);
+            ClearBombTelegraph(enemy);
+            var objects = tiles.Select(t => SpawnTelegraphTile(t, color, -4)).ToList();
+            _bombs[enemy] = (tiles, objects);
             RebuildDangerTiles();
         }
+
+        public void ClearEnemyTelegraph(EnemyActor enemy) => ClearBombTelegraph(enemy);
 
         private void ClearBombTelegraph(EnemyActor bomber)
         {
@@ -758,8 +809,8 @@ namespace LoopRogue
             var goldBonus = GoldBonus;
             // 반복 보상 감소는 일반 몹/방 클리어에만(보스 처치는 항상 100%).
             var repeat = StageProgress.RepeatRewardMultiplier;
-            ClearBombTelegraph(enemy); // 불 붙은 폭발병을 잡으면 불발
-            if (!enemy.IsMinion)
+            ClearBombTelegraph(enemy); // 불 붙은 폭발병을 잡으면 불발, 예고한 돌진병을 잡으면 취소
+            if (!enemy.NoReward)
             {
                 var killGold = enemy.IsBoss
                     ? Mathf.RoundToInt(GoldPerBossKill * stageMultiplier * goldBonus)

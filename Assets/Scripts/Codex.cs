@@ -72,6 +72,14 @@ namespace LoopRogue
                 Loc.T("거미줄을 쏴서 몇 턴 동안 이동과 대시를 막는다. 공격과 회전 베기는 된다. 정화제로 바로 풀린다."));
             AddMonster(list, "Bomber", Loc.T("고블린 폭탄병"), "Bomber", new Color(1f, 0.55f, 0.1f),
                 Loc.T("심지에 불을 붙이면 다음 턴에 주변 3x3이 터진다(주황 칸). 터지기 전에 잡으면 불발."));
+            AddMonster(list, "Healer", Loc.T("고블린 주술사"), EnemyActor.NewKindVisual(EnemyKind.Healer).Set, EnemyActor.NewKindVisual(EnemyKind.Healer).Color,
+                Loc.F("멀찍이 떨어져서 {0}칸 안의 다친 아군을 최대 체력의 {1}%만큼 고친다(3턴마다). 몸이 약하니 제일 먼저 쫓아가 잡자. 5층부터.", EnemyActor.HealRange, Mathf.RoundToInt(EnemyActor.HealRate * 100f)));
+            AddMonster(list, "Charger", Loc.T("오크 돌격병"), EnemyActor.NewKindVisual(EnemyKind.Charger).Set, EnemyActor.NewKindVisual(EnemyKind.Charger).Color,
+                Loc.F("같은 줄 {0}칸 안에 서면 돌진할 줄을 빨갛게 예고하고, 다음 턴에 그 줄을 끝까지 달려 들이받는다(공격력 2배). 줄에서 비키거나 다른 몹 뒤에 서자. 돌진한 뒤엔 한 턴 숨을 고른다. 6층부터.", EnemyActor.ChargeRange));
+            AddMonster(list, "Splitter", Loc.T("분열 젤리"), EnemyActor.NewKindVisual(EnemyKind.Splitter).Set, EnemyActor.NewKindVisual(EnemyKind.Splitter).Color,
+                Loc.T("튼튼한 젤리. 쓰러뜨리면 작은 조각 둘로 갈라진다. 조각은 약하고 갓 갈라진 턴엔 굳어 있지만 골드와 경험치를 주지 않는다. 회전 베기로 한꺼번에 치우자. 7층부터."));
+            AddMonster(list, "Assassin", Loc.T("그림자 도적"), EnemyActor.NewKindVisual(EnemyKind.Assassin).Set, EnemyActor.NewKindVisual(EnemyKind.Assassin).Color,
+                Loc.T("조금 떨어져 있으면 연기와 함께 플레이어 등 뒤로 순간이동한다. 순간이동 직후 첫 공격은 1.5배로 아프다. 나타나면 바로 때려서 기습 전에 잡자. 8층부터."));
             AddMonster(list, "Mimic", Loc.T("미믹"), "Mimic", new Color(0.65f, 0.45f, 0.25f),
                 Loc.T("보물상자인 척하는 상자 괴물. 밟으면 튀어나온다. 튼튼하고 아프게 물지만, 잡으면 보물상자보다 훨씬 많은 골드와 아이템을 뱉는다."));
 

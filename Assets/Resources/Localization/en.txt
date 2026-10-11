@@ -706,3 +706,16 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 할 이야기가 있다(!)	Has something to say (!)
 이야기·조언·의뢰	Stories · Tips · Requests
 뒤로	Back
+치유사	Healer
+돌진병	Charger
+분열체	Splitter
+도적	Rogue
+분열 조각	Split Blob
+고블린 주술사	Goblin Shaman
+오크 돌격병	Orc Charger
+분열 젤리	Splitting Jelly
+그림자 도적	Shadow Rogue
+멀찍이 떨어져서 {0}칸 안의 다친 아군을 최대 체력의 {1}%만큼 고친다(3턴마다). 몸이 약하니 제일 먼저 쫓아가 잡자. 5층부터.	Keeps its distance and heals a wounded ally within {0} tiles for {1}% of their max HP (every 3 turns). It's frail, so chase it down first. From floor 5.
+같은 줄 {0}칸 안에 서면 돌진할 줄을 빨갛게 예고하고, 다음 턴에 그 줄을 끝까지 달려 들이받는다(공격력 2배). 줄에서 비키거나 다른 몹 뒤에 서자. 돌진한 뒤엔 한 턴 숨을 고른다. 6층부터.	If you stand in its row or column within {0} tiles, it marks the charge line in red and rams down it next turn (2x attack). Step off the line or hide behind another monster. It catches its breath for a turn after charging. From floor 6.
+튼튼한 젤리. 쓰러뜨리면 작은 조각 둘로 갈라진다. 조각은 약하고 갓 갈라진 턴엔 굳어 있지만 골드와 경험치를 주지 않는다. 회전 베기로 한꺼번에 치우자. 7층부터.	A sturdy jelly. When defeated it splits into two small blobs. The blobs are weak and frozen the turn they appear, but give no gold or EXP. Clear them together with Spin Slash. From floor 7.
+조금 떨어져 있으면 연기와 함께 플레이어 등 뒤로 순간이동한다. 순간이동 직후 첫 공격은 1.5배로 아프다. 나타나면 바로 때려서 기습 전에 잡자. 8층부터.	When a few tiles away, it vanishes in smoke and teleports right behind you. Its first attack after teleporting deals 1.5x damage. Hit it the moment it appears, before it strikes. From floor 8.
