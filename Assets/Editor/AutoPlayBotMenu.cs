@@ -85,6 +85,51 @@ namespace LoopRogue.EditorTools
 
         private const string TestStartAfterStopKey = "LoopRogue_TestMap_StartAfterStop";
 
+        // ---- 퍼즐·미니게임 하나 골라 바로 체험 - 테스트 맵과 같은 저장 백업/되돌리기 ----
+        private const string PuzzleMenu = "LoopRogue/퍼즐·미니게임 체험 (끝나면 저장 되돌림)/";
+        [MenuItem(PuzzleMenu + "퍼즐 1. 얼음 미끄럼")] private static void Puzzle1() => StartPuzzleTrial(PuzzleType.IceSlide);
+        [MenuItem(PuzzleMenu + "퍼즐 2. 함정 복도")] private static void Puzzle2() => StartPuzzleTrial(PuzzleType.TrapCorridor);
+        [MenuItem(PuzzleMenu + "퍼즐 3. 룬 순서")] private static void Puzzle3() => StartPuzzleTrial(PuzzleType.RuneOrder);
+        [MenuItem(PuzzleMenu + "퍼즐 4. 상자 밀기")] private static void Puzzle4() => StartPuzzleTrial(PuzzleType.BoxPush);
+        [MenuItem(PuzzleMenu + "퍼즐 5. 전투 퍼즐")] private static void Puzzle5() => StartPuzzleTrial(PuzzleType.CombatChallenge);
+        [MenuItem(PuzzleMenu + "미니게임 1. 상자 섞기")] private static void Mini1() => StartPuzzleTrial(PuzzleType.ShellGame);
+        [MenuItem(PuzzleMenu + "미니게임 2. 두더지 잡기")] private static void Mini2() => StartPuzzleTrial(PuzzleType.WhackSlime);
+        [MenuItem(PuzzleMenu + "미니게임 3. 황금 슬라임 추격")] private static void Mini3() => StartPuzzleTrial(PuzzleType.GoldenChase);
+        [MenuItem(PuzzleMenu + "미니게임 4. 보물 찾기")] private static void Mini4() => StartPuzzleTrial(PuzzleType.TreasureSweep);
+        [MenuItem(PuzzleMenu + "미니게임 5. 버티기")] private static void Mini5() => StartPuzzleTrial(PuzzleType.Survival);
+
+        private const string PuzzleStartAfterStopKey = "LoopRogue_PuzzleTrial_StartAfterStop"; // 퍼즐 번호, -1 = 없음
+
+        private static void StartPuzzleTrial(PuzzleType type)
+        {
+            if (EditorApplication.isPlaying)
+            {
+                // Play 중에 눌렀으면 멈추고(저장 되돌리기 포함) 다시 시작
+                EditorPrefs.SetInt(PuzzleStartAfterStopKey, (int)type);
+                EditorApplication.isPlaying = false;
+                return;
+            }
+            UnityEngine.PlayerPrefs.Save();
+            if (RunReg($"export \"{PrefsRegistryKey}\" \"{TestBackupPath}\" /y"))
+                EditorPrefs.SetBool(TestRestorePendingKey, true);
+            else if (!EditorUtility.DisplayDialog("저장 백업 실패", "지금 저장을 백업하지 못했습니다. 체험 중 바뀐 저장이 그대로 남습니다. 그래도 시작할까요?", "시작", "취소"))
+                return;
+            EditorPrefs.SetInt(PuzzleTrial.PrefKey, (int)type);
+            EditorApplication.isPlaying = true;
+        }
+
+        [InitializeOnLoadMethod]
+        private static void HookPuzzleTrialRestart() => EditorApplication.playModeStateChanged += state =>
+        {
+            if (state != PlayModeStateChange.EnteredEditMode)
+                return;
+            var pending = EditorPrefs.GetInt(PuzzleStartAfterStopKey, -1);
+            if (pending < 0)
+                return;
+            EditorPrefs.SetInt(PuzzleStartAfterStopKey, -1);
+            EditorApplication.delayCall += () => StartPuzzleTrial((PuzzleType)pending); // 저장 되돌리기(HookTestMapRestore) 뒤에
+        };
+
         // ---- N층 보스방 앞까지 봇이 진행 → 사람에게 인계 ----
         // 새 저장으로 시작하므로(봇 공통) 시작 전에 지금 저장을 BotLogs/save_backup.reg로 백업한다 - "봇 전 저장 되돌리기"로 복구.
         private const string HandoffMenu = "LoopRogue/봇으로 N층 보스방 앞까지 (저장 백업 후 초기화)/";

@@ -219,6 +219,11 @@ namespace LoopRogue
         {
             if (!CanAct || !Inventory.Has(type))
                 return;
+            if (_room.Puzzle != null && !_room.Puzzle.AllowsTools)
+            {
+                _room.ShowMessage(Loc.T("여기선 스킬·아이템을 쓸 수 없다")); // 인벤토리 창에서 고른 경우
+                return;
+            }
             IsAimingDash = false;
             if (ItemInfo.NeedsDirection(type))
             {
@@ -420,6 +425,25 @@ namespace LoopRogue
             if (InventoryUI.LastCloseFrame == Time.frameCount)
                 return; // 인벤토리를 닫은 키가 이동/대기로 또 읽히지 않게
 
+            // 퍼즐·미니게임 방 - G로 포기, 몹과 싸우는 퍼즐이 아니면 스킬·아이템 금지
+            var puzzle = _room.Puzzle;
+            if (puzzle != null)
+            {
+                if (GameInput.Down(Key.G))
+                {
+                    puzzle.GiveUp();
+                    return;
+                }
+                if (puzzle.HandleKeys())
+                    return; // 상자 밀기 [Z] 되돌리기 등
+                if (!puzzle.AllowsTools && (GameInput.Down(Key.Q) || GameInput.Down(Key.E) ||
+                                            GameInput.Down(Key.Digit1) || GameInput.Down(Key.Digit2) || GameInput.Down(Key.Digit3)))
+                {
+                    _room.ShowMessage(Loc.T("여기선 스킬·아이템을 쓸 수 없다"));
+                    return;
+                }
+            }
+
             // 레벨업 카드를 숫자키로 고른 바로 그 프레임엔 같은 키가 퀵슬롯으로도 읽히지 않게.
             var choseCardThisFrame = Levels.LastChoiceFrame == Time.frameCount;
             for (var slot = 0; slot < Inventory.QuickSlotCount && !choseCardThisFrame; slot++)
@@ -511,8 +535,18 @@ namespace LoopRogue
             npc.Talk(this);
         }
 
+        /// <summary>퍼즐이 직접 처리한 행동도 한 턴으로 친다(쿨타임·재생·몹 턴·퍼즐 턴 끝).</summary>
+        public void ConsumeTurn()
+        {
+            BeginAction();
+            EndTurn();
+        }
+
         private void TryAct(Vector2Int direction)
         {
+            if (_room.Puzzle != null && _room.Puzzle.HandleAct(direction))
+                return; // 얼음 미끄럼·상자 밀기처럼 퍼즐이 이동을 직접 처리
+
             var targetPos = GridPos + direction;
 
             if (!Map.IsInBounds(targetPos) || Map.IsWall(targetPos))
@@ -556,6 +590,7 @@ namespace LoopRogue
                 Map.MoveActor(this, targetPos);
                 if (_room.TryUseExit(targetPos))
                     return; // 다음 방으로 넘어감 - 새 방 몹은 이번 턴에 안 움직인다
+                _room.Puzzle?.PlayerMoved(targetPos); // 룬·보물 찾기처럼 밟은 칸에 반응하는 퍼즐
             }
             else
             {

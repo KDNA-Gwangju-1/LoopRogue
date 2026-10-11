@@ -56,7 +56,9 @@ namespace LoopRogue
             _attemptStartGold = GoldWallet.Gold;
 
             // 시작 방 고르기(사람만) - 방1은 이미 깔아둔 채로 입력만 잠그고, 다른 방을 고르면 그 방으로 바꿔 로드.
-            if (!GameHUD.AutoPlayActive && !TestMap.Active)
+            if (PuzzleTrial.Active)
+                _roomController.LoadPuzzle(_rooms[_roomIndex], PuzzleTrial.Type.Value); // 에디터 메뉴 "퍼즐·미니게임 체험" - 고르기 없이 바로
+            else if (!GameHUD.AutoPlayActive && !TestMap.Active)
             {
                 _roomController.IsInputLocked = true;
                 _hud.ShowRoomSelect(stage, _rooms, 0, StartFromSelectedRoom);
@@ -73,20 +75,47 @@ namespace LoopRogue
 
         private void StartFromSelectedRoom(int index)
         {
-            if (index == _roomIndex)
-            {
-                _roomController.IsInputLocked = false;
-                return;
-            }
             _roomIndex = index;
-            _roomController.LoadRoom(_rooms[_roomIndex]); // IsInputLocked를 다시 false로 풀어준다.
-            RefreshHudProgress();
+            EnterRoom(); // 방 1을 골랐어도 다시 깐다 - 퍼즐방 확률을 여기서 굴린다(고르기 창 뒤에 깔아둔 방은 자리 표시용)
         }
 
         public void AdvanceToNextRoom()
         {
             _roomIndex++;
-            _roomController.LoadRoom(_rooms[_roomIndex]);
+            EnterRoom();
+        }
+
+        /// <summary>지금 방(_roomIndex)에 들어간다 - 일반 방이면 PuzzleBase.Chance 확률로 전투 대신 퍼즐·미니게임 10종 중 하나
+        /// (사용자 결정). 보스방·이벤트 칸이 있는 방(층마다 보물상자 1개 보장)·테스트 맵·자동 플레이 봇은 항상 전투.</summary>
+        private void EnterRoom()
+        {
+            var def = _rooms[_roomIndex];
+            var puzzleAllowed = !def.IsBossRoom && !def.IsTestRoom && !def.HasEvent && !GameHUD.AutoPlayActive && !TestMap.Active;
+            if (puzzleAllowed && PuzzleBase.TestModeNext(out var testType))
+                _roomController.LoadPuzzle(def, testType);
+            else if (puzzleAllowed && Rng.NextDouble() < PuzzleBase.Chance)
+                _roomController.LoadPuzzle(def, (PuzzleType)Rng.Next(PuzzleBase.TypeCount));
+            else
+                _roomController.LoadRoom(def); // IsInputLocked를 다시 false로 풀어준다.
+            RefreshHudProgress();
+        }
+
+        /// <summary>퍼즐 실패 창 "다시 도전" - 같은 종류를 배치만 새로 뽑아 다시.</summary>
+        public void RetryPuzzle(PuzzleType type) => _roomController.LoadPuzzle(_rooms[_roomIndex], type);
+
+        public bool CanReturnToPreviousRoom => _roomIndex > 0;
+
+        /// <summary>퍼즐 실패 창 두 번째 선택지 - 이전 방(이미 깬 방, 출구만 열림)으로 돌아간다. 출구로 다시 오면 퍼즐 확률을 새로 굴린다.
+        /// 방 1이라 이전 방이 없으면 평소 전투 방으로.</summary>
+        public void LeavePuzzle()
+        {
+            if (!CanReturnToPreviousRoom)
+            {
+                _roomController.LoadRoom(_rooms[_roomIndex]);
+                return;
+            }
+            _roomIndex--;
+            _roomController.LoadClearedRoom(_rooms[_roomIndex]);
             RefreshHudProgress();
         }
 
@@ -139,7 +168,7 @@ namespace LoopRogue
             Curses.Reset(); // 죽으면 저주도 풀린다
             RunBuffs.Reset();
             _player.Stats.FullHeal();
-            _roomController.LoadRoom(_rooms[_roomIndex]); // IsInputLocked를 다시 false로 풀어준다.
+            EnterRoom(); // IsInputLocked를 다시 false로 풀어준다.
             _attemptStartGold = GoldWallet.Gold;
             RefreshHudProgress();
             _hud.ShowLoopResetBanner(startRoom);

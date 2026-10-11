@@ -72,7 +72,20 @@ namespace LoopRogue
 
         /// <summary>HUD 띠만큼 카메라 영역(cam.rect)이 줄어도 칸이 화면에서 같은 크기로 보이게, 보이는 높이도 같은 비율로 줄인다
         /// (위아래로 보이는 칸 수가 줄어드는 대신 칸 크기 유지 - 사용자 선택). GameHUD.ApplyCameraViewport도 이걸 쓴다.</summary>
-        public static float CameraOrthoSize(Camera cam) => CameraViewHalfHeightCells * GridConstants.CellSize * cam.rect.height;
+        public static float CameraOrthoSize(Camera cam)
+        {
+            var size = CameraViewHalfHeightCells * GridConstants.CellSize * cam.rect.height;
+            if (!_fitRoom.HasValue)
+                return size;
+            // 퍼즐·미니게임 방 - 판 전체를 보고 계획해야 해서 방이 화면보다 크면 방 전체(+반 칸 여백)가 들어오게 물러난다
+            var room = _fitRoom.Value;
+            var cs = GridConstants.CellSize;
+            var fit = Mathf.Max((room.y + 1f) * 0.5f * cs, (room.x + 1f) * 0.5f * cs / Mathf.Max(0.1f, cam.aspect));
+            return Mathf.Max(size, fit);
+        }
+
+        /// <summary>지금 방이 퍼즐이면 그 크기(카메라가 전체를 비추게) - 일반 방은 null.</summary>
+        private static Vector2Int? _fitRoom;
 
         private static readonly System.Random Rng = new System.Random();
         private static readonly Color TelegraphColor = new Color(1f, 0.15f, 0.15f, 0.45f);
@@ -136,6 +149,105 @@ namespace LoopRogue
         public IReadOnlyCollection<Vector2Int> DangerTiles => _dangerTiles;
         public bool IsDangerTile(Vector2Int pos) => _dangerTiles.Contains(pos);
 
+        // ===================== 퍼즐·미니게임 방 =====================
+
+        /// <summary>지금 방이 퍼즐·미니게임이면 그 퍼즐(성공하면 null) - PlayerActor가 행동을 넘기고, 몹 턴 끝·처치·사망을 여기서 넘긴다.</summary>
+        public PuzzleBase Puzzle { get; private set; }
+
+        /// <summary>지금 방 청사진(퍼즐이 그 방 몹 종류·세기를 빌려 쓴다).</summary>
+        public RoomDefinition CurrentDefinition => _current;
+
+        /// <summary>봇·통계용 - 퍼즐 성공/실패 누적.</summary>
+        public static int PuzzleClearCount, PuzzleFailCount;
+
+        /// <summary>전투 대신 퍼즐로 방을 깐다(안개 없음, 몹·이벤트 없음). 같은 퍼즐을 다시 도전할 때도 이걸 다시 부른다(배치는 새로).</summary>
+        public void LoadPuzzle(RoomDefinition def, PuzzleType type)
+        {
+            _current = def;
+            ClearRoom();
+
+            var puzzle = PuzzleBase.Create(type);
+            puzzle.Init(this, _player, _stage, Rng, type);
+            var layout = puzzle.BuildLayout();
+            Map = new GridMap(layout.Width, layout.Height);
+            foreach (var wall in layout.Walls)
+                Map.AddWall(wall);
+            BuildFloor(layout, false);
+            _fitRoom = new Vector2Int(layout.Width, layout.Height);
+            Map.PlaceActor(_player, layout.PlayerStart);
+            if (_player.TryGetComponent<SpriteAnimator>(out var playerAnim))
+                playerAnim.SnapToGrid();
+            PositionCamera(layout);
+
+            _thornsKills.Clear();
+            _challengeEnemies.Clear();
+            _roomCleared = false;
+            Puzzle = puzzle;
+            if (puzzle.AllowsTools)
+                _player.OnRoomEntered(); // 갑옷 보호막 등 - 몹과 싸우는 퍼즐만(허수아비 유물이 퍼즐 칸을 막지 않게)
+            IsInputLocked = false;
+            puzzle.Begin();
+        }
+
+        /// <summary>퍼즐에 실패하고 "이전 방으로"를 골랐을 때 - 그 방을 몹 없이 출구만 열린 채로 깐다.</summary>
+        public void LoadClearedRoom(RoomDefinition def)
+        {
+            _loadCleared = true;
+            try { LoadRoom(def); }
+            finally { _loadCleared = false; }
+        }
+
+        private bool _loadCleared;
+
+        /// <summary>퍼즐 몹 - 그 방 몹 세기 × 배율, 골드·경험치·아이템 없음.</summary>
+        public EnemyActor SpawnPuzzleEnemy(Vector2Int pos, EnemyKind kind, float healthScale, float attackScale)
+        {
+            var enemy = SpawnEnemy(pos, _current, kind, healthScale, attackScale);
+            enemy.MarkAsPuzzleMob();
+            return enemy;
+        }
+
+        /// <summary>예고 칸 그림(보스·폭발과 같은 깜빡이는 칸) - 지우는 건 호출부가.</summary>
+        public GameObject SpawnWarningTile(Vector2Int tile, Color color) => SpawnTelegraphTile(tile, color, -5);
+
+        /// <summary>퍼즐 성공 - 레벨업 카드 1장(사용자 결정: 매번), 출구가 열리고 시작 방 고르기에서 다음 방이 열린다. 남은 퍼즐 몹은 사라진다.</summary>
+        public void CompletePuzzle(PuzzleBase puzzle, List<GameObject> objects)
+        {
+            if (Puzzle != puzzle)
+                return;
+            Puzzle = null;
+            foreach (var enemy in _enemies)
+            {
+                if (enemy == null)
+                    continue;
+                Map.RemoveActor(enemy);
+                Destroy(enemy.gameObject);
+            }
+            _enemies.Clear();
+            ClearAllTelegraphs();
+            _roomObjects.AddRange(objects);
+            _roomCleared = true;
+            PuzzleClearCount++;
+            if (!_current.IsTestRoom)
+                StageProgress.MarkRoomCleared(_current.RoomNumber);
+            ShowMessage(Loc.T("성공! 레벨업 카드 1장"));
+            HitFeedback.OnLevelUp(_player);
+            _player.Levels.GrantBonusUpgrade();
+            SpawnExit();
+        }
+
+        /// <summary>퍼즐 실패 - 입력을 잠그고 "다시 도전 / 이전 방으로" 창(방 1이면 이전 방이 없어서 평소 전투 방으로).</summary>
+        public void FailPuzzle(PuzzleBase puzzle, string reason)
+        {
+            if (Puzzle != puzzle)
+                return;
+            PuzzleFailCount++;
+            IsInputLocked = true;
+            ClearAllTelegraphs();
+            var back = _loopManager.CanReturnToPreviousRoom ? Loc.T("[B] 이전 방으로") : Loc.T("[B] 전투 방으로");
+            puzzle.ShowFail(reason, back, () => _loopManager.RetryPuzzle(puzzle.Type), () => _loopManager.LeavePuzzle());
+        }
+
         /// <summary>이 방에 아직 안 밟은 이벤트 칸이 있으면 그 액터(여러 개면 처음 것).</summary>
         public RoomEventActor Event => _events.Count > 0 ? _events[0] : null;
 
@@ -181,6 +293,7 @@ namespace LoopRogue
                 Map.AddWall(wall);
 
             BuildFloor(layout, def.IsBossRoom);
+            _fitRoom = null; // 일반 방 - 플레이어 주변만 비추는 평소 카메라
 
             Map.PlaceActor(_player, layout.PlayerStart);
             if (_player.TryGetComponent<SpriteAnimator>(out var playerAnim))
@@ -189,13 +302,13 @@ namespace LoopRogue
             if (!def.IsBossRoom && !def.IsTestRoom) // 보스방·테스트 방은 안개 없이 전부 보이게(사용자 결정 - 보스 패턴/소환 몹을 다 보고 싸우게)
                 FogOfWar.Create(this, _player, layout, _roomObjects);
 
-            for (var i = 0; i < layout.EnemyPositions.Count; i++)
+            for (var i = 0; i < layout.EnemyPositions.Count && !_loadCleared; i++)
             {
                 var kind = i < def.EnemyKinds.Count ? def.EnemyKinds[i] : EnemyKind.Melee;
                 SpawnEnemy(layout.EnemyPositions[i], def, kind);
             }
 
-            if (def.HasEvent && layout.EventPosition.HasValue)
+            if (def.HasEvent && layout.EventPosition.HasValue && !_loadCleared)
                 SpawnEvent(layout.EventPosition.Value, def.EventType);
             if (def.IsTestRoom)
                 foreach (var (pos, type) in TestMap.Events)
@@ -206,6 +319,11 @@ namespace LoopRogue
             _roomCleared = false;
             _player.OnRoomEntered(); // 갑옷 효과(보호막/불굴/응급 처치) 방마다 다시 채움
             IsInputLocked = false;
+            if (_loadCleared)
+            {
+                _roomCleared = true; // 퍼즐 실패 후 돌아온 이전 방 - 이미 깬 방이라 출구만
+                SpawnExit();
+            }
         }
 
         private EnemyActor SpawnEnemy(Vector2Int pos, RoomDefinition def, EnemyKind kind, float healthScale = 1f, float attackScale = 1f)
@@ -547,6 +665,8 @@ namespace LoopRogue
                 child.Initialize(parent.Stats.MaxHealth * EnemyActor.SplitHealthRatio, parent.Stats.AttackPower * EnemyActor.SplitAttackRatio,
                     isBoss: false, EnemyKind.Splitter);
                 child.MarkAsSplitChild();
+                if (parent.IsPuzzleMob)
+                    child.MarkAsPuzzleMob();
                 Map.PlaceActor(child, pos);
                 _enemies.Add(child);
             }
@@ -717,7 +837,9 @@ namespace LoopRogue
                 return; // RunEnemyTurns가 사망 처리
 
             // 다른 몹은 안 맞는다(사용자 결정) - 맞게 했더니 판당 73마리를 대신 잡아주는 청소부가 됐다.
-            if (_enemies.Count == 0)
+            if (Puzzle != null)
+                Puzzle.EnemyDefeated(bomber); // 퍼즐 몹 폭발병 - 방 클리어 판정은 퍼즐이
+            else if (_enemies.Count == 0)
                 FinishRoomCleared();
         }
 
@@ -767,6 +889,12 @@ namespace LoopRogue
 
         private void ClearRoom()
         {
+            if (Puzzle != null)
+            {
+                Puzzle.Dispose();
+                Puzzle = null;
+            }
+
             foreach (var enemy in _enemies)
                 if (enemy != null)
                     Destroy(enemy.gameObject);
@@ -820,6 +948,11 @@ namespace LoopRogue
             }
 
             _enemies.Remove(enemy);
+            if (Puzzle != null)
+            {
+                Puzzle.EnemyDefeated(enemy); // 퍼즐 몹 - 방 클리어 판정은 퍼즐이 한다
+                return false;
+            }
             GiveEventEnemyReward(enemy);
 
             if (enemy.IsBoss)
@@ -934,6 +1067,8 @@ namespace LoopRogue
 
         private void RunEnemyTurnsCore()
         {
+            if (Puzzle != null && !Puzzle.IsRunning)
+                return; // 퍼즐이 방금 실패했다(실패 창이 떠 있는 동안 몹이 때리지 않게)
             // 스냅샷을 떠서 순회한다 - 턴 도중 죽거나 소환돼서 리스트가 바뀌어도 이번 순회엔 영향 없게.
             // 플레이어에게 가까운 몹부터 움직여서 가까운 몹이 가까운 옆 칸을 먼저 예약하게 한다(포위 AI).
             var playerPos = ActiveDecoy != null ? ActiveDecoy.GridPos : _player.GridPos; // 미끼가 있으면 미끼 기준으로 포위
@@ -963,7 +1098,10 @@ namespace LoopRogue
                 if (_player.Stats.IsDead)
                 {
                     ClearAllTelegraphs();
-                    _loopManager.OnPlayerDied();
+                    if (Puzzle != null)
+                        Puzzle.PlayerKilled(); // 퍼즐 안에선 죽지 않고 실패(체력은 퍼즐 시작 때로)
+                    else
+                        _loopManager.OnPlayerDied();
                     return;
                 }
             }
@@ -978,6 +1116,7 @@ namespace LoopRogue
             }
 
             EndOfEnemyTurns();
+            Puzzle?.TurnEnd();
         }
 
         /// <summary>몹 턴이 다 끝난 뒤 - 던져둔 폭탄이 터지고, 미끼 남은 턴이 준다.</summary>

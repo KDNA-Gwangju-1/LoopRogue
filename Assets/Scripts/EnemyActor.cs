@@ -97,8 +97,12 @@ namespace LoopRogue
         private int _blinkCooldown = 2;
         private bool _backstabReady;
 
-        /// <summary>골드·경험치·아이템을 안 주는 몹(보스 졸개, 분열 조각).</summary>
-        public bool NoReward => IsMinion || IsSplitChild;
+        /// <summary>퍼즐·미니게임(전투 퍼즐·버티기)이 부른 몹 - 보상 없음.</summary>
+        public bool IsPuzzleMob { get; private set; }
+        public void MarkAsPuzzleMob() => IsPuzzleMob = true;
+
+        /// <summary>골드·경험치·아이템을 안 주는 몹(보스 졸개, 분열 조각, 퍼즐 몹).</summary>
+        public bool NoReward => IsMinion || IsSplitChild || IsPuzzleMob;
 
         /// <summary>이번 턴에 노리는 칸(플레이어 또는 미끼)과 미끼.</summary>
         private Vector2Int _tp;

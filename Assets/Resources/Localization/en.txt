@@ -720,3 +720,80 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 튼튼한 젤리. 쓰러뜨리면 작은 조각 둘로 갈라진다. 조각은 약하고 갓 갈라진 턴엔 굳어 있지만 골드와 경험치를 주지 않는다. 회전 베기로 한꺼번에 치우자. 7층부터.	A sturdy jelly. When defeated it splits into two small blobs. The blobs are weak and frozen the turn they appear, but give no gold or EXP. Clear them together with Spin Slash. From floor 7.
 조금 떨어져 있으면 연기와 함께 플레이어 등 뒤로 순간이동한다. 순간이동 직후 첫 공격은 1.5배로 아프다. 나타나면 바로 때려서 기습 전에 잡자. 8층부터.	When a few tiles away, it vanishes in smoke and teleports right behind you. Its first attack after teleporting deals 1.5x damage. Hit it the moment it appears, before it strikes. From floor 8.
 <color=#9AA0AA>{0} 클리어 시 {1} 열림</color>	<color=#9AA0AA>Clear {0} to unlock {1}</color>
+쓰러졌다!	You fell!
+포기했다	Gave up
+미니게임	Minigame
+퍼즐	Puzzle
+포기 [G]	Give up [G]
+실패!	Failed!
+[R] 다시 도전	[R] Retry
+[B] 이전 방으로	[B] Previous room
+[B] 전투 방으로	[B] Fight instead
+성공! 레벨업 카드 1장	Success! 1 level-up card
+여기선 스킬·아이템을 쓸 수 없다	Skills and items can't be used here
+시간 초과	Time's up
+잘 봐라!	Watch closely!
+{0} / {1}	{0} / {1}
+얼음 미끄럼	Ice Slide
+이동 횟수를 다 썼다	Out of moves
+함정 복도	Trap Corridor
+함정에 맞았다	Hit by a trap
+룬 순서	Rune Order
+순서가 틀렸다	Wrong order
+상자 밀기	Box Push
+상자 {0} / {1}   이동 {2}	Boxes {0} / {1}   Moves {2}
+전투 퍼즐	Combat Puzzle
+{0}턴 안에 몹을 전부 쓰러뜨려라.	Defeat every monster within {0} turns.
+한 대도 맞지 말고 몹을 전부 쓰러뜨려라.	Defeat every monster without taking a single hit.
+남은 몹 {0}   남은 턴 {1}	Monsters left {0}   Turns left {1}
+남은 몹 {0}	Monsters left {0}
+맞았다!	You got hit!
+상자 섞기	Shell Game
+보물이 든 상자를 골라라	Pick the chest with the treasure
+꽝! 보물은 다른 상자에 있었다	Miss! The treasure was in another chest
+두더지 잡기	Whack-a-Slime
+황금 슬라임 추격	Golden Slime Chase
+놓쳤다	It got away
+보물 찾기	Treasure Hunt
+함정을 밟았다	Stepped on a trap
+버티기	Survival
+남은 시간 {0}:{1:00}	Time left {0}:{1:00}
+보물 상자를 눈으로 쫓아 부딪혀 열어라. 라운드를 전부 맞혀야 성공! 마지막 라운드엔 상자가 어두워진다.	Follow the treasure chest and bump it to open. Win every round! In the last round the chests go dark.
+라운드 {0} / {1}	Round {0} / {1}
+정답! 라운드 {0} / {1}	Correct! Round {0} / {1}
+구멍 쪽으로 부딪혀 슬라임을 때려라. 초록 +1, 금색 +3(금방 숨음), 빨간 폭탄 슬라임은 때리면 -2!	Bump toward a hole to whack slimes. Green +1, gold +3 (hides fast), red bomb slime -2 if hit!
+점수 {0} / {1}   남은 턴 {2}	Score {0} / {1}   Turns left {2}
+폭탄 슬라임! 점수 -2	Bomb slime! Score -2
+황금 슬라임을 구석으로 몰아 부딪혀라({0}턴마다 숨을 고른다). 지나간 자리의 점액을 밟으면 발이 묶인다!	Corner the golden slime and bump into it (it rests every {0} turns). Stepping in its slime trail roots you!
+남은 슬라임 {0}   남은 턴 {1}	Slimes left {0}   Turns left {1}
+한 마리 잡았다! 남은 슬라임을 쫓아라	Caught one! Chase the other
+점액에 발이 묶였다! (Space로 한 턴 쉬기)	Stuck in slime! (Space to rest a turn)
+숫자 = 주변 8칸의 함정 수. 먼저 열쇠를 주운 뒤 보물 상자까지 가라. 걸음 수 제한이 있다.	Numbers = traps in the 8 surrounding tiles. Grab the key first, then reach the chest. Steps are limited.
+숨은 함정 {0}개   열쇠 {1}   걸음 {2} / {3}	{0} hidden traps   Key {1}   Steps {2} / {3}
+있음	yes
+없음	no
+열쇠를 주웠다! 이제 보물 상자로	Got the key! Now to the chest
+잠겨 있다 - 열쇠가 필요하다	Locked - you need the key
+걸음 수를 다 썼다	Out of steps
+2분을 버텨라. 가만히 있어도 몹은 움직인다. 빨간 칸엔 돌이 떨어지고, 1분이 지나면 더 거세진다!	Survive 2 minutes. Monsters move even if you stand still. Rocks fall on red tiles, and it gets fiercer after 1 minute!
+정예 몹이 나타났다!	An elite monster appeared!
+벽·바위까지 미끄러진다(진흙에선 멈춤). 보석을 전부 모은 뒤 깃발 칸에 딱 멈춰라!	You slide until a wall or rock (mud stops you). Collect every gem, then stop exactly on the flag!
+벽·바위까지 미끄러진다. 보석을 전부 모은 뒤 깃발 칸에 딱 멈춰라!	You slide until a wall or rock. Collect every gem, then stop exactly on the flag!
+보석 {0} / {1}   이동 {2} / {3}  (최소 {4}번)	Gems {0} / {1}   Moves {2} / {3}  (min {4})
+보석을 전부 모아야 깃발이 인정된다	Collect every gem before the flag counts
+빨간 칸은 다음 턴에 함정이 튀어나온다. 레버를 밟아 출구를 열고 오른쪽 끝까지! (Space = 대기)	Red tiles spring a trap next turn. Step on the lever to open the exit, then reach the right end! (Space = wait)
+레버 {0}   턴 {1} / {2}	Lever {0}   Turn {1} / {2}
+당김	pulled
+아직	not yet
+레버를 당겼다! 출구가 열렸다	Lever pulled! The exit is open
+출구가 잠겨 있다 - 파란 레버를 먼저 밟아라	The exit is locked - step on the blue lever first
+룬이 빛나는 순서대로 밟아라. 라운드마다 길어지고, 4층부터 마지막 라운드는 거꾸로 밟아야 한다!	Step on the runes in the order they light up. Each round is longer, and from floor 4 the last round must be done in reverse!
+거꾸로!	Reverse!
+이번엔 거꾸로 밟아라!	This time, in reverse!
+상자를 밀어 같은 색 발판에 올려라. 당길 수는 없다! [Z] 되돌리기, 막히면 [G] 포기 → 다시 도전	Push each box onto the plate of its color. You can't pull! [Z] undo, stuck? [G] give up → retry
+상자를 밀어 노란 발판에 전부 올려라. 당길 수는 없다! [Z] 되돌리기, 막히면 [G] 포기 → 다시 도전	Push every box onto a yellow plate. You can't pull! [Z] undo, stuck? [G] give up → retry
+되돌리기 [Z]	Undo [Z]
+되돌릴 수가 없다	Nothing to undo
+머리 위 번호 순서대로 쓰러뜨려라. 다른 몹을 먼저 잡으면 실패! (회전 베기·폭탄 조심)	Defeat monsters in the order of the numbers above them. Kill another first and you fail! (Careful with Spin Slash and bombs)
+다음 번호 {0} / {1}	Next number {0} / {1}
+순서가 틀렸다 - {0}번을 먼저 잡아야 했다	Wrong order - number {0} had to go first
