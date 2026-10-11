@@ -60,7 +60,7 @@ namespace LoopRogue
         private Action<int> _onContinueAfterDeath;
         private Action _onReturnToLobby;
 
-        // 시작 방 고르기("방을 자유롭게 들어갈 수 있게", 사용자 결정: 처음부터 11개 전부, 깬 뒤엔 다음 방으로) -
+        // 시작 방 고르기("방을 자유롭게 들어갈 수 있게", 깬 뒤엔 다음 방으로) - 처음엔 11개 전부였다가 사용자 결정으로 이 층에서 깬 방 바로 다음까지만 열림(StageProgress.RoomsCleared) -
         // 스테이지 입장 창과 사망 창이 "방 지도 한 줄"(RoomMapView) 하나를 같이 쓴다.
         // 봇은 항상 방1부터(밸런스 측정 기준 유지) - 봇이 켜져 있으면 입장 창은 아예 안 뜨고, ChooseDeathContinue는 방1.
         public static bool AutoPlayActive;

@@ -853,6 +853,8 @@ namespace LoopRogue
             LastClearedWasBoss = _current.IsBossRoom;
             LastClearHpFraction = _player.Stats.CurrentHealth / Mathf.Max(1f, _player.Stats.MaxHealth); // 클리어 회복 전
             Achievements.Check(); // 누적 처치 업적 - 몹마다 보지 않고 방을 비울 때 한 번
+            if (!_current.IsBossRoom && !_current.IsTestRoom)
+                StageProgress.MarkRoomCleared(_current.RoomNumber); // 시작 방 고르기에서 다음 방이 열린다
             if (!_current.IsBossRoom)
             {
                 var goldBonus = GoldBonus;

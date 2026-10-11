@@ -11,6 +11,7 @@ namespace LoopRogue
         public const int MaxStage = 10;
         private const string StageKey = "LoopRogue_CurrentStage";
         private const string AttemptsKey = "LoopRogue_StageAttempts";
+        private const string RoomsClearedKey = "LoopRogue_StageRoomsCleared";
 
         /// <summary>반복 보상 감소 - 같은 스테이지를 다시 시도할수록 일반 몹/방 클리어 골드·경험치가 이 비율로 줄고
         /// (2번째 90%, 3번째 81%...), RepeatRewardFloor 밑으로는 안 내려간다. 어려운 스테이지에서 수십 번 죽으며
@@ -20,6 +21,33 @@ namespace LoopRogue
         public const float RepeatRewardFloor = 0.5f;
 
         private static int _attempts;
+        private static int _roomsCleared;
+
+        /// <summary>이 층에서 지금까지 깬 일반 방 수(방 1부터 연속) - 시작 방 고르기는 깬 방 바로 다음까지만 열린다
+        /// (사용자 결정: "이전 스테이지를 클리어해야 열리게" - 처음 들어간 층은 방 1만, 방 10을 깨면 보스방까지).
+        /// 다음 층으로 넘어가면 0. 죽어도 줄지 않는다.</summary>
+        public static int RoomsCleared
+        {
+            get
+            {
+                EnsureLoaded();
+                return _roomsCleared;
+            }
+        }
+
+        /// <summary>시작 방 고르기에서 고를 수 있는 칸 수(앞에서부터) - 깬 방 수 + 1, 최대 전체 칸 수.</summary>
+        public static int UnlockedRoomCount(int roomCount) => Mathf.Clamp(RoomsCleared + 1, 1, roomCount);
+
+        /// <summary>일반 방 roomNumber(1부터)를 깼다 - 처음 깬 방이면 다음 방이 열린다.</summary>
+        public static void MarkRoomCleared(int roomNumber)
+        {
+            EnsureLoaded();
+            if (roomNumber <= _roomsCleared)
+                return;
+            _roomsCleared = roomNumber;
+            PlayerPrefs.SetInt(RoomsClearedKey, _roomsCleared);
+            PlayerPrefs.Save();
+        }
 
         private static bool _loaded;
 
@@ -47,6 +75,7 @@ namespace LoopRogue
 
             _stage = PlayerPrefs.GetInt(StageKey, 1);
             _attempts = PlayerPrefs.GetInt(AttemptsKey, 0);
+            _roomsCleared = PlayerPrefs.GetInt(RoomsClearedKey, 0);
             _loaded = true;
         }
 
@@ -57,8 +86,10 @@ namespace LoopRogue
             EnsureLoaded();
             _stage = Mathf.Min(_stage + 1, MaxStage);
             _attempts = 0;
+            _roomsCleared = 0;
             PlayerPrefs.SetInt(StageKey, _stage);
             PlayerPrefs.SetInt(AttemptsKey, _attempts);
+            PlayerPrefs.SetInt(RoomsClearedKey, _roomsCleared);
             PlayerPrefs.Save();
         }
 
