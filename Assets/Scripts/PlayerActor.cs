@@ -14,7 +14,6 @@ namespace LoopRogue
     public class PlayerActor : GridActor
     {
         private static readonly Color PlayerColor = new Color(0.25f, 0.55f, 1f);
-        private const float AttackFlashDuration = 0.18f;
         private const int ExpPerKill = 8;       // 스테이지 배율 곱하기 전 기본값
         private const int ExpPerBossKill = 80;  // 골드처럼 일반 몹의 10배
 
@@ -62,6 +61,9 @@ namespace LoopRogue
 
         /// <summary>방패병 정면을 때려서 피해가 줄어든 누적 횟수(봇 통계용).</summary>
         public static int ShieldBlockCount;
+
+        /// <summary>플레이어가 몹을 잡은 순간(봇 통계용) - 직접 타격·폭탄·반사 등 ClaimKill 공통 경로에서 부른다.</summary>
+        public static event Action<EnemyActor> EnemyKilled;
 
         /// <summary>거미줄에 맞았을 때(EnemyActor 거미가 부른다). 정화제 효과 중엔 무시.</summary>
         public void ApplyRoot(int turns)
@@ -138,10 +140,11 @@ namespace LoopRogue
 
             BeginAction();
             if (EquipmentEffects.Has(ItemSlot.Accessory, 2) && ItemRng.NextDouble() < EquipmentEffects.ItemSaveChance)
-                _room.ShowMessage($"절약! {ItemInfo.Name(type)}이(가) 남았다"); // 반지 "절약"
+                _room.ShowMessage(Loc.F("절약! {0}이(가) 남았다", ItemInfo.Name(type))); // 반지 "절약"
             else
                 Inventory.Consume(type);
             ApplyItem(type, target);
+            HitFeedback.OnItemUsed(this, type, target);
             EndTurn();
             return true;
         }
@@ -152,20 +155,20 @@ namespace LoopRogue
             {
                 case ItemType.Torch:
                     _room.PlaceTorch(target);
-                    _room.ShowMessage("횃불을 놓았다");
+                    _room.ShowMessage(Loc.T("횃불을 놓았다"));
                     break;
                 case ItemType.Bomb:
                     BreakSmoke(); // 폭탄도 공격
                     _room.ThrowBomb(target);
-                    _room.ShowMessage("폭탄을 던졌다! 다음 턴에 터진다");
+                    _room.ShowMessage(Loc.T("폭탄을 던졌다! 다음 턴에 터진다"));
                     break;
                 case ItemType.Decoy:
                     _room.PlaceDecoy(target);
-                    _room.ShowMessage($"미끼! {ItemInfo.DecoyTurns}턴 동안 몹들이 허수아비를 노린다");
+                    _room.ShowMessage(Loc.F("미끼! {0}턴 동안 몹들이 허수아비를 노린다", ItemInfo.DecoyTurns));
                     break;
                 case ItemType.Trap:
                     _room.PlaceTrap(target);
-                    _room.ShowMessage("덫을 놓았다");
+                    _room.ShowMessage(Loc.T("덫을 놓았다"));
                     break;
                 case ItemType.Smoke:
                     foreach (var e in _room.EnemiesWithin(GridPos, ItemInfo.SmokeRadius))
@@ -177,12 +180,12 @@ namespace LoopRogue
                     InSmoke = true;
                     if (HitFeedback.Enabled)
                         DeathBurst.Spawn(transform.position, new Color(0.62f, 0.64f, 0.7f), count: 30, speed: 4f, size: 0.4f);
-                    _room.ShowMessage("연막! 공격하기 전까지 주변 몹이 플레이어를 못 찾는다");
+                    _room.ShowMessage(Loc.T("연막! 공격하기 전까지 주변 몹이 플레이어를 못 찾는다"));
                     break;
                 case ItemType.Cleanse:
                     RootedTurns = 0;
                     WebImmuneTurns = ItemInfo.CleanseImmuneTurns;
-                    _room.ShowMessage("정화제! 거미줄이 풀렸다");
+                    _room.ShowMessage(Loc.T("정화제! 거미줄이 풀렸다"));
                     if (HitFeedback.Enabled)
                     {
                         // 초록 기운이 몸을 감쌌다가 퍼지며 풀려나간다
@@ -194,30 +197,35 @@ namespace LoopRogue
                     break;
                 case ItemType.Flash:
                 {
+                    var mirrorKept = false;
                     foreach (var e in _room.Enemies.Where(b => b != null && b.IsBoss && !b.Stats.IsDead))
                     {
-                        e.CancelBossPattern(_room);
+                        // 10층 거울 파편(4연격)은 섬광탄으로 못 막는다 - 기절은 걸리지만 깔린 파편은 그대로 터진다.
+                        if (e.MirrorShardsActive)
+                            mirrorKept = true;
+                        else
+                            e.CancelBossPattern(_room);
                         e.Stun(ItemInfo.FlashBossStunTurns);
                     }
                     foreach (var e in _room.EnemiesWithin(GridPos, ItemInfo.FlashRadius).Where(m => !m.IsBoss))
                         e.Stun(ItemInfo.FlashEnemyStunTurns);
-                    _room.ShowMessage("섬광탄! 보스의 공격이 취소됐다");
+                    _room.ShowMessage(mirrorKept ? Loc.T("섬광탄! 보스는 비틀거리지만 거울 파편은 멈추지 않는다") : Loc.T("섬광탄! 보스의 공격이 취소됐다"));
                     break;
                 }
                 case ItemType.Reflect:
                     ReflectTurns = ItemInfo.ReflectTurns;
-                    _room.ShowMessage($"반사 부적! {ItemInfo.ReflectTurns}턴 안에 맞는 보스 공격을 되돌린다");
+                    _room.ShowMessage(Loc.F("반사 부적! {0}턴 안에 맞는 보스 공격을 되돌린다", ItemInfo.ReflectTurns));
                     break;
                 case ItemType.Weakness:
                     foreach (var e in _room.EnemiesWithin(GridPos, ItemInfo.WeaknessRadius))
-                        e.MarkVulnerable(ItemInfo.WeaknessTurns);
+                        e.MarkVulnerable();
                     foreach (var e in _room.Enemies.Where(b => b != null && b.IsBoss && !b.Stats.IsDead))
-                        e.MarkVulnerable(ItemInfo.WeaknessTurns);
-                    _room.ShowMessage("약점 표식! 받는 피해가 늘어난다");
+                        e.MarkVulnerable();
+                    _room.ShowMessage(Loc.T("약점 표식! 받는 피해가 늘어난다"));
                     break;
                 case ItemType.Barrier:
                     Stats.BlockNextHit = true;
-                    _room.ShowMessage("보호막! 다음 피해 1회 무효");
+                    _room.ShowMessage(Loc.T("보호막! 다음 피해 1회 무효"));
                     break;
             }
         }
@@ -246,6 +254,11 @@ namespace LoopRogue
         {
             if (!CanAct || !Inventory.Has(type))
                 return;
+            if (_room.Puzzle != null && !_room.Puzzle.AllowsTools)
+            {
+                _room.ShowMessage(Loc.T("여기선 스킬·아이템을 쓸 수 없다")); // 인벤토리 창에서 고른 경우
+                return;
+            }
             IsAimingDash = false;
             if (ItemInfo.NeedsDirection(type))
             {
@@ -254,7 +267,7 @@ namespace LoopRogue
             }
             AimingItem = null;
             if (!TryUseItem(type, null))
-                _room.ShowMessage("지금은 쓸 수 없다");
+                _room.ShowMessage(Loc.T("지금은 쓸 수 없다"));
         }
 
         /// <summary>자동 플레이 봇용.</summary>
@@ -267,9 +280,10 @@ namespace LoopRogue
 
         private RoomController _room;
         private SpriteRenderer _renderer;
-        private Sprite _idleSprite;
-        private Sprite _attackSprite;
-        private Coroutine _attackFlashRoutine;
+        private SpriteAnimator _anim; // 전용 도트 그림(Resources/Sprites/Player)이 있으면 4방향 대기·걷기·공격
+
+        private const string PlayerSpriteSet = "Player";
+        private const float PlayerSpriteScale = 1.25f; // 64x64 캔버스에 몸이 40px 남짓 - 예전 그림(48px, 0.9칸)과 비슷한 키
 
         public void Initialize(RoomController room)
         {
@@ -310,22 +324,25 @@ namespace LoopRogue
                 {
                     FixedMaxHealth = RunProgress.CurrentPermanentHealth(),
                     FixedAttack = RunProgress.CurrentPermanentAttack(),
-                    CriticalChanceRate = StatPotionWallet.TotalCriticalChanceBonus(),
+                    CriticalChanceRate = RunProgress.CurrentPermanentCritical(), // 영약 + 칭호
                 };
                 Stats.FullHeal();
                 Levels = new LevelSystem(Stats);
             }
+            Levels.OnLevelUp += _ => HitFeedback.OnLevelUp(this); // 금빛 기둥
 
-            // StoryRPG의 로그(Rogue) 캐릭터 스프라이트(전용 아트가 아직 없어 어쌔신 스프라이트로
-            // 폴백 중인 그 그림) - Assets/Resources/PlayerSprite.png(평소)+PlayerAttackSprite.png
-            // (공격 순간만 잠깐)로 가져와뒀다. 못 찾으면 예전처럼 단색 사각형으로 안전하게 폴백한다
-            // (이 경우 공격 모션도 같이 생략 - 바꿀 스프라이트 자체가 없으므로).
-            _idleSprite = Resources.Load<Sprite>("PlayerSprite");
-            _attackSprite = Resources.Load<Sprite>("PlayerAttackSprite");
-
-            _renderer = _idleSprite != null
-                ? VisualUtil.CreateSpriteVisual(gameObject, _idleSprite, GridConstants.CellSize * 0.9f, sortingOrder: 1)
-                : VisualUtil.CreateSquareVisual(gameObject, PlayerColor, GridConstants.CellSize * 0.65f, sortingOrder: 1);
+            // 전용 도트 그림(노란 머리 대검 용사, 4방향 대기·걷기·공격 - Resources/Sprites/Player). 없으면 파란 사각형.
+            // (예전에 빌려 쓰던 StoryRPG 어쌔신 그림은 출처가 불확실해서 스팀 출시 전에 지웠다.)
+            var playerSprite = SpriteAnimator.FirstFrame(PlayerSpriteSet);
+            if (playerSprite != null)
+            {
+                _renderer = VisualUtil.CreateSpriteVisual(gameObject, playerSprite, GridConstants.CellSize * PlayerSpriteScale, sortingOrder: 1);
+                _anim = gameObject.AddComponent<SpriteAnimator>();
+                _anim.Setup(PlayerSpriteSet, _renderer, new Color(0.4f, 0.5f, 0.75f));
+            }
+            else
+                _renderer = VisualUtil.CreateSquareVisual(gameObject, PlayerColor, GridConstants.CellSize * 0.65f, sortingOrder: 1);
+            StatusIcons.AttachToPlayer(this); // 보호막·반사 부적·거미줄 면역 표시
 
             Stats.OnArmorEffect = message => _room.ShowMessage(message);
             Stats.OnRevived = MoveToSafeTile;
@@ -374,6 +391,16 @@ namespace LoopRogue
         /// 봇 측정에서 보스전 사망이 목표의 10~25%로 떨어져서 시도마다로 줄였다(사용자 결정 C안).</summary>
         public void OnAttemptStarted()
         {
+            // 죽거나 로비를 다녀와 새 시도 - 지난 시도에 걸어둔 보호막·반사 부적·거미줄·면역·쿨타임·조준이 넘어오지 않게.
+            Stats.BlockNextHit = false;
+            ReflectTurns = 0;
+            RootedTurns = 0;
+            WebImmuneTurns = 0;
+            DashCooldown = 0;
+            SpinCooldown = 0;
+            IsAimingDash = false;
+            AimingItem = null;
+            _comboCount = 0;
             Stats.UndyingReady = EquipmentEffects.Has(ItemSlot.Armor, 3);
             Stats.EmergencyHealReady = EquipmentEffects.Has(ItemSlot.Armor, 4);
             Stats.ReviveReady = Relics.Has(RelicType.SecondWind); // 유물 "두 번째 숨"
@@ -408,7 +435,8 @@ namespace LoopRogue
         }
 
         /// <summary>지금 이동/공격 입력을 받을 수 있는 상태인지(키 입력과 자동 플레이 봇이 같은 조건을 쓴다).</summary>
-        public bool CanAct => _room != null && !_room.IsInputLocked && !Levels.IsChoosingUpgrade && !Stats.IsDead && !PauseMenu.BlocksInput && !InventoryUI.IsOpen;
+        public bool CanAct => _room != null && !_room.IsInputLocked && !Levels.IsChoosingUpgrade && !Stats.IsDead && !PauseMenu.BlocksInput && !InventoryUI.IsOpen
+                              && !NpcDialogUI.BlocksInput; // 대화창을 닫은 키(Space/숫자)가 대기/퀵슬롯으로 또 읽히지 않게 닫힌 프레임까지
 
         /// <summary>자동 플레이 봇용 - 방향키 한 번 누른 것과 똑같이 한 턴 행동한다.</summary>
         public void BotAct(Vector2Int direction)
@@ -436,74 +464,96 @@ namespace LoopRogue
             if (!CanAct)
                 return;
 
-            var keyboard = Keyboard.current;
-            if (keyboard == null)
-                return;
 
             Vector2Int? direction = null;
-            if (keyboard.wKey.wasPressedThisFrame || keyboard.upArrowKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.W) || GameInput.Down(Key.UpArrow))
                 direction = Vector2Int.up;
-            else if (keyboard.sKey.wasPressedThisFrame || keyboard.downArrowKey.wasPressedThisFrame)
+            else if (GameInput.Down(Key.S) || GameInput.Down(Key.DownArrow))
                 direction = Vector2Int.down;
-            else if (keyboard.aKey.wasPressedThisFrame || keyboard.leftArrowKey.wasPressedThisFrame)
+            else if (GameInput.Down(Key.A) || GameInput.Down(Key.LeftArrow))
                 direction = Vector2Int.left;
-            else if (keyboard.dKey.wasPressedThisFrame || keyboard.rightArrowKey.wasPressedThisFrame)
+            else if (GameInput.Down(Key.D) || GameInput.Down(Key.RightArrow))
                 direction = Vector2Int.right;
 
             if (InventoryUI.LastCloseFrame == Time.frameCount)
                 return; // 인벤토리를 닫은 키가 이동/대기로 또 읽히지 않게
 
+            // 퍼즐·미니게임 방 - G로 포기, 몹과 싸우는 퍼즐이 아니면 스킬·아이템 금지
+            var puzzle = _room.Puzzle;
+            if (puzzle != null)
+            {
+                if (GameInput.Down(Key.G))
+                {
+                    puzzle.GiveUp();
+                    return;
+                }
+                if (puzzle.HandleKeys())
+                    return; // 상자 밀기 [Z] 되돌리기 등
+                if (!puzzle.AllowsTools && (GameInput.Down(Key.Q) || GameInput.Down(Key.E) ||
+                                            GameInput.Down(Key.Digit1) || GameInput.Down(Key.Digit2) || GameInput.Down(Key.Digit3)))
+                {
+                    _room.ShowMessage(Loc.T("여기선 스킬·아이템을 쓸 수 없다"));
+                    return;
+                }
+            }
+
             // 레벨업 카드를 숫자키로 고른 바로 그 프레임엔 같은 키가 퀵슬롯으로도 읽히지 않게.
             var choseCardThisFrame = Levels.LastChoiceFrame == Time.frameCount;
             for (var slot = 0; slot < Inventory.QuickSlotCount && !choseCardThisFrame; slot++)
             {
-                var key = slot == 0 ? keyboard.digit1Key : slot == 1 ? keyboard.digit2Key : keyboard.digit3Key;
-                if (!key.wasPressedThisFrame)
+                var key = slot == 0 ? Key.Digit1 : slot == 1 ? Key.Digit2 : Key.Digit3;
+                if (!GameInput.Down(key))
                     continue;
                 var item = Inventory.QuickSlot(slot);
                 if (item.HasValue && Inventory.Has(item.Value))
                     SelectItem(item.Value);
                 else
-                    _room.ShowMessage($"퀵슬롯 {slot + 1}이 비어 있다 (I: 인벤토리)");
+                    _room.ShowMessage(Loc.F("퀵슬롯 {0}이 비어 있다 (I: 인벤토리)", slot + 1));
+                return;
+            }
+
+            if (GameInput.Down(Key.F))
+            {
+                TryTalk();
                 return;
             }
 
             if (AimingItem.HasValue)
             {
-                if (keyboard.qKey.wasPressedThisFrame || keyboard.eKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.Q) || GameInput.Down(Key.E))
                     AimingItem = null; // 스킬 키를 누르면 아이템 고르기 취소(아래에서 스킬 처리)
                 else if (direction.HasValue)
                 {
                     var item = AimingItem.Value;
                     AimingItem = null;
                     if (!TryUseItem(item, direction.Value))
-                        _room.ShowMessage("그쪽으로는 쓸 수 없다");
+                        _room.ShowMessage(Loc.T("그쪽으로는 쓸 수 없다"));
                     return;
                 }
                 else
                     return; // 방향 고르는 중
             }
 
-            if (keyboard.qKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.Q))
             {
                 if (IsAimingDash)
                     IsAimingDash = false;
                 else if (RootedTurns > 0)
-                    _room.ShowMessage("거미줄에 묶여 대시할 수 없다!");
+                    _room.ShowMessage(Loc.T("거미줄에 묶여 대시할 수 없다!"));
                 else if (DashCooldown > 0)
-                    _room.ShowMessage($"대시는 {DashCooldown}턴 뒤에 쓸 수 있다");
+                    _room.ShowMessage(Loc.F("대시는 {0}턴 뒤에 쓸 수 있다", DashCooldown));
                 else
                     IsAimingDash = true;
                 return;
             }
 
-            if (keyboard.eKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.E))
             {
                 IsAimingDash = false;
                 if (SpinCooldown > 0)
-                    _room.ShowMessage($"회전 베기는 {SpinCooldown}턴 뒤에 쓸 수 있다");
+                    _room.ShowMessage(Loc.F("회전 베기는 {0}턴 뒤에 쓸 수 있다", SpinCooldown));
                 else if (!TrySpin())
-                    _room.ShowMessage("주변에 적이 없다");
+                    _room.ShowMessage(Loc.T("주변에 적이 없다"));
                 return;
             }
 
@@ -513,19 +563,43 @@ namespace LoopRogue
                 {
                     IsAimingDash = false;
                     if (!TryDash(direction.Value))
-                        _room.ShowMessage("그쪽으로는 대시할 수 없다");
+                        _room.ShowMessage(Loc.T("그쪽으로는 대시할 수 없다"));
                 }
                 return; // 방향 고르는 중엔 대기 키도 무시
             }
 
             if (direction.HasValue)
                 TryAct(direction.Value);
-            else if (keyboard.spaceKey.wasPressedThisFrame)
+            else if (GameInput.Down(Key.Space))
                 Wait(); // 스페이스바 = 제자리 대기(한 턴 넘기기)
+        }
+
+        /// <summary>F - 주변 8칸의 NPC와 대화(턴 소모 없음). 방향 고르기 중이면 취소하고 연다.</summary>
+        private void TryTalk()
+        {
+            var npc = _room.FindNpcNear(GridPos);
+            if (npc == null)
+            {
+                _room.ShowMessage(Loc.T("주변에 말을 걸 상대가 없다"));
+                return;
+            }
+            IsAimingDash = false;
+            AimingItem = null;
+            npc.Talk(this);
+        }
+
+        /// <summary>퍼즐이 직접 처리한 행동도 한 턴으로 친다(쿨타임·재생·몹 턴·퍼즐 턴 끝).</summary>
+        public void ConsumeTurn()
+        {
+            BeginAction();
+            EndTurn();
         }
 
         private void TryAct(Vector2Int direction)
         {
+            if (_room.Puzzle != null && _room.Puzzle.HandleAct(direction))
+                return; // 얼음 미끄럼·상자 밀기처럼 퍼즐이 이동을 직접 처리
+
             var targetPos = GridPos + direction;
 
             if (!Map.IsInBounds(targetPos) || Map.IsWall(targetPos))
@@ -533,16 +607,22 @@ namespace LoopRogue
 
             var occupant = Map.GetActorAt(targetPos);
 
+            if (occupant is NpcActor npc)
+            {
+                _room.ShowMessage(Loc.F("{0} - F 키로 대화", npc.DisplayName)); // 부딪혀도 턴 소모 없음
+                return;
+            }
+
             if (RootedTurns > 0 && !(occupant is EnemyActor))
             {
-                _room.ShowMessage("거미줄에 묶여 움직일 수 없다! (공격·회전 베기·대기는 가능)");
+                _room.ShowMessage(Loc.T("거미줄에 묶여 움직일 수 없다! (공격·회전 베기·대기는 가능)"));
                 return; // 턴 소모 없음
             }
 
             if (occupant is EnemyActor enemy)
             {
                 BeginAction();
-                PlayAttackFlash();
+                PlayAttackFlash(direction);
                 if (StrikeEnemy(enemy, direction, 1f))
                     return; // 다음 방/승리 전환은 이미 끝났다 - 새 방 몹은 이번 턴엔 안 움직인다.
                 if (NormalAttackRelicHits(targetPos, direction))
@@ -550,9 +630,11 @@ namespace LoopRogue
             }
             else if (occupant is RoomEventActor ev)
             {
-                // 이벤트 칸 - 발동시키고 그 칸으로 이동(한 턴 소모).
+                // 이벤트 칸 - 발동시키고 그 칸으로 이동(한 턴 소모). 피의 제단처럼 고르는 창이 뜨면 칸이 남아 있고 턴도 안 쓴다
+                // (예전엔 창이 떠 있는 동안 몹이 한 번 움직였다).
+                if (!_room.TriggerEvent(ev))
+                    return;
                 BeginAction();
-                _room.TriggerEvent(ev);
                 Map.MoveActor(this, targetPos);
             }
             else if (occupant == null)
@@ -561,6 +643,7 @@ namespace LoopRogue
                 Map.MoveActor(this, targetPos);
                 if (_room.TryUseExit(targetPos))
                     return; // 다음 방으로 넘어감 - 새 방 몹은 이번 턴에 안 움직인다
+                _room.Puzzle?.PlayerMoved(targetPos); // 룬·보물 찾기처럼 밟은 칸에 반응하는 퍼즐
             }
             else
             {
@@ -592,7 +675,9 @@ namespace LoopRogue
             var berserk = Relics.Has(RelicType.Berserker) && Stats.CurrentHealth <= Stats.MaxHealth * Relics.BerserkerThreshold
                 ? 1f + Relics.BerserkerBonus : 1f; // 유물 "광전사"
             var damage = raw * damageRate * enemy.DamageTakenMultiplier * berserk
-                * WeaponEffectMultiplier(enemy, countCombo: !isSkill);
+                * WeaponEffectMultiplier(enemy, countCombo: !isSkill)
+                * Curses.DamageDealtMultiplier // 저주 계약(분노·메마름)
+                * RunBuffs.DamageDealtMultiplier; // 방 이벤트(숫돌·피의 제단)
             var blocked = !ignoreShield && enemy.IsShieldFront(GridPos);
             if (blocked)
             {
@@ -620,24 +705,31 @@ namespace LoopRogue
         /// 폭탄/반사 부적 공통. 방이 넘어갔으면 true.</summary>
         public bool ClaimKill(EnemyActor enemy)
         {
+            EnemyKilled?.Invoke(enemy);
             HitFeedback.OnEnemyKilled(enemy);
             var blastTargets = CollectChainBlastTargets(enemy);
-            if (!enemy.IsBoss && !enemy.IsMinion && ItemRng.NextDouble() < EquipmentEffects.MobDropChance + Relics.DropBonus)
+            if (!enemy.IsBoss && !enemy.NoReward && ItemRng.NextDouble() < EquipmentEffects.MobDropChance + Relics.DropBonus)
             {
                 var drop = Inventory.GiveRandomMissing();
                 if (drop.HasValue)
-                    _room.ShowMessage($"{enemy.DisplayName}이(가) {ItemInfo.Name(drop.Value)}을(를) 떨어뜨렸다!");
+                    _room.ShowMessage(Loc.F("{0}이(가) {1}을(를) 떨어뜨렸다!", enemy.DisplayName, ItemInfo.Name(drop.Value)));
             }
             Map.RemoveActor(enemy);
+            if (enemy.Kind == EnemyKind.Splitter && !enemy.IsSplitChild)
+                _room.SpawnSplitChildren(enemy); // 분열체는 죽으면 둘로 갈라진다(처치 처리 전에 - 방이 빈 걸로 안 치게)
             Destroy(enemy.gameObject);
             Stats.Heal(Stats.MaxHealth * Stats.KillHealRate); // 처치 회복 카드
 
             // 경험치도 골드처럼 StageScaling 배율을 곱한다(몹은 스테이지마다 세지는데 경험치만
             // 고정이면 뒤로 갈수록 레벨이 안 오름). 보스 처치 경험치는 스테이지 클리어 화면보다
             // 먼저 들어가야 해서 NotifyEnemyDefeated(보스면 곧바로 클리어 처리)보다 앞에서 준다.
-            var baseExp = enemy.IsMinion ? 0 : enemy.IsBoss ? ExpPerBossKill : ExpPerKill; // 졸개는 경험치 없음
+            var baseExp = enemy.NoReward ? 0 : enemy.IsBoss ? ExpPerBossKill : ExpPerKill; // 졸개·분열 조각은 경험치 없음
             var repeat = enemy.IsBoss ? 1f : StageProgress.RepeatRewardMultiplier; // 반복 보상 감소(보스는 제외)
-            Levels.AddExp(Mathf.RoundToInt(baseExp * StageScaling.RewardMultiplier(_room.Stage) * (1f + Stats.EffectiveExpBonus) * repeat));
+            Levels.AddExp(Mathf.RoundToInt(baseExp * StageScaling.RewardMultiplier(_room.Stage) * (1f + Stats.EffectiveExpBonus + Achievements.TitleExpBonus) * repeat)); // + 칭호
+
+            if (!enemy.IsMinion)
+                LobbyQuests.AddKill(); // 로비 안내자의 토벌 의뢰(누적 처치)
+            Codex.Discover(Codex.MonsterKey(enemy));
 
             if (_room.NotifyEnemyDefeated(enemy))
                 return true;
@@ -758,7 +850,7 @@ namespace LoopRogue
 
             if (hit != null)
             {
-                PlayAttackFlash();
+                PlayAttackFlash(dir);
                 var dashRate = Relics.Has(RelicType.ChargeHorn) ? Relics.ChargeHornDashDamage : 1f; // 유물 "돌진의 뿔"
                 if (StrikeEnemy(hit, dir, dashRate, isSkill: true))
                     return true;
@@ -869,26 +961,8 @@ namespace LoopRogue
             _room.RunEnemyTurns();
         }
 
-        /// <summary>공격 순간만 잠깐 공격 포즈 스프라이트로 바꿨다가 원래 대기 포즈로 되돌린다 -
-        /// 애니메이션 클립 없이 프레임 하나만 있어도 "공격했다"는 느낌은 충분히 준다. 연속 공격 시
-        /// 이전 되돌리기 코루틴이 남아있으면 새로 시작(StoryRPG SpiritSummonEffect의 알파 되돌리기와
-        /// 같은 패턴).</summary>
-        private void PlayAttackFlash()
-        {
-            if (_attackSprite == null || _idleSprite == null)
-                return; // 폴백(단색 사각형) 중이면 바꿀 스프라이트 자체가 없다.
-
-            if (_attackFlashRoutine != null)
-                StopCoroutine(_attackFlashRoutine);
-            _attackFlashRoutine = StartCoroutine(AttackFlashRoutine());
-        }
-
-        private IEnumerator AttackFlashRoutine()
-        {
-            _renderer.sprite = _attackSprite;
-            yield return new WaitForSeconds(AttackFlashDuration);
-            _renderer.sprite = _idleSprite;
-            _attackFlashRoutine = null;
-        }
+        /// <summary>공격 모션 한 번(도트 그림이 없어 사각형이면 생략).</summary>
+        /// <param name="direction">때린 쪽 - 회전 베기처럼 없으면 지금 보는 쪽</param>
+        private void PlayAttackFlash(Vector2Int direction = default) => _anim?.PlayAttack(direction);
     }
 }

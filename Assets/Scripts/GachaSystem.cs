@@ -54,6 +54,7 @@ namespace LoopRogue
         public static void Reload()
         {
             _loaded = false;
+            _ticketsLoaded = false;
             EnsureLoaded();
         }
 
@@ -110,10 +111,49 @@ namespace LoopRogue
         /// <summary>10연차 가격 - 누르는 시점의 상점 레벨 가격 기준(도중에 레벨이 올라도 추가 요금 없음).</summary>
         public static int GetMultiPullCost(ItemSlot slot) => GetPullCost(slot) * MultiPullPaidCount;
 
-        /// <summary>골드가 모자라면 null. 충분하면 골드를 소모하고 결과를 반환한다.</summary>
+        // ---- 뽑기권(던전 떠돌이 상인이 판다) - 슬롯 상관없이 1회 뽑기를 골드 없이. 영구 저장. ----
+        private const string TicketKey = "LoopRogue_GachaTickets";
+        private static bool _ticketsLoaded;
+        private static int _tickets;
+
+        public static int Tickets
+        {
+            get
+            {
+                if (!_ticketsLoaded)
+                {
+                    _tickets = PlayerPrefs.GetInt(TicketKey, 0);
+                    _ticketsLoaded = true;
+                }
+                return _tickets;
+            }
+        }
+
+        public static void AddTickets(int count)
+        {
+            _tickets = Tickets + count;
+            PlayerPrefs.SetInt(TicketKey, _tickets);
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>상인의 뽑기권 가격 - 어느 슬롯에든 쓸 수 있으니 세 슬롯 중 가장 비싼 1회 가격.</summary>
+        public static int TicketPrice
+        {
+            get
+            {
+                var max = 0;
+                foreach (ItemSlot slot in Enum.GetValues(typeof(ItemSlot)))
+                    max = Mathf.Max(max, GetPullCost(slot));
+                return max;
+            }
+        }
+
+        /// <summary>뽑기권이 있으면 1장 쓰고, 없으면 골드 - 골드가 모자라면 null. 충분하면 결과를 반환한다.</summary>
         public static GachaResult? Pull(ItemSlot slot)
         {
-            if (!GoldWallet.TrySpend(GetPullCost(slot)))
+            if (Tickets > 0)
+                AddTickets(-1);
+            else if (!GoldWallet.TrySpend(GetPullCost(slot)))
                 return null;
 
             return PullOnce(slot);
@@ -142,6 +182,8 @@ namespace LoopRogue
             PlayerPrefs.Save();
 
             var equipped = EquipmentWallet.TryEquipIfBetter(slot, grade);
+            if (equipped)
+                Achievements.Check(); // '영원' 장비 업적
 
             return new GachaResult
             {

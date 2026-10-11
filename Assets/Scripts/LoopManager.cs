@@ -38,19 +38,30 @@ namespace LoopRogue
             _player = player;
             _hud = hud;
             _rooms = rooms;
+            for (var i = 0; i < rooms.Count; i++)
+                rooms[i].RoomNumber = i + 1;
             _stage = stage;
             _roomIndex = 0;
             RollRoomEvent();
             StageProgress.BeginAttempt();
+            Curses.Reset(); // 저주 계약은 시도 단위
+            RunBuffs.Reset(); // 방 이벤트 효과(숫돌·피의 제단·모래시계)도
+            Codex.SyncOwned();    // 도감이 생기기 전 저장으로 이미 가진 유물/아이템
+            Achievements.Check(); // 업적이 생기기 전 저장으로 이미 조건을 채운 것들
 
             _roomController.Initialize(player, this, stage);
             _player.OnAttemptStarted();
-            _roomController.LoadRoom(_rooms[_roomIndex]);
+            if (GameHUD.AutoPlayActive)
+                EnterRoom(); // 봇은 시작 방 고르기 창이 없어서 첫 방도 여기서 퍼즐 확률을 굴린다
+            else
+                _roomController.LoadRoom(_rooms[_roomIndex]); // 사람은 고르기 창 뒤 자리 표시용 - 고른 뒤 EnterRoom
             RefreshHudProgress();
             _attemptStartGold = GoldWallet.Gold;
 
             // 시작 방 고르기(사람만) - 방1은 이미 깔아둔 채로 입력만 잠그고, 다른 방을 고르면 그 방으로 바꿔 로드.
-            if (!GameHUD.AutoPlayActive)
+            if (PuzzleTrial.Active)
+                _roomController.LoadPuzzle(_rooms[_roomIndex], PuzzleTrial.Type.Value); // 에디터 메뉴 "퍼즐·미니게임 체험" - 고르기 없이 바로
+            else if (!GameHUD.AutoPlayActive && !TestMap.Active)
             {
                 _roomController.IsInputLocked = true;
                 _hud.ShowRoomSelect(stage, _rooms, 0, StartFromSelectedRoom);
@@ -59,27 +70,65 @@ namespace LoopRogue
             // Esc 메뉴 - 사망/스테이지 클리어(입력 잠금 중)나 레벨업 카드 선택 중에는 안 열린다.
             // 중도 포기도 사망과 같은 데스 패널티(안 그러면 죽기 직전에 Esc로 빠져나가 패널티를 피할 수 있다).
             _hud.gameObject.AddComponent<PauseMenu>().Setup(RetreatToLobby,
-                () => !_roomController.IsInputLocked && !_player.Levels.IsChoosingUpgrade && !_player.Stats.IsDead && !InventoryUI.IsOpen,
-                lobbyLabel: $"로비로 이동 (이번 시도 골드 {Relics.DeathPenaltyRate * 100f:0}% 손실)  [L]",
+                () => !_roomController.IsInputLocked && !_player.Levels.IsChoosingUpgrade && !_player.Stats.IsDead && !InventoryUI.IsOpen
+                      && !NpcDialogUI.BlocksInput, // 대화창을 Esc로 닫은 그 프레임에 메뉴가 바로 열리지 않게
+                lobbyLabel: Loc.F("로비로 이동 (이번 시도 골드 {0:0}% 손실)  [L]", Relics.DeathPenaltyRate * 100f),
                 goToTitle: RetreatToTitle);
         }
 
         private void StartFromSelectedRoom(int index)
         {
-            if (index == _roomIndex)
-            {
-                _roomController.IsInputLocked = false;
-                return;
-            }
             _roomIndex = index;
-            _roomController.LoadRoom(_rooms[_roomIndex]); // IsInputLocked를 다시 false로 풀어준다.
-            RefreshHudProgress();
+            EnterRoom(); // 방 1을 골랐어도 다시 깐다 - 퍼즐방 확률을 여기서 굴린다(고르기 창 뒤에 깔아둔 방은 자리 표시용)
         }
 
         public void AdvanceToNextRoom()
         {
             _roomIndex++;
-            _roomController.LoadRoom(_rooms[_roomIndex]);
+            EnterRoom();
+        }
+
+        /// <summary>지금 방(_roomIndex)에 들어간다 - 일반 방이면 PuzzleBase.Chance 확률로 전투 대신 퍼즐·미니게임 10종 중 하나
+        /// (사용자 결정). 보스방·이벤트 칸이 있는 방(층마다 보물상자 1개 보장)·테스트 맵은 항상 전투. 자동 플레이 봇은 퍼즐을 풀 줄 몰라서
+        /// 퍼즐방이 걸리면 성공으로 치고(카드 1장) 곧바로 다음 방으로 넘어간다(사용자 결정 - 사람과 같은 확률로 방이 빠지게).</summary>
+        private void EnterRoom()
+        {
+            var def = _rooms[_roomIndex];
+            var puzzleAllowed = !def.IsBossRoom && !def.IsTestRoom && !def.HasEvent && !TestMap.Active;
+            if (puzzleAllowed && !GameHUD.AutoPlayActive && PuzzleBase.TestModeNext(out var testType))
+                _roomController.LoadPuzzle(def, testType);
+            else if (puzzleAllowed && Rng.NextDouble() < PuzzleBase.Chance)
+            {
+                if (GameHUD.AutoPlayActive)
+                {
+                    _roomController.SkipPuzzleAsCleared(def);
+                    _roomIndex++; // 보스방은 퍼즐이 안 나오므로 언젠가 멈춘다
+                    EnterRoom();
+                    return;
+                }
+                _roomController.LoadPuzzle(def, (PuzzleType)Rng.Next(PuzzleBase.TypeCount));
+            }
+            else
+                _roomController.LoadRoom(def); // IsInputLocked를 다시 false로 풀어준다.
+            RefreshHudProgress();
+        }
+
+        /// <summary>퍼즐 실패 창 "다시 도전" - 같은 종류를 배치만 새로 뽑아 다시.</summary>
+        public void RetryPuzzle(PuzzleType type) => _roomController.LoadPuzzle(_rooms[_roomIndex], type);
+
+        public bool CanReturnToPreviousRoom => _roomIndex > 0;
+
+        /// <summary>퍼즐 실패 창 두 번째 선택지 - 이전 방(이미 깬 방, 출구만 열림)으로 돌아간다. 출구로 다시 오면 퍼즐 확률을 새로 굴린다.
+        /// 방 1이라 이전 방이 없으면 평소 전투 방으로.</summary>
+        public void LeavePuzzle()
+        {
+            if (!CanReturnToPreviousRoom)
+            {
+                _roomController.LoadRoom(_rooms[_roomIndex]);
+                return;
+            }
+            _roomIndex--;
+            _roomController.LoadClearedRoom(_rooms[_roomIndex]);
             RefreshHudProgress();
         }
 
@@ -89,9 +138,11 @@ namespace LoopRogue
         public void OnPlayerDied()
         {
             _roomController.IsInputLocked = true;
+            LoopRecord.AddDeath(); // 누적 회차 - NPC 대사가 바뀐다
             Inventory.LoseAll(); // 죽으면 들고 있던 아이템 전부 잃음(사용자 결정)
             var penalty = ApplyDeathGoldPenalty();
-            _hud.ShowDeathChoice(ContinueAfterDeath, ReturnToLobby, penalty, _rooms, _roomIndex); // 기본값 = 죽은 방
+            _hud.ShowDeathChoice(ContinueAfterDeath, ReturnToLobby, penalty, _rooms, _roomIndex, // 기본값 = 죽은 방
+                bossRoom: _rooms[_roomIndex].IsBossRoom); // 보스방이면 노인의 한마디도 보스 조언 위주로
         }
 
         /// <summary>이번 시도에서 번 골드의 DeathGoldPenaltyRate만큼 뺏고, 뺏은 양을 돌려준다(표시용).</summary>
@@ -127,8 +178,10 @@ namespace LoopRogue
             _roomIndex = startRoom;
             RollRoomEvent();
             StageProgress.BeginAttempt();
+            Curses.Reset(); // 죽으면 저주도 풀린다
+            RunBuffs.Reset();
             _player.Stats.FullHeal();
-            _roomController.LoadRoom(_rooms[_roomIndex]); // IsInputLocked를 다시 false로 풀어준다.
+            EnterRoom(); // IsInputLocked를 다시 false로 풀어준다.
             _attemptStartGold = GoldWallet.Gold;
             RefreshHudProgress();
             _hud.ShowLoopResetBanner(startRoom);
@@ -144,12 +197,16 @@ namespace LoopRogue
         {
             _roomController.IsInputLocked = true;
             StageProgress.AdvanceStage();
+            if (_stage >= StageProgress.MaxStage)
+                Achievements.Unlock("ACH_CLEAR_10");
+            Achievements.Check(); // 층 도달 업적
             // 보스를 처음 잡았으면 유물부터 고른다(보스 전용 1 + 일반 2) → 고른 뒤 스테이지 클리어 창.
             var offer = Relics.MakeOffer(_stage);
             if (offer != null)
                 _hud.ShowRelicChoice(offer, picked =>
                 {
                     Relics.Acquire(picked, _player);
+                    Achievements.Check(); // 유물 개수 업적
                     ShowStageClear();
                 });
             else
@@ -158,6 +215,24 @@ namespace LoopRogue
 
         private void ShowStageClear()
         {
+            // 마지막 층 - 엔딩을 보여주고 처음으로(도감·업적·칭호만 남김). 자동 플레이 봇은 예전처럼 클리어 창으로(봇이 판 종료로 센다).
+            if (_stage >= StageProgress.MaxStage && !GameHUD.AutoPlayActive)
+            {
+                var record = new EndingScreen.Record
+                {
+                    Clears = SaveReset.GameClears + 1,
+                    TotalDeaths = LoopRecord.TotalDeaths,
+                    Level = _player.Levels.Level,
+                    CodexFound = Codex.FoundCount(),
+                    CodexTotal = Codex.TotalCount(),
+                };
+                EndingScreen.Show(record, () => !_player.Levels.IsChoosingUpgrade, () =>
+                {
+                    SaveReset.ResetForNewGame();
+                    UnityEngine.SceneManagement.SceneManager.LoadScene("Title");
+                });
+                return;
+            }
             _hud.ShowStageClear(_stage, SkipLobbyAfterStageClear ? SaveProgressAndReloadMain : (System.Action)SaveProgressAndLoadLobby);
         }
 

@@ -79,51 +79,52 @@ namespace LoopRogue
         /// 최대체력 %감소는 장비/영약으로 쌓은 체력 전체를 깎아서(봇 한 판 기준 카드만으로 최대체력 약 -52%) 광폭화(도박)와
         /// 공격력 강화(-3%로 절반)에만 남기고 나머지는 다른 스탯으로 옮겼다.
         /// 공격력/최대체력의 %증감과 체력 강화(+15%)는 성장 몫(기본 + 카드)에만 걸린다 - 장비/영약 몫은 고정(CharacterStats).</summary>
-        private static readonly List<UpgradeOption> Pool = new List<UpgradeOption>
+        private static readonly LocCache<List<UpgradeOption>> PoolCache = new LocCache<List<UpgradeOption>>(() => new List<UpgradeOption>
         {
             // 기본
-            new UpgradeOption { Category = UpgradeCategory.Basic, Title = "균형 성장", Description = "최대체력 +12, 공격력 +3 / 현재 체력 -20%",
+            new UpgradeOption { Category = UpgradeCategory.Basic, Title = Loc.T("균형 성장"), Description = Loc.T("최대체력 +12, 공격력 +3 / 현재 체력 -20%"),
                 Apply = s => { s.IncreaseMaxHealth(12f, true); s.BaseAttack += 3f; s.LoseCurrentHealthPercent(0.2f); } },
-            new UpgradeOption { Category = UpgradeCategory.Basic, Title = "힘", Description = "공격력 +6 / 받는 피해 +2%",
+            new UpgradeOption { Category = UpgradeCategory.Basic, Title = Loc.T("힘"), Description = Loc.T("공격력 +6 / 받는 피해 +2%"),
                 Apply = s => { s.BaseAttack += 6f; s.DamageReductionRate -= 0.02f; } },
-            new UpgradeOption { Category = UpgradeCategory.Basic, Title = "체력", Description = "최대체력 +25 / 공격력 -3%",
+            new UpgradeOption { Category = UpgradeCategory.Basic, Title = Loc.T("체력"), Description = Loc.T("최대체력 +25 / 공격력 -3%"),
                 Apply = s => { s.IncreaseMaxHealth(25f, true); s.BaseAttack *= 0.97f; } },
-            new UpgradeOption { Category = UpgradeCategory.Basic, Title = "완전 회복", Description = "체력 전부 회복 / 공격력 -2%",
+            new UpgradeOption { Category = UpgradeCategory.Basic, Title = Loc.T("완전 회복"), Description = Loc.T("체력 전부 회복 / 공격력 -2%"),
                 Apply = s => { s.FullHeal(); s.BaseAttack *= 0.98f; } },
 
             // 성장
-            new UpgradeOption { Category = UpgradeCategory.Growth, Title = "공격력 강화", Description = "공격력 +12% / 최대체력 -3%",
+            new UpgradeOption { Category = UpgradeCategory.Growth, Title = Loc.T("공격력 강화"), Description = Loc.T("공격력 +12% / 최대체력 -3%"),
                 Apply = s => { s.BaseAttack *= 1.12f; s.MultiplyMaxHealth(0.97f); } },
-            new UpgradeOption { Category = UpgradeCategory.Growth, Title = "체력 강화", Description = "최대체력 +15% / 공격력 -5%",
+            new UpgradeOption { Category = UpgradeCategory.Growth, Title = Loc.T("체력 강화"), Description = Loc.T("최대체력 +15% / 공격력 -5%"),
                 Apply = s => { s.IncreaseMaxHealth(s.BaseMaxHealth * 0.15f, true); s.BaseAttack *= 0.95f; } },
-            new UpgradeOption { Category = UpgradeCategory.Growth, Title = "날카로움", Description = "치명타 +5%p / 공격력 -4%",
+            new UpgradeOption { Category = UpgradeCategory.Growth, Title = Loc.T("날카로움"), Description = Loc.T("치명타 +5%p / 공격력 -4%"),
                 Apply = s => { s.CriticalChanceRate += 0.05f; s.BaseAttack *= 0.96f; } },
 
             // 특수
-            new UpgradeOption { Category = UpgradeCategory.Special, Title = "흡혈", Description = "흡혈 +8% (일반 공격만, 최대 50%) / 공격력 -3%",
+            new UpgradeOption { Category = UpgradeCategory.Special, Title = Loc.T("흡혈"), Description = Loc.T("흡혈 +8% (일반 공격만, 최대 50%) / 공격력 -3%"),
                 Apply = s => { s.LifeStealRate = Math.Min(Relics.LifeStealCap, s.LifeStealRate + 0.08f); s.BaseAttack *= 0.97f; },
                 IsAvailable = s => s.LifeStealRate < Relics.LifeStealCap },
-            new UpgradeOption { Category = UpgradeCategory.Special, Title = "방어", Description = "받는 피해 -2% (최대 30%) / 골드 -5%",
+            new UpgradeOption { Category = UpgradeCategory.Special, Title = Loc.T("방어"), Description = Loc.T("받는 피해 -2% (최대 30%) / 골드 -5%"),
                 Apply = s => { s.DamageReductionRate += 0.02f; s.GoldBonusRate -= 0.05f; } },
-            new UpgradeOption { Category = UpgradeCategory.Special, Title = "재생", Description = "매 턴 최대체력 1.5% 회복 / 받는 피해 +2%",
+            new UpgradeOption { Category = UpgradeCategory.Special, Title = Loc.T("재생"), Description = Loc.T("매 턴 최대체력 1.5% 회복 / 받는 피해 +2%"),
                 Apply = s => { s.RegenPerTurnRate += 0.015f; s.DamageReductionRate -= 0.02f; } },
-            new UpgradeOption { Category = UpgradeCategory.Special, Title = "처치 회복", Description = "처치 시 최대체력 12% 회복 / 공격력 -3%",
+            new UpgradeOption { Category = UpgradeCategory.Special, Title = Loc.T("처치 회복"), Description = Loc.T("처치 시 최대체력 12% 회복 / 공격력 -3%"),
                 Apply = s => { s.KillHealRate += 0.12f; s.BaseAttack *= 0.97f; } },
 
             // 경제
-            new UpgradeOption { Category = UpgradeCategory.Economy, Title = "학습", Description = "경험치 +25% / 받는 피해 +3%",
+            new UpgradeOption { Category = UpgradeCategory.Economy, Title = Loc.T("학습"), Description = Loc.T("경험치 +25% / 받는 피해 +3%"),
                 Apply = s => { s.ExpBonusRate += 0.25f; s.DamageReductionRate -= 0.03f; } },
-            new UpgradeOption { Category = UpgradeCategory.Economy, Title = "수집", Description = "골드 +20% / 경험치 -10%",
+            new UpgradeOption { Category = UpgradeCategory.Economy, Title = Loc.T("수집"), Description = Loc.T("골드 +20% / 경험치 -10%"),
                 Apply = s => { s.GoldBonusRate += 0.2f; s.ExpBonusRate -= 0.1f; } },
 
             // 도박 - 크게 얻고 크게 잃는다.
-            new UpgradeOption { Category = UpgradeCategory.Gamble, Title = "[도박] 광폭화", Description = "공격력 +20% / 최대체력 -10%",
+            new UpgradeOption { Category = UpgradeCategory.Gamble, Title = Loc.T("[도박] 광폭화"), Description = Loc.T("공격력 +20% / 최대체력 -10%"),
                 Apply = s => { s.BaseAttack *= 1.2f; s.MultiplyMaxHealth(0.9f); } },
-            new UpgradeOption { Category = UpgradeCategory.Gamble, Title = "[도박] 철갑", Description = "받는 피해 -3% / 공격력 -5%",
+            new UpgradeOption { Category = UpgradeCategory.Gamble, Title = Loc.T("[도박] 철갑"), Description = Loc.T("받는 피해 -3% / 공격력 -5%"),
                 Apply = s => { s.DamageReductionRate += 0.03f; s.BaseAttack *= 0.95f; } },
-            new UpgradeOption { Category = UpgradeCategory.Gamble, Title = "[도박] 황금 욕심", Description = "골드 +30% / 받는 피해 +8%",
+            new UpgradeOption { Category = UpgradeCategory.Gamble, Title = Loc.T("[도박] 황금 욕심"), Description = Loc.T("골드 +30% / 받는 피해 +8%"),
                 Apply = s => { s.GoldBonusRate += 0.3f; s.DamageReductionRate -= 0.08f; } },
-        };
+        });
+        private static List<UpgradeOption> Pool => PoolCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
 
         public LevelSystem(CharacterStats stats)
         {
@@ -141,29 +142,40 @@ namespace LoopRogue
 
         public void AddExp(int amount)
         {
-            if (amount <= 0 || IsChoosingUpgrade || IsMaxLevel)
+            if (amount <= 0 || IsMaxLevel)
                 return;
 
             Exp += amount;
-            if (Exp >= ExpToNext)
-            {
-                Exp -= ExpToNext;
-                Level++;
-                ExpToNext = ExpToNextFor(Level);
-                if (IsMaxLevel)
-                    Exp = 0;
-                OnLevelUp?.Invoke(Level);
-                PresentUpgradeChoices();
-                return; // 남은 exp는 다음 처치 때 이어서 - 한 킬로 여러 레벨 오르는 케이스는 범위 밖.
-            }
-
-            OnExpChanged?.Invoke();
+            // 카드를 고르는 중이면 경험치만 쌓아두고 레벨업은 고른 뒤에(ChooseUpgrade) - 예전엔 회전 베기로 여러 마리를 잡으면
+            // 첫 마리로 레벨업한 뒤 나머지 경험치가 통째로 버려졌다.
+            if (IsChoosingUpgrade || !TryLevelUp())
+                OnExpChanged?.Invoke();
         }
 
-        /// <summary>레벨업 없이 카드 한 번 고르기(축복 제단 이벤트). 이미 고르는 중이면 무시.</summary>
+        /// <summary>경험치가 찼으면 한 레벨 올리고 카드를 보여준다(한 번에 한 레벨 - 남으면 카드를 고른 뒤 또).</summary>
+        private bool TryLevelUp()
+        {
+            if (IsMaxLevel || Exp < ExpToNext)
+                return false;
+            Exp -= ExpToNext;
+            Level++;
+            ExpToNext = ExpToNextFor(Level);
+            if (IsMaxLevel)
+                Exp = 0;
+            OnLevelUp?.Invoke(Level);
+            PresentUpgradeChoices();
+            return true;
+        }
+
+        /// <summary>고르는 중에 받은 보너스 카드(축복 제단·도전의 깃발·운명의 주사위 등) - 지금 카드를 고른 뒤 이어서 보여준다.</summary>
+        private int _pendingBonusUpgrades;
+
+        /// <summary>레벨업 없이 카드 한 번 고르기(축복 제단 등). 이미 고르는 중이면 미뤄뒀다가 그다음에.</summary>
         public void GrantBonusUpgrade()
         {
-            if (!IsChoosingUpgrade)
+            if (IsChoosingUpgrade)
+                _pendingBonusUpgrades++;
+            else
                 PresentUpgradeChoices();
         }
 
@@ -203,6 +215,15 @@ namespace LoopRogue
             LastChoiceFrame = UnityEngine.Time.frameCount;
             option.Apply(_stats);
             IsChoosingUpgrade = false;
+            // 고르는 사이 쌓인 경험치로 또 레벨업하거나, 미뤄둔 보너스 카드가 있으면 이어서 보여준다.
+            if (TryLevelUp())
+                return;
+            if (_pendingBonusUpgrades > 0)
+            {
+                _pendingBonusUpgrades--;
+                PresentUpgradeChoices();
+                return;
+            }
             OnExpChanged?.Invoke();
         }
     }

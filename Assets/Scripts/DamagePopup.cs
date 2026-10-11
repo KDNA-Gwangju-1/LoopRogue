@@ -18,8 +18,8 @@ namespace LoopRogue
 
         public static void Spawn(Vector3 worldPos, float amount, Color color, bool isCritical = false)
         {
-            if (Suppressed)
-                return;
+            if (Suppressed || !GameSettings.DamageNumbers)
+                return; // 설정 "피해 숫자 표시" 끄기
 
             var go = new GameObject("DamagePopup");
             var jitterX = Random.Range(-0.15f, 0.15f);

@@ -22,6 +22,8 @@ namespace LoopRogue
 
         public static void Shake(float strength, float duration)
         {
+            if (!GameSettings.ScreenShake)
+                return; // 설정 "화면 흔들림" 끄기
             var shake = Get(Camera.main);
             if (shake == null)
                 return;

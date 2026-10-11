@@ -13,6 +13,7 @@ namespace LoopRogue
         Snipe,    // 저격 1발 - 플레이어 자리 + 대각선 4칸(X자, 상하좌우로 한 칸 움직이면 피함) → 바로 2발로 이어짐
         SnipeFollowUp, // 저격 2발 - 그때 플레이어 자리의 상하좌우 4칸(마름모, 가운데는 안전 → 대기하면 피함)
         Diagonal, // X자 - 플레이어 자리 기준 대각선 4줄(저격처럼 조준)
+        MirrorShards, // 거울 파편(10층 거울 가면 기사 본모습 전용) - 4번의 공격 칸을 한꺼번에 예고(칸마다 몇 번째인지 숫자)하고 보스 턴마다 하나씩 터뜨림
     }
 
     /// <summary>스테이지 보스의 예고 공격 - 몇 턴마다 공격할 칸을 빨갛게 예고하고(그 턴은 안 움직임), 다음 턴에
@@ -91,7 +92,45 @@ namespace LoopRogue
             _normalTurnsThisCycle = Rng.Next(min, max + 1);
         }
 
-        /// <summary>스테이지별 패턴 목록 - 1~7은 하나씩, 8~9는 두 개를 번갈아, 10은 전부 돌아가며.</summary>
+        /// <summary>10층 = 거울 가면 기사(다른 보스로 변신하며 그 보스의 패턴을 쓴다).</summary>
+        public const int MirrorStage = 10;
+
+        /// <summary>거울 파편 - 몇 번 연달아 터지는지 / 플레이어 중심 범위(체비쇼프) / 웨이브마다 범위 칸을 덮는 비율 / 한 번 맞을 때 피해 배율(패턴 피해 기준).
+        /// 예전엔 체스판 2연속이라 상하좌우로 계속 걷기만 하면 다 피했다(사용자 지적) - 4번을 미리 보여주고 숫자 순서대로 피하게.</summary>
+        public const int MirrorWaveCount = 4;
+        public const int MirrorWaveRadius = 3;
+        public const float MirrorWaveDensity = 0.55f;
+        public const float MirrorWaveDamageRate = 0.75f;
+
+        /// <summary>층 보스 이름 - 그림은 Resources/Sprites/Boss{층}.</summary>
+        public static string BossName(int stage) => stage switch
+        {
+            1 => Loc.T("거대 멧돼지"),
+            2 => Loc.T("오우거"),
+            3 => Loc.T("돌 골렘"),
+            4 => Loc.T("슬라임 킹"),
+            5 => Loc.T("버섯 군주"),
+            6 => Loc.T("망령 궁수"),
+            7 => Loc.T("그림자 암살자"),
+            8 => Loc.T("미노타우로스"),
+            9 => Loc.T("리치"),
+            _ => Loc.T("거울 가면 기사"),
+        };
+
+        /// <summary>거울 가면 기사가 이 패턴을 쓸 때 변신하는 보스(그 패턴의 원래 주인 층) - 0이면 변신 안 함.</summary>
+        public static int MorphStage(BossPatternType type) => type switch
+        {
+            BossPatternType.Charge => 1,
+            BossPatternType.Slam => 2,
+            BossPatternType.Cross => 3,
+            BossPatternType.Summon => 4,
+            BossPatternType.Ring => 5,
+            BossPatternType.Snipe => 6,
+            BossPatternType.Diagonal => 7,
+            _ => 0,
+        };
+
+        /// <summary>스테이지별 패턴 목록 - 1~7은 하나씩, 8~9는 두 개를 번갈아, 10은 전부 무작위(NextPattern).</summary>
         public static List<BossPatternType> StagePatterns(int stage) => stage switch
         {
             1 => new List<BossPatternType> { BossPatternType.Charge }, // 1/2 서로 바꿈(사용자 요청) - 돌진이 봇 테스트에서 가장 쉬운 패턴이라 입문용
@@ -107,29 +146,36 @@ namespace LoopRogue
             {
                 BossPatternType.Slam, BossPatternType.Charge, BossPatternType.Cross, BossPatternType.Summon,
                 BossPatternType.Ring, BossPatternType.Snipe, BossPatternType.Diagonal,
+                BossPatternType.MirrorShards, // 자기 패턴 - 쓸 땐 변신을 풀고 본모습으로
             },
         };
 
         public static string PatternName(BossPatternType type) => type switch
         {
-            BossPatternType.Slam => "강타",
-            BossPatternType.Charge => "돌진",
-            BossPatternType.Cross => "십자 베기",
-            BossPatternType.Summon => "소환",
-            BossPatternType.Ring => "파동",
-            BossPatternType.Snipe => "저격",
-            BossPatternType.SnipeFollowUp => "저격(2발)",
-            _ => "X자 베기",
+            BossPatternType.Slam => Loc.T("강타"),
+            BossPatternType.Charge => Loc.T("돌진"),
+            BossPatternType.Cross => Loc.T("십자 베기"),
+            BossPatternType.Summon => Loc.T("소환"),
+            BossPatternType.Ring => Loc.T("파동"),
+            BossPatternType.Snipe => Loc.T("저격"),
+            BossPatternType.SnipeFollowUp => Loc.T("저격(2발)"),
+            BossPatternType.MirrorShards => Loc.T("거울 파편"),
+            _ => Loc.T("X자 베기"),
         };
 
         /// <summary>이번 턴 보스 행동. 예고/발동/소환을 했으면 true, 일반 행동을 해야 하면 false.</summary>
         /// <summary>섬광탄 - 예고해둔 공격(저격 후속 포함)을 없던 일로.</summary>
         public void CancelPending(RoomController room)
         {
+            _cancelled = true; // Resolve 도중(반사 → 거울 깨기)이면 후속 패턴을 걸지 않게
             _pending = null;
             _pendingTiles.Clear();
+            _mirrorWaves.Clear();
             room.ClearTelegraph();
         }
+
+        /// <summary>거울 파편(4연격)이 진행 중인지 - 섬광탄으로도 안 멈추고, 보스가 기절해 있어도 계속 터진다(사용자 요청).</summary>
+        public bool MirrorShardsActive => _pending == BossPatternType.MirrorShards;
 
         public bool TakePatternTurn(PlayerActor player, RoomController room)
         {
@@ -150,7 +196,7 @@ namespace LoopRogue
                 _enraged = true;
                 EnrageCount++;
                 _boss.MarkEnraged();
-                room.ShowMessage("보스가 광폭화했다! 공격이 잦아진다!");
+                room.ShowMessage(Loc.T("보스가 광폭화했다! 공격이 잦아진다!"));
                 _normalTurnsThisCycle = Mathf.Min(_normalTurnsThisCycle, Mathf.Max(1, NormalTurnRange(_stage).Max - 1));
             }
 
@@ -162,13 +208,25 @@ namespace LoopRogue
 
             _normalTurns = 0;
             RollNormalTurns();
-            var type = _patterns[_patternIndex];
-            _patternIndex = (_patternIndex + 1) % _patterns.Count;
+            var type = NextPattern();
+
+            if (type == BossPatternType.MirrorShards)
+            {
+                BuildMirrorWaves(player, room.Map);
+                if (_mirrorWaves.Count == 0)
+                    return false;
+                _pending = type;
+                _mirrorWaveNumber = 1;
+                room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber);
+                TryMorph(type, out var mirrorMessage);
+                room.ShowMessage(mirrorMessage + Loc.T(" - 숫자 순서대로 터진다!"));
+                return true;
+            }
 
             if (type == BossPatternType.Summon)
             {
                 room.SpawnMinions(_boss, MaxMinions);
-                room.ShowMessage($"보스의 {PatternName(type)}!");
+                room.ShowMessage(TryMorph(type, out var morph) ? $"{morph} ({PatternName(type)})" : Loc.F("보스의 {0}!", PatternName(type)));
                 return true;
             }
 
@@ -178,24 +236,78 @@ namespace LoopRogue
 
             _pending = type;
             room.ShowTelegraph(_pendingTiles);
+            if (TryMorph(type, out var message))
+                room.ShowMessage(message);
             return true;
         }
+
+        /// <summary>다음 패턴 - 1~9층은 목록 순서대로, 10층은 무작위(같은 패턴 연속은 안 나옴).</summary>
+        private BossPatternType NextPattern()
+        {
+            if (_stage < MirrorStage || _patterns.Count < 2)
+            {
+                var next = _patterns[_patternIndex];
+                _patternIndex = (_patternIndex + 1) % _patterns.Count;
+                return next;
+            }
+            BossPatternType pick;
+            do
+                pick = _patterns[Rng.Next(_patterns.Count)];
+            while (pick == _lastRandom);
+            _lastRandom = pick;
+            return pick;
+        }
+
+        private BossPatternType? _lastRandom;
+
+        /// <summary>10층 거울 가면 기사 - 쓰는 패턴의 원래 주인(1~7층 보스)으로 변신하고, 다음 변신까지 그 모습으로 싸운다.</summary>
+        private bool TryMorph(BossPatternType type, out string message)
+        {
+            message = null;
+            if (_stage >= MirrorStage && type == BossPatternType.MirrorShards)
+            {
+                // 자기 패턴 - 비추던 모습을 깨고 본모습으로 돌아온다.
+                message = _boss.RevertForm()
+                    ? Loc.F("{0}가 본모습을 드러냈다! ({1})", BossName(MirrorStage), PatternName(type))
+                    : Loc.F("보스의 {0}!", PatternName(type));
+                return true;
+            }
+            var target = MorphStage(type);
+            if (_stage < MirrorStage || target == 0)
+                return false;
+            _boss.MorphInto(target);
+            message = Loc.F("{0}가 {1}의 모습을 비췄다!", BossName(MirrorStage), BossName(target));
+            return true;
+        }
+
+        private bool _cancelled;
 
         private void Resolve(PlayerActor player, RoomController room)
         {
             var type = _pending.Value;
             _pending = null;
+            _cancelled = false;
             room.ClearTelegraph();
+            if (type == BossPatternType.MirrorShards && _mirrorWaves.Count > 0)
+            {
+                _pendingTiles.Clear();
+                _pendingTiles.UnionWith(_mirrorWaves[0]); // 이번에 터질 웨이브
+                _mirrorWaves.RemoveAt(0);
+            }
+
+            // 패턴이 터지는 순간 공격 모션(그림이 있을 때만) - 돌진은 돌진한 방향, 나머지는 플레이어 쪽.
+            if (_boss.TryGetComponent<SpriteAnimator>(out var anim))
+                anim.PlayAttack(type == BossPatternType.Charge ? _chargeDirection : player.GridPos - _boss.GridPos);
 
             if (type == BossPatternType.Charge)
             {
                 DoChargeMove(room.Map);
                 _stunTurns = ChargeStunTurns;
-                room.ShowMessage("보스가 돌진 후 비틀거린다!");
+                room.ShowMessage(Loc.T("보스가 돌진 후 비틀거린다!"));
             }
 
             PatternResolveCount++;
-            HitFeedback.OnBossPatternResolved(player, _pendingTiles.Contains(player.GridPos));
+            HitFeedback.OnBossPatternResolved(player, _pendingTiles.Contains(player.GridPos), type, _pendingTiles);
             if (_pendingTiles.Contains(player.GridPos))
             {
                 PatternHitCount++;
@@ -205,20 +317,48 @@ namespace LoopRogue
                     var reflected = _boss.Stats.MaxHealth * ItemInfo.ReflectBossDamageRate;
                     _boss.Stats.TakeDamage(reflected);
                     DamagePopup.Spawn(_boss.transform.position, reflected, new Color(0.6f, 0.9f, 1f), isCritical: true);
-                    room.ShowMessage("반사 부적! 보스의 공격을 되돌렸다");
+                    room.ShowMessage(Loc.T("반사 부적! 보스의 공격을 되돌렸다"));
                     room.HandleBossDamagedByItem(_boss);
+                    if (_boss.Stats.IsDead)
+                    {
+                        // 반사로 보스가 죽었다 - 저격 2발·남은 거울 파편을 다시 깔지 않는다(클리어한 방에 예고가 남던 문제).
+                        _pendingTiles.Clear();
+                        _mirrorWaves.Clear();
+                        return;
+                    }
                 }
                 else
                 {
                     var ironWall = EquipmentEffects.Has(ItemSlot.Armor, 5) ? 1f - EquipmentEffects.BossPatternReduction : 1f; // 갑옷 "철벽"
-                    var dealt = player.Stats.TakeIncomingDamage(_boss.Stats.AttackPower * PatternDamageMultiplier * ironWall);
+                    var waveRate = type == BossPatternType.MirrorShards ? MirrorWaveDamageRate : 1f; // 거울 파편은 4번이라 한 번은 약하게
+                    var dealt = player.Stats.TakeIncomingDamage(_boss.Stats.AttackPower * PatternDamageMultiplier * ironWall * waveRate);
                     DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.2f, 0.2f), isCritical: true);
                 }
             }
             _pendingTiles.Clear();
+            if (_cancelled)
+            {
+                // 이번 발동 중에 거울이 깨져 취소됐다 - 후속 패턴 없음, 돌진 기절도 거울 깨기 기절과 겹치지 않게.
+                _stunTurns = 0;
+                _mirrorWaves.Clear();
+                return;
+            }
 
             // 저격은 2연속 - 1발(X자)이 끝나면 곧바로 그 순간 플레이어 자리 기준 마름모를 예고한다.
             // "상하좌우로 움직여 1발을 피하고 → 대기해서 2발을 피하는" 패턴.
+            // 거울 파편 - 남은 웨이브가 있으면 다음 보스 턴에 또 터진다(남은 숫자를 다시 보여줌).
+            if (type == BossPatternType.MirrorShards)
+            {
+                if (_mirrorWaves.Count > 0 && !player.Stats.IsDead)
+                {
+                    _mirrorWaveNumber++;
+                    _pending = BossPatternType.MirrorShards;
+                    room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber);
+                }
+                else
+                    _mirrorWaves.Clear();
+            }
+
             if (type == BossPatternType.Snipe && !player.Stats.IsDead)
             {
                 ComputeTiles(BossPatternType.SnipeFollowUp, player, room.Map);
@@ -335,6 +475,50 @@ namespace LoopRogue
             var start = GridMap.Occupies(_boss, origin) ? origin + d * (_boss.FootprintRadius + 1) : origin + d;
             for (var p = start; map.IsInBounds(p) && !map.IsWall(p) && length < maxLength; p += d, length++)
                 _pendingTiles.Add(p);
+        }
+
+        private readonly List<HashSet<Vector2Int>> _mirrorWaves = new List<HashSet<Vector2Int>>();
+        private int _mirrorWaveNumber;
+
+        /// <summary>거울 파편 웨이브 4개 - 먼저 플레이어가 한 칸씩 움직여 갈 안전한 길(p1~p4)을 뽑고, 웨이브 k는 범위 칸을 무작위로 덮되
+        /// p_k는 비우고 직전 자리(p_k-1)는 꼭 덮는다. 그래서 제자리면 맞고, 숫자를 읽어 길을 짜면 항상 다 피할 수 있다(직진만으론 안 됨).</summary>
+        private void BuildMirrorWaves(PlayerActor player, GridMap map)
+        {
+            _mirrorWaves.Clear();
+            var start = player.GridPos;
+            var area = new List<Vector2Int>();
+            for (var dx = -MirrorWaveRadius; dx <= MirrorWaveRadius; dx++)
+            for (var dy = -MirrorWaveRadius; dy <= MirrorWaveRadius; dy++)
+            {
+                var t = start + new Vector2Int(dx, dy);
+                if (map.IsInBounds(t) && !map.IsWall(t) && !GridMap.Occupies(_boss, t))
+                    area.Add(t);
+            }
+            var areaSet = new HashSet<Vector2Int>(area);
+
+            var cur = start;
+            var prev = start;
+            for (var k = 0; k < MirrorWaveCount; k++)
+            {
+                var moves = new List<Vector2Int>();
+                foreach (var d in Directions)
+                {
+                    var p = cur + d;
+                    if (areaSet.Contains(p) && (map.IsWalkable(p) || p == start))
+                        moves.Add(p);
+                }
+                if (moves.Count > 1)
+                    moves.Remove(prev); // 되돌아가기는 다른 길이 없을 때만
+                var next = moves.Count > 0 ? moves[Rng.Next(moves.Count)] : cur;
+
+                var wave = new HashSet<Vector2Int>();
+                foreach (var t in area)
+                    if (t != next && (t == cur || Rng.NextDouble() < MirrorWaveDensity))
+                        wave.Add(t);
+                _mirrorWaves.Add(wave);
+                prev = cur;
+                cur = next;
+            }
         }
 
         private void AddTile(GridMap map, Vector2Int p)

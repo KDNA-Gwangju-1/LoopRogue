@@ -34,11 +34,13 @@ namespace LoopRogue
             3 => 1.44f,
             4 => 1.62f,
             5 => 1.9f,
-            6 => 1.51f,
-            7 => 1.6f,
-            8 => 1.93f,
-            9 => 1.5f,
-            10 => 1.64f,
+            // 6~10층: 몹 16마리·방 22칸으로 성장(경험치·골드)이 늘어 보스방 사망이 줄어서(봇 100판 2026-10-11, 어제 대비 보스방
+            // 사망 6층 4.0→3.1, 7층 5.9→4.8, 8층 7.3→6.3, 9층 8.3→6.3, 10층 21.4→19.6) 어제 수준으로 되돌리게 올림.
+            6 => 1.63f, // 1.51
+            7 => 1.7f, // 1.6
+            8 => 2.0f, // 1.93
+            9 => 1.62f, // 1.5
+            10 => 2.56f, // 2.5 // 1.64 -> 2.5(2026-10-10 봇 100판: 10층 사망 7.3/목표 20, 보스방 42% - 거울 깨기·보스방 벽 제거·이벤트 버프 뒤 너무 쉬워짐. 민감도 추정 x1.7 중 보수적으로 x1.52)
             _ => 1f,
         };
 
@@ -99,8 +101,12 @@ namespace LoopRogue
             var hud = hudGo.AddComponent<GameHUD>();
             hud.Initialize(player);
 
+            var rooms = BuildStageRooms(stage);
+            if (TestMap.Active)
+                rooms = TestMap.BuildRooms(rooms); // 에디터 메뉴 "테스트 맵" - [이벤트 전부 깐 방, 이 층 보스방]
             var loopManager = new LoopManager();
-            loopManager.Initialize(room, player, hud, BuildStageRooms(stage), stage);
+            loopManager.Initialize(room, player, hud, rooms, stage);
+            TestMap.Attach(room, player);
         }
 
         /// <summary>스테이지 하나 = 일반 방 10개 + 보스방 1개("방도 10개 유지해야 해, 스펙업 수단을
@@ -113,7 +119,9 @@ namespace LoopRogue
         /// <summary>플레이어 스킬(대시/회전 베기)을 넣으면서 사용자 요청으로 일반 방 몹 수를 1.5배로("스킬이 사기니 그만큼 몹 수를
         /// 늘리자"). 방 크기는 그대로라 더 빽빽해진다 - 회전 베기로 여러 마리를 한 번에 치는 상황이 자주 나오게.</summary>
         private const float EnemyCountMultiplier = 1.5f;
-        private const int MaxEnemiesPerRoom = 12;
+        // 12 -> 16, 방 크기 최대 18 -> 22(사용자 요청) - 6층 중반부터 모든 방이 12마리·18칸으로 똑같아지던 것을 10층까지 계속 커지게.
+        private const int MaxEnemiesPerRoom = 16;
+        private const int MaxRoomSize = 22;
 
         /// <summary>일반 방 몹 세기 보정(보스방 제외) - 봇 측정에서 2층부터 첫 시도에도 방을 체력 거의 100%로 끝냈다(상점·뽑기·영약
         /// 성장이 방 몹 성장보다 빠름). 목표(사용자 선택 "중간"): 일반 방 사망 층마다 1~2회, 단 8~10층은 연달아 빡센 구간으로 6~10회.
@@ -153,7 +161,7 @@ namespace LoopRogue
                 // 크기/몹 수는 배율을 안 곱한다 - 격자가 지수적으로 커지면 방이 순식간에 감당 안
                 // 될 만큼 거대해진다. 이 둘은 예전처럼 스테이지당 고정폭으로만 커진다.
                 // 방 크기 +4(사용자: "맵이 작아서 불합리한 느낌" - 카메라를 당기고 시야를 줄이면서 같이 키움), 최대 14 -> 18.
-                var size = Mathf.Min(10 + stagePower + (i - 1) / 2, 18);
+                var size = Mathf.Min(10 + stagePower + (i - 1) / 2, MaxRoomSize);
                 var enemyCount = Mathf.Min(Mathf.RoundToInt((2 + stagePower + (i - 1) / 2) * EnemyCountMultiplier), MaxEnemiesPerRoom);
                 var hp = (8f + (i - 1) * 2f) * stageMultiplier * RoomEnemyHealthScale(stage);
                 var atk = (2f + (i - 1) * 0.4f) * stageMultiplier * RoomEnemyAttackScale(stage);
@@ -189,6 +197,12 @@ namespace LoopRogue
 
         private static List<EnemyKind> BuildEnemyKinds(int stage, int roomNumber, int enemyCount)
         {
+            // 새 몹은 한 층에 하나씩 소개한다(그 층 방 4부터 1마리 → 다음 층부터 비율): 방패병 2층, 거미 3층, 폭발병 4층,
+            // 치유사 5층, 돌진병 6층, 분열체 7층, 도적 8층. 몹 수가 최대 12마리에서 막히는 6층부터는 새 몹 자리를 만들려고
+            // 예전 몹 비율을 줄인다(사용자: "몬스터 종류가 너무 적다" - 5~10층이 같은 진형을 체력만 올려 반복하던 문제).
+            int Intro(int firstStage) => stage < firstStage ? 0 : stage == firstStage ? (roomNumber >= NewEnemyFirstRoom ? 1 : 0) : -1;
+            int Share(int firstStage, int divisor) { var intro = Intro(firstStage); return intro >= 0 ? intro : Mathf.Max(1, enemyCount / divisor); }
+
             int rangedCount;
             if (stage == 1)
                 rangedCount = roomNumber < FirstRangedRoomInStage1 ? 0 : MaxRangedInStage1;
@@ -197,34 +211,65 @@ namespace LoopRogue
             else
                 // 방패병/거미가 같이 나오는 3층부터는 1/4 - 1/3이던 때 9·10층 일반 방 사망이 급증했다(봇 100판: 10층 방
                 // 판당 10.5회, 죽을 때 남은 몹 평균 궁수 3.6). 방패병 뒤에 숨은 궁수 그림은 유지하고 뒤쪽 화력만 줄인다.
-                rangedCount = Mathf.Max(1, enemyCount / 4);
+                rangedCount = Mathf.Max(1, enemyCount / (stage >= 6 ? 5 : 4));
 
-            var shieldCount = stage < 2 ? 0
-                : stage == 2 ? (roomNumber >= NewEnemyFirstRoom ? 1 : 0)
-                : Mathf.Max(1, enemyCount / 4);
-            var spiderCount = stage < 3 ? 0
-                : stage == 3 ? (roomNumber >= NewEnemyFirstRoom ? 1 : 0)
-                : Mathf.Max(1, enemyCount / 5);
-            // 폭발병: 4층 방 4부터 1마리, 5층부터 몹의 1/6(최소 1). 근접 바로 뒤 - 앞줄이 붙어 있을 때 파고들어 터지게.
-            var bomberCount = stage < 4 ? 0
-                : stage == 4 ? (roomNumber >= NewEnemyFirstRoom ? 1 : 0)
-                : Mathf.Max(1, enemyCount / 6);
+            var shieldCount = Share(2, stage >= 6 ? 5 : 4);
+            var spiderCount = Share(3, stage >= 7 ? 8 : 5);
+            // 폭발병: 근접 바로 뒤 - 앞줄이 붙어 있을 때 파고들어 터지게.
+            var bomberCount = Share(4, stage >= 7 ? 8 : 6);
+            var healerCount = Mathf.Min(1, Share(5, 99)); // 치유사는 방에 1마리까지(둘이면 서로 고쳐서 안 죽는다)
+            var chargerCount = Share(6, 6);
+            var splitterCount = Share(7, 8);
+            var assassinCount = Share(8, 8);
 
-            // 근접이 최소 1마리는 남게 - 몹이 적은 방에서 특수 몹만 남지 않도록 폭발병 → 거미 → 방패병 순으로 줄인다.
-            int Special() => shieldCount + spiderCount + bomberCount + rangedCount;
-            while (Special() > enemyCount - 1 && bomberCount > 0)
-                bomberCount--;
-            while (Special() > enemyCount - 1 && spiderCount > 0)
-                spiderCount--;
-            while (Special() > enemyCount - 1 && shieldCount > 0)
-                shieldCount--;
+            // 근접이 최소 1마리는 남게 줄인다(궁수는 안 줄임). 2마리 이상인 종류 중 제일 많은 것부터 하나씩 - 한 종류를 통째로
+            // 지우면 그 층 몹 구성이 단조로워진다(16마리 방에서 도적이 0마리가 됐다). 전부 1마리 이하면 새 몹부터
+            // (도적 → 분열체 → 돌진병 → 치유사 → 폭발병 → 거미 → 방패병) 뺀다. 같은 수면 돌진병·거미·폭발병·분열체·도적·방패병 순으로 먼저 줄인다.
+            var trimmable = new[] { chargerCount, spiderCount, bomberCount, splitterCount, assassinCount, shieldCount, healerCount };
+            int Special() { var sum = rangedCount; foreach (var c in trimmable) sum += c; return sum; }
+            while (Special() > enemyCount - 1)
+            {
+                var most = 0;
+                for (var k = 1; k < trimmable.Length; k++)
+                    if (trimmable[k] > trimmable[most])
+                        most = k;
+                if (trimmable[most] > 1)
+                {
+                    trimmable[most]--;
+                    continue;
+                }
+                var dropOrder = new[] { 4, 3, 0, 6, 2, 1, 5 }; // 도적, 분열체, 돌진병, 치유사, 폭발병, 거미, 방패병
+                var dropped = false;
+                foreach (var k in dropOrder)
+                {
+                    if (trimmable[k] <= 0)
+                        continue;
+                    trimmable[k]--;
+                    dropped = true;
+                    break;
+                }
+                if (!dropped)
+                    break;
+            }
+            chargerCount = trimmable[0];
+            spiderCount = trimmable[1];
+            bomberCount = trimmable[2];
+            splitterCount = trimmable[3];
+            assassinCount = trimmable[4];
+            shieldCount = trimmable[5];
+            healerCount = trimmable[6];
             var meleeCount = Mathf.Max(0, enemyCount - Special());
 
+            // 몹 위치는 플레이어에게서 가까운 순 - 방패병이 맨 앞, 그다음 근접·분열체·돌진병·도적·폭발병, 거미, 치유사, 궁수가 맨 뒤.
             var kinds = new List<EnemyKind>(enemyCount);
             for (var i = 0; i < shieldCount; i++) kinds.Add(EnemyKind.Shield);
             for (var i = 0; i < meleeCount; i++) kinds.Add(EnemyKind.Melee);
+            for (var i = 0; i < splitterCount; i++) kinds.Add(EnemyKind.Splitter);
+            for (var i = 0; i < chargerCount; i++) kinds.Add(EnemyKind.Charger);
+            for (var i = 0; i < assassinCount; i++) kinds.Add(EnemyKind.Assassin);
             for (var i = 0; i < bomberCount; i++) kinds.Add(EnemyKind.Bomber);
             for (var i = 0; i < spiderCount; i++) kinds.Add(EnemyKind.Spider);
+            for (var i = 0; i < healerCount; i++) kinds.Add(EnemyKind.Healer);
             while (kinds.Count < enemyCount) kinds.Add(EnemyKind.Ranged);
             return kinds;
         }

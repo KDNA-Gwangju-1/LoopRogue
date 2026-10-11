@@ -3,7 +3,9 @@ using UnityEngine;
 
 namespace LoopRogue
 {
-    /// <summary>적 종류 - 근접(기본)/원거리(궁수)/방패병(정면 공격 80% 감소, 삼각형)/거미(거미줄로 1턴 속박).</summary>
+    /// <summary>적 종류 - 근접(기본)/원거리(궁수)/방패병(정면 공격 80% 감소, 삼각형)/거미(거미줄로 1턴 속박)/폭발병,
+    /// 5층부터 하나씩: 치유사(아군 회복)/돌진병(일직선 예고 돌진)/분열체(죽으면 둘로 갈라짐)/도적(플레이어 뒤로 순간이동).
+    /// 순서는 봇 처치 통계(AutoPlayBot.KillNames)와 맞춰져 있으니 끝에만 추가할 것.</summary>
     public enum EnemyKind
     {
         Melee,
@@ -11,6 +13,10 @@ namespace LoopRogue
         Shield,
         Spider,
         Bomber,
+        Healer,
+        Charger,
+        Splitter,
+        Assassin,
     }
 
     /// <summary>일반 몹/보스 공통 - 턴제라 실시간 이동 대신 TurnManager 역할을 하는
@@ -55,6 +61,49 @@ namespace LoopRogue
         public const float BlastDamageRate = 3f;
         private bool _fuseLit;
 
+        /// <summary>치유사: HealCooldownTurns마다 사거리 안에서 체력 비율이 가장 낮은 다친 아군(자기 제외, 보스 제외)을 최대 체력의
+        /// HealRate만큼 회복시킨다. 궁수처럼 거리를 두고 두 턴에 한 번만 움직인다 - 먼저 쫓아가 잡아야 하는 몹.</summary>
+        public const int HealRange = 5;
+        public const float HealRate = 0.3f;
+        private const int HealCooldownTurns = 3;
+        private const int HealerPreferredDistance = 4;
+        private int _healCooldown = 1;
+
+        /// <summary>돌진병: 같은 줄 2~ChargeRange칸이고 사이에 벽이 없으면 그 줄을 예고(빨강)하고, 자기 다음 턴에 예고한 줄을 따라
+        /// 끝까지 달린다. 달리다 플레이어를 만나면 공격력 × ChargeDamageRate, 몹/벽을 만나면 그 앞에서 멈춘다. 돌진한 뒤엔
+        /// ChargeRecoverTurns턴 동안 숨을 고른다(때릴 기회). 그 밖엔 근접 몹처럼 다가간다.</summary>
+        public const int ChargeRange = 5;
+        public const float ChargeDamageRate = 2f;
+        private const int ChargeCooldownTurns = 4;
+        private const int ChargeRecoverTurns = 1;
+        private int _chargeCooldown = 1;
+        private Vector2Int? _chargeDir;
+        private List<Vector2Int> _chargeTiles;
+
+        /// <summary>분열체: 죽으면 그 자리 근처에 작은 분열체 SplitCount마리(체력·공격력 비율 Split*Ratio, 더는 안 갈라짐)가 나온다.
+        /// 갈라진 조각은 골드/경험치/아이템이 없고, 갓 나온 턴은 굳어서 움직이지 않는다.</summary>
+        public const int SplitCount = 2;
+        public const float SplitHealthRatio = 0.4f;
+        public const float SplitAttackRatio = 0.6f;
+        public bool IsSplitChild { get; private set; }
+        private int _spawnFreezeTurns;
+
+        /// <summary>도적: 플레이어와 BlinkMinDistance~BlinkMaxDistance칸 떨어져 있고 순간이동이 준비됐으면 플레이어 옆 빈 칸 중
+        /// 자기에게서 가장 먼 칸(= 등 뒤)으로 순간이동한다(그 턴은 이동만). 순간이동 직후 첫 공격은 공격력 × BackstabRate.</summary>
+        private const int BlinkMinDistance = 3;
+        private const int BlinkMaxDistance = 7;
+        private const int BlinkCooldownTurns = 5;
+        public const float BackstabRate = 1.5f;
+        private int _blinkCooldown = 2;
+        private bool _backstabReady;
+
+        /// <summary>퍼즐·미니게임(전투 퍼즐·버티기)이 부른 몹 - 보상 없음.</summary>
+        public bool IsPuzzleMob { get; private set; }
+        public void MarkAsPuzzleMob() => IsPuzzleMob = true;
+
+        /// <summary>골드·경험치·아이템을 안 주는 몹(보스 졸개, 분열 조각, 퍼즐 몹).</summary>
+        public bool NoReward => IsMinion || IsSplitChild || IsPuzzleMob;
+
         /// <summary>이번 턴에 노리는 칸(플레이어 또는 미끼)과 미끼.</summary>
         private Vector2Int _tp;
         private DecoyActor _decoyTarget;
@@ -68,16 +117,24 @@ namespace LoopRogue
         public void SetInSmoke(bool value) => InSmoke = value;
 
         /// <summary>약점 표식 - 남은 턴 동안 받는 피해 증가.</summary>
+        /// <summary>약점 표식 - 사람은 실제 시간(ItemInfo.WeaknessSeconds초), 자동 플레이 봇은 턴(초고속이라 시간 기준이 안 맞음).</summary>
         public int VulnerableTurns { get; private set; }
-        public void MarkVulnerable(int turns)
+        private float _vulnerableUntil = -1f;
+        public bool IsVulnerable => VulnerableTurns > 0 || Time.time < _vulnerableUntil;
+
+        public void MarkVulnerable()
         {
-            VulnerableTurns = Mathf.Max(VulnerableTurns, turns);
-            WeaknessMark.Attach(this); // 몸에 붉은 과녁 표식(효과 끝나면 스스로 사라짐)
+            if (GameHUD.AutoPlayActive)
+                VulnerableTurns = Mathf.Max(VulnerableTurns, ItemInfo.WeaknessTurns);
+            else
+                _vulnerableUntil = Mathf.Max(_vulnerableUntil, Time.time + ItemInfo.WeaknessSeconds);
         }
-        public float DamageTakenMultiplier => VulnerableTurns > 0 ? ItemInfo.WeaknessDamageMultiplier : 1f;
+
+        public float DamageTakenMultiplier => IsVulnerable ? ItemInfo.WeaknessDamageMultiplier : 1f;
 
         /// <summary>섬광탄 - 보스가 예고해둔 공격을 취소한다.</summary>
         public void CancelBossPattern(RoomController room) => _brain?.CancelPending(room);
+        public bool MirrorShardsActive => _brain != null && _brain.MirrorShardsActive;
 
         /// <summary>방패병이 바라보는 방향(상하좌우). 다른 몹은 의미 없음.</summary>
         public Vector2Int Facing { get; private set; } = Vector2Int.left;
@@ -95,13 +152,25 @@ namespace LoopRogue
 
         private BossBrain _brain;
 
-        public string DisplayName => IsBoss ? "보스" : IsMinion ? "졸개" : Kind switch
+        private int _bossStage;
+        public int BossStage => _bossStage; // 층 보스면 그 층(도감 키), 아니면 0
+        private int _morphStage; // 거울 가면 기사가 지금 비추고 있는 보스 층(0 = 본모습)
+        private bool _enraged;
+
+        public bool IsMimic { get; private set; } // 방 이벤트 "미믹" - 잡으면 큰 보상(RoomController)
+        public bool IsElite { get; private set; } // 방 이벤트 "도전의 깃발" 정예
+
+        public string DisplayName => IsBoss ? BossDisplayName : IsMinion ? Loc.T("졸개") : IsMimic ? Loc.T("미믹") : IsSplitChild ? Loc.T("분열 조각") : (IsElite ? Loc.T("정예 ") : "") + Kind switch
         {
-            EnemyKind.Ranged => "궁수",
-            EnemyKind.Shield => "방패병",
-            EnemyKind.Spider => "거미",
-            EnemyKind.Bomber => "폭발병",
-            _ => "몬스터",
+            EnemyKind.Ranged => Loc.T("궁수"),
+            EnemyKind.Shield => Loc.T("방패병"),
+            EnemyKind.Spider => Loc.T("거미"),
+            EnemyKind.Bomber => Loc.T("폭발병"),
+            EnemyKind.Healer => Loc.T("치유사"),
+            EnemyKind.Charger => Loc.T("돌진병"),
+            EnemyKind.Splitter => Loc.T("분열체"),
+            EnemyKind.Assassin => Loc.T("도적"),
+            _ => Loc.T("몬스터"),
         };
 
         /// <summary>폭발 범위 - 자기 칸 포함 주변 3x3 중 방 안이고 벽이 아닌 칸.</summary>
@@ -158,15 +227,189 @@ namespace LoopRogue
             transform.rotation = Quaternion.Euler(0f, 0f, angle);
         }
 
-        /// <summary>보스 전용 - 스테이지별 예고 공격 패턴을 붙인다.</summary>
-        public void SetupBossPatterns(List<BossPatternType> patterns, int stage) => _brain = new BossBrain(this, patterns, stage);
+        private string BossDisplayName =>
+            _bossStage <= 0 ? Loc.T("보스")
+            : _morphStage > 0 ? $"{BossBrain.BossName(_bossStage)}({BossBrain.BossName(_morphStage)})"
+            : Loc.F("{0}층 보스 · {1}", _bossStage, BossBrain.BossName(_bossStage));
+
+        /// <summary>보스 전용 - 스테이지별 예고 공격 패턴을 붙이고 그 층 보스 그림(Resources/Sprites/Boss{층})을 입힌다.</summary>
+        public void SetupBossPatterns(List<BossPatternType> patterns, int stage)
+        {
+            _brain = new BossBrain(this, patterns, stage);
+            _bossStage = stage;
+            ApplyBossSprite(stage);
+            if (stage >= BossBrain.MirrorStage)
+                Stats.OnDamaged += OnMirrorKnightDamaged;
+        }
+
+        /// <summary>보스 도트 그림(4방향 대기·걷기·공격)으로 - 그림이 없으면 예전 검붉은 사각형 그대로.</summary>
+        private bool ApplyBossSprite(int stage)
+        {
+            var setName = $"Boss{stage}";
+            var first = SpriteAnimator.FirstFrame(setName);
+            if (first == null)
+                return false;
+            var renderer = VisualUtil.CreateSpriteVisual(gameObject, first, GridConstants.CellSize * BossSpriteScale, sortingOrder: 0);
+            var anim = GetComponent<SpriteAnimator>();
+            if (anim == null)
+                anim = gameObject.AddComponent<SpriteAnimator>();
+            anim.Setup(setName, renderer, BossDebrisColor(stage));
+            anim.Face(Facing);
+            ApplyBossTint(renderer);
+            return true;
+        }
+
+        /// <summary>64x64 캔버스에 몸이 40px 남짓이라 한 칸에 1.6배 - 보스는 3x3 칸을 차지하니 그만큼 키운다.</summary>
+        private const float BossSpriteScale = 1.6f * (BossFootprintRadius * 2 + 1) * 0.95f;
+
+        private static Color BossDebrisColor(int stage) => stage switch
+        {
+            1 => new Color(0.5f, 0.33f, 0.2f),
+            2 => new Color(0.48f, 0.6f, 0.33f),
+            3 => new Color(0.5f, 0.5f, 0.55f),
+            4 => new Color(0.84f, 0.23f, 0.3f),
+            5 => new Color(0.66f, 0.24f, 0.59f),
+            6 => new Color(0.4f, 0.9f, 0.85f),
+            7 => new Color(0.23f, 0.19f, 0.32f),
+            8 => new Color(0.56f, 0.28f, 0.18f),
+            9 => new Color(0.4f, 1f, 0.6f),
+            _ => new Color(0.75f, 0.8f, 0.9f),
+        };
+
+        /// <summary>거울 가면 기사가 비춘 모습은 은빛으로(진짜 그 층 보스와 구분), 광폭화하면 붉게.</summary>
+        private void ApplyBossTint(SpriteRenderer renderer)
+        {
+            if (renderer == null)
+                return;
+            var sprite = GetComponent<SpriteAnimator>() != null;
+            if (_enraged)
+                renderer.color = sprite ? new Color(1f, 0.55f, 0.5f) : new Color(1f, 0.25f, 0.2f);
+            else
+                renderer.color = _morphStage > 0 ? new Color(0.78f, 0.86f, 1f) : Color.white;
+        }
+
+        /// <summary>10층 거울 가면 기사 전용 - 그 층 보스 모습으로 바뀐다(다음 변신까지 유지). 그림이 없으면 이름만 바뀐다.</summary>
+        public void MorphInto(int stage)
+        {
+            if (stage == _morphStage)
+                return;
+            _morphStage = stage;
+            ApplyBossSprite(stage);
+            ActorJuice.Get(this).Flash(Color.white); // 변신하는 순간 번쩍
+            HitFeedback.OnMorph(this);
+            _mirrorDamage = 0f; // 새로 비춘 거울은 멀쩡하다
+            RefreshMirrorCrack();
+        }
+
+        // ---- 거울 깨기(10층) - 다른 보스를 비추는 동안 최대 체력의 MirrorBreakRatio만큼 맞으면 거울이 깨져 본모습 + 기절 ----
+        public const float MirrorBreakRatio = 0.08f;
+        public const int MirrorBreakStunTurns = 2;
+        private float _mirrorDamage;
+        private SpriteRenderer _crackIcon;
+
+        /// <summary>지금 비춘 거울이 얼마나 깨졌는지(0~1) - 본모습이면 0.</summary>
+        public float MirrorCrack => _morphStage > 0 ? Mathf.Clamp01(_mirrorDamage / (Stats.MaxHealth * MirrorBreakRatio)) : 0f;
+
+        private void OnMirrorKnightDamaged(float amount)
+        {
+            if (_morphStage == 0 || Stats.IsDead)
+                return;
+            _mirrorDamage += amount;
+            if (_mirrorDamage < Stats.MaxHealth * MirrorBreakRatio)
+            {
+                RefreshMirrorCrack();
+                return;
+            }
+            // 깨졌다 - 본모습으로 돌아오고, 예고해둔 패턴은 취소되고, 잠깐 기절(섬광탄과 같은 처리)
+            var room = _turnRoom != null ? _turnRoom : FindAnyObjectByType<RoomController>();
+            RevertForm();
+            if (room != null)
+                CancelBossPattern(room);
+            Stun(MirrorBreakStunTurns);
+            HitFeedback.OnMirrorBroken(this);
+            room?.ShowMessage(Loc.F("거울이 깨졌다! {0}가 본모습으로 돌아와 {1}턴 동안 비틀거린다", BossBrain.BossName(BossBrain.MirrorStage), MirrorBreakStunTurns));
+        }
+
+        /// <summary>머리 위 거울 아이콘 - 금 간 정도(4단계). 본모습이거나 그림이 없거나 봇 중이면 숨긴다.</summary>
+        private void RefreshMirrorCrack()
+        {
+            var frames = DamagePopup.Suppressed ? null : Fx.Frames("mirror_crack");
+            var show = _morphStage > 0 && frames != null && frames.Length > 0 && !Stats.IsDead;
+            if (!show)
+            {
+                if (_crackIcon != null)
+                    _crackIcon.gameObject.SetActive(false);
+                return;
+            }
+            if (_crackIcon == null)
+            {
+                var go = new GameObject("MirrorCrack");
+                go.transform.SetParent(transform, false);
+                _crackIcon = go.AddComponent<SpriteRenderer>();
+                _crackIcon.sortingOrder = 9;
+            }
+            _crackIcon.gameObject.SetActive(true);
+            var index = Mathf.Min(frames.Length - 1, Mathf.FloorToInt(MirrorCrack * (frames.Length - 1) + 0.0001f));
+            _crackIcon.sprite = frames[index];
+            // 부모(보스) 크기와 상관없이 0.45칸, 머리 위(3x3 몸 위쪽 가장자리)
+            var parentScale = Mathf.Max(0.0001f, transform.lossyScale.x);
+            var size = GridConstants.CellSize * 0.45f / (frames[0].rect.width / frames[0].pixelsPerUnit);
+            _crackIcon.transform.localScale = Vector3.one * size / parentScale;
+            _crackIcon.transform.localPosition = new Vector3(0f, GridConstants.CellSize * (BossFootprintRadius + 0.95f) / parentScale, 0f);
+        }
+
+        /// <summary>거울 가면 기사가 자기 패턴(거울 파편)을 쓸 때 - 비추던 모습을 풀고 본모습으로. 이미 본모습이면 false.</summary>
+        public bool RevertForm()
+        {
+            if (_morphStage == 0)
+                return false;
+            _morphStage = 0;
+            ApplyBossSprite(_bossStage);
+            ActorJuice.Get(this).Flash(Color.white);
+            HitFeedback.OnMorph(this);
+            _mirrorDamage = 0f;
+            RefreshMirrorCrack();
+            return true;
+        }
 
         /// <summary>보스 광폭화 표시 - 붉게 물들인다(BossBrain이 HP 절반 이하가 되는 순간 한 번 부른다).</summary>
         public void MarkEnraged()
         {
+            _enraged = true;
+            ApplyBossTint(GetComponent<SpriteRenderer>());
+        }
+
+        /// <summary>방 이벤트 "미믹" - 상자 괴물 도트 그림(Resources/Sprites/Mimic, 4방향 대기·걷기·공격)으로. 그림이 없으면 갈색 사각형.</summary>
+        public void MarkAsMimic()
+        {
+            IsMimic = true;
+            var first = SpriteAnimator.FirstFrame(MimicSpriteSet);
+            if (first == null)
+            {
+                var renderer = GetComponent<SpriteRenderer>();
+                if (renderer != null)
+                    renderer.color = new Color(0.6f, 0.4f, 0.2f);
+                return;
+            }
+            var spriteRenderer = VisualUtil.CreateSpriteVisual(gameObject, first, GridConstants.CellSize * MimicSpriteScale, sortingOrder: 0);
+            var anim = GetComponent<SpriteAnimator>();
+            if (anim == null)
+                anim = gameObject.AddComponent<SpriteAnimator>();
+            anim.Setup(MimicSpriteSet, spriteRenderer, new Color(0.65f, 0.45f, 0.25f));
+            anim.Face(Facing);
+        }
+
+        private const string MimicSpriteSet = "Mimic";
+        private const float MimicSpriteScale = 1.25f;
+
+        /// <summary>방 이벤트 "도전의 깃발" 정예 - 금빛으로 물들이고 조금 크게.</summary>
+        public void MarkAsElite()
+        {
+            IsElite = true;
             var renderer = GetComponent<SpriteRenderer>();
             if (renderer != null)
-                renderer.color = new Color(1f, 0.25f, 0.2f);
+                renderer.color = GetComponent<SpriteAnimator>() != null ? new Color(1f, 0.82f, 0.4f) : new Color(0.95f, 0.7f, 0.2f);
+            transform.localScale *= 1.15f;
         }
 
         /// <summary>보스 소환 졸개로 표시 - 색을 어둡게 해서 일반 몹과 구분.</summary>
@@ -185,10 +428,30 @@ namespace LoopRogue
         private const float ShieldSpriteScale = 1.35f;
         private const string BomberSpriteSet = "Bomber";
         private const float BomberSpriteScale = 1.3f;
+        private const float NewEnemySpriteScale = 1.3f; // 새 몹 4종도 48x48 캔버스(폭발병과 같은 크기)
+        private const float SplitChildScale = 0.7f;
+
+        /// <summary>5층부터 나오는 새 몹 4종의 그림 세트(Resources/Sprites/{세트})와 처치 파편 색 - 그림이 없으면 같은 색 사각형.</summary>
+        public static (string Set, Color Color) NewKindVisual(EnemyKind kind) => kind switch
+        {
+            EnemyKind.Healer => ("Shaman", new Color(0.35f, 0.9f, 0.55f)),
+            EnemyKind.Charger => ("OrcCharger", new Color(0.8f, 0.4f, 0.25f)),
+            EnemyKind.Splitter => ("Jelly", new Color(0.35f, 0.6f, 1f)),
+            _ => ("Rogue", new Color(0.5f, 0.4f, 0.7f)),
+        };
+
+        /// <summary>분열체가 죽어 갈라진 조각으로 표시 - 작게, 더는 안 갈라지고 갓 나온 턴은 굳어 있다.</summary>
+        public void MarkAsSplitChild()
+        {
+            IsSplitChild = true;
+            _spawnFreezeTurns = 1;
+            transform.localScale *= SplitChildScale;
+        }
 
         public void Initialize(float maxHealth, float attackPower, bool isBoss, EnemyKind kind = EnemyKind.Melee)
         {
             IsBoss = isBoss;
+            StatusIcons.AttachToEnemy(this); // 기절·약점 표식 표시
             Kind = isBoss ? EnemyKind.Melee : kind;
             Stats = new CharacterStats(maxHealth, attackPower);
 
@@ -244,6 +507,20 @@ namespace LoopRogue
                 color = new Color(0.6f, 0.3f, 0.85f); // 거미는 보라색
                 scale = GridConstants.CellSize * 0.5f;
             }
+            else if (Kind >= EnemyKind.Healer)
+            {
+                // 5층부터 나오는 새 몹 4종(고블린 주술사·오크 돌격병·분열 젤리·그림자 도적) - 대기·걷기·공격 4방향.
+                var (set, kindColor) = NewKindVisual(Kind);
+                var first = SpriteAnimator.FirstFrame(set);
+                if (first != null)
+                {
+                    var spriteRenderer = VisualUtil.CreateSpriteVisual(gameObject, first, GridConstants.CellSize * NewEnemySpriteScale, sortingOrder: 0);
+                    gameObject.AddComponent<SpriteAnimator>().Setup(set, spriteRenderer, kindColor);
+                    return;
+                }
+                color = kindColor;
+                scale = GridConstants.CellSize * 0.55f;
+            }
             else if (Kind == EnemyKind.Bomber)
             {
                 // 고블린 폭탄병 도트 그림(대기·걷기 4방향 + 불붙음) - 그림 파일이 없으면 예전 주황 사각형.
@@ -286,11 +563,18 @@ namespace LoopRogue
 
             if (VulnerableTurns > 0)
                 VulnerableTurns--;
+            if (_spawnFreezeTurns > 0)
+            {
+                _spawnFreezeTurns--; // 갓 갈라진 분열 조각 - 한 턴 굳어 있음
+                return;
+            }
             if (InSmoke)
                 return; // 연막 속 - 플레이어가 공격하기 전까지 아무것도 안 함(약점 표식 턴은 위에서 그대로 줄어든다)
             if (StunTurns > 0)
             {
                 StunTurns--; // 기절(섬광탄/덫) - 아무것도 안 함
+                if (MirrorShardsActive)
+                    _brain.TakePatternTurn(player, room); // 단, 이미 깔린 거울 파편은 기절해도 순서대로 계속 터진다
                 return;
             }
 
@@ -310,8 +594,197 @@ namespace LoopRogue
                 TakeSpiderTurn(player, claimedSlots);
             else if (Kind == EnemyKind.Bomber)
                 TakeBomberTurn(player, claimedSlots, room);
+            else if (Kind == EnemyKind.Healer)
+                TakeHealerTurn(player, room);
+            else if (Kind == EnemyKind.Charger)
+                TakeChargerTurn(player, claimedSlots, room);
+            else if (Kind == EnemyKind.Assassin)
+                TakeAssassinTurn(player, claimedSlots, room);
             else
-                TakeMeleeTurn(player, claimedSlots);
+                TakeMeleeTurn(player, claimedSlots); // 분열체도 걷는 건 근접 몹과 같다
+        }
+
+        /// <summary>봇 통계용 - 치유사 회복 횟수, 돌진 횟수와 그중 플레이어 적중, 도적 순간이동 횟수.</summary>
+        public static int HealCount, ChargeCount, ChargeHitCount, BlinkCount;
+
+        /// <summary>치유사: 1) 회복이 준비됐고 사거리 안에 다친 아군이 있으면 회복 2) 붙어 있으면 물러나기(못 물러나면 근접 공격)
+        /// 3) 아니면 선호 거리 쪽으로 한 칸(두 턴에 한 번). 회복할 아군이 없으면 회복은 아껴둔다.</summary>
+        private void TakeHealerTurn(PlayerActor player, RoomController room)
+        {
+            if (_healCooldown > 0)
+                _healCooldown--;
+            if (_retreatCooldown > 0)
+                _retreatCooldown--;
+
+            if (_healCooldown == 0)
+            {
+                EnemyActor best = null;
+                var bestRate = HealThreshold;
+                foreach (var e in room.Enemies)
+                {
+                    if (e == null || e == this || e.IsBoss || e.Stats.IsDead || Distance(GridPos, e.GridPos) > HealRange)
+                        continue;
+                    var rate = e.Stats.CurrentHealth / Mathf.Max(1f, e.Stats.MaxHealth);
+                    if (rate < bestRate)
+                    {
+                        bestRate = rate;
+                        best = e;
+                    }
+                }
+                if (best != null)
+                {
+                    _healCooldown = HealCooldownTurns;
+                    var amount = best.Stats.MaxHealth * HealRate;
+                    best.Stats.Heal(amount);
+                    HealCount++;
+                    if (TryGetComponent<SpriteAnimator>(out var anim))
+                        anim.PlayAttack(best.GridPos - GridPos);
+                    DamagePopup.Spawn(best.transform.position, amount, new Color(0.4f, 1f, 0.5f));
+                    Fx.Play("heal", best.transform.position, 1.1f, fps: 14f, sortingOrder: 8);
+                    return;
+                }
+            }
+
+            if (Distance(GridPos, _tp) == 1)
+            {
+                if (!TryMoveToSpot(mustIncreaseDistance: true, HealerPreferredDistance, requireLine: false))
+                    HitTarget(player);
+                return;
+            }
+            TryMoveToSpot(mustIncreaseDistance: false, HealerPreferredDistance, requireLine: false);
+        }
+
+        /// <summary>체력 비율이 이보다 낮은 아군만 회복한다(거의 멀쩡한 몹에 회복을 낭비하지 않게).</summary>
+        private const float HealThreshold = 0.9f;
+
+        /// <summary>돌진병: 예고해둔 돌진이 있으면 달린다. 돌진 직후엔 숨 고르기. 아니면 같은 줄에서 돌진을 예고하거나, 근접 몹처럼 다가간다.</summary>
+        private void TakeChargerTurn(PlayerActor player, HashSet<Vector2Int> claimedSlots, RoomController room)
+        {
+            if (_chargeDir.HasValue)
+            {
+                ResolveCharge(player, room);
+                return;
+            }
+            if (_chargeCooldown > 0)
+            {
+                _chargeCooldown--;
+                if (_chargeCooldown >= ChargeCooldownTurns - ChargeRecoverTurns)
+                    return; // 돌진 직후 숨 고르기
+            }
+
+            if (_chargeCooldown == 0 && !IsAdjacentTo(_tp) && CanShoot(_tp, ChargeRange))
+            {
+                var dir = new Vector2Int(System.Math.Sign(_tp.x - GridPos.x), System.Math.Sign(_tp.y - GridPos.y));
+                var tiles = new List<Vector2Int>();
+                for (var p = GridPos + dir; tiles.Count < ChargeRange && Map.IsInBounds(p) && !Map.IsWall(p); p += dir)
+                    tiles.Add(p);
+                _chargeDir = dir;
+                _chargeTiles = tiles;
+                if (TryGetComponent<SpriteAnimator>(out var anim))
+                    anim.Face(dir);
+                room.ShowEnemyTelegraph(this, tiles, RoomController.ChargeTelegraphColor);
+                HitFeedback.OnTelegraph(); // 보스 예고와 같은 경고음
+                return;
+            }
+
+            TakeMeleeTurn(player, claimedSlots);
+        }
+
+        /// <summary>예고한 줄을 따라 달린다 - 플레이어(또는 미끼)를 만나면 들이받고 그 앞에서, 다른 몹/벽이면 그 앞에서 멈춘다.</summary>
+        private void ResolveCharge(PlayerActor player, RoomController room)
+        {
+            var dir = _chargeDir.Value;
+            var tiles = _chargeTiles;
+            _chargeDir = null;
+            _chargeTiles = null;
+            _chargeCooldown = ChargeCooldownTurns;
+            room.ClearEnemyTelegraph(this);
+            ChargeCount++;
+
+            var stop = GridPos;
+            GridActor hit = null;
+            foreach (var p in tiles)
+            {
+                var actor = Map.GetActorAt(p);
+                if (actor != null)
+                {
+                    hit = actor;
+                    break;
+                }
+                if (!Map.IsWalkable(p))
+                    break;
+                stop = p;
+            }
+            if (stop != GridPos)
+                Map.MoveActor(this, stop);
+
+            if (TryGetComponent<SpriteAnimator>(out var anim))
+                anim.PlayAttack(dir);
+            if (hit != null && hit == _decoyTarget)
+            {
+                _decoyTarget.TakeHit(this, Stats.AttackPower * ChargeDamageRate);
+                return;
+            }
+            if (!(hit is PlayerActor))
+                return;
+            ChargeHitCount++;
+            var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower * ChargeDamageRate);
+            room.ApplyThorns(this, dealt);
+            DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.35f, 0.35f), isCritical: true);
+            HitFeedback.OnPlayerHurt(player, this);
+        }
+
+        /// <summary>도적: 붙어 있으면 공격(순간이동 직후 첫 공격은 기습). 떨어져 있고 순간이동이 준비됐으면 플레이어 등 뒤로. 아니면 다가간다.</summary>
+        private void TakeAssassinTurn(PlayerActor player, HashSet<Vector2Int> claimedSlots, RoomController room)
+        {
+            if (_blinkCooldown > 0)
+                _blinkCooldown--;
+
+            var dist = Distance(GridPos, _tp);
+            if (dist == 1)
+            {
+                HitTarget(player, melee: true, rate: _backstabReady ? BackstabRate : 1f);
+                _backstabReady = false;
+                return;
+            }
+
+            if (_blinkCooldown == 0 && dist >= BlinkMinDistance && dist <= BlinkMaxDistance)
+            {
+                Vector2Int? best = null;
+                var bestScore = int.MinValue;
+                foreach (var d in Directions)
+                {
+                    var c = _tp + d;
+                    if (!Map.IsWalkable(c) || claimedSlots.Contains(c) || room.IsDangerTile(c))
+                        continue;
+                    var score = Distance(c, GridPos);
+                    if (score > bestScore)
+                    {
+                        bestScore = score;
+                        best = c;
+                    }
+                }
+                if (best.HasValue)
+                {
+                    var from = transform.position;
+                    claimedSlots.Add(best.Value);
+                    Map.MoveActor(this, best.Value);
+                    if (TryGetComponent<SpriteAnimator>(out var anim))
+                    {
+                        anim.SnapToGrid(); // 걸어가는 모션 대신 순간이동
+                        anim.Face(_tp - GridPos);
+                    }
+                    _blinkCooldown = BlinkCooldownTurns;
+                    _backstabReady = true;
+                    BlinkCount++;
+                    var smoke = new Color(0.6f, 0.5f, 0.8f);
+                    Fx.Play("death_smoke", from, 1f, tint: smoke);
+                    Fx.Play("death_smoke", transform.position, 1f, tint: smoke);
+                    return;
+                }
+            }
+
+            TakeMeleeTurn(player, claimedSlots);
         }
 
         /// <summary>폭발병: 불이 붙어 있으면 터진다(그 자리에서 - 플레이어가 도망갔어도). 붙어 있으면 불을 붙인다(공격 안 함).
@@ -391,7 +864,8 @@ namespace LoopRogue
                 _webCooldown = WebCooldownTurns;
                 if (TryGetComponent<SpriteAnimator>(out var anim)) // 거미줄 쏜 쪽을 바라보게
                     anim.PlayAttack(_tp - GridPos);
-                SpawnLineVisual(TargetWorld(player), new Color(0.95f, 0.95f, 1f, 0.9f), 0.12f, 0.25f);
+                if (!Fx.Projectile("web_shot", transform.position, TargetWorld(player), 0.45f, 0.15f))
+                    SpawnLineVisual(TargetWorld(player), new Color(0.95f, 0.95f, 1f, 0.9f), 0.12f, 0.25f);
                 if (_decoyTarget != null)
                 {
                     _decoyTarget.TakeHit(this, Stats.AttackPower * WebDamageRate);
@@ -577,7 +1051,7 @@ namespace LoopRogue
             if (dist == 1)
             {
                 // 물러날 수 있으면(쿨타임 끝) 한 칸 물러나고, 아니면 그 자리에서 근접 공격.
-                if (!TryMoveToBestSpot(player, mustIncreaseDistance: true))
+                if (!TryMoveToSpot(mustIncreaseDistance: true, RangedPreferredDistance, requireLine: true))
                     HitTarget(player);
                 return;
             }
@@ -589,7 +1063,7 @@ namespace LoopRogue
                 return;
             }
 
-            TryMoveToBestSpot(player, mustIncreaseDistance: false);
+            TryMoveToSpot(mustIncreaseDistance: false, RangedPreferredDistance, requireLine: true);
         }
 
         private bool CanShoot(Vector2Int target, int range)
@@ -613,14 +1087,15 @@ namespace LoopRogue
         }
 
         /// <summary>이웃 빈 칸 중 점수가 제일 좋은 곳으로 한 칸 - 지금 자리보다 나을 때만 움직인다.
-        /// 점수: 줄 어긋남(작을수록 좋음)이 최우선, 플레이어에게 붙는 칸(거리 1)은 금지, 그다음 선호 거리와의 차이.</summary>
-        private bool TryMoveToBestSpot(PlayerActor player, bool mustIncreaseDistance)
+        /// 점수: 줄 어긋남(작을수록 좋음, 궁수만)이 최우선, 플레이어에게 붙는 칸(거리 1)은 금지, 그다음 선호 거리와의 차이.
+        /// 궁수·치유사 공통(둘 다 두 턴에 한 번만 이동).</summary>
+        private bool TryMoveToSpot(bool mustIncreaseDistance, int preferredDistance, bool requireLine)
         {
             var currentDist = Distance(GridPos, _tp);
             if (_retreatCooldown > 0)
-                return false; // 궁수는 두 턴에 한 번만 이동
+                return false; // 두 턴에 한 번만 이동
 
-            var bestScore = mustIncreaseDistance ? int.MaxValue : SpotScore(GridPos, _tp);
+            var bestScore = mustIncreaseDistance ? int.MaxValue : SpotScore(GridPos, _tp, preferredDistance, requireLine);
             Vector2Int? best = null;
 
             foreach (var d in Directions)
@@ -632,7 +1107,7 @@ namespace LoopRogue
                 if (mustIncreaseDistance && newDist <= currentDist)
                     continue;
 
-                var score = SpotScore(p, _tp);
+                var score = SpotScore(p, _tp, preferredDistance, requireLine);
                 if (score < bestScore)
                 {
                     bestScore = score;
@@ -648,15 +1123,17 @@ namespace LoopRogue
             return true;
         }
 
-        private static int SpotScore(Vector2Int pos, Vector2Int playerPos)
+        private static int SpotScore(Vector2Int pos, Vector2Int playerPos, int preferredDistance, bool requireLine)
         {
             var dx = Mathf.Abs(playerPos.x - pos.x);
             var dy = Mathf.Abs(playerPos.y - pos.y);
             var dist = dx + dy;
-            var misalign = Mathf.Min(dx, dy);
             var tooClose = dist <= 1 ? 1000 : 0;
+            if (!requireLine)
+                return tooClose + Mathf.Abs(dist - preferredDistance);
+            var misalign = Mathf.Min(dx, dy);
             var outOfRange = Mathf.Max(dx, dy) > RangedAttackRange ? 5 : 0;
-            return tooClose + misalign * 10 + outOfRange + Mathf.Abs(dist - RangedPreferredDistance);
+            return tooClose + misalign * 10 + outOfRange + Mathf.Abs(dist - preferredDistance);
         }
 
         private static int Distance(Vector2Int a, Vector2Int b) => Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
@@ -666,30 +1143,34 @@ namespace LoopRogue
         /// <summary>노리는 대상을 때린다 - 미끼면 미끼가 맞고, 아니면 플레이어.</summary>
         private RoomController _turnRoom;
 
-        private void HitTarget(PlayerActor player, bool melee = true)
+        /// <param name="rate">공격력 배율(도적 기습 1.5배 등)</param>
+        private void HitTarget(PlayerActor player, bool melee = true, float rate = 1f)
         {
             if (TryGetComponent<SpriteAnimator>(out var anim)) // 때린 쪽을 바라보고 공격 모션(그림에 공격 프레임이 있을 때만)
                 anim.PlayAttack((_decoyTarget != null ? _decoyTarget.GridPos : player.GridPos) - GridPos);
             if (_decoyTarget != null)
             {
-                _decoyTarget.TakeHit(this, Stats.AttackPower);
+                _decoyTarget.TakeHit(this, Stats.AttackPower * rate);
                 return;
             }
-            HitPlayer(player, melee);
+            HitPlayer(player, melee, rate);
         }
 
-        private void HitPlayer(PlayerActor player, bool melee)
+        private void HitPlayer(PlayerActor player, bool melee, float rate)
         {
-            var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower);
+            var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower * rate);
             if (melee)
                 _turnRoom?.ApplyThorns(this, dealt); // 갑옷 "가시"
-            DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.35f, 0.35f));
+            DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.35f, 0.35f), isCritical: rate > 1f);
             HitFeedback.OnPlayerHurt(player, this);
         }
 
-        /// <summary>궁수 → 플레이어로 가는 가는 노란 선을 잠깐 보여준다(화살 느낌만, 투사체 이동은 없음).</summary>
-        private void SpawnArrowVisual(Vector3 targetWorld) =>
-            SpawnLineVisual(targetWorld, new Color(1f, 0.9f, 0.3f, 0.9f), 0.08f, 0.15f);
+        /// <summary>궁수 → 플레이어로 화살이 날아간다(연출만 - 피해는 바로 들어감). 화살 그림이 없으면 가는 노란 선.</summary>
+        private void SpawnArrowVisual(Vector3 targetWorld)
+        {
+            if (!Fx.Projectile("arrow", transform.position, targetWorld, 0.55f, 0.1f))
+                SpawnLineVisual(targetWorld, new Color(1f, 0.9f, 0.3f, 0.9f), 0.08f, 0.15f);
+        }
 
         /// <summary>이 몹 → targetWorld로 가는 선을 잠깐 보여준다(화살/거미줄 - 투사체 이동은 없음).</summary>
         private void SpawnLineVisual(Vector3 targetWorld, Color color, float thickness, float lifetime)

@@ -60,7 +60,7 @@ namespace LoopRogue
         private Action<int> _onContinueAfterDeath;
         private Action _onReturnToLobby;
 
-        // 시작 방 고르기("방을 자유롭게 들어갈 수 있게", 사용자 결정: 처음부터 11개 전부, 깬 뒤엔 다음 방으로) -
+        // 시작 방 고르기("방을 자유롭게 들어갈 수 있게", 깬 뒤엔 다음 방으로) - 처음엔 11개 전부였다가 사용자 결정으로 이 층에서 깬 방 바로 다음까지만 열림(StageProgress.RoomsCleared) -
         // 스테이지 입장 창과 사망 창이 "방 지도 한 줄"(RoomMapView) 하나를 같이 쓴다.
         // 봇은 항상 방1부터(밸런스 측정 기준 유지) - 봇이 켜져 있으면 입장 창은 아예 안 뜨고, ChooseDeathContinue는 방1.
         public static bool AutoPlayActive;
@@ -68,6 +68,12 @@ namespace LoopRogue
         private Text _roomSelectTitle;
         private RoomMapView _roomMap;
         private Action<int> _onRoomSelected;
+
+        /// <summary>층 입장 시작 방 고르기 창이 떠 있는지(모바일 "확인" 버튼용).</summary>
+        public bool IsRoomSelectOpen => _onRoomSelected != null;
+
+        /// <summary>오른쪽 위 능력치 창이 열려 있는지(모바일 "메뉴" 버튼이 그 위를 가리지 않게).</summary>
+        public bool IsStatPanelOpen => _statPanel != null && _statPanel.Root.activeSelf;
         private int _roomCount;
 
         public void Initialize(PlayerActor player)
@@ -79,8 +85,28 @@ namespace LoopRogue
             _player.Levels.OnLevelUp += _ => Refresh();
             _player.Levels.OnUpgradeChoicesReady += ShowUpgradeChoices;
             _player.OnAttackedEnemy += enemy => _target = enemy;
+            Achievements.Unlocked += OnAchievementUnlocked;
+            Codex.Discovered += OnCodexDiscovered;
 
             Refresh();
+        }
+
+        private void OnDestroy()
+        {
+            Achievements.Unlocked -= OnAchievementUnlocked;
+            Codex.Discovered -= OnCodexDiscovered;
+        }
+
+        private void OnCodexDiscovered(CodexEntry entry)
+        {
+            if (!AutoPlayActive)
+                ShowMessage(Loc.F("<color=#B9A0FF>도감 기록</color> {0}", entry.Name));
+        }
+
+        private void OnAchievementUnlocked(AchievementDef def)
+        {
+            if (!AutoPlayActive)
+                ShowMessage(Loc.F("<color=#FFD966>업적 달성!</color> {0} - 칭호 「{1}」", def.Name, def.Title));
         }
 
         // 체력은 전투 중 실시간으로 바뀌므로 매 프레임 새로고침한다 - LevelSystem 이벤트만으로는
@@ -103,7 +129,7 @@ namespace LoopRogue
         {
             _onRoomSelected = onSelected;
             _roomCount = rooms.Count;
-            _roomSelectTitle.text = $"스테이지 {stage} - 어디서 시작할까?";
+            _roomSelectTitle.text = Loc.F("스테이지 {0} - 어디서 시작할까?", stage);
             _roomMap ??= new RoomMapView(_roomSelectPanel.transform, rooms.Count);
             _roomMap.Show(_roomSelectPanel.transform, new Vector2(0f, 0f), rooms, defaultRoom);
             _roomSelectPanel.SetActive(true);
@@ -133,8 +159,7 @@ namespace LoopRogue
             if (_pendingOptions != null)
                 return;
 
-            var keyboard = Keyboard.current;
-            if (keyboard == null || !keyboard.enterKey.wasPressedThisFrame)
+            if (!GameInput.Down(Key.Enter))
                 return;
 
             ConfirmStageClear();
@@ -154,8 +179,9 @@ namespace LoopRogue
 
             foreach (Transform child in _relicPanel.transform)
                 Destroy(child.gameObject);
+            _relicCards.Clear();
 
-            var title = CreateLabel(_relicPanel.transform, "보스 처치! 유물을 하나 고르세요 (영구 적용)", new Vector2(10f, -45f), new Vector2(-10f, -10f));
+            var title = CreateLabel(_relicPanel.transform, Loc.T("보스 처치! 유물을 하나 고르세요 (영구 적용)"), new Vector2(10f, -45f), new Vector2(-10f, -10f));
             title.alignment = TextAnchor.MiddleCenter;
             title.fontSize = 18;
             title.fontStyle = FontStyle.Bold;
@@ -172,6 +198,7 @@ namespace LoopRogue
                 var relicColor = Relics.IsBossRelic(relic) ? new Color(0.85f, 0.35f, 0.25f, 0.35f) : new Color(0.7f, 0.4f, 1f, 0.25f);
                 var relicImage = cardGo.AddComponent<Image>();
                 relicImage.color = PixelUi.Slice(relicImage, "Button") ? PixelUi.Tint(relicColor, 0.5f) : relicColor;
+                _relicCards.Add((rect, relicImage, relicImage.color));
 
                 var text = CreateLabel(cardGo.transform, string.Empty, Vector2.zero, Vector2.zero);
                 text.rectTransform.anchorMin = Vector2.zero;
@@ -180,7 +207,21 @@ namespace LoopRogue
                 text.rectTransform.offsetMax = Vector2.zero;
                 text.alignment = TextAnchor.MiddleCenter;
                 text.fontSize = 15;
-                text.text = $"[{i + 1}] {Relics.Name(relic)}{(Relics.IsBossRelic(relic) ? "  (보스 전용 - 지금 아니면 못 얻음)" : "")}\n{Relics.Description(relic)}";
+                text.text = $"[{i + 1}] {Relics.Name(relic)}{(Relics.IsBossRelic(relic) ? Loc.T("  (보스 전용 - 지금 아니면 못 얻음)") : "")}\n{Relics.Description(relic)}";
+
+                // 왼쪽에 유물 그림(16x16 도트 3배) - 그림이 있으면 글자를 오른쪽으로 민다.
+                var sprite = PixelUi.Get($"UI/Relics/Relic_{relic}");
+                if (sprite != null)
+                {
+                    var icon = HudUi.CreateImage(cardGo.transform, "Icon", Color.white);
+                    icon.sprite = sprite;
+                    var iconRect = icon.rectTransform;
+                    iconRect.anchorMin = iconRect.anchorMax = new Vector2(0f, 0.5f);
+                    iconRect.pivot = new Vector2(0f, 0.5f);
+                    iconRect.sizeDelta = new Vector2(48f, 48f);
+                    iconRect.anchoredPosition = new Vector2(12f, 0f);
+                    text.rectTransform.offsetMin = new Vector2(64f, 0f);
+                }
             }
         }
 
@@ -192,10 +233,9 @@ namespace LoopRogue
             if (_pendingOptions != null)
                 return;
 
-            var keyboard = Keyboard.current;
-            if (keyboard == null)
-                return;
-            var index = keyboard.digit1Key.wasPressedThisFrame ? 0 : keyboard.digit2Key.wasPressedThisFrame ? 1 : keyboard.digit3Key.wasPressedThisFrame ? 2 : -1;
+            var index = GameInput.Down(Key.Digit1) ? 0 : GameInput.Down(Key.Digit2) ? 1 : GameInput.Down(Key.Digit3) ? 2 : -1;
+            if (index < 0)
+                index = ClickedCard(_relicCards);
             ChooseRelic(index);
         }
 
@@ -255,13 +295,10 @@ namespace LoopRogue
             if (_onContinueAfterDeath == null)
                 return;
 
-            var keyboard = Keyboard.current;
-            if (keyboard == null)
-                return;
 
             if (_roomMap.HandleInput())
                 ChooseDeathContinue(_roomMap.Selected);
-            else if (keyboard.lKey.wasPressedThisFrame)
+            else if (GameInput.Down(Key.L))
                 ChooseDeathLobby();
         }
 
@@ -272,25 +309,46 @@ namespace LoopRogue
             _deathPanel.SetActive(false);
         }
 
-        /// <summary>업그레이드 카드는 마우스 클릭이 아니라 숫자키 1/2/3으로 고른다 - 이 프로토타입은
-        /// EventSystem/InputSystemUIInputModule을 아예 안 만들어뒀다(런타임에 AddComponent로만
-        /// 붙이면 기본 액션 바인딩이 비어있어 클릭이 씹힐 수 있다는 게 알려진 함정 - 이동 입력과
-        /// 똑같이 Keyboard.current로 직접 읽는 이 방식이 훨씬 확실하다).</summary>
+        /// <summary>업그레이드 카드는 숫자키 1/2/3 또는 카드 클릭(터치)으로 고른다 - EventSystem 없이(런타임에 붙이면 기본 액션
+        /// 바인딩이 비어 클릭이 씹히는 함정) 다른 버튼처럼 GameInput + 사각형 히트테스트(ClickedCard)로 직접 읽는다.</summary>
         private void HandleUpgradeSelection()
         {
             if (_pendingOptions == null)
                 return;
 
-            var keyboard = Keyboard.current;
-            if (keyboard == null)
-                return;
 
             var index = -1;
-            if (keyboard.digit1Key.wasPressedThisFrame) index = 0;
-            else if (keyboard.digit2Key.wasPressedThisFrame) index = 1;
-            else if (keyboard.digit3Key.wasPressedThisFrame) index = 2;
+            if (GameInput.Down(Key.Digit1)) index = 0;
+            else if (GameInput.Down(Key.Digit2)) index = 1;
+            else if (GameInput.Down(Key.Digit3)) index = 2;
+            if (index < 0)
+                index = ClickedCard(_upgradeCards);
 
             ChooseUpgrade(index);
+        }
+
+        // ---- 카드 클릭 - 레벨업 카드·보스 유물 카드를 마우스(터치)로도 고른다. 마우스를 올린 카드는 밝게. ----
+        private readonly List<(RectTransform Rect, Image Image, Color Color)> _upgradeCards = new List<(RectTransform, Image, Color)>();
+        private readonly List<(RectTransform Rect, Image Image, Color Color)> _relicCards = new List<(RectTransform, Image, Color)>();
+
+        /// <summary>이번 프레임 클릭한 카드 번호(없으면 -1). 마우스가 올라간 카드는 밝게 칠한다.</summary>
+        private static int ClickedCard(List<(RectTransform Rect, Image Image, Color Color)> cards)
+        {
+            if (PauseMenu.BlocksInput || OptionsPanel.BlocksInput)
+                return -1;
+            var pos = GameInput.PointerPosition;
+            var clicked = -1;
+            for (var i = 0; i < cards.Count; i++)
+            {
+                var (rect, image, color) = cards[i];
+                if (rect == null)
+                    continue;
+                var over = RectTransformUtility.RectangleContainsScreenPoint(rect, pos, null);
+                image.color = over ? Color.Lerp(color, Color.white, 0.35f) : color;
+                if (over && GameInput.PointerDown)
+                    clicked = i;
+            }
+            return clicked;
         }
 
         public void ChooseUpgrade(int index)
@@ -298,9 +356,10 @@ namespace LoopRogue
             if (_pendingOptions == null || index < 0 || index >= _pendingOptions.Count)
                 return;
 
-            _player.Levels.ChooseUpgrade(_pendingOptions[index]);
+            var option = _pendingOptions[index];
             _pendingOptions = null;
             _upgradePanel.SetActive(false);
+            _player.Levels.ChooseUpgrade(option); // 이어서 레벨업·보너스 카드가 있으면 여기서 다시 ShowUpgradeChoices
         }
 
         private void Refresh()
@@ -313,26 +372,30 @@ namespace LoopRogue
 
             var maxHp = Mathf.Max(1f, stats.MaxHealth);
             _hpBar.Set(stats.CurrentHealth / maxHp, stats.Shield >= 1f
-                ? $"{stats.CurrentHealth:0} / {stats.MaxHealth:0}  <color=#9FD8FF>+보호막 {stats.Shield:0}</color>"
+                ? Loc.F("{0:0} / {1:0}  <color=#9FD8FF>+보호막 {2:0}</color>", stats.CurrentHealth, stats.MaxHealth, stats.Shield)
                 : $"{stats.CurrentHealth:0} / {stats.MaxHealth:0}");
             _hpBar.SetOverlay(stats.Shield / maxHp);
             var expRatio = levels.IsMaxLevel ? 1f : levels.Exp / (float)Mathf.Max(1, levels.ExpToNext);
             _expBar.Set(expRatio, levels.IsMaxLevel
                 ? $"Lv.{levels.Level}   EXP MAX"
                 : $"Lv.{levels.Level}   EXP {levels.Exp} / {levels.ExpToNext}  [{expRatio * 100f:0.00}%]");
-            _levelText.text = $"Lv.{levels.Level}  (ATK {stats.AttackPower:0})";
+            var title = Achievements.EquippedTitle;
+            _levelText.text = title != null
+                ? $"Lv.{levels.Level} <size=12><color=#FFD966>「{title.Title}」</color></size>"
+                : $"Lv.{levels.Level}  (ATK {stats.AttackPower:0})";
 
             // 상태 안내 한 줄(체력 막대 위) - 방향 고르는 중이거나 묶였을 때만.
             _skillText.text = _player.AimingItem.HasValue
-                ? $"<color=#FFD27F>[아이템] {ItemInfo.Name(_player.AimingItem.Value)} - 방향키로 방향 선택 (같은 키: 취소)</color>"
+                ? Loc.F("<color=#FFD27F>[아이템] {0} - 방향키로 방향 선택 (같은 키: 취소)</color>", ItemInfo.Name(_player.AimingItem.Value))
                 : _player.RootedTurns > 0
-                ? "<color=#D9B3FF>거미줄에 묶임! 이동·대시 불가 (공격·E·Space 가능)</color>"
+                ? Loc.T("<color=#D9B3FF>거미줄에 묶임! 이동·대시 불가 (공격·E·Space 가능)</color>")
                 : _player.IsAimingDash
-                    ? "<color=#7FD4FF>[Q] 대시 - 방향키로 방향 선택 (Q: 취소)</color>"
+                    ? Loc.T("<color=#7FD4FF>[Q] 대시 - 방향키로 방향 선택 (Q: 취소)</color>")
                     : string.Empty;
             RefreshSkillSlots();
 
             RefreshTarget();
+            RefreshQuestTracker();
 
             if (_statPanel.Root.activeSelf)
                 RefreshStatPanels();
@@ -340,11 +403,12 @@ namespace LoopRogue
 
         private void HandleStatPanelToggle()
         {
-            var toggle = Keyboard.current != null && Keyboard.current.tabKey.wasPressedThisFrame;
+            if (PauseMenu.BlocksInput || OptionsPanel.BlocksInput || NpcDialogUI.BlocksInput || InventoryUI.IsOpen)
+                return; // 다른 창 뒤에서 능력치 창이 몰래 열리고 닫히지 않게
+            var toggle = GameInput.Down(Key.Tab);
 
-            var mouse = Mouse.current;
-            if (!PauseMenu.BlocksInput && mouse != null && mouse.leftButton.wasPressedThisFrame &&
-                RectTransformUtility.RectangleContainsScreenPoint(_statButtonRect, mouse.position.ReadValue(), null))
+            if (GameInput.PointerDown &&
+                RectTransformUtility.RectangleContainsScreenPoint(_statButtonRect, GameInput.PointerPosition, null))
                 toggle = true;
 
             if (!toggle)
@@ -366,7 +430,7 @@ namespace LoopRogue
         {
             if (!_statPanel.Root.activeSelf || PauseMenu.BlocksInput)
                 return;
-            var mouse = Mouse.current;
+            var mouse = Pointer.current;
             _statPanel.HandleMouse(mouse);
             if (_ownedRelicPanel.Root.activeSelf)
                 _ownedRelicPanel.HandleMouse(mouse);
@@ -395,7 +459,7 @@ namespace LoopRogue
         private static string BuildRelicText()
         {
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"<b><color=#E8A0FF>[유물 {Relics.OwnedCount}개]</color></b>");
+            sb.AppendLine(Loc.F("<b><color=#E8A0FF>[유물 {0}개]</color></b>", Relics.OwnedCount));
             foreach (var r in Relics.OwnedRelics())
             {
                 var color = Relics.IsBossRelic(r) ? "#FF9A80" : "#E8C8FF";
@@ -414,39 +478,41 @@ namespace LoopRogue
             var levels = _player.Levels;
             var sb = new System.Text.StringBuilder();
 
-            sb.AppendLine("<b><color=#FFD966>[기본]</color></b>");
-            sb.AppendLine(levels.IsMaxLevel ? $"레벨  Lv.{levels.Level}  (MAX)" : $"레벨  Lv.{levels.Level}  (EXP {levels.Exp}/{levels.ExpToNext})");
-            sb.AppendLine($"체력  {s.CurrentHealth:0} / {s.MaxHealth:0}  (장비·영약 {s.FixedMaxHealth:0})");
-            sb.AppendLine($"공격력  {s.AttackPower:0.#}  (장비·영약 {s.FixedAttack:0.#})");
-            sb.AppendLine($"치명타  {s.EffectiveCriticalChance * 100f:0.#}%  (피해 {s.CriticalDamageMultiplier * 100f:0.#}%)");
+            sb.AppendLine(Loc.T("<b><color=#FFD966>[기본]</color></b>"));
+            var title = Achievements.EquippedTitle;
+            sb.AppendLine(title != null ? Loc.F("칭호  「{0}」  ({1})", title.Title, title.EffectText) : Loc.T("칭호  없음 (로비 업적 창에서 장착)"));
+            sb.AppendLine(levels.IsMaxLevel ? Loc.F("레벨  Lv.{0}  (MAX)", levels.Level) : Loc.F("레벨  Lv.{0}  (EXP {1}/{2})", levels.Level, levels.Exp, levels.ExpToNext));
+            sb.AppendLine(Loc.F("체력  {0:0} / {1:0}  (장비·영약 {2:0})", s.CurrentHealth, s.MaxHealth, s.FixedMaxHealth));
+            sb.AppendLine(Loc.F("공격력  {0:0.#}  (장비·영약 {1:0.#})", s.AttackPower, s.FixedAttack));
+            sb.AppendLine(Loc.F("치명타  {0:0.#}%  (피해 {1:0.#}%)", s.EffectiveCriticalChance * 100f, s.CriticalDamageMultiplier * 100f));
             if (s.CriticalChanceRate > CharacterStats.MaxCriticalChance)
-                sb.AppendLine($"   초과 치명타 {(s.CriticalChanceRate - CharacterStats.MaxCriticalChance) * 100f:0.#}%p → 피해로 전환");
+                sb.AppendLine(Loc.F("   초과 치명타 {0:0.#}%p → 피해로 전환", (s.CriticalChanceRate - CharacterStats.MaxCriticalChance) * 100f));
 
             sb.AppendLine();
-            sb.AppendLine("<b><color=#7FE0A0>[특수]</color></b>");
+            sb.AppendLine(Loc.T("<b><color=#7FE0A0>[특수]</color></b>"));
             var reduction = Mathf.Clamp(s.DamageReductionRate, -CharacterStats.MaxDamageReduction, CharacterStats.MaxDamageReduction);
             sb.AppendLine(reduction >= 0f
-                ? $"받는 피해  -{reduction * 100f:0.#}%  (최대 {CharacterStats.MaxDamageReduction * 100f:0}%)"
-                : $"받는 피해  <color=#FF7070>+{-reduction * 100f:0.#}%</color>");
-            sb.AppendLine($"흡혈  {s.EffectiveLifeSteal * 100f:0.#}%{(s.LifeStealRate >= Relics.LifeStealCap ? " (최대)" : "")}");
-            sb.AppendLine($"재생  턴당 {s.RegenPerTurnRate * 100f:0.#}%  (≈{s.MaxHealth * s.RegenPerTurnRate:0.#} HP)");
-            sb.AppendLine($"처치 회복  {s.KillHealRate * 100f:0.#}%  (≈{s.MaxHealth * s.KillHealRate:0.#} HP)");
+                ? Loc.F("받는 피해  -{0:0.#}%  (최대 {1:0}%)", reduction * 100f, CharacterStats.MaxDamageReduction * 100f)
+                : Loc.F("받는 피해  <color=#FF7070>+{0:0.#}%</color>", -reduction * 100f));
+            sb.AppendLine(Loc.F("흡혈  {0:0.#}%{1}", s.EffectiveLifeSteal * 100f, (s.LifeStealRate >= Relics.LifeStealCap ? Loc.T(" (최대)") : "")));
+            sb.AppendLine(Loc.F("재생  턴당 {0:0.#}%  (≈{1:0.#} HP)", s.RegenPerTurnRate * 100f, s.MaxHealth * s.RegenPerTurnRate));
+            sb.AppendLine(Loc.F("처치 회복  {0:0.#}%  (≈{1:0.#} HP)", s.KillHealRate * 100f, s.MaxHealth * s.KillHealRate));
 
             sb.AppendLine();
-            sb.AppendLine("<b><color=#FFE680>[경제]</color></b>");
-            sb.AppendLine($"경험치  {FormatBonus(s.EffectiveExpBonus)}");
-            sb.AppendLine($"골드  {FormatBonus(s.EffectiveGoldBonus)}");
-            sb.AppendLine($"보유 골드  {GoldWallet.Gold}");
+            sb.AppendLine(Loc.T("<b><color=#FFE680>[경제]</color></b>"));
+            sb.AppendLine(Loc.F("경험치  {0}", FormatBonus(s.EffectiveExpBonus)));
+            sb.AppendLine(Loc.F("골드  {0}", FormatBonus(s.EffectiveGoldBonus)));
+            sb.AppendLine(Loc.F("보유 골드  {0}", GoldWallet.Gold));
 
             sb.AppendLine();
-            sb.AppendLine("<b><color=#8FB8FF>[장비]</color></b>");
+            sb.AppendLine(Loc.T("<b><color=#8FB8FF>[장비]</color></b>"));
             foreach (ItemSlot slot in Enum.GetValues(typeof(ItemSlot)))
             {
                 var grade = EquipmentWallet.GetEquipped(slot);
                 var baseName = EquipmentData.Templates[slot].BaseName;
                 if (!grade.HasValue)
                 {
-                    sb.AppendLine($"{baseName}  (미장착)");
+                    sb.AppendLine(Loc.F("{0}  (미장착)", baseName));
                     continue;
                 }
 
@@ -479,17 +545,27 @@ namespace LoopRogue
         {
             // 시도 횟수는 이 스테이지 누적(로비 왕복 포함) - 반복 보상 감소가 이 숫자로 정해진다.
             var reward = StageProgress.RepeatRewardMultiplier;
-            var rewardText = reward < 0.999f ? $"   보상 {reward * 100f:0}%" : string.Empty;
-            _progressText.text = $"Stage {stage}/{StageProgress.MaxStage}   Room {roomNumber}/{roomCount}   시도 {StageProgress.AttemptsThisStage}{rewardText}";
+            var rewardText = reward < 0.999f ? Loc.F("   보상 {0:0}%", reward * 100f) : string.Empty;
+            _progressText.text = Loc.F("Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}", stage, StageProgress.MaxStage, roomNumber, roomCount, StageProgress.AttemptsThisStage, rewardText);
         }
 
         /// <summary>화면 위쪽 배너로 짧은 안내(방 이벤트 결과, 보스 소환 등).</summary>
         public void ShowMessage(string message) => ShowBanner(message);
 
-        public void ShowLoopResetBanner(int startRoom) => ShowBanner($"스탯은 그대로! {RoomMapView.RoomLabel(startRoom, _roomCount)}부터 다시.");
+        public void ShowLoopResetBanner(int startRoom) => ShowBanner(Loc.F("스탯은 그대로! {0}부터 다시.", RoomMapView.RoomLabel(startRoom, _roomCount)));
 
+        private int _bannerFrame = -1;
+
+        /// <summary>같은 프레임에 안내가 여러 개 오면(방 클리어 "출구가 열렸다" + 의뢰 완료 등) 덮어쓰지 않고 줄을 늘려 같이 보여준다.</summary>
         private void ShowBanner(string message)
         {
+            if (_bannerGo.activeSelf && _bannerFrame == Time.frameCount)
+                message = _bannerText.text + "\n" + message;
+            _bannerFrame = Time.frameCount;
+            var lines = message.Split('\n').Length;
+            var rect = (RectTransform)_bannerGo.transform;
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, 44f + (lines - 1) * 22f);
+
             _bannerText.text = message;
             _bannerGo.SetActive(true);
 
@@ -513,25 +589,27 @@ namespace LoopRogue
             _onStageClearContinue = onContinue;
 
             _victoryText.text = stage >= StageProgress.MaxStage
-                ? $"스테이지 {stage} 클리어! 마지막 벽까지 뚫었다!\n[Enter] 로비로 이동"
-                : $"스테이지 {stage} 클리어!\n[Enter] 로비로 이동 (다음 스테이지 도전 가능)";
+                ? Loc.F("스테이지 {0} 클리어! 마지막 벽까지 뚫었다!\n[Enter] 로비로 이동", stage)
+                : Loc.F("스테이지 {0} 클리어!\n[Enter] 로비로 이동 (다음 스테이지 도전 가능)", stage);
 
             _victoryPanel.SetActive(true);
         }
 
         /// <summary>LoopManager.OnPlayerDied가 호출 - 선택 전까지는 RoomController.IsInputLocked가
         /// 이미 켜져 있어서 플레이어가 움직일 수 없다.</summary>
-        public void ShowDeathChoice(Action<int> onContinue, Action onLobby, int goldPenalty, IReadOnlyList<RoomDefinition> rooms, int defaultRoom)
+        public void ShowDeathChoice(Action<int> onContinue, Action onLobby, int goldPenalty, IReadOnlyList<RoomDefinition> rooms, int defaultRoom,
+            bool bossRoom = false)
         {
+            _deathTipText.text = Loc.F("<color=#C8B88A>시간지기 노인의 한마디</color>  \"{0}\"", LobbyGuide.DeathTip(bossRoom));
             _onContinueAfterDeath = onContinue;
             _roomCount = rooms.Count;
             _roomMap ??= new RoomMapView(_deathPanel.transform, rooms.Count);
-            _roomMap.Show(_deathPanel.transform, new Vector2(0f, -18f), rooms, defaultRoom);
+            _roomMap.Show(_deathPanel.transform, new Vector2(0f, -18f + DeathTipHeight * 0.5f), rooms, defaultRoom); // 아래 조언 줄만큼 늘어난 패널 보정
             _onReturnToLobby = onLobby;
             LastDeathGoldPenalty = goldPenalty;
             _deathPenaltyText.text = goldPenalty > 0
-                ? $"데스 패널티: 골드 -{goldPenalty} (이번 시도 획득분의 {Relics.DeathPenaltyRate * 100f:0}%)"
-                : "데스 패널티: 이번 시도에 번 골드 없음";
+                ? Loc.F("데스 패널티: 골드 -{0} (이번 시도 획득분의 {1:0}%)", goldPenalty, Relics.DeathPenaltyRate * 100f)
+                : Loc.T("데스 패널티: 이번 시도에 번 골드 없음");
             _deathPanel.SetActive(true);
         }
 
@@ -551,6 +629,7 @@ namespace LoopRogue
         {
             foreach (Transform child in _upgradePanel.transform)
                 Destroy(child.gameObject);
+            _upgradeCards.Clear();
 
             _pendingOptions = options;
 
@@ -569,6 +648,7 @@ namespace LoopRogue
 
                 var cardImage = cardGo.AddComponent<Image>();
                 cardImage.color = PixelUi.Slice(cardImage, "Button") ? PixelUi.Tint(CardColor(option.Category), 0.5f) : CardColor(option.Category);
+                _upgradeCards.Add((rect, cardImage, cardImage.color));
 
                 var textGo = new GameObject("Text", typeof(RectTransform));
                 textGo.transform.SetParent(cardGo.transform, false);
@@ -598,6 +678,7 @@ namespace LoopRogue
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1280f, 720f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand; // 16:9가 아닌 화면에서도 잘리지 않게
             canvasGo.AddComponent<GraphicRaycaster>();
             _canvasRect = canvasGo.GetComponent<RectTransform>();
 
@@ -612,6 +693,50 @@ namespace LoopRogue
             BuildRoomSelectPanel(canvasGo.transform);
             _relicPanel = BuildOverlayPanel(canvasGo.transform, "RelicPanel", new Vector2(500f, 330f), active: false);
             canvasGo.AddComponent<InventoryUI>().Build(canvasGo.transform, _player);
+            BuildQuestTracker(canvasGo.transform);
+            NpcDialogUI.Create();
+        }
+
+        // 왼쪽 위 의뢰 줄 - 던전 NPC "길 잃은 모험가"의 의뢰를 받았을 때만 보인다(RunQuest).
+        private GameObject _questTracker;
+        private Text _questText;
+
+        private void BuildQuestTracker(Transform parent)
+        {
+            var bg = HudUi.CreateImage(parent, "QuestTracker", PanelColor);
+            var rect = bg.rectTransform;
+            rect.anchorMin = rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
+            rect.sizeDelta = new Vector2(340f, 30f);
+            rect.anchoredPosition = new Vector2(12f, -(ActionBarLayout.TopBarHeight + 8f));
+            _questTracker = bg.gameObject;
+
+            _questText = HudUi.CreateText(bg.transform, "Text", 14, TextAnchor.MiddleLeft);
+            _questText.supportRichText = true;
+            HudUi.Stretch(_questText.rectTransform, 0f);
+            _questText.rectTransform.offsetMin = new Vector2(10f, 0f);
+            _questTracker.SetActive(false);
+        }
+
+        /// <summary>모험가 의뢰 + 받은 저주 계약 + 방 이벤트 효과를 줄마다 하나씩(없는 건 빼고). 전부 없으면 숨긴다.</summary>
+        private void RefreshQuestTracker()
+        {
+            string text = null;
+            var lines = 0;
+            foreach (var line in new[] { RunQuest.TrackerText, Curses.TrackerText, RunBuffs.TrackerText })
+            {
+                if (line == null)
+                    continue;
+                text = text == null ? line : text + "\n" + line;
+                lines++;
+            }
+            if (_questTracker.activeSelf != (text != null))
+                _questTracker.SetActive(text != null);
+            if (text == null || _questText.text == text)
+                return;
+            _questText.text = text;
+            var rect = (RectTransform)_questTracker.transform;
+            rect.sizeDelta = new Vector2(rect.sizeDelta.x, 30f + 20f * (lines - 1));
         }
 
         private static readonly Color BandColor = new Color(0.04f, 0.04f, 0.05f, 1f);
@@ -634,8 +759,8 @@ namespace LoopRogue
             _progressText = CreateBandText(band.transform, "Progress", 14, 200f, 440f, TextAnchor.MiddleLeft);
 
             // 조작 안내 - 대기 키(스페이스바)를 모르고 지나치지 않게. 오른쪽 [Tab] 스탯 버튼 바로 왼쪽.
-            var controls = CreateBandText(band.transform, "Controls", 12, -520f - 130f, 520f, TextAnchor.MiddleRight);
-            controls.text = "이동/공격: 방향키·WASD   대기: Space   스탯: Tab   인벤토리: I   메뉴: Esc";
+            var controls = CreateBandText(band.transform, "Controls", 12, -560f - 130f, 560f, TextAnchor.MiddleRight);
+            controls.text = Loc.T("이동/공격: 방향키·WASD   대기: Space   대화: F   스탯: Tab   인벤토리: I   메뉴: Esc");
             controls.color = new Color(0.62f, 0.64f, 0.7f);
             var controlsRect = controls.rectTransform;
             controlsRect.anchorMin = controlsRect.anchorMax = new Vector2(1f, 0.5f);
@@ -715,11 +840,14 @@ namespace LoopRogue
             _dashSlot = new HudSlot(parent, "DashSlot", bottom,
                 new Vector2(ActionBarLayout.SkillX(0), ActionBarLayout.SlotCenterY), slotSize, "Q");
             _dashSlot.SetIcon(PixelUi.Icon("Skill_Dash"));
-            _dashSlot.Label.text = _dashSlot.Icon.enabled ? string.Empty : "대시";
+            _dashSlot.Label.text = _dashSlot.Icon.enabled ? string.Empty : Loc.T("대시");
             _spinSlot = new HudSlot(parent, "SpinSlot", bottom,
                 new Vector2(ActionBarLayout.SkillX(1), ActionBarLayout.SlotCenterY), slotSize, "E");
             _spinSlot.SetIcon(PixelUi.Icon("Skill_Spin"));
-            _spinSlot.Label.text = _spinSlot.Icon.enabled ? string.Empty : "회전\n베기";
+            // 모바일 - 스킬 칸을 탭하면 Q/E(행동할 수 있을 때만)
+            GameInput.RegisterTap(_dashSlot.Rect, Key.Q, () => _player != null && _player.CanAct);
+            GameInput.RegisterTap(_spinSlot.Rect, Key.E, () => _player != null && _player.CanAct);
+            _spinSlot.Label.text = _spinSlot.Icon.enabled ? string.Empty : Loc.T("회전\n베기");
 
             _hpBar = new HudBar(parent, "HpBar", new Vector2(ActionBarLayout.HpBarCenterX, ActionBarLayout.HpBarBottom),
                 new Vector2(ActionBarLayout.HpBarWidth, ActionBarLayout.HpBarHeight),
@@ -757,7 +885,7 @@ namespace LoopRogue
             if (!PixelUi.Slice(buttonImage, "Button"))
                 buttonImage.color = new Color(0.25f, 0.28f, 0.35f, 0.95f);
 
-            var buttonText = CreateLabel(buttonGo.transform, "[Tab] 스탯", Vector2.zero, Vector2.zero);
+            var buttonText = CreateLabel(buttonGo.transform, Loc.T("[Tab] 스탯"), Vector2.zero, Vector2.zero);
             buttonText.rectTransform.anchorMin = Vector2.zero;
             buttonText.rectTransform.anchorMax = Vector2.one;
             buttonText.rectTransform.offsetMin = Vector2.zero;
@@ -772,7 +900,7 @@ namespace LoopRogue
 
         /// <summary>글이 길면 마우스 휠이나 스크롤바 드래그로 넘겨 보는 글 패널. 이 프로젝트엔 EventSystem이
         /// 없어서(HandleUpgradeSelection 주석 참고) ScrollRect 대신 RectMask2D로 자르고, 휠·드래그는
-        /// Mouse.current + 사각형 히트테스트로 직접 읽는다. 패널 높이는 글 길이에 맞추되 maxHeight에서 멈춘다.</summary>
+        /// Pointer.current + 사각형 히트테스트로 직접 읽는다. 패널 높이는 글 길이에 맞추되 maxHeight에서 멈춘다.</summary>
         private sealed class ScrollTextPanel
         {
             private const float Padding = 18f; // 도트 패널 테두리(5px x4) 안쪽
@@ -867,7 +995,7 @@ namespace LoopRogue
                 ApplyScroll();
             }
 
-            public void HandleMouse(Mouse mouse)
+            public void HandleMouse(Pointer mouse)
             {
                 if (mouse == null || MaxOffset <= 0f)
                 {
@@ -875,18 +1003,25 @@ namespace LoopRogue
                     return;
                 }
 
-                var pos = mouse.position.ReadValue();
+                var pos = GameInput.PointerPosition;
                 // 휠 값 크기는 Input System 버전/OS마다 달라서(±1 또는 ±120) 방향만 쓴다.
-                var wheel = mouse.scroll.ReadValue().y;
+                var wheel = GameInput.ScrollY;
                 if (wheel != 0f && RectTransformUtility.RectangleContainsScreenPoint(_rect, pos, null))
                 {
                     _offset -= Mathf.Sign(wheel) * WheelStep;
                     ApplyScroll();
                 }
+                // 터치 - 글 위를 손가락으로 끌면 끈 만큼(화면 픽셀 → 캔버스 단위) 따라 움직인다.
+                var drag = GameInput.TouchDragY;
+                if (drag != 0f && !_dragging && RectTransformUtility.RectangleContainsScreenPoint(_rect, pos, null))
+                {
+                    _offset += drag / Mathf.Max(0.01f, _rect.lossyScale.y);
+                    ApplyScroll();
+                }
 
-                if (mouse.leftButton.wasPressedThisFrame && RectTransformUtility.RectangleContainsScreenPoint(_barRect, pos, null))
+                if (GameInput.PointerDown && RectTransformUtility.RectangleContainsScreenPoint(_barRect, pos, null))
                     _dragging = true;
-                if (!mouse.leftButton.isPressed)
+                if (!GameInput.PointerHeld)
                     _dragging = false;
 
                 // 막대 위쪽(피벗)이 0, 아래로 갈수록 음수 - 손잡이 가운데가 마우스를 따라간다.
@@ -1010,9 +1145,9 @@ namespace LoopRogue
 
         private void BuildDeathPanel(Transform parent)
         {
-            _deathPanel = BuildOverlayPanel(parent, "DeathPanel", new Vector2(700f, 330f), active: false);
+            _deathPanel = BuildOverlayPanel(parent, "DeathPanel", new Vector2(700f, 330f + DeathTipHeight), active: false);
 
-            var title = CreateLabel(_deathPanel.transform, "사망! (레벨/스탯/장비는 그대로 유지됩니다)",
+            var title = CreateLabel(_deathPanel.transform, Loc.T("사망! (레벨/스탯/장비는 그대로 유지됩니다)"),
                 new Vector2(10f, -70f), new Vector2(-10f, -15f));
             title.alignment = TextAnchor.MiddleCenter;
             title.fontSize = 18;
@@ -1023,11 +1158,21 @@ namespace LoopRogue
             _deathPenaltyText.fontSize = 15;
             _deathPenaltyText.color = new Color(1f, 0.6f, 0.4f);
 
-            var prompt = CreateLabel(_deathPanel.transform, "←/→ 또는 클릭: 시작 방 고르기   [Enter] 계속하기   [L] 로비로 이동",
+            var prompt = CreateLabel(_deathPanel.transform, Loc.T("←/→ 또는 클릭: 시작 방 고르기   [Enter] 계속하기   [L] 로비로 이동"),
                 new Vector2(10f, -315f), new Vector2(-10f, -275f));
             prompt.alignment = TextAnchor.MiddleCenter;
             prompt.fontSize = 16;
+
+            // 맨 아래 - 노인의 조언 한 줄(LobbyGuide.DeathTip). 패널을 그만큼 늘렸다.
+            _deathTipText = CreateLabel(_deathPanel.transform, string.Empty, new Vector2(30f, -315f - DeathTipHeight), new Vector2(-30f, -318f));
+            _deathTipText.alignment = TextAnchor.MiddleCenter;
+            _deathTipText.fontSize = 14;
+            _deathTipText.supportRichText = true;
+            _deathTipText.color = new Color(0.85f, 0.86f, 0.9f);
         }
+
+        private const float DeathTipHeight = 56f;
+        private Text _deathTipText;
 
         private void BuildRoomSelectPanel(Transform parent)
         {
@@ -1038,7 +1183,7 @@ namespace LoopRogue
             _roomSelectTitle.fontSize = 20;
             _roomSelectTitle.fontStyle = FontStyle.Bold;
 
-            var prompt = CreateLabel(_roomSelectPanel.transform, "←/→ 또는 클릭: 고르기   B: 보스방   [Enter] 시작  (깬 뒤엔 다음 방으로)",
+            var prompt = CreateLabel(_roomSelectPanel.transform, Loc.T("←/→ 또는 클릭: 고르기   B: 보스방   [Enter] 시작  (깬 뒤엔 다음 방으로)"),
                 new Vector2(10f, -265f), new Vector2(-10f, -225f));
             prompt.alignment = TextAnchor.MiddleCenter;
             prompt.fontSize = 15;

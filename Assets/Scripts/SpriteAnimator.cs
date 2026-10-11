@@ -77,6 +77,13 @@ namespace LoopRogue
             _time = Random.value * 10f; // 몹끼리 숨쉬기 박자가 딱 맞지 않게
         }
 
+        /// <summary>방을 새로 깔아 순간이동했을 때 - 옛 칸에서 새 칸으로 걸어가는 모션을 넣지 않게 위치 기억을 버린다.</summary>
+        public void SnapToGrid()
+        {
+            _posKnown = false;
+            _stepStart = -1f;
+        }
+
         /// <summary>그 방향으로 공격 모션을 한 번 재생한다.</summary>
         public void PlayAttack(Vector2Int direction)
         {

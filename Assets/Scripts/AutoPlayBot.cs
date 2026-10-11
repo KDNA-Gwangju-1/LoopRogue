@@ -48,8 +48,21 @@ namespace LoopRogue
         /// <summary>GameBootstrap.BossPatternBalance의 현재 값(제안값 계산용 - 바꾸면 여기도 같이).</summary>
         private static readonly Dictionary<int, float> CurrentBossBalance = new Dictionary<int, float>
         {
-            { 1, 1.55f }, { 2, 1.54f }, { 3, 1.44f }, { 4, 1.62f }, { 5, 1.9f }, { 6, 1.51f }, { 7, 1.6f }, { 8, 1.93f }, { 9, 1.5f }, { 10, 1.64f },
+            { 1, 1.55f }, { 2, 1.54f }, { 3, 1.44f }, { 4, 1.62f }, { 5, 1.9f }, { 6, 1.51f }, { 7, 1.6f }, { 8, 1.93f }, { 9, 1.5f }, { 10, 2.5f },
         };
+
+        /// <summary>"N층 보스방 앞까지" 모드 - 새 저장으로 한 판을 평소처럼(성장·장비 포함) 빠르게 돌다가 목표 층의 마지막 일반 방(방10)을
+        /// 클리어하면 그 자리에서 멈추고 화면·연출을 다시 켜서 사람에게 넘긴다(출구로 걸어가면 보스방). 목표 전에 막히면(사망 한도·끼임·시간)
+        /// 그 자리에서 넘긴다.</summary>
+        public const string HandoffMode = "handoff";
+        public const string HandoffStagePrefKey = "LoopRogue_AutoPlayBot_HandoffStage";
+        private bool _handoff;
+        private int _handoffStage;
+        private bool _clearedCurrentRoom; // 지금 방을 이번 시도에 클리어했는지(인계 판단용 - 사망 후 같은 방 이름으로 다시 깔려도 초기화)
+        private int _savedVSync;
+        private int _savedTargetFrameRate;
+        private bool _savedRunInBackground;
+        private static readonly List<Behaviour> DisabledByBot = new List<Behaviour>();
 
         private bool _sweep;
         private const int TrialsPerStage = 30;
@@ -57,7 +70,7 @@ namespace LoopRogue
 
         private bool _stageTest;
         private int TrialsPerCase => _sweep ? SweepTrials : TrialsPerStage;
-        private int SessionRuns => _stageTest ? _testCases.Count * TrialsPerCase : RunsPerSession;
+        private int SessionRuns => _stageTest ? _testCases.Count * TrialsPerCase : _handoff ? 1 : RunsPerSession;
 
         /// <summary>각 층을 "몇 층 입장 상태로" 시험할지 - 0 = 그 층 입장 상태, -1 = 한 층 앞 입장 상태.
         /// 그 층 입장 상태에는 바로 앞 층에서 죽으며 파밍한 성장이 이미 들어있어서, 앞 층 상태로도 같이 재야
@@ -146,6 +159,8 @@ namespace LoopRogue
             // 방 랜덤화/보스 패턴/이벤트 통계
             public int PatternResolves;   // 보스 예고 공격 발동 횟수
             public int Enrages;           // 보스 광폭화 횟수
+            public int Heals, Charges, ChargeHits, Blinks, Splits; // 새 몹: 치유사 회복, 돌진(적중), 도적 순간이동, 분열체 갈라짐
+            public int Puzzles;           // 퍼즐·미니게임 방(봇은 성공으로 치고 넘어감 - 카드 1장씩)
             public int PatternHits;       // 그중 맞은 횟수
             public int Dodges;            // 봇이 예고 칸에서 피한 횟수
             public int CrossfireDetours;  // 궁수 십자포화를 피하려고 최단 경로와 다른 칸으로 간 횟수
@@ -160,10 +175,65 @@ namespace LoopRogue
             public int ShieldBlocks;      // 방패 정면을 때려 피해가 줄어든 횟수
             public int BombExplosions;    // 폭발병 폭발
             public int BombHits;          // 그중 플레이어가 맞은 횟수
-            public readonly int[] Events = new int[4]; // RoomEventType 순서
+            public readonly int[] Kills = new int[KillNames.Length]; // 몹 종류별 처치(KillNames 순서)
+            public readonly int[] Events = new int[RoomEventActor.TypeCount]; // RoomEventType 순서
+
+            // NPC 통계
+            public int MerchantsMet;       // 떠돌이 상인 등장
+            public int WanderersMet;       // 길 잃은 모험가 등장
+            public int CurseNpcsMet;       // 그림자 거래상 등장
+            public int CursesTaken;        // 저주 계약 횟수
+            public int NpcTalks;           // 실제로 말을 건 횟수(못 가서 포기한 건 빠짐)
+            public readonly int[] MerchantBuys = new int[4]; // NpcActor.StockKind 순서
+            public int GoldSpentMerchant;
+            public int QuestAccepted;      // 모험가 의뢰 받은 횟수
+            public int QuestCompleted;     // 방 10에서 보고해 보상 받은 횟수
+            public int SlotTicketSpins;    // 로비에서 슬롯 이용권으로 돌린 횟수
+            public int SlotTicketPayout;   // 그 당첨금 합
+            public int LobbyQuestGold;     // 시간지기 노인에게 받은 보상 합
         }
 
-        private static readonly string[] EventNames = { "보물상자", "회복 샘", "축복 제단", "저주받은 상자" };
+        private static readonly string[] StockKindNames = { "영약", "뽑기권", "슬롯이용권", "아이템" };
+
+        /// <summary>처치 통계 분류 - 0~8은 EnemyKind 순서, 분열 조각/정예/미믹/졸개/보스는 따로 센다(한 마리는 한 칸에만).
+        /// 폭발병이 스스로 터진 건 처치가 아니라 여기 안 들어간다(폭발 횟수는 따로 기록).</summary>
+        private static readonly string[] KillNames = { "근접", "궁수", "방패병", "거미", "폭발병", "치유사", "돌진병", "분열체", "도적", "분열 조각", "정예", "미믹", "졸개", "보스" };
+        private static readonly string[] KillKeys = { "melee", "ranged", "shield", "spider", "bomber", "healer", "charger", "splitter", "assassin", "split_child", "elite", "mimic", "minion", "boss" };
+
+        private static int KillIndex(EnemyActor e) =>
+            e.IsBoss ? 13 : e.IsMinion ? 12 : e.IsMimic ? 11 : e.IsElite ? 10 : e.IsSplitChild ? 9 : (int)e.Kind;
+
+        /// <summary>맵 기록 글자 - B 보스, m 졸개, A 궁수, S 방패병, W 거미, O 폭발병, H 치유사, C 돌진병, J 분열체(j 조각), R 도적, M 근접.</summary>
+        private static char EnemyChar(EnemyActor e) =>
+            e.IsBoss ? 'B' : e.IsMinion ? 'm' : e.IsSplitChild ? 'j' : e.Kind switch
+            {
+                EnemyKind.Ranged => 'A',
+                EnemyKind.Shield => 'S',
+                EnemyKind.Spider => 'W',
+                EnemyKind.Bomber => 'O',
+                EnemyKind.Healer => 'H',
+                EnemyKind.Charger => 'C',
+                EnemyKind.Splitter => 'J',
+                EnemyKind.Assassin => 'R',
+                _ => 'M',
+            };
+
+        private void OnEnemyKilled(EnemyActor enemy)
+        {
+            if (_run != null && enemy != null)
+                _run.Kills[KillIndex(enemy)]++;
+        }
+
+        private Dictionary<string, int> KillDict(int[] kills)
+        {
+            var d = new Dictionary<string, int>();
+            for (var i = 0; i < KillKeys.Length; i++)
+                d[KillKeys[i]] = kills[i];
+            d["total"] = kills.Sum();
+            return d;
+        }
+
+        private static readonly string[] EventNames = Enumerable.Range(0, RoomEventActor.TypeCount).Select(i => RoomEventActor.Name((RoomEventType)i)).ToArray();
 
         private static readonly PotionType[] PotionOrder = { PotionType.Attack, PotionType.Health, PotionType.Critical };
         private static readonly string[] SlotNames = { "검", "갑옷", "반지" };
@@ -228,6 +298,7 @@ namespace LoopRogue
         private void Start()
         {
             SceneManager.sceneLoaded += OnSceneLoaded;
+            PlayerActor.EnemyKilled += OnEnemyKilled;
             LoopManager.SkipLobbyAfterStageClear = true;
             RoomController.EnemyTurnWatch.Reset();
             RoomController.LoadRoomWatch.Reset();
@@ -237,6 +308,10 @@ namespace LoopRogue
             var mode = UnityEditor.EditorPrefs.GetString(ModePrefKey, "");
             _sweep = mode == BossSweepMode;
             _stageTest = mode == StageTestMode || _sweep;
+            _handoff = mode == HandoffMode;
+            _handoffStage = Mathf.Clamp(UnityEditor.EditorPrefs.GetInt(HandoffStagePrefKey, 1), 1, StageProgress.MaxStage);
+            if (_handoff)
+                path = Path.Combine(Path.GetDirectoryName(path), "handoff_" + Path.GetFileName(path).Substring(4));
             if (_stageTest)
             {
                 path = Path.Combine(Path.GetDirectoryName(path), (_sweep ? "bosssweep_" : "stagetest_") + Path.GetFileName(path).Substring(4));
@@ -255,7 +330,11 @@ namespace LoopRogue
             Debug.Log($"[AutoPlayBot] 시작 ({(_stageTest ? "층별 순수 난이도 측정, " : "")}{SessionRuns}판) - 로그: {path}");
 
             DamagePopup.Suppressed = true;
+            Loc.ForceKorean = true; // 봇 판단(카드 이름 비교)·로그는 한국어 기준
             GameHUD.AutoPlayActive = true; // 시작 방 고르기 창을 안 띄움(봇은 항상 방1부터)
+            _savedVSync = QualitySettings.vSyncCount;
+            _savedTargetFrameRate = Application.targetFrameRate;
+            _savedRunInBackground = Application.runInBackground;
             Application.targetFrameRate = -1;
             QualitySettings.vSyncCount = 0;
             Application.runInBackground = true; // 에디터 창이 포커스를 잃어도 느려지지 않게
@@ -263,6 +342,7 @@ namespace LoopRogue
             _sessionStartTime = Time.realtimeSinceStartup;
             Log(_stageTest
                 ? $"=== {(_sweep ? "보스 배율 찾기" : "층별 순수 난이도 측정")}: {_testCases.Count}조합 × {TrialsPerCase}회 (기준 상태에서 시작, 그 층 보스를 잡으면 종료) ==="
+                : _handoff ? $"=== {_handoffStage}층 보스방 앞까지 자동 진행 후 인계 ==="
                 : $"=== 자동 플레이 {RunsPerSession}판 연속 시작 ===");
             BeginRun();
         }
@@ -270,9 +350,11 @@ namespace LoopRogue
         private void OnDestroy()
         {
             DamagePopup.Suppressed = false;
+            Loc.ForceKorean = false;
             GameHUD.AutoPlayActive = false;
             LoopManager.SkipLobbyAfterStageClear = false;
             SceneManager.sceneLoaded -= OnSceneLoaded;
+            PlayerActor.EnemyKilled -= OnEnemyKilled;
             _log?.Dispose();
             _events?.Dispose();
         }
@@ -360,6 +442,12 @@ namespace LoopRogue
             _run = new RunResult { Index = _results.Count + 1 };
             BossBrain.PatternResolveCount = 0;
             BossBrain.EnrageCount = 0;
+            EnemyActor.HealCount = 0;
+            EnemyActor.ChargeCount = 0;
+            EnemyActor.ChargeHitCount = 0;
+            EnemyActor.BlinkCount = 0;
+            RoomController.SplitCount = 0;
+            RoomController.PuzzleClearCount = 0;
             BossBrain.PatternHitCount = 0;
             RoomController.EventTriggeredCount = 0;
             _lastEventCount = 0;
@@ -435,7 +523,7 @@ namespace LoopRogue
         /// <summary>저장을 전부 지우고 기준 상태를 써넣은 뒤 각 저장 클래스가 다시 읽게 한다(SaveReset.ResetAll과 같은 순서).</summary>
         private static void ApplyPrefs(Dictionary<string, object> prefs, int stage)
         {
-            PlayerPrefs.DeleteAll();
+            GameSettings.Preserve(() => PlayerPrefs.DeleteAll());
             foreach (var pair in prefs)
             {
                 if (pair.Value is float f)
@@ -452,6 +540,12 @@ namespace LoopRogue
             StageProgress.Reload();
             GachaSystem.Reload();
             Relics.Reload();
+            LobbyQuests.Reload();
+            RunQuest.Reload();
+            LoopRecord.Reload();
+            Codex.Reload();
+            Achievements.Reload();
+            SlotMachine.Reload();
             RunProgress.Reload();
         }
 
@@ -606,6 +700,7 @@ namespace LoopRogue
 
         private void DoShopping()
         {
+            UseLobbyNpcs();
             var goldBefore = GoldWallet.Gold;
             var bought = new List<string>();
             _purchases.Clear();
@@ -660,6 +755,37 @@ namespace LoopRogue
                 }));
         }
 
+        /// <summary>쇼핑 전에 - 시간지기 노인 보상 받기, 슬롯 이용권 전부 돌리기(이용권 판은 공짜라 기댓값이 이득). 뽑기권은 GachaSystem.Pull이
+        /// 골드보다 먼저 쓰므로 따로 할 일이 없다.</summary>
+        private void UseLobbyNpcs()
+        {
+            if (LobbyQuests.PendingCount > 0)
+            {
+                var claimed = LobbyQuests.ClaimAll();
+                _run.LobbyQuestGold += claimed;
+                Detail($"[로비] 시간지기 노인 보상 +{claimed}골드");
+                Ev("lobby_quest", ("gold", claimed));
+            }
+
+            var spins = 0;
+            var payout = 0;
+            while (SlotMachine.Tickets > 0 && spins < 1000)
+            {
+                var result = SlotMachine.Spin(false);
+                if (result == null || !result.Value.UsedTicket)
+                    break;
+                spins++;
+                payout += result.Value.Payout;
+            }
+            if (spins > 0)
+            {
+                _run.SlotTicketSpins += spins;
+                _run.SlotTicketPayout += payout;
+                Detail($"[로비] 슬롯 이용권 {spins}장 → 당첨금 {payout}골드");
+                Ev("slot_tickets", ("spins", spins), ("payout", payout));
+            }
+        }
+
         private void RecordPull(string kind, ItemSlot slot, int cost, IEnumerable<GachaResult> results)
         {
             var list = results.ToList();
@@ -674,6 +800,16 @@ namespace LoopRogue
         private string BuyGacha(ItemSlot slot)
         {
             var name = EquipmentData.Templates[slot].BaseName;
+            if (GachaSystem.Tickets > 0) // 상인에게 산 뽑기권 먼저(Pull이 골드 대신 1장 쓴다)
+            {
+                var free = GachaSystem.Pull(slot);
+                if (free == null)
+                    return null;
+                RecordPull("ticket", slot, 0, new[] { free.Value });
+                _run.SinglePulls[(int)slot]++;
+                return $"{name}뽑기권";
+            }
+
             var multiCost = GachaSystem.GetMultiPullCost(slot);
             if (GoldWallet.Gold >= multiCost)
             {
@@ -757,10 +893,41 @@ namespace LoopRogue
         /// 씬이 바뀔 때마다 새로 만들어지므로 매번 다시 끈다.</summary>
         private static void DisableRendering()
         {
+            DisabledByBot.RemoveAll(b => b == null);
             foreach (var cam in FindObjectsByType<Camera>(FindObjectsSortMode.None))
-                cam.enabled = false;
+                Disable(cam);
             foreach (var canvas in FindObjectsByType<Canvas>(FindObjectsSortMode.None))
-                canvas.enabled = false;
+                Disable(canvas);
+        }
+
+        private static void Disable(Behaviour b)
+        {
+            if (!b.enabled)
+                return;
+            b.enabled = false;
+            DisabledByBot.Add(b); // 인계할 때 봇이 끈 것만 다시 켠다(게임이 원래 꺼둔 건 그대로)
+        }
+
+        /// <summary>인계 - 봇을 끄고 화면·연출을 되돌린 뒤 지금 상태 그대로 사람에게 넘긴다.</summary>
+        private void HandOff(string reason)
+        {
+            if (_sessionFinished)
+                return;
+            _sessionFinished = true;
+            Log($"인계: {reason} | {StatLine()}");
+            Debug.Log($"[AutoPlayBot] 인계 - {reason}");
+
+            foreach (var b in DisabledByBot)
+                if (b != null)
+                    b.enabled = true;
+            DisabledByBot.Clear();
+            QualitySettings.vSyncCount = _savedVSync;
+            Application.targetFrameRate = _savedTargetFrameRate;
+            Application.runInBackground = _savedRunInBackground;
+            UnityEditor.EditorPrefs.SetBool(EnabledPrefKey, false);
+            UnityEditor.EditorPrefs.SetString(ModePrefKey, "");
+            Destroy(gameObject); // OnDestroy가 연출 억제(DamagePopup.Suppressed)·봇 표시를 끈다
+            _room?.ShowMessage($"봇 인계: {reason}");
         }
 
         /// <summary>한 번의 판단/행동. 계속 진행해도 되면 true, 이번 프레임은 그만(씬 전환 등)이면 false.</summary>
@@ -790,6 +957,7 @@ namespace LoopRogue
                     Ev("room_clear", ("cleared", _lastRoomName), ("room_turns", _roomTurns));
                 }
                 _lastRoomName = _room.RoomName;
+                _clearedCurrentRoom = false;
                 _roomTurns = 0;
                 _turnsSinceProgress = 0;
                 _lastEnemyHealthSum = float.MaxValue;
@@ -797,6 +965,18 @@ namespace LoopRogue
                 _recentDecisions.Clear();
                 if (LogMapOnRoomStart && DetailedLog)
                     Log(RenderMap("방 시작"));
+            }
+
+            if (_room.Npc != null && _room.Npc != _npcSeen)
+            {
+                _npcSeen = _room.Npc;
+                _npcTurns = 0;
+                if (_room.Npc.Type == NpcType.Merchant)
+                    _run.MerchantsMet++;
+                else if (_room.Npc.Type == NpcType.Wanderer)
+                    _run.WanderersMet++;
+                else
+                    _run.CurseNpcsMet++;
             }
 
             var options = _hud.PendingUpgradeOptions;
@@ -825,6 +1005,14 @@ namespace LoopRogue
                 return false;
             }
 
+            // 인계 모드 - 목표 층 마지막 일반 방(방10)을 클리어하고 레벨업/유물 고르기까지 끝나면 그 자리에서 넘긴다.
+            if (_handoff && _clearedCurrentRoom && !_room.IsBossRoom && StageProgress.CurrentStage == _handoffStage
+                && _room.RoomName != null && _room.RoomName.EndsWith("-10"))
+            {
+                HandOff($"{_handoffStage}층 방10 클리어 - 출구로 가면 {BossBrain.BossName(_handoffStage)} 보스방");
+                return false;
+            }
+
             if (!_player.CanAct)
                 return false;
 
@@ -844,6 +1032,8 @@ namespace LoopRogue
             else
                 _turnsSinceProgress++;
             _lastEnemyHealthSum = enemyHealthSum;
+
+            TalkToNpcIfNear(); // 턴을 안 쓰는 행동이라 그대로 이어서 움직인다
 
             var decisionPos = _player.GridPos;
             if (TryUseItemBot())
@@ -894,6 +1084,57 @@ namespace LoopRogue
             _roomTurns++;
             _stageTurns++;
             return true;
+        }
+
+        // ---- NPC(방 클리어 후 등장) - 출구로 가기 전에 옆으로 가서 말을 건다 ----
+        private const int NpcGiveUpTurns = 40; // 이 턴 안에 못 닿으면 포기하고 출구로
+        private NpcActor _npcSeen;    // 등장 통계를 센 NPC
+        private NpcActor _npcHandled; // 이미 말을 걸었거나 포기한 NPC
+        private int _npcTurns;
+
+        private bool NpcPending => _room.Npc != null && _room.Npc != _npcHandled && _npcTurns < NpcGiveUpTurns;
+
+        private void TalkToNpcIfNear()
+        {
+            if (!NpcPending)
+                return;
+            _npcTurns++;
+            var npc = _room.FindNpcNear(_player.GridPos);
+            if (npc == null)
+                return;
+
+            _npcHandled = npc;
+            _run.NpcTalks++;
+            var goldBefore = GoldWallet.Gold;
+            var hadQuest = RunQuest.Active;
+            var cursesBefore = Curses.ActiveDeals.Count;
+            var npcType = npc.Type;
+            var npcName = npc.DisplayName; // 그림자 거래상은 계약하면 바로 사라진다
+            var bought = npc.BotInteract(_player);
+            var cursed = Curses.ActiveDeals.Count > cursesBefore;
+            if (cursed)
+                _run.CursesTaken++;
+            foreach (var (kind, _, price) in bought)
+            {
+                _run.MerchantBuys[(int)kind]++;
+                _run.GoldSpentMerchant += price;
+            }
+            var accepted = npcType == NpcType.Wanderer && !hadQuest && RunQuest.Active;
+            var completed = npcType == NpcType.Wanderer && hadQuest && !RunQuest.Active; // 방 10에서 보고
+            if (accepted)
+                _run.QuestAccepted++;
+            if (completed)
+                _run.QuestCompleted++;
+
+            var what = npcType == NpcType.Wanderer
+                ? (completed ? "보고 - 의뢰 보상" : accepted ? "의뢰 수락" : "이미 의뢰 보유")
+                : npcType == NpcType.Curse
+                    ? (cursed ? $"계약: {Curses.ActiveDeals[Curses.ActiveDeals.Count - 1].Name}" : "거절(체력 부족)")
+                    : bought.Count > 0 ? string.Join(", ", bought.Select(b => $"{b.Name}({b.Price}G)")) : "살 게 없음(골드 부족 등)";
+            Detail($"  NPC: {npcName} ({_room.RoomName}) - {what} | 골드 {goldBefore} → {GoldWallet.Gold}");
+            Ev("npc", ("type", npcType.ToString()), ("bought", bought.Select(b => b.Kind.ToString()).ToList()),
+                ("curse", cursed ? Curses.ActiveDeals[Curses.ActiveDeals.Count - 1].Id : null),
+                ("spent", goldBefore - GoldWallet.Gold), ("quest_accepted", accepted), ("quest_completed", completed));
         }
 
         /// <summary>봇 유물 우선순위 - 생존/전투력 순. 사냥꾼의 눈(봇은 안개와 무관), 보물 사냥꾼·탐욕(경제)은 뒤로.</summary>
@@ -947,6 +1188,7 @@ namespace LoopRogue
         {
             var damage = (float)((CharacterStats.IncomingDamageTotal - _roomDamageStart) / Mathf.Max(1f, _player.Stats.MaxHealth));
             _roomDamageStart = CharacterStats.IncomingDamageTotal;
+            _clearedCurrentRoom = RoomController.LastClearedRoom == _room.RoomName;
             if (RoomController.LastClearedWasBoss)
                 return;
 
@@ -1000,6 +1242,10 @@ namespace LoopRogue
                 ("alive_shield", alive.Count(e => e.Kind == EnemyKind.Shield)),
                 ("alive_spider", alive.Count(e => e.Kind == EnemyKind.Spider)),
                 ("alive_bomber", alive.Count(e => e.Kind == EnemyKind.Bomber)),
+                ("alive_healer", alive.Count(e => e.Kind == EnemyKind.Healer)),
+                ("alive_charger", alive.Count(e => e.Kind == EnemyKind.Charger)),
+                ("alive_splitter", alive.Count(e => e.Kind == EnemyKind.Splitter)),
+                ("alive_assassin", alive.Count(e => e.Kind == EnemyKind.Assassin)),
                 ("alive_minion", alive.Count(e => e.IsMinion)));
 
             Detail($"[사망 #{_stageDeaths}] {_room.RoomName} ({_attemptTurns}턴){bossInfo} | 데스 패널티 골드 -{_hud.LastDeathGoldPenalty} | {StatLine()}");
@@ -1289,9 +1535,17 @@ namespace LoopRogue
             {
                 if (!(map.GetActorAt(start + d) is EnemyActor e) || e.Stats.IsDead)
                     continue;
+                // 우선순위: 방패 정면이 아닌 몹 > 치유사(살려두면 다른 몹을 고친다) > 체력 낮은 몹
                 var front = e.IsShieldFront(start);
-                var better = target == null || (targetFront && !front) ||
-                             (front == targetFront && e.Stats.CurrentHealth < target.Stats.CurrentHealth);
+                bool better;
+                if (target == null)
+                    better = true;
+                else if (front != targetFront)
+                    better = targetFront;
+                else if ((e.Kind == EnemyKind.Healer) != (target.Kind == EnemyKind.Healer))
+                    better = e.Kind == EnemyKind.Healer;
+                else
+                    better = e.Stats.CurrentHealth < target.Stats.CurrentHealth;
                 if (better)
                 {
                     target = e;
@@ -1372,6 +1626,17 @@ namespace LoopRogue
             {
                 toEnemy = FirstStepTo(isEnemyAdjacentAny, passable); // 방패 옆자리가 다 막혔으면 정면이라도
                 _lastDecision = "적에게(방패 정면)";
+            }
+            if (!toEnemy.HasValue && NpcPending)
+            {
+                // 방을 비운 뒤 나타난 NPC - 주변 8칸(말을 걸 수 있는 자리)까지 걸어간다. 출구는 밟으면 바로 넘어가니 피해서.
+                var npcPos = _room.Npc.GridPos;
+                var exitCell = _room.ExitPosition;
+                toEnemy = FirstStepTo(c => c != npcPos && Mathf.Abs(c.x - npcPos.x) <= 1 && Mathf.Abs(c.y - npcPos.y) <= 1,
+                    c => passable(c) && c != exitCell);
+                _lastDecision = "NPC에게";
+                if (!toEnemy.HasValue)
+                    _npcHandled = _room.Npc; // 갈 길이 없으면 포기
             }
             if (!toEnemy.HasValue && _room.ExitPosition.HasValue)
             {
@@ -1634,14 +1899,9 @@ namespace LoopRogue
                     var c = actor switch
                     {
                         PlayerActor _ => _room.DangerTiles.Contains(cell) ? '!' : 'P',
-                        EnemyActor e when e.IsBoss => 'B',
-                        EnemyActor e when e.IsMinion => 'm',
-                        EnemyActor e when e.Kind == EnemyKind.Ranged => 'A',
-                        EnemyActor e when e.Kind == EnemyKind.Shield => 'S',
-                        EnemyActor e when e.Kind == EnemyKind.Spider => 'W',
-                        EnemyActor e when e.Kind == EnemyKind.Bomber => 'O',
-                        EnemyActor _ => 'M',
+                        EnemyActor e => EnemyChar(e),
                         RoomEventActor _ => 'E',
+                        NpcActor _ => 'N',
                         _ => map.IsWall(cell) ? '#' : _room.DangerTiles.Contains(cell) ? 'x' : '.',
                     };
                     frame.Cells[y * map.Width + x] = c;
@@ -1649,7 +1909,7 @@ namespace LoopRogue
             }
 
             frame.Enemies = _room.Enemies.Where(e => e != null && !e.Stats.IsDead)
-                .Select(e => (e.IsBoss ? 'B' : e.Kind == EnemyKind.Ranged ? 'A' : e.Kind == EnemyKind.Shield ? 'S' : e.Kind == EnemyKind.Spider ? 'W' : e.Kind == EnemyKind.Bomber ? 'O' : 'M', e.GridPos, e.Stats.CurrentHealth))
+                .Select(e => (EnemyChar(e), e.GridPos, e.Stats.CurrentHealth))
                 .ToArray();
             return frame;
         }
@@ -1669,6 +1929,12 @@ namespace LoopRogue
         {
             if (_run == null || _runEnding)
                 return;
+            if (_handoff)
+            {
+                // 목표 층 전에 막힘(사망 한도·끼임·시간 제한) - 판을 끝내지 않고 지금 자리에서 넘긴다.
+                HandOff($"{_handoffStage}층 도착 전에 멈춤({StageProgress.CurrentStage}층) - {reason}");
+                return;
+            }
 
             _run.EndReason = reason;
             _run.Completed = completed;
@@ -1678,13 +1944,14 @@ namespace LoopRogue
             CollectFinalState(_run);
             _results.Add(_run);
             Ev("run_end", ("reason", reason), ("completed", completed), ("deaths", _run.TotalDeaths),
-                ("gold_earned", _run.GoldEarned), ("seconds", _run.Seconds));
+                ("gold_earned", _run.GoldEarned), ("seconds", _run.Seconds), ("kills", KillDict(_run.Kills)));
             _events?.Flush();
 
             Debug.Log($"[AutoPlayBot] {_run.Index}/{SessionRuns}판 종료 - 사망 {_run.TotalDeaths}회");
             Log($"{_run.Index,3}판 종료: {reason} | {_run.Seconds:0.0}초, {_run.TotalTurns}턴, 사망 {_run.TotalDeaths}회, " +
                 $"획득 골드 {_run.GoldEarned}, 최종 Lv{_run.FinalLevel} | 최종 장비: {EquipLine()}");
             Log($"      {PurchaseLine(_run)}");
+            Log($"      처치 {_run.Kills.Sum()}마리: {string.Join(" ", Enumerable.Range(0, KillNames.Length).Select(i => $"{KillNames[i]} {_run.Kills[i]}"))}");
 
             _runEnding = true;
         }
@@ -1695,7 +1962,7 @@ namespace LoopRogue
             r.ItemUsed = (int[])Inventory.UsedCount.Clone();
             // 판 시작 때 골드 0으로 초기화하므로 "번 골드 = 남은 골드 + 쓴 골드 + 뺏긴 골드"가 정확하다
             // (프레임 단위 증가 추적은 한 프레임 안에서 벌고 뺏기면 덜 잡힌다).
-            r.GoldEarned = GoldWallet.Gold + r.GoldSpentGacha + r.GoldSpentPotion + r.GoldLostDeath;
+            r.GoldEarned = GoldWallet.Gold + r.GoldSpentGacha + r.GoldSpentPotion + r.GoldSpentMerchant + r.GoldLostDeath;
 
             foreach (ItemSlot slot in Enum.GetValues(typeof(ItemSlot)))
             {
@@ -1710,6 +1977,12 @@ namespace LoopRogue
 
             r.PatternResolves = BossBrain.PatternResolveCount;
             r.Enrages = BossBrain.EnrageCount;
+            r.Heals = EnemyActor.HealCount;
+            r.Charges = EnemyActor.ChargeCount;
+            r.ChargeHits = EnemyActor.ChargeHitCount;
+            r.Blinks = EnemyActor.BlinkCount;
+            r.Splits = RoomController.SplitCount;
+            r.Puzzles = RoomController.PuzzleClearCount;
             r.PatternHits = BossBrain.PatternHitCount;
 
             if (_player != null && _player.Stats != null)
@@ -1729,7 +2002,11 @@ namespace LoopRogue
                    $"골드 사용: 뽑기 {r.GoldSpentGacha} / 영약 {r.GoldSpentPotion} / 데스패널티 {r.GoldLostDeath} | " +
                    $"최종 ATK {r.FinalAttack:0} 최대HP {r.FinalMaxHealth:0} 치명 {r.FinalCritChance * 100f:0}%(배율 {r.FinalCritMultiplier * 100f:0}%) | " +
                    $"보스 예고공격 {r.PatternResolves}회 중 {r.PatternHits}회 맞음(회피 이동 {r.Dodges}, 대기 {r.Waits}) | " +
-                   $"이벤트: {string.Join(" ", Enumerable.Range(0, 4).Select(i => $"{EventNames[i]} {r.Events[i]}"))}";
+                   $"이벤트: {string.Join(" ", Enumerable.Range(0, EventNames.Length).Select(i => $"{EventNames[i]} {r.Events[i]}"))} | " +
+                   $"NPC: 상인 {r.MerchantsMet} 모험가 {r.WanderersMet} 거래상 {r.CurseNpcsMet}(계약 {r.CursesTaken}) 대화 {r.NpcTalks} | 상인 구매 " +
+                   $"{string.Join(" ", Enumerable.Range(0, 4).Select(i => $"{StockKindNames[i]} {r.MerchantBuys[i]}"))} ({r.GoldSpentMerchant}G) | " +
+                   $"모험가 의뢰 수락 {r.QuestAccepted} 완료 {r.QuestCompleted} | " +
+                   $"슬롯 이용권 {r.SlotTicketSpins}판 → {r.SlotTicketPayout}G | 노인 보상 {r.LobbyQuestGold}G";
         }
 
         private static float Percentile(List<float> values, float p)
@@ -1856,18 +2133,31 @@ namespace LoopRogue
                 Log($"레벨업 {_results.Average(r => r.LevelUps):0.0}회 | 최종 영원 장비 {_results.Average(r => r.EternalCount):0.0}/3개 " +
                     $"(3개 모두 영원인 판 {_results.Count(r => r.EternalCount == 3)}/{n})");
                 Log($"골드: 획득 {_results.Average(r => r.GoldEarned):0} / 뽑기 사용 {_results.Average(r => r.GoldSpentGacha):0} / " +
-                    $"영약 사용 {_results.Average(r => r.GoldSpentPotion):0} / 데스 패널티로 잃음 {_results.Average(r => r.GoldLostDeath):0}");
+                    $"영약 사용 {_results.Average(r => r.GoldSpentPotion):0} / 상인 사용 {_results.Average(r => r.GoldSpentMerchant):0} / 데스 패널티로 잃음 {_results.Average(r => r.GoldLostDeath):0}");
                 var resolves = _results.Sum(r => r.PatternResolves);
                 var hits = _results.Sum(r => r.PatternHits);
                 Log($"보스 예고 공격: 판당 {_results.Average(r => r.PatternResolves):0}회 발동, 적중률 {(resolves > 0 ? hits * 100f / resolves : 0f):0}% | 광폭화 판당 {_results.Average(r => r.Enrages):0}회");
                 Log($"궁수 십자포화 우회: 판당 {_results.Average(r => r.CrossfireDetours):0}회");
                 Log($"스킬(판당): 회전 베기 {_results.Average(r => r.Spins):0}회 / 대시 공격 {_results.Average(r => r.DashStrikes):0}회 / 대시 회피 {_results.Average(r => r.DashDodges):0.0}회");
                 Log($"새 몹(판당): 거미줄 속박 {_results.Average(r => r.RootedTurns):0}턴 / 방패 옆으로 돌기 {_results.Average(r => r.ShieldFlanks):0}회 / 방패 정면 타격 {_results.Average(r => r.ShieldBlocks):0}회");
+                Log($"처치(판당): 합계 {_results.Average(r => r.Kills.Sum()):0} (중앙값 {Percentile(_results.Select(r => (float)r.Kills.Sum()).ToList(), 0.5f):0}) | " +
+                    string.Join(" / ", Enumerable.Range(0, KillNames.Length).Select(i => $"{KillNames[i]} {_results.Average(r => r.Kills[i]):0.#}")));
+                var charges = _results.Sum(r => r.Charges);
+                Log($"5층+ 새 몹(판당): 치유사 회복 {_results.Average(r => r.Heals):0}회 / 돌진 {_results.Average(r => r.Charges):0}회(적중 {(charges > 0 ? _results.Sum(r => r.ChargeHits) * 100f / charges : 0f):0}%) / " +
+                    $"도적 순간이동 {_results.Average(r => r.Blinks):0}회 / 분열 {_results.Average(r => r.Splits):0}회");
+                Log($"퍼즐·미니게임 방(판당): {_results.Average(r => r.Puzzles):0.0}개 - 봇은 성공으로 치고 넘어감(레벨업 카드 같은 수)");
                 var bombs = _results.Sum(r => r.BombExplosions);
                 Log($"아이템(판당): 얻음 {_results.Average(r => r.ItemObtained.Sum()):0.0}개 / 씀 {_results.Average(r => r.ItemUsed.Sum()):0.0}개 | 종류별 씀(전체) " +
                 string.Join(" ", Enumerable.Range(0, ItemInfo.Count).Select(i => $"{ItemInfo.Name((ItemType)i)} {_results.Sum(r => r.ItemUsed[i])}")));
             Log($"폭발병(판당): 폭발 {_results.Average(r => r.BombExplosions):0.0}회, 플레이어 적중 {(bombs > 0 ? _results.Sum(r => r.BombHits) * 100f / bombs : 0f):0}%");
-                Log($"방 이벤트(판당): {string.Join(" / ", Enumerable.Range(0, 4).Select(i => $"{EventNames[i]} {_results.Average(r => r.Events[i]):0.0}"))}");
+                Log($"방 이벤트(판당): {string.Join(" / ", Enumerable.Range(0, EventNames.Length).Select(i => $"{EventNames[i]} {_results.Average(r => r.Events[i]):0.0}"))}");
+                Log($"NPC(판당): 상인 {_results.Average(r => r.MerchantsMet):0.0} / 모험가 {_results.Average(r => r.WanderersMet):0.0} / " +
+                    $"거래상 {_results.Average(r => r.CurseNpcsMet):0.0}(계약 {_results.Average(r => r.CursesTaken):0.0}) / 대화 {_results.Average(r => r.NpcTalks):0.0} | " +
+                    $"상인 구매 {string.Join(" ", Enumerable.Range(0, 4).Select(i => $"{StockKindNames[i]} {_results.Average(r => r.MerchantBuys[i]):0.0}"))} " +
+                    $"(골드 {_results.Average(r => r.GoldSpentMerchant):0})");
+                Log($"모험가 의뢰(판당): 수락 {_results.Average(r => r.QuestAccepted):0.0} / 완료 {_results.Average(r => r.QuestCompleted):0.0} | " +
+                    $"슬롯 이용권(판당) {_results.Average(r => r.SlotTicketSpins):0.0}판 → 당첨금 {_results.Average(r => r.SlotTicketPayout):0} | " +
+                    $"시간지기 노인 보상(판당) {_results.Average(r => r.LobbyQuestGold):0}");
                 Log($"최종 스탯: ATK {_results.Average(r => r.FinalAttack):0} / 최대HP {_results.Average(r => r.FinalMaxHealth):0} / " +
                     $"치명 {_results.Average(r => r.FinalCritChance) * 100f:0}% (배율 {_results.Average(r => r.FinalCritMultiplier) * 100f:0}%)");
 

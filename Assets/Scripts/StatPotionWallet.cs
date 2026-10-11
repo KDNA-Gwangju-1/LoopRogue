@@ -20,7 +20,7 @@ namespace LoopRogue
     {
         private const float AttackPerPotion = 1f;
         private const float HealthPerPotion = 5f;
-        private const float CriticalChancePerPotion = 0.02f; // +2%p
+        public const float CriticalChancePerPotion = 0.02f; // +2%p
 
         private const int BaseCost = 20;
         private const int CostIncreasePerPurchase = 5; // 구매할 때마다 5골드씩 오름(2 → 5: 봇 테스트에서 판당 영약 370개 이상이라 올림)
@@ -73,6 +73,45 @@ namespace LoopRogue
 
         public static int GetNextCost(PotionType type) => BaseCost + GetCount(type) * CostIncreasePerPurchase;
 
+        /// <summary>첫 구매 가격 - 던전 떠돌이 상인은 몇 개를 샀든 이 가격에 판다.</summary>
+        public const int FirstCost = BaseCost;
+
+        public static string Name(PotionType type) => type switch
+        {
+            PotionType.Attack => Loc.T("공격력"),
+            PotionType.Health => Loc.T("체력"),
+            _ => Loc.T("치명타"),
+        };
+
+        public static string Description(PotionType type) => type switch
+        {
+            PotionType.Attack => Loc.F("공격력 +{0:0.#} (영구)", AttackPerPotion),
+            PotionType.Health => Loc.F("최대 체력 +{0:0.#} (영구)", HealthPerPotion),
+            _ => Loc.F("치명타 확률 +{0:0.#}%p (영구)", CriticalChancePerPotion * 100f),
+        };
+
+        /// <summary>골드 계산은 호출부(상인)가 이미 끝낸 영약 1개 추가 - 로비에서 산 것과 똑같이 센다(다음 로비 가격도 오른다).</summary>
+        public static void AddPotion(PotionType type)
+        {
+            EnsureLoaded();
+            switch (type)
+            {
+                case PotionType.Attack:
+                    _attackCount++;
+                    PlayerPrefs.SetInt(AttackCountKey, _attackCount);
+                    break;
+                case PotionType.Health:
+                    _healthCount++;
+                    PlayerPrefs.SetInt(HealthCountKey, _healthCount);
+                    break;
+                default:
+                    _criticalCount++;
+                    PlayerPrefs.SetInt(CriticalCountKey, _criticalCount);
+                    break;
+            }
+            PlayerPrefs.Save();
+        }
+
         public static float TotalAttackBonus()
         {
             EnsureLoaded();
@@ -103,23 +142,7 @@ namespace LoopRogue
             if (!GoldWallet.TrySpend(cost))
                 return false;
 
-            switch (type)
-            {
-                case PotionType.Attack:
-                    _attackCount++;
-                    PlayerPrefs.SetInt(AttackCountKey, _attackCount);
-                    break;
-                case PotionType.Health:
-                    _healthCount++;
-                    PlayerPrefs.SetInt(HealthCountKey, _healthCount);
-                    break;
-                default:
-                    _criticalCount++;
-                    PlayerPrefs.SetInt(CriticalCountKey, _criticalCount);
-                    break;
-            }
-
-            PlayerPrefs.Save();
+            AddPotion(type);
             return true;
         }
     }

@@ -41,7 +41,7 @@ namespace LoopRogue
             _goToLobby = goToLobby;
             _goToTitle = goToTitle;
             _canOpen = canOpen;
-            BuildUI(showQuit, lobbyLabel ?? "로비로 이동  [L]");
+            BuildUI(showQuit, lobbyLabel ?? Loc.T("로비로 이동  [L]"));
             SetOpen(false);
         }
 
@@ -53,11 +53,10 @@ namespace LoopRogue
 
         private void Update()
         {
-            if (_panel == null)
-                return;
+            if (_panel == null || OptionsPanel.BlocksInput)
+                return; // 설정 창이 떠 있으면 그 창이 Esc·클릭을 받는다(닫히면 이 메뉴로 돌아옴)
 
-            var keyboard = Keyboard.current;
-            if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.Escape))
             {
                 if (IsOpen)
                     SetOpen(false);
@@ -69,23 +68,29 @@ namespace LoopRogue
             if (!IsOpen)
                 return;
 
-            if (keyboard != null && keyboard.lKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.L))
             {
                 GoToLobby();
                 return;
             }
 
-            if (_goToTitle != null && keyboard != null && keyboard.tKey.wasPressedThisFrame)
+            if (GameInput.Down(Key.O))
+            {
+                OptionsPanel.Open();
+                return;
+            }
+
+            if (_goToTitle != null && GameInput.Down(Key.T))
             {
                 GoToTitle();
                 return;
             }
 
-            var mouse = Mouse.current;
-            if (mouse == null || !mouse.leftButton.wasPressedThisFrame)
+            var mouse = Pointer.current;
+            if (mouse == null || !GameInput.PointerDown)
                 return;
 
-            var screenPos = mouse.position.ReadValue();
+            var screenPos = GameInput.PointerPosition;
             foreach (var (rect, onClick) in _buttons)
             {
                 if (RectTransformUtility.RectangleContainsScreenPoint(rect, screenPos, null))
@@ -135,6 +140,7 @@ namespace LoopRogue
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1280f, 720f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand; // 16:9가 아닌 화면에서도 잘리지 않게
 
             // 화면 전체를 어둡게 덮는 배경 + 가운데 메뉴
             _panel = new GameObject("PauseMenu", typeof(RectTransform));
@@ -147,7 +153,7 @@ namespace LoopRogue
             _panel.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
 
             // 메뉴 뒤 돌 테두리 패널(도트 그림이 있을 때만) - 버튼 수에 맞춘 높이
-            var buttonCount = 2 + (_goToTitle != null ? 1 : 0) + (showQuit ? 1 : 0);
+            var buttonCount = 3 + (_goToTitle != null ? 1 : 0) + (showQuit ? 1 : 0);
             var board = new GameObject("Board", typeof(RectTransform));
             board.transform.SetParent(_panel.transform, false);
             var boardImage = board.AddComponent<Image>();
@@ -162,21 +168,23 @@ namespace LoopRogue
             else
                 Destroy(board);
 
-            CreateLabel(_panel.transform, "메뉴", 30, FontStyle.Bold, 110f, 400f, 44f);
+            CreateLabel(_panel.transform, Loc.T("메뉴"), 30, FontStyle.Bold, 110f, 400f, 44f);
 
             var y = 40f;
             CreateButton(_panel.transform, lobbyLabel, LobbyButtonColor, y, GoToLobby);
             if (_goToTitle != null)
             {
                 y -= 60f;
-                CreateButton(_panel.transform, "타이틀로 이동  [T]", ButtonColor, y, GoToTitle);
+                CreateButton(_panel.transform, Loc.T("타이틀로 이동  [T]"), ButtonColor, y, GoToTitle);
             }
             y -= 60f;
-            CreateButton(_panel.transform, "계속하기  [Esc]", ButtonColor, y, () => SetOpen(false));
+            CreateButton(_panel.transform, Loc.T("설정  [O]"), ButtonColor, y, () => OptionsPanel.Open());
+            y -= 60f;
+            CreateButton(_panel.transform, Loc.T("계속하기  [Esc]"), ButtonColor, y, () => SetOpen(false));
             if (showQuit)
             {
                 y -= 60f;
-                CreateButton(_panel.transform, "게임 종료", new Color(0.4f, 0.2f, 0.2f), y, QuitGame);
+                CreateButton(_panel.transform, Loc.T("게임 종료"), new Color(0.4f, 0.2f, 0.2f), y, QuitGame);
             }
         }
 

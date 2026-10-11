@@ -67,8 +67,8 @@ namespace LoopRogue
             return renderer;
         }
 
-        /// <summary>진짜 아트(예: StoryRPG 로그 캐릭터 스프라이트)를 쓸 때 - spritePixelsToUnits를
-        /// 텍스처 폭/높이와 똑같이 맞춰서 임포트해두면(PlayerSprite.png.meta 참고) 원본 스프라이트
+        /// <summary>진짜 아트(도트 그림)를 쓸 때 - spritePixelsToUnits를
+        /// 텍스처 폭/높이와 똑같이 맞춰서 임포트해두면 원본 스프라이트
         /// 자체가 정확히 1x1 월드 유닛이 되므로, CreateSquareVisual과 완전히 같은 size 단위(칸 하나
         /// 대비 배율)로 그대로 쓸 수 있다. 색은 원본 그대로 두고(흰색 = 틴트 없음) 덧씌우지 않는다.</summary>
         public static SpriteRenderer CreateSpriteVisual(GameObject owner, Sprite sprite, float size, int sortingOrder)

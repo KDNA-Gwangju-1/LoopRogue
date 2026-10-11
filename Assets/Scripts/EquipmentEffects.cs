@@ -31,40 +31,41 @@ namespace LoopRogue
         public const float LuckGoldBonus = 0.15f;     // 행운
         public const float LuckDropChance = 0.06f;    // 몹 아이템 드롭 3% → 6%
 
-        private static readonly Dictionary<ItemSlot, (string Name, string Description)[]> Effects =
-            new Dictionary<ItemSlot, (string, string)[]>
+        private static readonly LocCache<Dictionary<ItemSlot, (string Name, string Description)[]>> EffectsCache = new LocCache<Dictionary<ItemSlot, (string Name, string Description)[]>>(() => new Dictionary<ItemSlot, (string, string)[]>
             {
                 {
                     ItemSlot.Weapon, new[]
                     {
-                        ("연격", "일반 공격 3번째마다 피해 +50%"),
-                        ("처형", "체력 25% 이하인 적에게 피해 +30%"),
-                        ("보스 사냥꾼", "보스에게 피해 +15%"),
-                        ("선제타격", "체력이 가득 찬 적에게 피해 +40%"),
-                        ("연격 강화", "연격이 2번째마다, 피해 +100%"),
+                        (Loc.T("연격"), Loc.T("일반 공격 3번째마다 피해 +50%")),
+                        (Loc.T("처형"), Loc.T("체력 25% 이하인 적에게 피해 +30%")),
+                        (Loc.T("보스 사냥꾼"), Loc.T("보스에게 피해 +15%")),
+                        (Loc.T("선제타격"), Loc.T("체력이 가득 찬 적에게 피해 +40%")),
+                        (Loc.T("연격 강화"), Loc.T("연격이 2번째마다, 피해 +100%")),
                     }
                 },
                 {
                     ItemSlot.Armor, new[]
                     {
-                        ("보호막", "방에 들어갈 때 최대체력 5% 보호막"),
-                        ("가시", "근접 공격 피해의 20%를 되돌려줌"),
-                        ("불굴", "시도마다 1회, 죽을 피해를 체력 1로 버팀"),
-                        ("응급 처치", "시도마다 1회, 체력 30% 미만이면 20% 회복"),
-                        ("철벽", "보스 예고 공격 피해 -30%"),
+                        (Loc.T("보호막"), Loc.T("방에 들어갈 때 최대체력 5% 보호막")),
+                        (Loc.T("가시"), Loc.T("근접 공격 피해의 20%를 되돌려줌")),
+                        (Loc.T("불굴"), Loc.T("시도마다 1회, 죽을 피해를 체력 1로 버팀")),
+                        (Loc.T("응급 처치"), Loc.T("시도마다 1회, 체력 30% 미만이면 20% 회복")),
+                        (Loc.T("철벽"), Loc.T("보스 예고 공격 피해 -30%")),
                     }
                 },
                 {
                     ItemSlot.Accessory, new[]
                     {
-                        ("민첩", "대시·회전 베기 쿨타임 -1턴"),
-                        ("절약", "아이템을 써도 20% 확률로 안 없어짐"),
-                        ("행운", "골드 +15%, 몹 아이템 드롭 3%→6%"),
-                        ("민첩 강화", "쿨타임 1턴 더 감소(총 -2턴)"),
-                        ("유품", "죽어도 퀵슬롯 1번 아이템은 안 잃음"),
+                        (Loc.T("민첩"), Loc.T("대시·회전 베기 쿨타임 -1턴")),
+                        (Loc.T("절약"), Loc.T("아이템을 써도 20% 확률로 안 없어짐")),
+                        (Loc.T("행운"), Loc.T("골드 +15%, 몹 아이템 드롭 3%→6%")),
+                        (Loc.T("민첩 강화"), Loc.T("쿨타임 1턴 더 감소(총 -2턴)")),
+                        (Loc.T("유품"), Loc.T("죽어도 퀵슬롯 1번 아이템은 안 잃음")),
                     }
                 },
-            };
+            });
+
+        private static Dictionary<ItemSlot, (string Name, string Description)[]> Effects => EffectsCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
 
         public static int TierOf(ItemGrade grade) => grade >= ItemGrade.Legendary ? grade - ItemGrade.Legendary + 1 : 0;
 

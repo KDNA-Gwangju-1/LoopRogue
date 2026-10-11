@@ -12,8 +12,9 @@ namespace LoopRogue
         {
             TurnsLeft = turns;
             Stats = new CharacterStats(1f, 0f);
-            // 허수아비 도트 그림 - 없으면 예전 갈색 사각형
-            if (VisualUtil.TryCreateProp(gameObject, "Decoy", sortingOrder: 1) != null)
+            // 허수아비 도트 그림(살랑살랑 흔들림) - 이펙트가 없으면 정지 그림, 그것도 없거나 봇 중이면 갈색 사각형.
+            if (Fx.Play("obj_decoy", transform.position, 1.1f, fps: 4f, loop: true, sortingOrder: 1, parent: transform) != null
+                || VisualUtil.TryCreateProp(gameObject, "Decoy", sortingOrder: 1) != null)
                 return;
             var renderer = VisualUtil.CreateSquareVisual(gameObject, new Color(0.75f, 0.6f, 0.35f), GridConstants.CellSize * 0.6f, sortingOrder: 1);
             renderer.color = new Color(0.75f, 0.6f, 0.35f);

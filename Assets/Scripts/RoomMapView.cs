@@ -8,6 +8,7 @@ namespace LoopRogue
     /// <summary>시작 방 고르기용 "방 지도 한 줄" - 칸 11개(방 1~10 + 보스)를 가로로 놓고, 고른 칸 아래에 그 방 정보를
     /// 보여준다. 스테이지 입장 창과 사망 창이 같은 위젯 하나를 자기 패널 안으로 옮겨 붙여 쓴다(GameHUD).
     /// 조작: ←/→(A/D) 한 칸, B 보스방, 클릭 = 고르기, 이미 고른 칸 다시 클릭 = 확정(Enter와 같음).
+    /// 이 층에서 깬 방 바로 다음 칸까지만 열려 있고(StageProgress.UnlockedRoomCount), 잠긴 칸은 어둡게 칠하고 고를 수 없다.
     /// 클릭 판정은 HUD의 다른 버튼과 같은 수동 사각형 히트테스트(EventSystem 없음).</summary>
     public class RoomMapView
     {
@@ -31,6 +32,10 @@ namespace LoopRogue
         private readonly RectTransform _infoRect;
 
         private IReadOnlyList<RoomDefinition> _rooms;
+        private int _unlocked; // 앞에서부터 고를 수 있는 칸 수
+
+        private static readonly Color LockedTint = new Color(0.3f, 0.3f, 0.34f, 1f);
+        private static readonly Color CellLocked = new Color(0.12f, 0.12f, 0.15f, 0.95f);
 
         public int Selected { get; private set; }
 
@@ -121,37 +126,38 @@ namespace LoopRogue
             _root.SetParent(parent, false);
             _root.anchoredPosition = position;
             _rooms = rooms;
-            Selected = Mathf.Clamp(selected, 0, rooms.Count - 1);
+            _unlocked = StageProgress.UnlockedRoomCount(rooms.Count);
+            Selected = Mathf.Clamp(selected, 0, _unlocked - 1);
             Refresh();
         }
 
         /// <summary>매 프레임 - 확정(Enter 또는 고른 칸 다시 클릭)이면 true.</summary>
         public bool HandleInput()
         {
-            var count = _rooms.Count;
+            var count = _unlocked; // 잠긴 칸은 건너뛴다(열린 칸 안에서만 돈다)
             var before = Selected;
             var confirm = false;
 
-            var keyboard = Keyboard.current;
-            if (keyboard != null)
             {
-                if (keyboard.leftArrowKey.wasPressedThisFrame || keyboard.aKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.LeftArrow) || GameInput.Down(Key.A))
                     Selected = (Selected + count - 1) % count;
-                if (keyboard.rightArrowKey.wasPressedThisFrame || keyboard.dKey.wasPressedThisFrame)
+                if (GameInput.Down(Key.RightArrow) || GameInput.Down(Key.D))
                     Selected = (Selected + 1) % count;
-                if (keyboard.bKey.wasPressedThisFrame)
-                    Selected = count - 1;
-                confirm = keyboard.enterKey.wasPressedThisFrame;
+                if (GameInput.Down(Key.B))
+                    Selected = count - 1; // 보스방이 아직 잠겨 있으면 열린 칸 중 마지막
+                confirm = GameInput.Down(Key.Enter);
             }
 
-            var mouse = Mouse.current;
-            if (mouse != null && mouse.leftButton.wasPressedThisFrame)
+            var mouse = Pointer.current;
+            if (mouse != null && GameInput.PointerDown)
             {
-                var pos = mouse.position.ReadValue();
+                var pos = GameInput.PointerPosition;
                 for (var i = 0; i < _cellRects.Count; i++)
                 {
                     if (!RectTransformUtility.RectangleContainsScreenPoint(_cellRects[i], pos, null))
                         continue;
+                    if (i >= _unlocked)
+                        break; // 잠긴 칸
                     if (i == Selected)
                         confirm = true;
                     Selected = i;
@@ -165,7 +171,7 @@ namespace LoopRogue
             return confirm;
         }
 
-        public static string RoomLabel(int index, int roomCount) => index == roomCount - 1 ? "보스방" : $"방 {index + 1}";
+        public static string RoomLabel(int index, int roomCount) => index == roomCount - 1 ? Loc.T("보스방") : Loc.F("방 {0}", index + 1);
 
         private void Refresh()
         {
@@ -173,25 +179,33 @@ namespace LoopRogue
             {
                 var isBoss = i == _cells.Count - 1;
                 var selected = i == Selected;
+                var locked = i >= _unlocked;
+                var number = _cells[i].GetComponentInChildren<Text>();
+                if (number != null)
+                    number.color = locked ? new Color(0.5f, 0.5f, 0.55f) : Color.white;
                 if (Pixel)
                 {
-                    // 고른 문은 열리며 빛이 새어 나온다(크기는 그대로 - 도트가 뭉개지지 않게)
+                    // 고른 문은 열리며 빛이 새어 나온다(크기는 그대로 - 도트가 뭉개지지 않게), 잠긴 문은 어둡게
                     _cells[i].sprite = isBoss ? (selected ? _bossDoorSelected : _bossDoor) : (selected ? _doorSelected : _door);
+                    _cells[i].color = locked ? LockedTint : Color.white;
                     continue;
                 }
-                _cells[i].color = selected ? (isBoss ? CellBossSelected : CellSelected) : (isBoss ? CellBoss : CellNormal);
+                _cells[i].color = locked ? CellLocked : selected ? (isBoss ? CellBossSelected : CellSelected) : (isBoss ? CellBoss : CellNormal);
                 _cellRects[i].localScale = selected ? new Vector3(1.12f, 1.12f, 1f) : Vector3.one;
             }
             PlaceMarker();
 
             var room = _rooms[Selected];
             _info.text = room.IsBossRoom
-                ? $"보스방  {room.Width}x{room.Height}\n보스 패턴 {room.BossPatterns.Count}종"
-                : $"{RoomLabel(Selected, _rooms.Count)}  {room.Width}x{room.Height}\n몹 {room.EnemyCount}마리  체력 {room.EnemyMaxHealth:0} / 공격력 {room.EnemyAttackPower:0}";
+                ? Loc.F("보스방  {0}x{1}\n보스 패턴 {2}종", room.Width, room.Height, room.BossPatterns.Count)
+                : Loc.F("{0}  {1}x{2}\n몹 {3}마리  체력 {4:0} / 공격력 {5:0}", RoomLabel(Selected, _rooms.Count), room.Width, room.Height, room.EnemyCount, room.EnemyMaxHealth, room.EnemyAttackPower);
+            var lockedHint = _unlocked < _rooms.Count;
+            if (lockedHint) // 아직 잠긴 칸이 있으면 무엇을 깨야 다음이 열리는지
+                _info.text += "\n" + Loc.F("<color=#9AA0AA>{0} 클리어 시 {1} 열림</color>", RoomLabel(_unlocked - 1, _rooms.Count), RoomLabel(_unlocked, _rooms.Count));
 
             // 정보 상자를 고른 칸 바로 아래로
-            _infoRect.anchoredPosition = new Vector2(_cellRects[Selected].anchoredPosition.x, -30f);
-            _infoRect.sizeDelta = new Vector2(room.IsBossRoom ? 160f : 230f, 50f);
+            _infoRect.anchoredPosition = new Vector2(_cellRects[Selected].anchoredPosition.x, lockedHint ? -38f : -30f);
+            _infoRect.sizeDelta = new Vector2(room.IsBossRoom ? 180f : 230f, lockedHint ? 66f : 50f);
         }
 
         /// <summary>고른 문 위 화살표 - 1도트(4)씩 위아래로 까딱인다.</summary>
