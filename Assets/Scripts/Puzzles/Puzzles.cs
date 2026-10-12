@@ -158,18 +158,25 @@ namespace LoopRogue
             {
                 var p = new Vector2Int(x, y);
                 if (_mud.Contains(p))
-                    Square(p, new Color(0.42f, 0.3f, 0.18f, 0.95f), 0.96f, -9, "Mud");
+                    ArtTile(p, "Mud", 1f, Color.white, new Color(0.42f, 0.3f, 0.18f, 0.95f), 0.96f, -9, "Mud");
                 else if (!_rocks.Contains(p))
-                    Square(p, new Color(0.55f, 0.8f, 0.95f, 0.35f), 0.96f, -9, "Ice");
+                    ArtTile(p, "Ice", 1f, Color.white, new Color(0.55f, 0.8f, 0.95f, 0.35f), 0.96f, -9, "Ice");
             }
-            Square(_goal, new Color(1f, 0.85f, 0.3f, 0.7f), 0.9f, -7, "Goal");
+            ArtTile(_goal, "GoalPad", 1f, Color.white, new Color(1f, 0.85f, 0.3f, 0.7f), 0.9f, -7, "Goal");
             var flag = FxSprite("event_ChallengeFlag");
             if (flag != null)
                 SpriteAt(World(_goal), flag, 0.8f, -6, "GoalFlag");
             foreach (var gem in _gems)
             {
-                var r = Square(gem, new Color(0.5f, 1f, 0.95f), 0.36f, -6, "Gem");
-                r.transform.rotation = Quaternion.Euler(0f, 0f, 45f); // 하늘색 마름모 = 보석
+                var gemArt = PuzzleArt("Gem");
+                SpriteRenderer r;
+                if (gemArt != null)
+                    r = SpriteAt(World(gem), gemArt, 0.75f, -6, "Gem");
+                else
+                {
+                    r = Square(gem, new Color(0.5f, 1f, 0.95f), 0.36f, -6, "Gem");
+                    r.transform.rotation = Quaternion.Euler(0f, 0f, 45f); // 하늘색 마름모 = 보석
+                }
                 _gemObjects[gem] = r.gameObject;
             }
         }
@@ -340,10 +347,10 @@ namespace LoopRogue
         protected override void OnBegin()
         {
             foreach (var p in _traps.Keys)
-                Square(p, new Color(0.35f, 0.12f, 0.12f, 0.9f), 0.7f, -9, "TrapBase");
+                ArtTile(p, "TrapPlate", 0.94f, Color.white, new Color(0.35f, 0.12f, 0.12f, 0.9f), 0.7f, -9, "TrapBase");
             for (var y = 0; y < Height; y++)
-                _goalTiles.Add(Square(new Vector2Int(_width - 1, y), GoalColor, 0.94f, -9, "Goal"));
-            _leverTile = Square(_lever, new Color(0.45f, 0.45f, 0.9f), 0.6f, -7, "Lever");
+                _goalTiles.Add(ArtTile(new Vector2Int(_width - 1, y), "ExitTile", 1f, GoalColor, GoalColor, 0.94f, -9, "Goal"));
+            _leverTile = ArtTile(_lever, "Lever_Off", 0.95f, Color.white, new Color(0.45f, 0.45f, 0.9f), 0.6f, -7, "Lever");
             ShowWarnings();
         }
 
@@ -375,7 +382,11 @@ namespace LoopRogue
             if (pos == _lever && !_leverOn)
             {
                 _leverOn = true;
-                _leverTile.color = new Color(0.4f, 1f, 0.5f);
+                var leverOn = PuzzleArt("Lever_On");
+                if (leverOn != null)
+                    _leverTile.sprite = leverOn; // 막대가 오른쪽으로 넘어가고 손잡이가 초록으로
+                else
+                    _leverTile.color = new Color(0.4f, 1f, 0.5f);
                 foreach (var tile in _goalTiles)
                     tile.color = GoalColor;
                 SfxPlayer.Play(Sfx.Appear);
@@ -462,7 +473,7 @@ namespace LoopRogue
         protected override void OnBegin()
         {
             for (var i = 0; i < _runes.Count; i++)
-                _renderers.Add(Square(_runes[i], Dim(i), 0.8f, -7, "Rune"));
+                _renderers.Add(ArtTile(_runes[i], "Rune_" + (i % 7), 0.8f, Dim(i), Dim(i), 0.8f, -7, "Rune")); // 룬마다 다른 글자
             StartRound();
         }
 
@@ -654,11 +665,11 @@ namespace LoopRogue
         protected override void OnBegin()
         {
             for (var i = 0; i < _plates.Count; i++)
-                Square(_plates[i], PlateColor(i), 0.8f, -9, "Plate");
+                ArtTile(_plates[i], "Plate", 0.92f, PlateColor(i), PlateColor(i), 0.8f, -9, "Plate");
             for (var i = 0; i < _startBoxes.Count; i++)
             {
                 _boxes.Add(_startBoxes[i]);
-                _boxRenderers.Add(Square(_startBoxes[i], Color.white, 0.78f, 1, "Box"));
+                _boxRenderers.Add(ArtTile(_startBoxes[i], "Crate", 0.92f, Color.white, Color.white, 0.78f, 1, "Box")); // 나무 상자(색은 Redraw가)
             }
             Redraw();
         }

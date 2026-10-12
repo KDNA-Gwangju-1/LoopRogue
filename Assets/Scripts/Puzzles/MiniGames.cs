@@ -676,7 +676,7 @@ namespace LoopRogue
             for (var y = 0; y < _size; y++)
             {
                 var p = new Vector2Int(x, y);
-                _covers[p] = Square(p, new Color(0.34f, 0.3f, 0.24f), 0.94f, -9, "Cover");
+                _covers[p] = ArtTile(p, "SweepCover", 1f, Color.white, new Color(0.34f, 0.3f, 0.24f), 0.94f, -9, "Cover"); // 풀 덮인 땅
             }
             var chest = FxSprite("event_TreasureChest");
             if (chest != null)
@@ -715,7 +715,14 @@ namespace LoopRogue
                 var p = queue.Dequeue();
                 if (!InBounds(p, _size, _size) || _traps.Contains(p) || !_revealed.Add(p))
                     continue;
-                _covers[p].color = new Color(0.17f, 0.17f, 0.2f);
+                var dug = PuzzleArt("SweepDug");
+                if (dug != null)
+                {
+                    _covers[p].sprite = dug; // 파낸 흙(숫자가 잘 보이게 어둡고 밋밋하게)
+                    _covers[p].color = Color.white;
+                }
+                else
+                    _covers[p].color = new Color(0.17f, 0.17f, 0.2f);
                 var n = Count(p);
                 if (n > 0)
                 {

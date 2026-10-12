@@ -311,6 +311,21 @@ namespace LoopRogue
         }
 
         /// <summary>그림 한 장을 가로 sizeCells칸 크기로(그림 해상도와 상관없이).</summary>
+        /// <summary>퍼즐 소품 그림(Sprites/Props/Puzzle_{art}) - 없으면 null(호출부가 예전 색 칸으로).</summary>
+        protected static Sprite PuzzleArt(string art) => Resources.Load<Sprite>("Sprites/Props/Puzzle_" + art);
+
+        /// <summary>그림 칸 - Puzzle_{art} 그림이 있으면 그 그림(artSize칸, 색은 tint), 없으면 예전 색 칸(fallback 색, fallbackSize칸).
+        /// 룬·상자처럼 나중에 renderer.color로 색을 바꾸는 것도 그대로 된다(그림은 밝은 회백색이라 색이 입혀진다).</summary>
+        protected SpriteRenderer ArtTile(Vector2Int p, string art, float artSize, Color tint, Color fallback, float fallbackSize, int order, string name)
+        {
+            var sprite = PuzzleArt(art);
+            if (sprite == null)
+                return Square(p, fallback, fallbackSize, order, name);
+            var renderer = SpriteAt(World(p), sprite, artSize, order, name);
+            renderer.color = tint;
+            return renderer;
+        }
+
         protected SpriteRenderer SpriteAt(Vector3 world, Sprite sprite, float sizeCells, int order, string name = "PuzzleSprite")
         {
             var go = new GameObject(name);
