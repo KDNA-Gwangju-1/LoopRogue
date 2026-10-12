@@ -380,13 +380,13 @@ namespace LoopRogue
 
     /// <summary>황금 고블린 추격 - 도망 다니는 황금 고블린에 부딪히면 잡는다(5층부터 2마리, 다 잡아야 성공). 고블린은 플레이어에게서
     /// 가장 먼 쪽으로 쉬지 않고 도망치지만 가끔(PanicChance) 허둥대며 엉뚱한 칸으로 간다(같은 속도면 영원히 못 잡으니까 - 사용자 결정,
-    /// 예전엔 몇 턴마다 멈춰 쉬었다). 지나간 칸엔 뿌린 끈끈이가 3턴 남고,
+    /// 예전엔 몇 턴마다 멈춰 쉬었다). 지나간 칸엔 자루에서 흘린 금화가 3턴 남고(밟으면 줍느라 멈춤 - 예전 끈끈이, 사용자 결정),
     /// 밟으면 발이 묶여 한 턴 쉬어야 한다. 제한 턴을 넘기면 실패.
     /// 맵은 30x30(사용자 요청)이라 판 전체 보기 대신 플레이어를 따라가는 카메라 - 화면 밖 고블린은 가장자리 금색 화살표로 방향을 알린다.</summary>
     public class GoldenChaseMiniGame : PuzzleBase
     {
         public override string Title => Loc.T("황금 고블린 추격");
-        public override string Rule => Loc.T("황금 고블린을 구석으로 몰아 부딪혀라(가끔 허둥댄다). 지나간 자리에 뿌린 끈끈이를 밟으면 발이 묶인다!");
+        public override string Rule => Loc.T("황금 고블린을 구석으로 몰아 부딪혀라! 쉬지 않고 도망치지만 가끔 허둥댄다.\n고블린이 지나간 자리에 흘린 금화를 밟으면 줍느라 한 턴 멈춘다.");
         public override string Status => Loc.F("남은 고블린 {0}   남은 턴 {1}", _slimes.Count, Mathf.Max(0, _limit - _turns));
 
         private const int Size = 30, TrailTurns = 3, CornerFree = 4;
@@ -526,10 +526,15 @@ namespace LoopRogue
 
         protected override void OnPlayerMoved(Vector2Int pos)
         {
-            if (!_trail.ContainsKey(pos))
+            if (!_trail.TryGetValue(pos, out var coins))
                 return;
+            // 흘린 금화를 밟았다 - 줍느라 한 턴 멈춘다(주운 금화는 사라진다)
+            Untrack(coins.Go);
+            _trail.Remove(pos);
+            Fx.Play("coin", World(pos), 0.5f, fps: 14f, riseCells: 0.6f);
+            SfxPlayer.Play(Sfx.Appear);
             Player.ApplyRoot(1);
-            Room.ShowMessage(Loc.T("끈끈이에 발이 묶였다! (Space로 한 턴 쉬기)"));
+            Room.ShowMessage(Loc.T("금화를 줍느라 발이 멈췄다! (Space로 한 턴 쉬기)"));
         }
 
         protected override void OnTurnEnd()
@@ -595,7 +600,17 @@ namespace LoopRogue
                 _trail[cell] = (TrailTurns, old.Go);
                 return;
             }
-            var go = Square(cell, new Color(0.85f, 0.8f, 0.2f, 0.45f), 0.8f, -7, "GlueTrail").gameObject;
+            // 바닥에 흩어진 금화(Sprites/Props/DroppedCoins_0·1, 무작위로 좌우 뒤집어 매번 조금 다르게) - 없으면 예전 노란 칸
+            var art = Resources.Load<Sprite>($"Sprites/Props/DroppedCoins_{Rng.Next(2)}");
+            GameObject go;
+            if (art != null)
+            {
+                var renderer = SpriteAt(World(cell), art, 0.85f, -7, "DroppedCoins");
+                renderer.flipX = Rng.Next(2) == 0;
+                go = renderer.gameObject;
+            }
+            else
+                go = Square(cell, new Color(0.85f, 0.8f, 0.2f, 0.45f), 0.8f, -7, "DroppedCoins").gameObject;
             _trail[cell] = (TrailTurns, go);
         }
     }

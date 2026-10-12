@@ -801,11 +801,11 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 황금 고블린 추격	Golden Goblin Chase
 남은 고블린 {0}   남은 턴 {1}	Goblins left {0}   Turns left {1}
 한 마리 잡았다! 남은 고블린을 쫓아라	Caught one! Chase the other goblin
-끈끈이에 발이 묶였다! (Space로 한 턴 쉬기)	Stuck in glue! (Space to rest a turn)
-황금 고블린을 구석으로 몰아 부딪혀라(가끔 허둥댄다). 지나간 자리에 뿌린 끈끈이를 밟으면 발이 묶인다!	Corner the golden goblin and bump into it (it sometimes panics). Step on the glue it scatters and you'll be stuck!
 숫자 = 주변 8칸의 함정 수. 먼저 열쇠를 주운 뒤 보물 상자까지 가라.	Numbers = traps in the 8 surrounding tiles. Grab the key first, then reach the treasure chest.
 숨은 함정 {0}개   열쇠 {1}	Hidden traps {0}   Key {1}
 확인 [Space]	OK [Space]
 설명 [H]	Rules [H]
 1분 20초 안에 {0}점을 모아라!\n구멍 옆에 서서 구멍 쪽으로 방향키를 누르면 두더지를 때린다. 두더지는 저절로 튀어나왔다 숨는다.\n갈색 두더지 +1   금색 왕관 두더지 +3(금방 숨음)   폭탄을 인 두더지는 때리면 -2!	Collect {0} points in 1 min 20 sec!\nStand next to a hole and press toward it to whack the mole. Moles pop up and hide on their own.\nBrown mole +1   Gold crowned mole +3 (hides fast)   Mole carrying a bomb: -2 if hit!
 1분 20초 안에 {0}점을 모아라!\n구멍 옆에 서서 구멍 쪽으로 방향키를 누르면 슬라임을 때린다. 슬라임은 저절로 튀어나왔다 숨는다.\n초록 +1   금색 +3(금방 숨음)   빨간 폭탄 슬라임은 때리면 -2!	Collect {0} points in 1 min 20 sec!\nStand next to a hole and press toward it to whack the slime. Slimes pop up and hide on their own.\nGreen +1   Gold +3 (hides fast)   Red bomb slime: -2 if hit!
+황금 고블린을 구석으로 몰아 부딪혀라! 쉬지 않고 도망치지만 가끔 허둥댄다.\n고블린이 지나간 자리에 흘린 금화를 밟으면 줍느라 한 턴 멈춘다.	Corner the golden goblin and bump into it! It never stops running, but sometimes panics.\nStep on the gold coins it drops and you'll stop for a turn to pick them up.
+금화를 줍느라 발이 멈췄다! (Space로 한 턴 쉬기)	Stopped to pick up gold coins! (Space to rest a turn)
