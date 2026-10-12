@@ -9,7 +9,7 @@ namespace LoopRogue
     /// 넘어가므로, 한 번에 10스테이지를 전부 만들어둘 필요가 없다.</summary>
     public class GameBootstrap : MonoBehaviour
     {
-        private const int RoomsPerStage = 10;
+        public const int RoomsPerStage = 10;
         /// <summary>자동 플레이 봇의 "보스 배율 찾기" 모드 전용 - 보스 HP/ATK에 추가로 곱한다(평소엔 항상 1).</summary>
         public static float BossScaleForBotTest = 1f;
 

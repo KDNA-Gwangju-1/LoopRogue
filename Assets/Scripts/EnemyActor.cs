@@ -102,7 +102,18 @@ namespace LoopRogue
         public void MarkAsPuzzleMob() => IsPuzzleMob = true;
 
         /// <summary>골드·경험치·아이템을 안 주는 몹(보스 졸개, 분열 조각, 퍼즐 몹).</summary>
-        public bool NoReward => IsMinion || IsSplitChild || IsPuzzleMob;
+        public bool NoReward => IsMinion || IsSplitChild || IsPuzzleMob || IsGlitchRevived;
+
+        /// <summary>오류방에서 한 번 되살아난 몹 - 보상 없음, 다시는 안 살아남, 보랏빛.</summary>
+        public bool IsGlitchRevived { get; private set; }
+
+        public void MarkGlitchRevived()
+        {
+            IsGlitchRevived = true;
+            var renderer = GetComponent<SpriteRenderer>();
+            if (renderer != null)
+                renderer.color = new Color(0.8f, 0.55f, 1f);
+        }
 
         /// <summary>이번 턴에 노리는 칸(플레이어 또는 미끼)과 미끼.</summary>
         private Vector2Int _tp;
@@ -160,7 +171,10 @@ namespace LoopRogue
         public bool IsMimic { get; private set; } // 방 이벤트 "미믹" - 잡으면 큰 보상(RoomController)
         public bool IsElite { get; private set; } // 방 이벤트 "도전의 깃발" 정예
 
-        public string DisplayName => IsBoss ? BossDisplayName : IsMinion ? Loc.T("졸개") : IsMimic ? Loc.T("미믹") : IsSplitChild ? Loc.T("분열 조각") : (IsElite ? Loc.T("정예 ") : "") + Kind switch
+        /// <summary>표시 이름 - 오류방에선 깨진 글자(몹마다 늘 같은 모양).</summary>
+        public string DisplayName => GlitchRoom.IsActive && !IsBoss ? GlitchRoom.Corrupt(PlainName, GetInstanceID()) : PlainName;
+
+        private string PlainName => IsBoss ? BossDisplayName : IsMinion ? Loc.T("졸개") : IsMimic ? Loc.T("미믹") : IsSplitChild ? Loc.T("분열 조각") : (IsElite ? Loc.T("정예 ") : "") + Kind switch
         {
             EnemyKind.Ranged => Loc.T("궁수"),
             EnemyKind.Shield => Loc.T("방패병"),

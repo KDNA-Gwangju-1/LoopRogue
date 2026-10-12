@@ -474,6 +474,8 @@ namespace LoopRogue
                 direction = Vector2Int.left;
             else if (GameInput.Down(Key.D) || GameInput.Down(Key.RightArrow))
                 direction = Vector2Int.right;
+            if (direction.HasValue && GlitchRoom.Active == GlitchRoom.Rule.ReverseControls)
+                direction = -direction.Value; // 오류방 - 방향이 뒤집혔다
 
             if (InventoryUI.LastCloseFrame == Time.frameCount)
                 return; // 인벤토리를 닫은 키가 이동/대기로 또 읽히지 않게
@@ -722,6 +724,8 @@ namespace LoopRogue
             Map.RemoveActor(enemy);
             if (enemy.Kind == EnemyKind.Splitter && !enemy.IsSplitChild)
                 _room.SpawnSplitChildren(enemy); // 분열체는 죽으면 둘로 갈라진다(처치 처리 전에 - 방이 빈 걸로 안 치게)
+            if (GlitchRoom.Active == GlitchRoom.Rule.Revive && !enemy.IsBoss && !enemy.IsGlitchRevived && !enemy.IsPuzzleMob)
+                _room.SpawnGlitchRevive(enemy); // 오류방 - 한 번 되살아난다(처치 처리 전에)
             Destroy(enemy.gameObject);
             Stats.Heal(Stats.MaxHealth * Stats.KillHealRate); // 처치 회복 카드
 

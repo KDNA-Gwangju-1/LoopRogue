@@ -360,6 +360,10 @@ namespace LoopRogue
 
             BuildFloor(layout, def.IsBossRoom);
             _fitRoom = null; // 일반 방 - 플레이어 주변만 비추는 평소 카메라
+            var glitch = !_loadCleared && GlitchRoom.ShouldGlitch(def, GameBootstrap.RoomsPerStage);
+            var glitchTiles = glitch && !DamagePopup.Suppressed
+                ? _roomObjects.Where(o => o != null).SelectMany(o => o.GetComponentsInChildren<SpriteRenderer>()).ToList() // 안개를 깔기 전 - 바닥·벽만
+                : null;
 
             Map.PlaceActor(_player, layout.PlayerStart);
             if (_player.TryGetComponent<SpriteAnimator>(out var playerAnim))
@@ -385,6 +389,8 @@ namespace LoopRogue
             _roomCleared = false;
             _player.OnRoomEntered(); // 갑옷 효과(보호막/불굴/응급 처치) 방마다 다시 채움
             IsInputLocked = false;
+            if (glitch)
+                StartGlitch(glitchTiles);
             if (_loadCleared)
             {
                 _roomCleared = true; // 퍼즐 실패 후 돌아온 이전 방 - 이미 깬 방이라 출구만
@@ -735,6 +741,8 @@ namespace LoopRogue
                 child.MarkAsSplitChild();
                 if (parent.IsPuzzleMob)
                     child.MarkAsPuzzleMob();
+                if (parent.IsGlitchRevived)
+                    child.MarkGlitchRevived(); // 되살아난 분열체의 조각은 다시 살아나지 않는다(분열↔되살아남 무한 반복 방지)
                 Map.PlaceActor(child, pos);
                 _enemies.Add(child);
             }
@@ -743,6 +751,73 @@ namespace LoopRogue
 
         /// <summary>봇 통계용 - 분열체가 갈라진 횟수.</summary>
         public static int SplitCount;
+
+        // ===================== 오류방 =====================
+
+        private GlitchVisual _glitchVisual;
+
+        /// <summary>봇·통계용 - 오류방에 들어간 횟수 / 바로잡은 횟수.</summary>
+        public static int GlitchEnterCount, GlitchClearCount;
+
+        private void StartGlitch(List<SpriteRenderer> tiles)
+        {
+            var rule = GlitchRoom.PickRule(Rng);
+            GlitchRoom.Begin(rule);
+            GlitchEnterCount++;
+            if (tiles != null)
+            {
+                var go = new GameObject("GlitchVisual");
+                go.transform.SetParent(transform, false);
+                _glitchVisual = go.AddComponent<GlitchVisual>();
+                _glitchVisual.Init(tiles);
+                _roomObjects.Add(go);
+                ScreenFlash.Play(new Color(0.7f, 0.3f, 1f), 0.4f, 0.4f);
+                CameraShake.Shake(0.2f, 0.3f);
+            }
+            ShowMessage(Loc.F("세계가 일그러진다… {0}", GlitchRoom.RuleText(rule)));
+        }
+
+        /// <summary>오류방을 비웠다 - 골드(방 클리어 골드 × ClearGoldRooms) + 오류 조각 1개, 이 층의 오류방은 바로잡힌 걸로.</summary>
+        private void FinishGlitch()
+        {
+            var gold = Mathf.RoundToInt(GoldPerRoomClear * StageScaling.RewardMultiplier(_stage) * GoldBonus * GlitchRoom.ClearGoldRooms);
+            GoldWallet.Add(gold);
+            var total = GlitchRoom.AddFragment();
+            StageProgress.MarkGlitchCleared();
+            GlitchRoom.End();
+            GlitchClearCount++;
+            _glitchVisual?.Restore();
+            HitFeedback.OnBonusReward(_player);
+            ShowMessage(Loc.F("오류를 바로잡았다! 골드 +{0}, 오류 조각 +1 (모은 조각 {1}개)", gold, total));
+        }
+
+        /// <summary>오류방 "되살아남" - 쓰러진 몹이 그 자리(막혔으면 옆 칸)에서 체력 절반으로 한 번 더(보상 없음, 다시는 안 살아남).</summary>
+        public void SpawnGlitchRevive(EnemyActor dead)
+        {
+            Vector2Int? pos = Map.IsWalkable(dead.GridPos) ? dead.GridPos : (Vector2Int?)null;
+            if (!pos.HasValue)
+                foreach (var p in new[] { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right }.Select(d => dead.GridPos + d))
+                    if (Map.IsWalkable(p) && ExitPosition != p)
+                    {
+                        pos = p;
+                        break;
+                    }
+            if (!pos.HasValue)
+                return;
+            var go = new GameObject("GlitchRevived");
+            go.transform.SetParent(transform, false);
+            var enemy = go.AddComponent<EnemyActor>();
+            enemy.Initialize(dead.Stats.MaxHealth * GlitchRoom.ReviveHealthRatio, dead.Stats.AttackPower, isBoss: false, dead.Kind);
+            enemy.MarkGlitchRevived();
+            if (dead.IsSplitChild)
+                enemy.MarkAsSplitChild(); // 조각이 되살아나도 조각 - 다시 분열하지 않는다(예전엔 분열↔되살아남이 끝없이 반복됐다)
+            if (dead.IsPuzzleMob)
+                enemy.MarkAsPuzzleMob();
+            Map.PlaceActor(enemy, pos.Value);
+            _enemies.Add(enemy);
+            if (!DamagePopup.Suppressed)
+                DeathBurst.Spawn(enemy.transform.position, new Color(0.7f, 0.3f, 1f), count: 18, speed: 4f, size: 0.18f);
+        }
 
         public void ShowTelegraph(IEnumerable<Vector2Int> tiles)
         {
@@ -1038,6 +1113,8 @@ namespace LoopRogue
 
         private void ClearRoom()
         {
+            GlitchRoom.End();
+            _glitchVisual = null;
             if (Puzzle != null)
             {
                 Puzzle.Dispose();
@@ -1146,6 +1223,9 @@ namespace LoopRogue
                 HitFeedback.OnHeal(_player);
             }
 
+            if (GlitchRoom.IsActive && !_current.IsBossRoom)
+                FinishGlitch();
+
             if (_current.IsBossRoom)
                 _loopManager.OnBossDefeated();
             else
@@ -1239,6 +1319,10 @@ namespace LoopRogue
                     claimedSlots.Add(enemy.GridPos);
             }
 
+            var passes = 1;
+            if (GlitchRoom.Active == GlitchRoom.Rule.DoubleTurn && ++GlitchRoom.EnemyPhase % 2 == 0)
+                passes = 2; // 오류방 - 두 턴에 한 번 더 움직인다
+            for (var pass = 0; pass < passes; pass++)
             foreach (var enemy in snapshot)
             {
                 if (_roomCleared)

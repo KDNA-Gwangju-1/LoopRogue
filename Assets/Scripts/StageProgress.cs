@@ -13,6 +13,8 @@ namespace LoopRogue
         private const string AttemptsKey = "LoopRogue_StageAttempts";
         private const string RoomsClearedKey = "LoopRogue_StageRoomsCleared";
         private const string PuzzleRoomsKey = "LoopRogue_StagePuzzleRooms";
+        private const string GlitchRoomKey = "LoopRogue_StageGlitchRoom";       // -1 = 아직 안 굴림, 0 = 이 층엔 없음, n = 방 번호
+        private const string GlitchClearedKey = "LoopRogue_StageGlitchCleared";
 
         /// <summary>반복 보상 감소 - 같은 스테이지를 다시 시도할수록 일반 몹/방 클리어 골드·경험치가 이 비율로 줄고
         /// (2번째 90%, 3번째 81%...), RepeatRewardFloor 밑으로는 안 내려간다. 어려운 스테이지에서 수십 번 죽으며
@@ -72,6 +74,41 @@ namespace LoopRogue
 
         private static readonly System.Collections.Generic.HashSet<int> _puzzleRooms = new System.Collections.Generic.HashSet<int>();
 
+        private static int _glitchRoom = -1;
+        private static bool _glitchCleared;
+        private static readonly System.Random GlitchRng = new System.Random();
+
+        /// <summary>이 층의 오류방 번호(GlitchRoom) - 처음 물을 때 chance 확률로 방 2~roomCount 중 하나를 정해 저장(0 = 이 층엔 없음).
+        /// 죽고 다시 와도, 껐다 켜도 같은 방. 다음 층으로 가면 다시 굴린다.</summary>
+        public static int GlitchRoom(int roomCount, float chance)
+        {
+            EnsureLoaded();
+            if (_glitchRoom >= 0)
+                return _glitchRoom;
+            _glitchRoom = GlitchRng.NextDouble() < chance ? GlitchRng.Next(2, Mathf.Max(3, roomCount + 1)) : 0;
+            PlayerPrefs.SetInt(GlitchRoomKey, _glitchRoom);
+            PlayerPrefs.Save();
+            return _glitchRoom;
+        }
+
+        /// <summary>이 층의 오류방을 이미 바로잡았는지 - 깬 뒤엔 같은 방도 일반 방.</summary>
+        public static bool GlitchCleared
+        {
+            get
+            {
+                EnsureLoaded();
+                return _glitchCleared;
+            }
+        }
+
+        public static void MarkGlitchCleared()
+        {
+            EnsureLoaded();
+            _glitchCleared = true;
+            PlayerPrefs.SetInt(GlitchClearedKey, 1);
+            PlayerPrefs.Save();
+        }
+
         private static bool _loaded;
 
         /// <summary>저장 초기화(SaveReset) 직후 메모리에 들고 있던 값을 버리고 PlayerPrefs에서 다시 읽는다.</summary>
@@ -99,6 +136,8 @@ namespace LoopRogue
             _stage = PlayerPrefs.GetInt(StageKey, 1);
             _attempts = PlayerPrefs.GetInt(AttemptsKey, 0);
             _roomsCleared = PlayerPrefs.GetInt(RoomsClearedKey, 0);
+            _glitchRoom = PlayerPrefs.GetInt(GlitchRoomKey, -1);
+            _glitchCleared = PlayerPrefs.GetInt(GlitchClearedKey, 0) == 1;
             _puzzleRooms.Clear();
             foreach (var part in PlayerPrefs.GetString(PuzzleRoomsKey, string.Empty).Split(','))
                 if (int.TryParse(part, out var room))
@@ -119,6 +158,10 @@ namespace LoopRogue
             PlayerPrefs.SetInt(AttemptsKey, _attempts);
             PlayerPrefs.SetInt(RoomsClearedKey, _roomsCleared);
             PlayerPrefs.DeleteKey(PuzzleRoomsKey);
+            _glitchRoom = -1;
+            _glitchCleared = false;
+            PlayerPrefs.DeleteKey(GlitchRoomKey);
+            PlayerPrefs.DeleteKey(GlitchClearedKey);
             PlayerPrefs.Save();
         }
 

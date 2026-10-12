@@ -22,5 +22,24 @@ namespace LoopRogue.EditorTools
             Menu.SetChecked(MenuPath, EditorPrefs.GetBool(PuzzleBase.TestModePrefKey, false));
             return true;
         }
+
+        private const string GlitchMenuPath = "LoopRogue/오류방 테스트 모드 (일반 방마다 오류방)";
+
+        /// <summary>오류방 테스트 모드 - 켜면 일반 전투 방(보물상자 방·보스방 제외)마다 오류방, 규칙(방향 반대·되살아남·두 번 행동)은 차례로.
+        /// 퍼즐 테스트 모드가 켜져 있으면 퍼즐이 먼저 나온다.</summary>
+        [MenuItem(GlitchMenuPath)]
+        private static void ToggleGlitch()
+        {
+            var on = !EditorPrefs.GetBool(GlitchRoom.TestModePrefKey, false);
+            EditorPrefs.SetBool(GlitchRoom.TestModePrefKey, on);
+            Menu.SetChecked(GlitchMenuPath, on);
+        }
+
+        [MenuItem(GlitchMenuPath, true)]
+        private static bool ToggleGlitchValidate()
+        {
+            Menu.SetChecked(GlitchMenuPath, EditorPrefs.GetBool(GlitchRoom.TestModePrefKey, false));
+            return true;
+        }
     }
 }
