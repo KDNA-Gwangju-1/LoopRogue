@@ -761,7 +761,6 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 보물 상자를 눈으로 쫓아 부딪혀 열어라. 라운드를 전부 맞혀야 성공! 마지막 라운드엔 상자가 어두워진다.	Follow the treasure chest and bump it to open. Win every round! In the last round the chests go dark.
 라운드 {0} / {1}	Round {0} / {1}
 정답! 라운드 {0} / {1}	Correct! Round {0} / {1}
-구멍 쪽으로 부딪혀 슬라임을 때려라. 초록 +1, 금색 +3(금방 숨음), 빨간 폭탄 슬라임은 때리면 -2!	Bump toward a hole to whack slimes. Green +1, gold +3 (hides fast), red bomb slime -2 if hit!
 점수 {0} / {1}   남은 턴 {2}	Score {0} / {1}   Turns left {2}
 폭탄 슬라임! 점수 -2	Bomb slime! Score -2
 황금 슬라임을 구석으로 몰아 부딪혀라({0}턴마다 숨을 고른다). 지나간 자리의 점액을 밟으면 발이 묶인다!	Corner the golden slime and bump into it (it rests every {0} turns). Stepping in its slime trail roots you!
@@ -797,7 +796,6 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 주변 {0}칸 몹이 플레이어가 공격하기 전까지 플레이어를 못 찾는다(행동 못 함)	Mobs within {0} tiles can't find you until you attack (they can't act)
 연막! 공격하기 전까지 주변 몹이 플레이어를 못 찾는다	Smoke! Nearby mobs can't find you until you attack
 출구가 열렸다! (계단)	The exit opened! (stairs)
-구멍 쪽으로 부딪혀 두더지를 때려라. 갈색 +1, 금색 왕관 +3(금방 숨음), 폭탄 든 두더지는 때리면 -2!	Bump toward a hole to whack moles. Brown +1, gold crowned +3 (hides fast), bomb-carrying mole -2 if hit!
 폭탄 두더지! 점수 -2	Bomb mole! Score -2
 점수 {0} / {1}   남은 시간 {2}:{3:00}	Score {0} / {1}   Time left {2}:{3:00}
 황금 고블린 추격	Golden Goblin Chase
@@ -809,3 +807,5 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 숨은 함정 {0}개   열쇠 {1}	Hidden traps {0}   Key {1}
 확인 [Space]	OK [Space]
 설명 [H]	Rules [H]
+1분 20초 안에 {0}점을 모아라!\n구멍 옆에 서서 구멍 쪽으로 방향키를 누르면 두더지를 때린다. 두더지는 저절로 튀어나왔다 숨는다.\n갈색 두더지 +1   금색 왕관 두더지 +3(금방 숨음)   폭탄을 인 두더지는 때리면 -2!	Collect {0} points in 1 min 20 sec!\nStand next to a hole and press toward it to whack the mole. Moles pop up and hide on their own.\nBrown mole +1   Gold crowned mole +3 (hides fast)   Mole carrying a bomb: -2 if hit!
+1분 20초 안에 {0}점을 모아라!\n구멍 옆에 서서 구멍 쪽으로 방향키를 누르면 슬라임을 때린다. 슬라임은 저절로 튀어나왔다 숨는다.\n초록 +1   금색 +3(금방 숨음)   빨간 폭탄 슬라임은 때리면 -2!	Collect {0} points in 1 min 20 sec!\nStand next to a hole and press toward it to whack the slime. Slimes pop up and hide on their own.\nGreen +1   Gold +3 (hides fast)   Red bomb slime: -2 if hit!

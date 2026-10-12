@@ -145,9 +145,10 @@ namespace LoopRogue
         private enum Mole { Normal, Gold, Bomb }
 
         public override string Title => Loc.T("두더지 잡기");
-        public override string Rule => _moleArt
-            ? Loc.T("구멍 쪽으로 부딪혀 두더지를 때려라. 갈색 +1, 금색 왕관 +3(금방 숨음), 폭탄 든 두더지는 때리면 -2!")
-            : Loc.T("구멍 쪽으로 부딪혀 슬라임을 때려라. 초록 +1, 금색 +3(금방 숨음), 빨간 폭탄 슬라임은 때리면 -2!");
+        // 그림 유무는 OnBegin에서 정해지는데 설명 창은 그 전에 뜨므로 파일이 있는지로 바로 판단한다
+        public override string Rule => Resources.Load<Sprite>("Sprites/Props/Mole_Normal") != null
+            ? Loc.F("1분 20초 안에 {0}점을 모아라!\n구멍 옆에 서서 구멍 쪽으로 방향키를 누르면 두더지를 때린다. 두더지는 저절로 튀어나왔다 숨는다.\n갈색 두더지 +1   금색 왕관 두더지 +3(금방 숨음)   폭탄을 인 두더지는 때리면 -2!", _target)
+            : Loc.F("1분 20초 안에 {0}점을 모아라!\n구멍 옆에 서서 구멍 쪽으로 방향키를 누르면 슬라임을 때린다. 슬라임은 저절로 튀어나왔다 숨는다.\n초록 +1   금색 +3(금방 숨음)   빨간 폭탄 슬라임은 때리면 -2!", _target);
         public override string Status
         {
             get
