@@ -97,7 +97,7 @@ namespace LoopRogue
             var puzzleAllowed = !def.IsBossRoom && !def.IsTestRoom && !def.HasEvent && !TestMap.Active;
             if (puzzleAllowed && !GameHUD.AutoPlayActive && PuzzleBase.TestModeNext(out var testType))
                 _roomController.LoadPuzzle(def, testType);
-            else if (puzzleAllowed && Rng.NextDouble() < PuzzleBase.Chance)
+            else if (puzzleAllowed && RollPuzzleOnce(def.RoomNumber))
             {
                 if (GameHUD.AutoPlayActive)
                 {
@@ -111,6 +111,15 @@ namespace LoopRogue
             else
                 _roomController.LoadRoom(def); // IsInputLocked를 다시 false로 풀어준다.
             RefreshHudProgress();
+        }
+
+        /// <summary>이 층에서 이 방을 처음 들어갈 때만 퍼즐 확률을 굴린다 - 두 번째부터는 걸렸든 아니든 항상 전투(StageProgress.PuzzleRolled).</summary>
+        private static bool RollPuzzleOnce(int roomNumber)
+        {
+            if (StageProgress.PuzzleRolled(roomNumber))
+                return false;
+            StageProgress.MarkPuzzleRolled(roomNumber);
+            return Rng.NextDouble() < PuzzleBase.Chance;
         }
 
         /// <summary>퍼즐 실패 창 "다시 도전" - 같은 종류를 배치만 새로 뽑아 다시.</summary>

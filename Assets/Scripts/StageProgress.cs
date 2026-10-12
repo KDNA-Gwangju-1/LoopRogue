@@ -12,6 +12,7 @@ namespace LoopRogue
         private const string StageKey = "LoopRogue_CurrentStage";
         private const string AttemptsKey = "LoopRogue_StageAttempts";
         private const string RoomsClearedKey = "LoopRogue_StageRoomsCleared";
+        private const string PuzzleRoomsKey = "LoopRogue_StagePuzzleRooms";
 
         /// <summary>반복 보상 감소 - 같은 스테이지를 다시 시도할수록 일반 몹/방 클리어 골드·경험치가 이 비율로 줄고
         /// (2번째 90%, 3번째 81%...), RepeatRewardFloor 밑으로는 안 내려간다. 어려운 스테이지에서 수십 번 죽으며
@@ -49,6 +50,28 @@ namespace LoopRogue
             PlayerPrefs.Save();
         }
 
+        /// <summary>이 층에서 이미 퍼즐 확률을 굴린 방(방 번호) - 방마다 처음 들어갈 때 한 번만 굴리고, 죽고 다시 와도 그 방은 전투(사용자 결정).
+        /// 죽을수록 방을 더 돌고 퍼즐 보상(카드·영약·골드)을 더 받아 몬스터를 올려도 다시 강해지던 고리를 끊는다
+        /// (봇 100판 2026-10-12: 퍼즐 판당 47 -> 83개, 10층 클리어 공격력 579 -> 1547). 처음엔 "퍼즐이 나온 방"만 적었더니
+        /// 안 걸린 방은 올 때마다 다시 굴려서 많이 죽으면 결국 거의 모든 방에 한 번씩 나왔다(판당 59개) - 굴린 것 자체를 적는다.
+        /// 다음 층으로 가면 비운다.</summary>
+        public static bool PuzzleRolled(int roomNumber)
+        {
+            EnsureLoaded();
+            return _puzzleRooms.Contains(roomNumber);
+        }
+
+        public static void MarkPuzzleRolled(int roomNumber)
+        {
+            EnsureLoaded();
+            if (!_puzzleRooms.Add(roomNumber))
+                return;
+            PlayerPrefs.SetString(PuzzleRoomsKey, string.Join(",", _puzzleRooms));
+            PlayerPrefs.Save();
+        }
+
+        private static readonly System.Collections.Generic.HashSet<int> _puzzleRooms = new System.Collections.Generic.HashSet<int>();
+
         private static bool _loaded;
 
         /// <summary>저장 초기화(SaveReset) 직후 메모리에 들고 있던 값을 버리고 PlayerPrefs에서 다시 읽는다.</summary>
@@ -76,6 +99,10 @@ namespace LoopRogue
             _stage = PlayerPrefs.GetInt(StageKey, 1);
             _attempts = PlayerPrefs.GetInt(AttemptsKey, 0);
             _roomsCleared = PlayerPrefs.GetInt(RoomsClearedKey, 0);
+            _puzzleRooms.Clear();
+            foreach (var part in PlayerPrefs.GetString(PuzzleRoomsKey, string.Empty).Split(','))
+                if (int.TryParse(part, out var room))
+                    _puzzleRooms.Add(room);
             _loaded = true;
         }
 
@@ -87,9 +114,11 @@ namespace LoopRogue
             _stage = Mathf.Min(_stage + 1, MaxStage);
             _attempts = 0;
             _roomsCleared = 0;
+            _puzzleRooms.Clear();
             PlayerPrefs.SetInt(StageKey, _stage);
             PlayerPrefs.SetInt(AttemptsKey, _attempts);
             PlayerPrefs.SetInt(RoomsClearedKey, _roomsCleared);
+            PlayerPrefs.DeleteKey(PuzzleRoomsKey);
             PlayerPrefs.Save();
         }
 
