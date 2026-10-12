@@ -487,6 +487,11 @@ namespace LoopRogue
                     puzzle.GiveUp();
                     return;
                 }
+                if (GameInput.Down(Key.H))
+                {
+                    puzzle.ShowRulesAgain(); // 설명 창 다시 보기
+                    return;
+                }
                 if (puzzle.HandleKeys())
                     return; // 상자 밀기 [Z] 되돌리기 등
                 if (!puzzle.AllowsTools && (GameInput.Down(Key.Q) || GameInput.Down(Key.E) ||

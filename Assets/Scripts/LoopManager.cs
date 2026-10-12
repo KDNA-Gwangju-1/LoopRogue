@@ -114,7 +114,11 @@ namespace LoopRogue
         }
 
         /// <summary>퍼즐 실패 창 "다시 도전" - 같은 종류를 배치만 새로 뽑아 다시.</summary>
-        public void RetryPuzzle(PuzzleType type) => _roomController.LoadPuzzle(_rooms[_roomIndex], type);
+        public void RetryPuzzle(PuzzleType type)
+        {
+            PuzzleHud.SkipRulesNext = true; // 방금 읽은 설명 창은 건너뛴다
+            _roomController.LoadPuzzle(_rooms[_roomIndex], type);
+        }
 
         public bool CanReturnToPreviousRoom => _roomIndex > 0;
 

@@ -807,3 +807,5 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 황금 고블린을 구석으로 몰아 부딪혀라(가끔 허둥댄다). 지나간 자리에 뿌린 끈끈이를 밟으면 발이 묶인다!	Corner the golden goblin and bump into it (it sometimes panics). Step on the glue it scatters and you'll be stuck!
 숫자 = 주변 8칸의 함정 수. 먼저 열쇠를 주운 뒤 보물 상자까지 가라.	Numbers = traps in the 8 surrounding tiles. Grab the key first, then reach the treasure chest.
 숨은 함정 {0}개   열쇠 {1}	Hidden traps {0}   Key {1}
+확인 [Space]	OK [Space]
+설명 [H]	Rules [H]

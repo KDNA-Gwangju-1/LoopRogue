@@ -792,7 +792,8 @@ namespace LoopRogue
             if (cam == null || canvasHeight < 200f)
                 return;
             var bottom = ActionBarLayout.BottomAreaHeight / canvasHeight;
-            var height = 1f - (ActionBarLayout.BottomAreaHeight + ActionBarLayout.TopBarHeight) / canvasHeight;
+            // 퍼즐 안내 패널이 떠 있으면 그 아래부터 그린다(판이 패널에 가려지지 않게)
+            var height = 1f - (ActionBarLayout.BottomAreaHeight + ActionBarLayout.TopBarHeight + PuzzleHud.ExtraTopInset) / canvasHeight;
             if (Mathf.Approximately(bottom, _appliedViewportBottom) && Mathf.Approximately(height, _appliedViewportHeight))
                 return;
             _appliedViewportBottom = bottom;

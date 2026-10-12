@@ -105,7 +105,20 @@ namespace LoopRogue
             _hpAtStart = Player.Stats.CurrentHealth;
             _hud = PuzzleHud.Create(this);
             OnBegin();
-            RefreshHud();
+            _hud?.ShowBar();
+        }
+
+        /// <summary>[H] - 플레이 중에 설명 창을 다시 연다(닫을 때까지 입력·시간 멈춤).</summary>
+        public void ShowRulesAgain()
+        {
+            if (!IsRunning || _hud == null || _hud.RulesOpen)
+                return;
+            Room.IsInputLocked = true;
+            _hud.ShowRules(() =>
+            {
+                if (IsRunning)
+                    Room.IsInputLocked = false;
+            });
         }
 
         protected abstract void OnBegin();
@@ -119,6 +132,25 @@ namespace LoopRogue
         public virtual UnityEngine.InputSystem.Key ExtraKey => UnityEngine.InputSystem.Key.None;
 
         public void PlayerMoved(Vector2Int pos)
+        {
+            if (PuzzleHud.SkipRulesNext)
+            {
+                PuzzleHud.SkipRulesNext = false; // 다시 도전 - 방금 읽은 설명은 건너뛴다
+                StartPlay();
+                return;
+            }
+            // 가운데 큰 설명 창을 먼저 - 닫으면 판을 깔고 시작(시작 연출·실시간 타이머도 그때부터)
+            Room.IsInputLocked = true;
+            _hud.ShowRules(() =>
+            {
+                if (!IsRunning)
+                    return;
+                Room.IsInputLocked = false;
+                StartPlay();
+            });
+        }
+
+        private void StartPlay()
         {
             if (IsRunning)
                 OnPlayerMoved(pos);
