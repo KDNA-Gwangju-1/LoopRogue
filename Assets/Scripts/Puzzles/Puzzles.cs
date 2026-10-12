@@ -179,17 +179,77 @@ namespace LoopRogue
             var path = SlidePath(Player.GridPos, direction, _rocks, _mud);
             if (path.Count == 0)
                 return true; // 그쪽으론 못 미끄러진다 - 턴 소모 없음
-            var dest = path[path.Count - 1];
-            Map.MoveActor(Player, dest);
+            var from = Player.transform.position;
+            Map.MoveActor(Player, path[path.Count - 1]);
             _moves++;
-            foreach (var c in path)
+            if (DamagePopup.Suppressed)
             {
-                if (!_gemObjects.TryGetValue(c, out var gem))
-                    continue;
-                Untrack(gem);
-                _gemObjects.Remove(c);
-                SfxPlayer.Play(Sfx.Appear);
+                foreach (var c in path)
+                    PickGem(c);
+                FinishSlide();
+                return true;
             }
+            // 칸은 바로 옮기고, 그림만 지나가는 칸을 따라 미끄러지게 - 그동안 입력을 잠근다
+            Room.IsInputLocked = true;
+            Room.StartCoroutine(SlideRoutine(from, path));
+            return true;
+        }
+
+        private const float SlideSecondsPerCell = 0.055f;
+
+        /// <summary>순간이동 대신 얼음 위를 미끄러져 간다 - 끝에서 살짝 느려지고, 지나가는 칸의 보석은 닿는 순간 줍는다.
+        /// 벽·바위에 닿아 멈추면 몸이 찌그러지고, 진흙에서 멈추면 그냥 선다.</summary>
+        private IEnumerator SlideRoutine(Vector3 from, List<Vector2Int> path)
+        {
+            var player = Player;
+            var to = World(path[path.Count - 1]);
+            var duration = SlideSecondsPerCell * path.Count + 0.05f;
+            var picked = 0;
+            var lastDust = 0;
+            for (var time = 0f; ; time += Time.deltaTime)
+            {
+                if (!IsRunning || player == null)
+                    break;
+                var t = Mathf.Clamp01(time / duration);
+                var eased = 1f - (1f - t) * (1f - t) * 0.6f - (1f - t) * 0.4f; // 거의 일정하다가 끝에서 살짝 감속
+                player.transform.position = Vector3.LerpUnclamped(from, to, eased);
+                var travelled = Mathf.FloorToInt(eased * path.Count + 0.35f);
+                while (picked < Mathf.Min(travelled, path.Count))
+                    PickGem(path[picked++]);
+                if (HitFeedback.Enabled && travelled > lastDust && travelled < path.Count)
+                {
+                    lastDust = travelled;
+                    DeathBurst.Spawn(player.transform.position, new Color(0.8f, 0.95f, 1f, 0.8f), count: 3, speed: 1.5f, size: 0.08f); // 얼음 가루
+                }
+                if (t >= 1f)
+                    break;
+                yield return null;
+            }
+            if (!IsRunning || player == null)
+                yield break;
+            player.SyncTransform();
+            while (picked < path.Count)
+                PickGem(path[picked++]);
+            var dest = path[path.Count - 1];
+            if (HitFeedback.Enabled && !_mud.Contains(dest))
+                ActorJuice.Get(player).Squish(0.2f); // 벽·바위에 쿵
+            Room.IsInputLocked = false;
+            FinishSlide();
+        }
+
+        private void PickGem(Vector2Int c)
+        {
+            if (!_gemObjects.TryGetValue(c, out var gem))
+                return;
+            Untrack(gem);
+            _gemObjects.Remove(c);
+            SfxPlayer.Play(Sfx.Appear);
+            RefreshHud();
+        }
+
+        private void FinishSlide()
+        {
+            var dest = Player.GridPos;
             if (dest == _goal && _gemObjects.Count == 0)
                 Succeed();
             else if (_moves >= _limit)
@@ -197,7 +257,6 @@ namespace LoopRogue
             else if (dest == _goal)
                 Room.ShowMessage(Loc.T("보석을 전부 모아야 깃발이 인정된다"));
             Player.ConsumeTurn();
-            return true;
         }
     }
 
