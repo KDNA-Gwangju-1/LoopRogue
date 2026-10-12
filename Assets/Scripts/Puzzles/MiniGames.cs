@@ -600,13 +600,13 @@ namespace LoopRogue
     }
 
     /// <summary>보물 찾기(지뢰찾기 변형) - 보물 상자는 잠겨 있다. 먼저 필드 어딘가의 열쇠를 주운 뒤 오른쪽 위 보물 상자까지 걸어가면 성공.
-    /// 숨은 함정을 밟거나 걸음 수를 다 쓰면 실패. 밟은 칸엔 주변 8칸의 함정 수가 뜨고, 0이면 이웃 칸이 저절로 열린다.
+    /// 숨은 함정을 밟으면 실패(걸음 수 제한은 없앰 - 사용자 요청). 밟은 칸엔 주변 8칸의 함정 수가 뜨고, 0이면 이웃 칸이 저절로 열린다.
     /// 시작 칸 주변은 안전하고, 함정을 피해 열쇠와 보물까지 가는 길이 반드시 있다.</summary>
     public class TreasureSweepMiniGame : PuzzleBase
     {
         public override string Title => Loc.T("보물 찾기");
-        public override string Rule => Loc.T("숫자 = 주변 8칸의 함정 수. 먼저 열쇠를 주운 뒤 보물 상자까지 가라. 걸음 수 제한이 있다.");
-        public override string Status => Loc.F("숨은 함정 {0}개   열쇠 {1}   걸음 {2} / {3}", _traps.Count, _hasKey ? Loc.T("있음") : Loc.T("없음"), _steps, _stepLimit);
+        public override string Rule => Loc.T("숫자 = 주변 8칸의 함정 수. 먼저 열쇠를 주운 뒤 보물 상자까지 가라.");
+        public override string Status => Loc.F("숨은 함정 {0}개   열쇠 {1}", _traps.Count, _hasKey ? Loc.T("있음") : Loc.T("없음"));
 
         private static readonly Color[] NumberColors =
         {
@@ -614,7 +614,7 @@ namespace LoopRogue
             new Color(0.8f, 0.5f, 1f), new Color(1f, 0.8f, 0.3f), new Color(0.4f, 1f, 1f), Color.white, Color.white,
         };
 
-        private int _size, _steps, _stepLimit;
+        private int _size;
         private Vector2Int _treasure, _key;
         private bool _hasKey;
         private GameObject _keyObject;
@@ -628,7 +628,6 @@ namespace LoopRogue
             var start = Vector2Int.zero;
             _treasure = new Vector2Int(_size - 1, _size - 1);
             var count = Mathf.RoundToInt(_size * _size * (Stage >= 6 ? 0.16f : 0.14f));
-            var shortest = _size * 4;
             for (var attempt = 0; attempt < 200; attempt++)
             {
                 // 열쇠는 왼쪽 위나 오른쪽 아래 구석 근처 - 시작→열쇠→보물로 돌아가야 한다
@@ -648,12 +647,10 @@ namespace LoopRogue
                     continue;
                 _traps = traps;
                 _key = key;
-                shortest = fromStart[key] + fromKey[_treasure];
                 break;
             }
             if (_traps.Count == 0)
                 _key = new Vector2Int(0, _size - 1); // 안전망 - 함정 없는 판
-            _stepLimit = shortest * 2 + 12;
             return new RoomLayout { Width = _size, Height = _size, PlayerStart = start };
         }
 
@@ -670,9 +667,16 @@ namespace LoopRogue
                 SpriteAt(World(_treasure), chest, 0.85f, -6, "Treasure").color = new Color(0.6f, 0.6f, 0.65f); // 잠김 - 어둡게
             else
                 Square(_treasure, new Color(0.6f, 0.5f, 0.2f), 0.7f, -6, "Treasure");
-            var keyRenderer = Square(_key, new Color(1f, 0.85f, 0.25f), 0.38f, -6, "Key");
-            keyRenderer.transform.rotation = Quaternion.Euler(0f, 0f, 45f); // 노란 마름모 = 열쇠
-            _keyObject = keyRenderer.gameObject;
+            // 금 열쇠 도트(Sprites/Props/Key) - 없으면 예전 노란 마름모
+            var keyArt = Resources.Load<Sprite>("Sprites/Props/Key");
+            if (keyArt != null)
+                _keyObject = SpriteAt(World(_key), keyArt, 0.7f, -6, "Key").gameObject;
+            else
+            {
+                var keyRenderer = Square(_key, new Color(1f, 0.85f, 0.25f), 0.38f, -6, "Key");
+                keyRenderer.transform.rotation = Quaternion.Euler(0f, 0f, 45f);
+                _keyObject = keyRenderer.gameObject;
+            }
             Reveal(Player.GridPos);
         }
 
@@ -710,7 +714,6 @@ namespace LoopRogue
 
         protected override void OnPlayerMoved(Vector2Int pos)
         {
-            _steps++;
             if (_traps.Contains(pos))
             {
                 foreach (var t in _traps)
@@ -737,8 +740,6 @@ namespace LoopRogue
                 Room.ShowMessage(Loc.T("잠겨 있다 - 열쇠가 필요하다"));
             }
             Reveal(pos);
-            if (_steps >= _stepLimit)
-                Fail(Loc.T("걸음 수를 다 썼다"));
         }
     }
 

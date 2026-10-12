@@ -768,13 +768,10 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 남은 슬라임 {0}   남은 턴 {1}	Slimes left {0}   Turns left {1}
 한 마리 잡았다! 남은 슬라임을 쫓아라	Caught one! Chase the other
 점액에 발이 묶였다! (Space로 한 턴 쉬기)	Stuck in slime! (Space to rest a turn)
-숫자 = 주변 8칸의 함정 수. 먼저 열쇠를 주운 뒤 보물 상자까지 가라. 걸음 수 제한이 있다.	Numbers = traps in the 8 surrounding tiles. Grab the key first, then reach the chest. Steps are limited.
-숨은 함정 {0}개   열쇠 {1}   걸음 {2} / {3}	{0} hidden traps   Key {1}   Steps {2} / {3}
 있음	yes
 없음	no
 열쇠를 주웠다! 이제 보물 상자로	Got the key! Now to the chest
 잠겨 있다 - 열쇠가 필요하다	Locked - you need the key
-걸음 수를 다 썼다	Out of steps
 2분을 버텨라. 가만히 있어도 몹은 움직인다. 빨간 칸엔 돌이 떨어지고, 1분이 지나면 더 거세진다!	Survive 2 minutes. Monsters move even if you stand still. Rocks fall on red tiles, and it gets fiercer after 1 minute!
 정예 몹이 나타났다!	An elite monster appeared!
 벽·바위까지 미끄러진다(진흙에선 멈춤). 보석을 전부 모은 뒤 깃발 칸에 딱 멈춰라!	You slide until a wall or rock (mud stops you). Collect every gem, then stop exactly on the flag!
@@ -808,3 +805,5 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 한 마리 잡았다! 남은 고블린을 쫓아라	Caught one! Chase the other goblin
 끈끈이에 발이 묶였다! (Space로 한 턴 쉬기)	Stuck in glue! (Space to rest a turn)
 황금 고블린을 구석으로 몰아 부딪혀라(가끔 허둥댄다). 지나간 자리에 뿌린 끈끈이를 밟으면 발이 묶인다!	Corner the golden goblin and bump into it (it sometimes panics). Step on the glue it scatters and you'll be stuck!
+숫자 = 주변 8칸의 함정 수. 먼저 열쇠를 주운 뒤 보물 상자까지 가라.	Numbers = traps in the 8 surrounding tiles. Grab the key first, then reach the treasure chest.
+숨은 함정 {0}개   열쇠 {1}	Hidden traps {0}   Key {1}
