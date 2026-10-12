@@ -696,6 +696,46 @@ namespace LoopRogue
             Reveal(Player.GridPos);
         }
 
+        private static readonly Color TrapRevealColor = new Color(0.6f, 0.12f, 0.12f);
+
+        /// <summary>함정을 밟았다 - 그 자리에서 크게 폭발(화면 주황 번쩍·흔들림), 나머지 함정이 가까운 순서로 연쇄 폭발하며 위치가 드러나고,
+        /// 다 터진 뒤에 실패 창(사용자 요청 - 예전엔 작은 폭발과 동시에 실패 창이 바로 떴다). 그동안 입력은 잠근다.</summary>
+        private IEnumerator TrapExplosion(Vector2Int pos)
+        {
+            Room.IsInputLocked = true;
+            _covers[pos].color = TrapRevealColor;
+            var world = World(pos);
+            Fx.Play("explosion", world, 2.4f, fps: 14f);
+            SfxPlayer.Play(Sfx.Explosion);
+            HitFeedback.OnPlayerHurt(Player, null);
+            if (HitFeedback.Enabled)
+            {
+                ScreenFlash.Play(new Color(1f, 0.5f, 0.2f), 0.45f, 0.35f);
+                CameraShake.Shake(0.25f, 0.35f);
+                DeathBurst.Spawn(world, new Color(1f, 0.55f, 0.15f), count: 34, speed: 8f, size: 0.26f);
+                DeathBurst.Spawn(world, new Color(0.35f, 0.32f, 0.3f), count: 14, speed: 4f, size: 0.35f); // 흙먼지
+            }
+            yield return new WaitForSecondsRealtime(0.4f);
+
+            var others = _traps.Where(t => t != pos).OrderBy(t => Mathf.Abs(t.x - pos.x) + Mathf.Abs(t.y - pos.y)).ToList();
+            for (var i = 0; i < others.Count; i++)
+            {
+                if (!IsRunning)
+                    yield break;
+                var t = others[i];
+                _covers[t].color = TrapRevealColor;
+                Fx.Play("explosion", World(t), 1.1f, fps: 18f);
+                if (i % 2 == 0)
+                    SfxPlayer.Play(Sfx.Explosion);
+                if (HitFeedback.Enabled)
+                    CameraShake.Shake(0.06f, 0.08f);
+                yield return new WaitForSecondsRealtime(0.07f);
+            }
+            yield return new WaitForSecondsRealtime(0.55f);
+            if (IsRunning)
+                Fail(Loc.T("함정을 밟았다"));
+        }
+
         private int Count(Vector2Int p)
         {
             var n = 0;
@@ -739,11 +779,7 @@ namespace LoopRogue
         {
             if (_traps.Contains(pos))
             {
-                foreach (var t in _traps)
-                    _covers[t].color = new Color(0.6f, 0.12f, 0.12f);
-                Fx.Play("explosion", World(pos), 1.2f, fps: 16f);
-                HitFeedback.OnPlayerHurt(Player, null);
-                Fail(Loc.T("함정을 밟았다"));
+                Room.StartCoroutine(TrapExplosion(pos)); // 크게 터지고 → 나머지 함정이 연쇄로 터지며 드러난 뒤 → 실패 창
                 return;
             }
             if (pos == _key && !_hasKey)
