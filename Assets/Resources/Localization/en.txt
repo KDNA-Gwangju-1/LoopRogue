@@ -809,3 +809,6 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 1분 20초 안에 {0}점을 모아라!\n구멍 옆에 서서 구멍 쪽으로 방향키를 누르면 슬라임을 때린다. 슬라임은 저절로 튀어나왔다 숨는다.\n초록 +1   금색 +3(금방 숨음)   빨간 폭탄 슬라임은 때리면 -2!	Collect {0} points in 1 min 20 sec!\nStand next to a hole and press toward it to whack the slime. Slimes pop up and hide on their own.\nGreen +1   Gold +3 (hides fast)   Red bomb slime: -2 if hit!
 황금 고블린을 구석으로 몰아 부딪혀라! 쉬지 않고 도망치지만 가끔 허둥댄다.\n고블린이 지나간 자리에 흘린 금화를 밟으면 줍느라 한 턴 멈춘다.	Corner the golden goblin and bump into it! It never stops running, but sometimes panics.\nStep on the gold coins it drops and you'll stop for a turn to pick them up.
 금화를 줍느라 발이 멈췄다! (Space로 한 턴 쉬기)	Stopped to pick up gold coins! (Space to rest a turn)
+성공! {0}, 레벨업 카드 1장	Success! {0}, 1 level-up card
+{0} 영약 +{1}	{0} Elixir +{1}
+(영구)	(permanent)

@@ -230,7 +230,12 @@ namespace LoopRogue
             PuzzleClearCount++;
             if (!_current.IsTestRoom)
                 StageProgress.MarkRoomCleared(_current.RoomNumber);
-            ShowMessage(Loc.T("성공! 레벨업 카드 1장"));
+            var rewards = GrantPuzzleRewards(puzzle.Type);
+            if (rewards.Count > 0)
+                HitFeedback.OnGold(_player.transform.position);
+            ShowMessage(rewards.Count > 0
+                ? Loc.F("성공! {0}, 레벨업 카드 1장", string.Join(", ", rewards))
+                : Loc.T("성공! 레벨업 카드 1장"));
             HitFeedback.OnBonusReward(_player);
             _player.Levels.GrantBonusUpgrade();
             SpawnExit();
@@ -243,7 +248,58 @@ namespace LoopRogue
             PuzzleClearCount++;
             if (!def.IsTestRoom)
                 StageProgress.MarkRoomCleared(def.RoomNumber);
+            // 사람과 같은 보상 - 종류를 굴려서 골드·영약 주는 퍼즐이면 그것도(봇 밸런스 측정이 실제와 맞게)
+            GrantPuzzleRewards((PuzzleType)Rng.Next(PuzzleBase.TypeCount));
             _player.Levels.GrantBonusUpgrade();
+        }
+
+        /// <summary>퍼즐 종류별 성공 보상(골드·영약, PuzzleBase.BonusGold 등)을 주고, 메시지에 넣을 항목들을 돌려준다(없으면 빈 목록).</summary>
+        private List<string> GrantPuzzleRewards(PuzzleType type)
+        {
+            var parts = new List<string>();
+            var gold = PuzzleBase.BonusGold(type, _stage);
+            if (gold > 0)
+            {
+                GoldWallet.Add(gold);
+                parts.Add(Loc.F("골드 +{0}", gold));
+            }
+            var potions = new List<PotionType>();
+            if (PuzzleBase.GivesPotions(type))
+            {
+                potions.Add(PotionType.Attack);
+                potions.Add(PotionType.Health);
+            }
+            if (PuzzleBase.GivesCriticalPotion(type))
+                potions.Add(CriticalOrAttack());
+            // 같은 영약이 두 번이면(치명타가 아직 안 열려 공격력으로 바뀐 경우) "+2"로 묶는다
+            foreach (var group in potions.GroupBy(p => p))
+            {
+                foreach (var potion in group)
+                    GrantPotionNow(potion);
+                parts.Add(Loc.F("{0} 영약 +{1}", StatPotionWallet.Name(group.Key), group.Count()));
+            }
+            if (potions.Count > 0)
+                parts[parts.Count - 1] += " " + Loc.T("(영구)"); // 마지막 영약 뒤에 한 번만
+            return parts;
+        }
+
+        /// <summary>치명타 영약이 열렸으면(3스테이지부터) 치명타, 아니면 공격력.</summary>
+        private static PotionType CriticalOrAttack() =>
+            StatPotionWallet.IsUnlocked(PotionType.Critical) ? PotionType.Critical : PotionType.Attack;
+
+        /// <summary>영약 1개 - 영구로 저장하고 지금 런의 스탯에도 바로 더한다(영약의 샘과 같은 방식: 영구 몫이 늘어난 만큼만).</summary>
+        private void GrantPotionNow(PotionType type)
+        {
+            var attackBefore = RunProgress.CurrentPermanentAttack();
+            var healthBefore = RunProgress.CurrentPermanentHealth();
+            var criticalBefore = RunProgress.CurrentPermanentCritical();
+            StatPotionWallet.AddPotion(type);
+            var stats = _player.Stats;
+            stats.FixedAttack += RunProgress.CurrentPermanentAttack() - attackBefore;
+            var healthGain = RunProgress.CurrentPermanentHealth() - healthBefore;
+            stats.FixedMaxHealth += healthGain;
+            stats.Heal(healthGain);
+            stats.CriticalChanceRate += RunProgress.CurrentPermanentCritical() - criticalBefore;
         }
 
         /// <summary>퍼즐 실패 - 입력을 잠그고 "다시 도전 / 이전 방으로" 창(방 1이면 이전 방이 없어서 평소 전투 방으로).</summary>

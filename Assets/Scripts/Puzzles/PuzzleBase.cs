@@ -45,6 +45,22 @@ namespace LoopRogue
 
         public static bool IsMiniGame(PuzzleType type) => type >= PuzzleType.ShellGame;
 
+        // ---- 성공 보상(전부 레벨업 카드 1장과 별도, 사용자 결정) - 황금 고블린 추격은 아래 보상을 전부 받는다 ----
+
+        /// <summary>골드 스테이지 × 200(골드 보너스 미적용) - 상자 섞기·보물 찾기·상자 밀기·황금 고블린.</summary>
+        public static int BonusGold(PuzzleType type, int stage) =>
+            type == PuzzleType.ShellGame || type == PuzzleType.TreasureSweep || type == PuzzleType.BoxPush || type == PuzzleType.GoldenChase
+                ? stage * 200 : 0;
+
+        /// <summary>공격력 영약 1개 + 체력 영약 1개(영구 + 지금 런에도 바로 반영) - 전투 퍼즐·버티기·함정 복도·황금 고블린.</summary>
+        public static bool GivesPotions(PuzzleType type) =>
+            type == PuzzleType.CombatChallenge || type == PuzzleType.Survival || type == PuzzleType.TrapCorridor || type == PuzzleType.GoldenChase;
+
+        /// <summary>치명타 영약 1개 - 얼음 미끄럼·룬 순서·두더지 잡기·황금 고블린. 치명타 영약이 아직 안 열렸으면(3스테이지 전,
+        /// 상점에서도 비공개) 대신 공격력 영약 1개.</summary>
+        public static bool GivesCriticalPotion(PuzzleType type) =>
+            type == PuzzleType.IceSlide || type == PuzzleType.RuneOrder || type == PuzzleType.WhackSlime || type == PuzzleType.GoldenChase;
+
         /// <summary>에디터 메뉴 "퍼즐 테스트 모드"(EditorPrefs) - 켜져 있으면 일반 방마다 퍼즐이 1번부터 차례로 나온다(확률 무시).</summary>
         public const string TestModePrefKey = "LoopRogue_PuzzleTestMode";
         private static int _testIndex;
@@ -104,6 +120,25 @@ namespace LoopRogue
         {
             _hpAtStart = Player.Stats.CurrentHealth;
             _hud = PuzzleHud.Create(this);
+            if (PuzzleHud.SkipRulesNext)
+            {
+                PuzzleHud.SkipRulesNext = false; // 다시 도전 - 방금 읽은 설명은 건너뛴다
+                StartPlay();
+                return;
+            }
+            // 가운데 큰 설명 창을 먼저 - 닫으면 판을 깔고 시작(시작 연출·실시간 타이머도 그때부터)
+            Room.IsInputLocked = true;
+            _hud.ShowRules(() =>
+            {
+                if (!IsRunning)
+                    return;
+                Room.IsInputLocked = false;
+                StartPlay();
+            });
+        }
+
+        private void StartPlay()
+        {
             OnBegin();
             _hud?.ShowBar();
         }
@@ -132,25 +167,6 @@ namespace LoopRogue
         public virtual UnityEngine.InputSystem.Key ExtraKey => UnityEngine.InputSystem.Key.None;
 
         public void PlayerMoved(Vector2Int pos)
-        {
-            if (PuzzleHud.SkipRulesNext)
-            {
-                PuzzleHud.SkipRulesNext = false; // 다시 도전 - 방금 읽은 설명은 건너뛴다
-                StartPlay();
-                return;
-            }
-            // 가운데 큰 설명 창을 먼저 - 닫으면 판을 깔고 시작(시작 연출·실시간 타이머도 그때부터)
-            Room.IsInputLocked = true;
-            _hud.ShowRules(() =>
-            {
-                if (!IsRunning)
-                    return;
-                Room.IsInputLocked = false;
-                StartPlay();
-            });
-        }
-
-        private void StartPlay()
         {
             if (IsRunning)
                 OnPlayerMoved(pos);
