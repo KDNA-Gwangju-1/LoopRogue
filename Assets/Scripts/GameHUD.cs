@@ -783,6 +783,27 @@ namespace LoopRogue
         private float _appliedViewportBottom = -1f;
         private float _appliedViewportHeight = -1f;
 
+        private Camera _backdropCamera;
+
+        /// <summary>화면 전체를 매 프레임 검게 지우는 배경 카메라(아무것도 안 그림, 메인 카메라보다 먼저). 메인 카메라가 HUD 띠·퍼즐 줄을 뺀
+        /// 가운데만 그려서, 그 바깥의 HUD 그림이 없는 빈 곳은 아무도 안 지워 전에 그린 것이 남았다 - 화면 전체 번쩍임(성공·함정 폭발) 뒤
+        /// 퍼즐 줄 양옆에 주황빛이 그대로 남던 문제(사용자 지적).</summary>
+        private void EnsureBackdropCamera(Camera main)
+        {
+            if (_backdropCamera != null)
+                return;
+            var go = new GameObject("BackdropCamera");
+            go.transform.SetParent(transform, false);
+            _backdropCamera = go.AddComponent<Camera>();
+            _backdropCamera.clearFlags = CameraClearFlags.SolidColor;
+            _backdropCamera.backgroundColor = Color.black;
+            _backdropCamera.cullingMask = 0; // 아무것도 안 그리고 지우기만
+            _backdropCamera.depth = main.depth - 10f;
+            _backdropCamera.rect = new Rect(0f, 0f, 1f, 1f);
+            _backdropCamera.orthographic = true;
+            _backdropCamera.useOcclusionCulling = false;
+        }
+
         /// <summary>카메라가 위·아래 HUD 띠를 뺀 가운데만 그리게 한다. 캔버스 높이는 화면 비율마다 달라서(너비 기준
         /// 스케일) 매 프레임 비율을 다시 재고, 바뀐 때만 넣는다. 카메라 따라가기는 Camera.aspect·orthographicSize를 그때그때 읽어서 그대로 맞는다.</summary>
         private void ApplyCameraViewport()
@@ -791,6 +812,7 @@ namespace LoopRogue
             var canvasHeight = _canvasRect.rect.height;
             if (cam == null || canvasHeight < 200f)
                 return;
+            EnsureBackdropCamera(cam);
             var bottom = ActionBarLayout.BottomAreaHeight / canvasHeight;
             // 퍼즐 안내 패널이 떠 있으면 그 아래부터 그린다(판이 패널에 가려지지 않게)
             var height = 1f - (ActionBarLayout.BottomAreaHeight + ActionBarLayout.TopBarHeight + PuzzleHud.ExtraTopInset) / canvasHeight;
