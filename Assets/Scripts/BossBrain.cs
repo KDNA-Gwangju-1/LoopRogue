@@ -405,8 +405,15 @@ namespace LoopRogue
                     }
                     break;
                 case BossPatternType.Cross:
+                    // 몸 폭만큼의 띠(3x3이면 3줄) - 가운데 한 줄만 치면 몸 옆 가장자리 칸에 붙어 계속 때려도 절대 안 맞았다
+                    // (봇 100판 2026-10-12: 십자 보스 3층 사망 0.0~0.2, 9층 1.3~1.7 - 보스 세기를 50% 올려도 그대로).
+                    // 1칸 보스 때처럼 "몸에 붙은 칸은 전부 위험, 모서리 대각선으로 비키면 안전"이 되게.
                     foreach (var d in Directions)
-                        AddRay(map, origin, d);
+                    {
+                        var side = new Vector2Int(d.y, d.x); // d에 수직
+                        for (var k = -body; k <= body; k++)
+                            AddRay(map, origin + side * k, d);
+                    }
                     break;
                 case BossPatternType.Diagonal:
                     // 저격처럼 플레이어 자리를 조준 - 플레이어 자리 + 거기서 뻗는 대각선 4줄(상하좌우로 한 칸 움직이면 피함).
