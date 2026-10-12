@@ -173,7 +173,7 @@ namespace LoopRogue
             foreach (var wall in layout.Walls)
                 Map.AddWall(wall);
             BuildFloor(layout, false);
-            _fitRoom = new Vector2Int(layout.Width, layout.Height);
+            _fitRoom = puzzle.FitsCamera ? new Vector2Int(layout.Width, layout.Height) : (Vector2Int?)null;
             Map.PlaceActor(_player, layout.PlayerStart);
             if (_player.TryGetComponent<SpriteAnimator>(out var playerAnim))
                 playerAnim.SnapToGrid();

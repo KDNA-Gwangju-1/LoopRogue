@@ -803,3 +803,8 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 구멍 쪽으로 부딪혀 두더지를 때려라. 갈색 +1, 금색 왕관 +3(금방 숨음), 폭탄 든 두더지는 때리면 -2!	Bump toward a hole to whack moles. Brown +1, gold crowned +3 (hides fast), bomb-carrying mole -2 if hit!
 폭탄 두더지! 점수 -2	Bomb mole! Score -2
 점수 {0} / {1}   남은 시간 {2}:{3:00}	Score {0} / {1}   Time left {2}:{3:00}
+황금 고블린 추격	Golden Goblin Chase
+남은 고블린 {0}   남은 턴 {1}	Goblins left {0}   Turns left {1}
+한 마리 잡았다! 남은 고블린을 쫓아라	Caught one! Chase the other goblin
+끈끈이에 발이 묶였다! (Space로 한 턴 쉬기)	Stuck in glue! (Space to rest a turn)
+황금 고블린을 구석으로 몰아 부딪혀라(가끔 허둥댄다). 지나간 자리에 뿌린 끈끈이를 밟으면 발이 묶인다!	Corner the golden goblin and bump into it (it sometimes panics). Step on the glue it scatters and you'll be stuck!

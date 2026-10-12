@@ -377,17 +377,22 @@ namespace LoopRogue
         }
     }
 
-    /// <summary>황금 슬라임 추격 - 도망 다니는 황금 슬라임에 부딪히면 잡는다(5층부터 2마리, 다 잡아야 성공). 슬라임은 플레이어에게서
-    /// 가장 먼 쪽으로 도망치지만 몇 턴마다 숨을 고르느라 멈춘다(같은 속도면 영원히 못 잡으니까). 지나간 칸엔 끈적한 점액이 3턴 남고,
-    /// 밟으면 발이 묶여 한 턴 쉬어야 한다. 제한 턴을 넘기면 실패.</summary>
+    /// <summary>황금 고블린 추격 - 도망 다니는 황금 고블린에 부딪히면 잡는다(5층부터 2마리, 다 잡아야 성공). 고블린은 플레이어에게서
+    /// 가장 먼 쪽으로 쉬지 않고 도망치지만 가끔(PanicChance) 허둥대며 엉뚱한 칸으로 간다(같은 속도면 영원히 못 잡으니까 - 사용자 결정,
+    /// 예전엔 몇 턴마다 멈춰 쉬었다). 지나간 칸엔 뿌린 끈끈이가 3턴 남고,
+    /// 밟으면 발이 묶여 한 턴 쉬어야 한다. 제한 턴을 넘기면 실패.
+    /// 맵은 30x30(사용자 요청)이라 판 전체 보기 대신 플레이어를 따라가는 카메라 - 화면 밖 고블린은 가장자리 금색 화살표로 방향을 알린다.</summary>
     public class GoldenChaseMiniGame : PuzzleBase
     {
-        public override string Title => Loc.T("황금 슬라임 추격");
-        public override string Rule => Loc.F("황금 슬라임을 구석으로 몰아 부딪혀라({0}턴마다 숨을 고른다). 지나간 자리의 점액을 밟으면 발이 묶인다!", _restEvery);
-        public override string Status => Loc.F("남은 슬라임 {0}   남은 턴 {1}", _slimes.Count, Mathf.Max(0, _limit - _turns));
+        public override string Title => Loc.T("황금 고블린 추격");
+        public override string Rule => Loc.T("황금 고블린을 구석으로 몰아 부딪혀라(가끔 허둥댄다). 지나간 자리에 뿌린 끈끈이를 밟으면 발이 묶인다!");
+        public override string Status => Loc.F("남은 고블린 {0}   남은 턴 {1}", _slimes.Count, Mathf.Max(0, _limit - _turns));
 
-        private const int Size = 13, TrailTurns = 3;
-        private int _limit, _restEvery, _turns, _slimeCount;
+        private const int Size = 30, TrailTurns = 3, CornerFree = 4;
+        public override bool FitsCamera => false;
+        private const float GoblinSpriteScale = 1.3f; // 48x48 캔버스에 몸이 작아서 고블린 폭탄병과 같은 배율
+        private int _limit, _turns, _slimeCount;
+        private const float PanicChance = 0.3f; // 이 확률로 최선 대신 아무 빈칸으로(시뮬레이션: 1마리 78턴 안에 약 76% 잡힘)
         private readonly List<Vector2Int> _slimeStarts = new List<Vector2Int>();
         private readonly List<PuzzleActor> _slimes = new List<PuzzleActor>();
         private readonly Dictionary<Vector2Int, (int Turns, GameObject Go)> _trail = new Dictionary<Vector2Int, (int, GameObject)>();
@@ -395,15 +400,33 @@ namespace LoopRogue
         public override RoomLayout BuildLayout()
         {
             _slimeCount = Stage >= 5 ? 2 : 1;
-            _limit = (Stage >= 6 ? 30 : 34) + (_slimeCount - 1) * 10;
-            _restEvery = Stage >= 7 ? 4 : 3;
-            var start = new Vector2Int(0, 0);
-            var walls = RandomWalls(Size, Size, 0.1f, start);
+            // 시뮬레이션(쉬지 않음 + 허둥댐 30%, 단순 추격 봇)에서 약 90% 잡히는 턴 - 1마리 100턴, 2마리 210턴
+            _limit = _slimeCount > 1 ? 210 : 100;
+            var start = new Vector2Int(Size / 2, Size / 2); // 맵 한가운데서 시작(사용자 요청) - 고블린은 가장 먼 쪽(구석 근처)에
+            // 네 구석 4x4는 벽을 안 깐다 - 구석 근처에서 나오는 고블린이 벽에 갇혀 못 도망가는 일이 없게(사용자 지적)
+            var corners = new HashSet<Vector2Int>();
+            for (var x = 0; x < CornerFree; x++)
+            for (var y = 0; y < CornerFree; y++)
+            {
+                corners.Add(new Vector2Int(x, y));
+                corners.Add(new Vector2Int(Size - 1 - x, y));
+                corners.Add(new Vector2Int(x, Size - 1 - y));
+                corners.Add(new Vector2Int(Size - 1 - x, Size - 1 - y));
+            }
+            var walls = RandomWalls(Size, Size, 0.1f, start, corners);
             var dist = Distances(start, Size, Size, walls.Contains);
             var far = dist.Max(kv => kv.Value);
             var candidates = dist.Where(kv => kv.Value >= far - 3).Select(kv => kv.Key).ToList();
             Shuffle(candidates);
-            _slimeStarts.AddRange(candidates.Take(_slimeCount));
+            _slimeStarts.Add(candidates[0]);
+            if (_slimeCount > 1)
+            {
+                // 두 번째 고블린은 첫 고블린과 멀리(다른 구석) - 붙어 나오면 한 번에 몰려서 재미없다(사용자 지적)
+                var wide = dist.Where(kv => kv.Value >= far * 2 / 3).Select(kv => kv.Key).ToList();
+                var apart = wide.Max(c => Manhattan(c, _slimeStarts[0]));
+                var picks = wide.Where(c => Manhattan(c, _slimeStarts[0]) >= apart - 3).ToList();
+                _slimeStarts.Add(picks[Rng.Next(picks.Count)]);
+            }
             return new RoomLayout { Width = Size, Height = Size, PlayerStart = start, Walls = walls };
         }
 
@@ -411,12 +434,19 @@ namespace LoopRogue
         {
             foreach (var pos in _slimeStarts)
             {
-                var go = new GameObject("GoldenSlime");
+                var go = new GameObject("GoldenGoblin");
                 go.transform.SetParent(Room.transform, false);
                 Track(go);
                 var slime = go.AddComponent<PuzzleActor>();
-                var first = SpriteAnimator.FirstFrame("Slime");
-                if (first != null)
+                // 황금 고블린 도트(Sprites/GoldGoblin, 4방향 대기·걷기) - 없으면 예전 황금빛 슬라임, 그것도 없으면 사각형
+                var goblin = SpriteAnimator.FirstFrame("GoldGoblin");
+                var first = goblin == null ? SpriteAnimator.FirstFrame("Slime") : null;
+                if (goblin != null)
+                {
+                    var renderer = VisualUtil.CreateSpriteVisual(go, goblin, GridConstants.CellSize * GoblinSpriteScale, sortingOrder: 0);
+                    go.AddComponent<SpriteAnimator>().Setup("GoldGoblin", renderer, new Color(1f, 0.8f, 0.25f));
+                }
+                else if (first != null)
                 {
                     var renderer = VisualUtil.CreateSpriteVisual(go, first, GridConstants.CellSize, sortingOrder: 0);
                     go.AddComponent<SpriteAnimator>().Setup("Slime", renderer, new Color(1f, 0.85f, 0.2f));
@@ -426,6 +456,49 @@ namespace LoopRogue
                     VisualUtil.CreateSquareVisual(go, new Color(1f, 0.85f, 0.2f), GridConstants.CellSize * 0.6f, sortingOrder: 0);
                 Map.PlaceActor(slime, pos);
                 _slimes.Add(slime);
+
+                var arrowGo = new GameObject("GoblinArrow");
+                arrowGo.transform.SetParent(Room.transform, false);
+                Track(arrowGo);
+                VisualUtil.CreateTriangleVisual(arrowGo, new Color(1f, 0.82f, 0.2f, 0.95f), ArrowSize, sortingOrder: 30);
+                arrowGo.SetActive(false);
+                _arrows.Add(arrowGo);
+            }
+        }
+
+        private readonly List<GameObject> _arrows = new List<GameObject>();
+        private static float ArrowSize => GridConstants.CellSize * 0.45f;
+
+        /// <summary>화면 밖으로 나간 고블린 쪽을 가리키는 화살표 - 화면 가장자리 안쪽에 붙어서 깜빡이듯 커졌다 작아진다.</summary>
+        protected override void OnTick(float deltaTime)
+        {
+            var cam = Camera.main;
+            for (var i = 0; i < _arrows.Count; i++)
+            {
+                var arrow = _arrows[i];
+                var goblin = i < _slimes.Count ? _slimes[i] : null;
+                if (cam == null || goblin == null || !goblin.gameObject.activeSelf)
+                {
+                    arrow.SetActive(false);
+                    continue;
+                }
+                var center = (Vector2)cam.transform.position;
+                var half = new Vector2(cam.orthographicSize * cam.aspect, cam.orthographicSize);
+                var target = (Vector2)goblin.transform.position;
+                var offset = target - center;
+                var margin = GridConstants.CellSize * 0.6f;
+                var inner = half - new Vector2(margin, margin);
+                if (Mathf.Abs(offset.x) <= half.x - margin * 0.3f && Mathf.Abs(offset.y) <= half.y - margin * 0.3f)
+                {
+                    arrow.SetActive(false); // 화면 안에 보임
+                    continue;
+                }
+                // 중심→고블린 직선이 안쪽 사각형 테두리와 만나는 점
+                var k = Mathf.Min(inner.x / Mathf.Max(0.0001f, Mathf.Abs(offset.x)), inner.y / Mathf.Max(0.0001f, Mathf.Abs(offset.y)));
+                arrow.SetActive(true);
+                arrow.transform.position = center + offset * k;
+                arrow.transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg - 90f);
+                arrow.transform.localScale = Vector3.one * (ArrowSize * (1f + 0.15f * Mathf.Sin(Time.time * 8f)));
             }
         }
 
@@ -445,7 +518,7 @@ namespace LoopRogue
                 Succeed();
                 return true;
             }
-            Room.ShowMessage(Loc.T("한 마리 잡았다! 남은 슬라임을 쫓아라"));
+            Room.ShowMessage(Loc.T("한 마리 잡았다! 남은 고블린을 쫓아라"));
             Player.ConsumeTurn();
             return true;
         }
@@ -455,7 +528,7 @@ namespace LoopRogue
             if (!_trail.ContainsKey(pos))
                 return;
             Player.ApplyRoot(1);
-            Room.ShowMessage(Loc.T("점액에 발이 묶였다! (Space로 한 턴 쉬기)"));
+            Room.ShowMessage(Loc.T("끈끈이에 발이 묶였다! (Space로 한 턴 쉬기)"));
         }
 
         protected override void OnTurnEnd()
@@ -477,13 +550,13 @@ namespace LoopRogue
                 Fail(Loc.T("놓쳤다"));
                 return;
             }
-            if (_turns % _restEvery == 0)
-                return; // 숨 고르기
-
             var dist = Distances(Player.GridPos, Size, Size, c => Map.IsWall(c));
             foreach (var slime in _slimes)
             {
-                int Score(Vector2Int c) => (dist.TryGetValue(c, out var d) ? d : 0) * 10 + Dirs.Count(dd => Map.IsWalkable(c + dd));
+                var self = slime;
+                // 다른 고블린과 4칸 안으로 붙는 칸은 감점 - 둘이 같은 구석으로 몰려 다니지 않게 흩어진다
+                int Crowd(Vector2Int c) => _slimes.Where(o => o != self).Sum(o => Mathf.Max(0, 4 - Manhattan(c, o.GridPos)) * 8);
+                int Score(Vector2Int c) => (dist.TryGetValue(c, out var d) ? d : 0) * 10 + Dirs.Count(dd => Map.IsWalkable(c + dd)) - Crowd(c);
                 // 점수 ×4 + 무작위 0~3(같은 점수면 무작위로 고름), 제자리는 -4(같은 점수면 움직이는 쪽을 고른다)
                 var from = slime.GridPos;
                 var best = from;
@@ -500,6 +573,13 @@ namespace LoopRogue
                         best = next;
                     }
                 }
+                if (Rng.NextDouble() < PanicChance)
+                {
+                    // 허둥댐 - 갈 수 있는 아무 칸으로(멈추지는 않는다)
+                    var options = Dirs.Select(d => from + d).Where(c => Map.IsWalkable(c)).ToList();
+                    if (options.Count > 0)
+                        best = options[Rng.Next(options.Count)];
+                }
                 if (best == from)
                     continue;
                 Map.MoveActor(slime, best);
@@ -514,7 +594,7 @@ namespace LoopRogue
                 _trail[cell] = (TrailTurns, old.Go);
                 return;
             }
-            var go = Square(cell, new Color(0.85f, 0.8f, 0.2f, 0.45f), 0.8f, -7, "SlimeTrail").gameObject;
+            var go = Square(cell, new Color(0.85f, 0.8f, 0.2f, 0.45f), 0.8f, -7, "GlueTrail").gameObject;
             _trail[cell] = (TrailTurns, go);
         }
     }

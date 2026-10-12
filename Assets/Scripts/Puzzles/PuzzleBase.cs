@@ -15,7 +15,7 @@ namespace LoopRogue
         CombatChallenge, // 전투 퍼즐
         ShellGame,       // 상자 섞기
         WhackSlime,      // 두더지 잡기
-        GoldenChase,     // 황금 슬라임 추격
+        GoldenChase,     // 황금 고블린 추격
         TreasureSweep,   // 보물 찾기
         Survival,        // 버티기
     }
@@ -74,6 +74,9 @@ namespace LoopRogue
 
         /// <summary>대시·회전 베기·아이템을 쓸 수 있는지 - 몹과 싸우는 것(전투 퍼즐·버티기)만 true.</summary>
         public virtual bool AllowsTools => false;
+
+        /// <summary>true면 판 전체가 한 화면에 들어오게 카메라가 물러난다(판을 보고 계획하는 퍼즐). false면 일반 방처럼 플레이어를 따라간다(넓은 맵).</summary>
+        public virtual bool FitsCamera => true;
 
         public abstract string Title { get; }
         public abstract string Rule { get; }
