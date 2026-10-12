@@ -800,3 +800,6 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 주변 {0}칸 몹이 플레이어가 공격하기 전까지 플레이어를 못 찾는다(행동 못 함)	Mobs within {0} tiles can't find you until you attack (they can't act)
 연막! 공격하기 전까지 주변 몹이 플레이어를 못 찾는다	Smoke! Nearby mobs can't find you until you attack
 출구가 열렸다! (계단)	The exit opened! (stairs)
+구멍 쪽으로 부딪혀 두더지를 때려라. 갈색 +1, 금색 왕관 +3(금방 숨음), 폭탄 든 두더지는 때리면 -2!	Bump toward a hole to whack moles. Brown +1, gold crowned +3 (hides fast), bomb-carrying mole -2 if hit!
+폭탄 두더지! 점수 -2	Bomb mole! Score -2
+점수 {0} / {1}   남은 시간 {2}:{3:00}	Score {0} / {1}   Time left {2}:{3:00}

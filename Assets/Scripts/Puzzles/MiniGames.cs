@@ -136,32 +136,51 @@ namespace LoopRogue
         }
     }
 
-    /// <summary>두더지 잡기 - 4x4 구멍에서 슬라임이 잠깐씩 튀어나온다. 구멍 쪽으로 부딪혀 때린다. 초록 +1, 금색 +3(1턴만 나왔다 숨음),
-    /// 빨간 폭탄 슬라임은 때리면 -2(그냥 두면 저절로 숨는다). 제한 턴 안에 목표 점수를 채우면 성공.</summary>
+    /// <summary>두더지 잡기 - 4x4 구멍에서 두더지가 실제 시간으로 잠깐씩 튀어나왔다 숨는다. 구멍 쪽으로 부딪혀 때린다. 갈색 +1,
+    /// 금색 왕관 +3(금방 숨음), 폭탄을 인 두더지는 때리면 -2(그냥 두면 저절로 숨는다). 1분 20초 안에 목표 점수를 채우면 성공(사용자 결정 - 턴 제한 대신 카운트다운).
+    /// 레벨업 카드·Esc 메뉴·인벤토리가 열려 있으면 시간이 멈춘다.
+    /// 그림은 Resources/Sprites/Props/Mole_*(구멍·보통·금색·폭탄·맞음) - 없으면 예전처럼 슬라임 그림에 색을 입힌다.</summary>
     public class WhackSlimeMiniGame : PuzzleBase
     {
         private enum Mole { Normal, Gold, Bomb }
 
         public override string Title => Loc.T("두더지 잡기");
-        public override string Rule => Loc.T("구멍 쪽으로 부딪혀 슬라임을 때려라. 초록 +1, 금색 +3(금방 숨음), 빨간 폭탄 슬라임은 때리면 -2!");
-        public override string Status => Loc.F("점수 {0} / {1}   남은 턴 {2}", _score, _target, Mathf.Max(0, Limit - _turns));
+        public override string Rule => _moleArt
+            ? Loc.T("구멍 쪽으로 부딪혀 두더지를 때려라. 갈색 +1, 금색 왕관 +3(금방 숨음), 폭탄 든 두더지는 때리면 -2!")
+            : Loc.T("구멍 쪽으로 부딪혀 슬라임을 때려라. 초록 +1, 금색 +3(금방 숨음), 빨간 폭탄 슬라임은 때리면 -2!");
+        public override string Status
+        {
+            get
+            {
+                var left = Mathf.Max(0, Mathf.CeilToInt(TimeLimit - _elapsed));
+                return Loc.F("점수 {0} / {1}   남은 시간 {2}:{3:00}", _score, _target, left / 60, left % 60);
+            }
+        }
 
-        private const int Size = 9, Limit = 35;
+        private const int Size = 9;
+        private const float TimeLimit = 80f; // 1분 20초
+        private const float PopSeconds = 0.14f, HitShowSeconds = 0.3f, GoldUpSeconds = 1f;
         private readonly List<Vector2Int> _holes = new List<Vector2Int>();
-        private readonly Dictionary<Vector2Int, (Mole Kind, int Turns)> _up = new Dictionary<Vector2Int, (Mole, int)>();
+        private readonly Dictionary<Vector2Int, (Mole Kind, float Left)> _up = new Dictionary<Vector2Int, (Mole, float)>(); // 남은 초
         private readonly Dictionary<Vector2Int, SpriteRenderer> _moles = new Dictionary<Vector2Int, SpriteRenderer>();
-        private int _target, _upTurns, _maxUp, _score, _turns;
+        private readonly Dictionary<Vector2Int, Vector3> _baseScale = new Dictionary<Vector2Int, Vector3>();
+        private readonly Dictionary<Vector2Int, float> _popAge = new Dictionary<Vector2Int, float>();   // 튀어나온 뒤 지난 시간(통통 튀는 연출)
+        private readonly Dictionary<Vector2Int, float> _hitShow = new Dictionary<Vector2Int, float>();  // 맞은 얼굴을 보여줄 남은 시간
+        private int _target, _maxUp, _score, _shownSeconds = -1;
+        private float _upSeconds, _popEvery, _nextPop, _elapsed;
         private float _bombChance, _goldChance;
-        private bool _sprite;
+        private bool _sprite, _moleArt;
+        private Sprite _moleNormal, _moleGold, _moleBomb, _moleHit;
 
         public override RoomLayout BuildLayout()
         {
             for (var x = 1; x < Size; x += 2)
             for (var y = 1; y < Size; y += 2)
                 _holes.Add(new Vector2Int(x, y));
-            _target = 12 + Stage / 2;
-            _upTurns = Stage >= 4 ? 2 : 3;
-            _maxUp = Stage >= 6 ? 5 : 4;
+            _target = 20 + Stage;                        // 1층 21점 ~ 10층 30점(80초 기준 첫 값 - 해보고 조정)
+            _upSeconds = Stage >= 4 ? 1.3f : 1.7f;       // 나와 있는 시간
+            _popEvery = Stage >= 6 ? 0.45f : 0.6f;       // 이 간격마다 한 마리씩 튀어나온다
+            _maxUp = Stage >= 6 ? 4 : 3;
             _bombChance = Mathf.Min(0.2f + Stage * 0.02f, 0.35f);
             _goldChance = Stage >= 3 ? 0.12f : 0f;
             return new RoomLayout { Width = Size, Height = Size, PlayerStart = new Vector2Int(Size / 2, 0) };
@@ -171,17 +190,31 @@ namespace LoopRogue
         {
             var slime = SpriteAnimator.FirstFrame("Slime");
             _sprite = slime != null;
+            var holeArt = Resources.Load<Sprite>("Sprites/Props/Mole_Hole");
+            _moleNormal = Resources.Load<Sprite>("Sprites/Props/Mole_Normal");
+            _moleGold = Resources.Load<Sprite>("Sprites/Props/Mole_Gold");
+            _moleBomb = Resources.Load<Sprite>("Sprites/Props/Mole_Bomb");
+            _moleHit = Resources.Load<Sprite>("Sprites/Props/Mole_Hit");
+            _moleArt = _moleNormal != null && _moleGold != null && _moleBomb != null;
             foreach (var hole in _holes)
             {
                 Map.AddWall(hole);
-                Square(hole, new Color(0.05f, 0.04f, 0.06f), 0.75f, -7, "Hole");
-                var mole = slime != null
-                    ? SpriteAt(World(hole), slime, 0.9f, 1, "Mole")
-                    : Square(hole, Color.white, 0.55f, 1, "Mole");
+                if (holeArt != null)
+                    SpriteAt(World(hole), holeArt, 1f, -7, "Hole");
+                else
+                    Square(hole, new Color(0.05f, 0.04f, 0.06f), 0.75f, -7, "Hole");
+                var mole = _moleArt
+                    ? SpriteAt(World(hole), _moleNormal, 1f, 1, "Mole")
+                    : slime != null
+                        ? SpriteAt(World(hole), slime, 0.9f, 1, "Mole")
+                        : Square(hole, Color.white, 0.55f, 1, "Mole");
                 mole.gameObject.SetActive(false);
                 _moles[hole] = mole;
+                _baseScale[hole] = mole.transform.localScale;
             }
             PopUp();
+            PopUp();
+            _nextPop = _popEvery;
         }
 
         private Color Tint(Mole kind) => kind switch
@@ -191,25 +224,123 @@ namespace LoopRogue
             _ => _sprite ? Color.white : new Color(0.45f, 0.8f, 0.3f),
         };
 
+        private Sprite ArtOf(Mole kind) => kind switch
+        {
+            Mole.Gold => _moleGold,
+            Mole.Bomb => _moleBomb,
+            _ => _moleNormal,
+        };
+
+        /// <summary>빈 구멍 하나에서 두더지 한 마리 - 이미 최대 마릿수면 안 나온다.</summary>
         private void PopUp()
         {
-            var hidden = _holes.Where(h => !_up.ContainsKey(h)).ToList();
-            while (_up.Count < _maxUp && hidden.Count > 0)
+            // 맞은 얼굴을 보여주는 중인 구멍은 비워둔다
+            var hidden = _holes.Where(h => !_up.ContainsKey(h) && !_hitShow.ContainsKey(h)).ToList();
+            if (_up.Count >= _maxUp || hidden.Count == 0)
+                return;
+            var hole = Pick(hidden);
+            var roll = Rng.NextDouble();
+            var kind = roll < _goldChance ? Mole.Gold : roll < _goldChance + _bombChance ? Mole.Bomb : Mole.Normal;
+            _up[hole] = (kind, kind == Mole.Gold ? GoldUpSeconds : _upSeconds);
+            var renderer = _moles[hole];
+            if (_moleArt)
             {
-                var hole = Pick(hidden);
-                hidden.Remove(hole);
-                var roll = Rng.NextDouble();
-                var kind = roll < _goldChance ? Mole.Gold : roll < _goldChance + _bombChance ? Mole.Bomb : Mole.Normal;
-                _up[hole] = (kind, kind == Mole.Gold ? 1 : _upTurns);
-                _moles[hole].color = Tint(kind);
-                _moles[hole].gameObject.SetActive(true);
+                renderer.sprite = ArtOf(kind);
+                renderer.color = Color.white;
             }
+            else
+                renderer.color = Tint(kind);
+            renderer.gameObject.SetActive(true);
+            if (_moleArt && HitFeedback.Enabled)
+                _popAge[hole] = 0f;
         }
 
         private void Hide(Vector2Int hole)
         {
             _up.Remove(hole);
+            _popAge.Remove(hole);
+            _moles[hole].transform.localScale = _baseScale[hole];
             _moles[hole].gameObject.SetActive(false);
+        }
+
+        /// <summary>맞은 두더지 - 눈이 X가 된 얼굴을 잠깐 보여주고 숨긴다(그림이 없으면 바로 숨김).</summary>
+        private void ShowHit(Vector2Int hole)
+        {
+            _up.Remove(hole);
+            _popAge.Remove(hole);
+            if (!_moleArt || _moleHit == null || !HitFeedback.Enabled)
+            {
+                Hide(hole);
+                return;
+            }
+            var renderer = _moles[hole];
+            renderer.sprite = _moleHit;
+            renderer.color = Color.white;
+            renderer.transform.localScale = Vector3.Scale(_baseScale[hole], new Vector3(1.15f, 0.85f, 1f)); // 납작
+            _hitShow[hole] = HitShowSeconds;
+        }
+
+        protected override void OnTick(float deltaTime)
+        {
+            if (!Player.CanAct)
+                return; // 레벨업 카드·Esc 메뉴·인벤토리 중엔 시간이 멈춘다
+            _elapsed += deltaTime;
+            if (_elapsed >= TimeLimit)
+            {
+                Fail(Loc.T("시간 초과"));
+                return;
+            }
+
+            // 숨을 때가 된 두더지
+            foreach (var hole in _up.Keys.ToList())
+            {
+                var mole = _up[hole];
+                if (mole.Left - deltaTime <= 0f)
+                    Hide(hole);
+                else
+                    _up[hole] = (mole.Kind, mole.Left - deltaTime);
+            }
+            _nextPop -= deltaTime;
+            if (_nextPop <= 0f)
+            {
+                _nextPop += _popEvery;
+                PopUp();
+            }
+
+            var seconds = Mathf.CeilToInt(TimeLimit - _elapsed);
+            if (seconds != _shownSeconds)
+            {
+                _shownSeconds = seconds;
+                RefreshHud();
+            }
+
+            foreach (var hole in _popAge.Keys.ToList())
+            {
+                var age = _popAge[hole] + deltaTime;
+                var t = Mathf.Clamp01(age / PopSeconds);
+                // 쏙 올라오며 위로 늘어났다가 제자리
+                var stretch = Mathf.Sin(t * Mathf.PI) * 0.18f;
+                _moles[hole].transform.localScale = Vector3.Scale(_baseScale[hole], new Vector3(1f - stretch * 0.5f, 1f + stretch, 1f));
+                if (t >= 1f)
+                {
+                    _popAge.Remove(hole);
+                    _moles[hole].transform.localScale = _baseScale[hole];
+                }
+                else
+                    _popAge[hole] = age;
+            }
+            foreach (var hole in _hitShow.Keys.ToList())
+            {
+                var left = _hitShow[hole] - deltaTime;
+                if (left > 0f)
+                {
+                    _hitShow[hole] = left;
+                    continue;
+                }
+                _hitShow.Remove(hole);
+                if (!_up.ContainsKey(hole))
+                    Hide(hole);
+            }
         }
 
         public override bool HandleAct(Vector2Int direction)
@@ -220,16 +351,17 @@ namespace LoopRogue
             PlayPlayerAttack(direction);
             if (_up.TryGetValue(target, out var mole))
             {
-                Hide(target);
                 if (mole.Kind == Mole.Bomb)
                 {
+                    Hide(target);
                     _score = Mathf.Max(0, _score - 2);
                     Fx.Play("explosion", World(target), 1f, fps: 16f);
                     SfxPlayer.Play(Sfx.Explosion);
-                    Room.ShowMessage(Loc.T("폭탄 슬라임! 점수 -2"));
+                    Room.ShowMessage(_moleArt ? Loc.T("폭탄 두더지! 점수 -2") : Loc.T("폭탄 슬라임! 점수 -2"));
                 }
                 else
                 {
+                    ShowHit(target);
                     _score += mole.Kind == Mole.Gold ? 3 : 1;
                     Fx.Play(mole.Kind == Mole.Gold ? "coin" : "hit_spark", World(target), 0.9f, fps: 18f);
                     SfxPlayer.Play(mole.Kind == Mole.Gold ? Sfx.Crit : Sfx.Hit);
@@ -240,27 +372,8 @@ namespace LoopRogue
                     }
                 }
             }
-            Player.ConsumeTurn(); // 빈 구멍을 쳐도 한 턴
+            Player.ConsumeTurn(); // 빈 구멍을 쳐도 한 턴(두더지는 턴이 아니라 실제 시간으로 움직인다)
             return true;
-        }
-
-        protected override void OnTurnEnd()
-        {
-            _turns++;
-            foreach (var hole in _up.Keys.ToList())
-            {
-                var mole = _up[hole];
-                if (mole.Turns <= 1)
-                    Hide(hole);
-                else
-                    _up[hole] = (mole.Kind, mole.Turns - 1);
-            }
-            if (_turns >= Limit)
-            {
-                Fail(Loc.T("시간 초과"));
-                return;
-            }
-            PopUp();
         }
     }
 
