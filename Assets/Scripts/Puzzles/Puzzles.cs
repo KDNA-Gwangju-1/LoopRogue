@@ -563,26 +563,30 @@ namespace LoopRogue
         }
     }
 
-    /// <summary>상자 밀기(소코반) - 상자를 밀어 발판에 전부 올리면 성공. 3층부터 상자와 발판에 색이 붙어 같은 색 발판에만 인정되고,
-    /// 상자도 층에 따라 2~4개로 늘어난다. 방은 "상자가 제 발판 위에 있는 완성 상태"에서 플레이어가 상자를 무작위로 끌어당기며
-    /// 거꾸로 흩뜨려 만든다 - 당기기를 거꾸로 하면 밀기라서 항상 풀린다. [Z]로 한 수 되돌리기(턴 소모 없음).</summary>
+    /// <summary>상자 밀기(소코반) - 돌덩이를 밀어 석판에 전부 올리면 성공. 3층부터 돌과 석판에 모양(○△□◇✚)·색이 붙어 같은 짝에만 인정되고,
+    /// (그림: 돌덩이 Puzzle_Block(_i)·석판 Puzzle_Slab(_i) - 사용자 요청 "모양이 같은 석판에 올리는" 느낌, 예전엔 나무 상자·발판)
+    /// 돌은 1~2층 2개·3~6층 3개·7층부터 5개(✚ 주황 추가, 돌 5개는 ScatterByPulls - 사용자 "7~10층은 더 올려도 된다"로 하한 32/35/38/41). 방은 "돌이 전부 제 석판 위에 있는 완성 상태"에서 거꾸로 당기며 퍼지는 탐색(FarthestStart)으로
+    /// 층별 최소 밀기 횟수(TargetPushes: 1층 10 ~ 8층부터 26)만큼 떨어진 배치를 골라 만든다 - 당기기를 거꾸로 하면 밀기라 항상 풀리고,
+    /// 탐색 깊이가 곧 정확한 최소 밀기 횟수다(예전엔 무작위로 흩뜨리기만 해서 몇 번 밀면 끝나는 판이 많았다 - 사용자 "너무 쉽다").
+    /// [Z]로 한 수 되돌리기(턴 소모 없음).</summary>
     public class BoxPushPuzzle : PuzzleBase
     {
         private static readonly Color[] Palette =
         {
             new Color(1f, 0.4f, 0.35f), new Color(0.4f, 0.65f, 1f), new Color(0.45f, 0.95f, 0.45f), new Color(0.9f, 0.5f, 1f),
+            new Color(1f, 0.72f, 0.25f), // 5번째(7층부터) - 주황 ✚
         };
 
         public override string Title => Loc.T("상자 밀기");
         public override string Rule => _colored
-            ? Loc.T("상자를 밀어 같은 색 발판에 올려라. 당길 수는 없다! [Z] 되돌리기, 막히면 [G] 포기 → 다시 도전")
-            : Loc.T("상자를 밀어 노란 발판에 전부 올려라. 당길 수는 없다! [Z] 되돌리기, 막히면 [G] 포기 → 다시 도전");
-        public override string Status => Loc.F("상자 {0} / {1}   이동 {2}", Covered, _plates.Count, _moves);
+            ? Loc.T("돌을 밀어 같은 모양·색 석판에 올려라. 당길 수는 없다! [Z] 되돌리기, 막히면 [G] 포기 → 다시 도전")
+            : Loc.T("돌을 밀어 석판에 전부 올려라. 당길 수는 없다! [Z] 되돌리기, 막히면 [G] 포기 → 다시 도전");
+        public override string Status => Loc.F("돌 {0} / {1}   이동 {2}", Covered, _plates.Count, _moves);
         public override string ExtraKeyLabel => Loc.T("되돌리기 [Z]");
         public override Key ExtraKey => Key.Z;
 
         private int _width, _height;
-        private bool _colored;
+        private bool _colored, _stoneArt;
         private HashSet<Vector2Int> _walls = new HashSet<Vector2Int>();
         private readonly List<Vector2Int> _plates = new List<Vector2Int>();   // 상자 i의 발판 = _plates[i]
         private List<Vector2Int> _startBoxes = new List<Vector2Int>();
@@ -594,63 +598,69 @@ namespace LoopRogue
         private bool OnOwnPlate(int i) => _colored ? _boxes[i] == _plates[i] : _plates.Contains(_boxes[i]);
         private int Covered => Enumerable.Range(0, _boxes.Count).Count(OnOwnPlate);
 
+        /// <summary>층별 최소 밀기 횟수 목표(사용자: "너무 쉽다"). 완성 상태에서 거꾸로 당기며 퍼지는 탐색으로 가장 멀리 떨어진 배치를 고르고,
+        /// 이 이상이면 그 판을 쓴다(시간 안에 못 찾으면 그때까지 가장 어려운 판).</summary>
+        /// 3~6층(돌 3개)은 정확한 최소 밀기 횟수, 7층부터(돌 5개 - 사용자 결정)는 돌마다 "혼자 제 석판까지" 밀기 횟수 합(실제 풀이는 이보다
+        /// 항상 같거나 많다 - 돌끼리 막으니까). 돌 5개는 경우의 수가 너무 많아 정확히 못 잰다(4개도 테스트에서 시간 안에 평균 11번까지만).
+        private int TargetPushes => _boxCount >= 5 ? 32 + (Stage - 7) * 3 : _boxCount >= 3 ? Mathf.Min(16 + (Stage - 3) * 2, 22) : 10 + (Stage - 1) * 2;
+
+        private const float WallDensity = 0.17f;          // 예전 0.1 - 길이 좁아야 돌 돌리기가 어렵다
+        private const double GenerateBudgetMs = 350;      // 방을 깔 때 판 고르기에 쓰는 최대 시간
+        private const int SearchStateLimit = 120000;      // 판 하나당 거꾸로 탐색 상태 한도
+        private int _boxCount;
+        public int MinPushes { get; private set; }        // 고른 판의 최소 밀기 횟수(정확값, 거꾸로 탐색 깊이)
+
         public override RoomLayout BuildLayout()
         {
-            var count = Stage >= 7 ? 4 : Stage >= 3 ? 3 : 2;
+            var count = Stage >= 7 ? 5 : Stage >= 3 ? 3 : 2;
+            _boxCount = count;
             _colored = Stage >= 3;
-            _width = count >= 4 ? 12 : Stage >= 3 ? 11 : 10;
-            _height = count >= 4 ? 10 : Stage >= 3 ? 9 : 8;
+            _width = count >= 5 ? 12 : Stage >= 3 ? 11 : 10;
+            _height = count >= 5 ? 10 : Stage >= 3 ? 9 : 8;
             var start = Vector2Int.zero;
-            for (var attempt = 0; attempt < 100; attempt++)
+            var best = -1;
+            HashSet<Vector2Int> bestWalls = null;
+            List<Vector2Int> bestPlates = null, bestBoxes = null;
+            var bestPlayer = Vector2Int.zero;
+            var watch = System.Diagnostics.Stopwatch.StartNew();
+            for (var attempt = 0; attempt < 200 && watch.Elapsed.TotalMilliseconds < GenerateBudgetMs; attempt++)
             {
                 var anchor = new Vector2Int(_width / 2, _height / 2);
-                var walls = RandomWalls(_width, _height, 0.1f, anchor);
-                var free = new List<Vector2Int>();
+                var walls = RandomWalls(_width, _height, count >= 5 ? 0.14f : WallDensity, anchor); // 돌 5개는 조금 넓게
+                bool Open(Vector2Int c) => InBounds(c, _width, _height) && !walls.Contains(c);
+                var roomy = new List<Vector2Int>();
                 for (var x = 0; x < _width; x++)
                 for (var y = 0; y < _height; y++)
                 {
                     var c = new Vector2Int(x, y);
-                    if (!walls.Contains(c))
-                        free.Add(c);
+                    if (Open(c) && Dirs.Count(d => Open(c + d)) >= 3)
+                        roomy.Add(c);
                 }
-                bool Open(Vector2Int c) => InBounds(c, _width, _height) && !walls.Contains(c);
-                var roomy = free.Where(c => Dirs.Count(d => Open(c + d)) >= 3).ToList();
                 if (roomy.Count < count + 1)
                     continue;
                 Shuffle(roomy);
                 var plates = roomy.Take(count).ToList();
-                var boxes = new List<Vector2Int>(plates);
-                var player = free.First(c => !boxes.Contains(c));
-
-                // 거꾸로 흩뜨리기 - 플레이어가 걸어가면서 등 뒤 상자를 가끔 끌고 온다
-                var steps = 350 + 100 * count;
-                for (var s = 0; s < steps; s++)
-                {
-                    var d = Dirs[Rng.Next(Dirs.Length)];
-                    var next = player + d;
-                    if (!Open(next) || boxes.Contains(next))
-                        continue;
-                    var behind = boxes.IndexOf(player - d);
-                    if (behind >= 0 && Rng.NextDouble() < 0.7)
-                        boxes[behind] = player;
-                    player = next;
-                }
-
-                var solved = _colored
-                    ? Enumerable.Range(0, count).Count(i => boxes[i] == plates[i])
-                    : boxes.Count(plates.Contains);
-                var spread = Enumerable.Range(0, count).Sum(i => Manhattan(boxes[i], plates[i]));
-                if (solved == 0 && spread >= count * 2)
-                {
-                    _walls = walls;
-                    _plates.Clear();
-                    _plates.AddRange(plates);
-                    _startBoxes = boxes;
-                    start = player;
+                var found = count >= 5 ? ScatterByPulls(walls, plates) : FarthestStart(walls, plates, watch, GenerateBudgetMs + 120);
+                if (found.Depth <= best)
+                    continue;
+                best = found.Depth;
+                bestWalls = walls;
+                bestPlates = plates;
+                bestBoxes = found.Boxes;
+                bestPlayer = found.Player;
+                if (best >= TargetPushes)
                     break;
-                }
             }
-            if (_startBoxes.Count == 0)
+            MinPushes = best;
+            if (bestBoxes != null && best > 0)
+            {
+                _walls = bestWalls;
+                _plates.Clear();
+                _plates.AddRange(bestPlates);
+                _startBoxes = bestBoxes;
+                start = bestPlayer;
+            }
+            else
             {
                 // 안전망 - 상자 하나를 발판 두 칸 아래에서 밀어 올리기
                 _walls = new HashSet<Vector2Int>();
@@ -662,14 +672,260 @@ namespace LoopRogue
             return new RoomLayout { Width = _width, Height = _height, PlayerStart = start, Walls = new HashSet<Vector2Int>(_walls) };
         }
 
+        /// <summary>돌 5개(7층부터) - 완성 상태에서 플레이어가 무작위로 걸으며 등 뒤 돌을 끌어 흩뜨린다(거꾸로 하면 밀기라 항상 풀림).
+        /// 흩뜨리는 동안 "돌마다 혼자 제 석판까지 밀기 횟수의 합"(실제 최소 밀기의 하한)이 가장 큰, 석판 위 돌이 없는 배치를 고른다.</summary>
+        private (int Depth, List<Vector2Int> Boxes, Vector2Int Player) ScatterByPulls(HashSet<Vector2Int> walls, List<Vector2Int> plates)
+        {
+            var w = _width;
+            var h = _height;
+            bool Open(Vector2Int c) => InBounds(c, w, h) && !walls.Contains(c);
+
+            // 석판마다: 돌이 그 칸에서 (다른 돌 없이) 석판까지 밀리는 최소 횟수 - 석판에서 거꾸로 당기기 BFS
+            int[,] PushDistance(Vector2Int goal)
+            {
+                var dist = new int[w, h];
+                for (var x = 0; x < w; x++)
+                for (var y = 0; y < h; y++)
+                    dist[x, y] = -1;
+                dist[goal.x, goal.y] = 0;
+                var q = new Queue<Vector2Int>();
+                q.Enqueue(goal);
+                while (q.Count > 0)
+                {
+                    var c = q.Dequeue();
+                    foreach (var d in Dirs)
+                    {
+                        var from = c - d;       // 돌이 from에서 c로 밀려 왔다
+                        var stand = from - d;   // 그때 플레이어 자리
+                        if (!Open(from) || !Open(stand) || dist[from.x, from.y] >= 0)
+                            continue;
+                        dist[from.x, from.y] = dist[c.x, c.y] + 1;
+                        q.Enqueue(from);
+                    }
+                }
+                return dist;
+            }
+
+            var count = plates.Count;
+            var dists = plates.Select(PushDistance).ToArray();
+            int Bound(List<Vector2Int> b)
+            {
+                var sum = 0;
+                for (var i = 0; i < count; i++)
+                {
+                    var v = dists[i][b[i].x, b[i].y];
+                    if (v < 0)
+                        return -1;
+                    sum += v;
+                }
+                return sum;
+            }
+
+            var boxes = new List<Vector2Int>(plates);
+            var player = Vector2Int.zero;
+            var openCells = new List<Vector2Int>();
+            for (var x = 0; x < w; x++)
+            for (var y = 0; y < h; y++)
+                if (Open(new Vector2Int(x, y)) && !boxes.Contains(new Vector2Int(x, y)))
+                    openCells.Add(new Vector2Int(x, y));
+            if (openCells.Count == 0)
+                return (0, null, Vector2Int.zero);
+            player = openCells[Rng.Next(openCells.Count)];
+
+            var best = 0;
+            List<Vector2Int> bestBoxes = null;
+            var bestPlayer = player;
+            var target = TargetPushes;
+            for (var s = 0; s < 12000; s++)
+            {
+                var d = Dirs[Rng.Next(Dirs.Length)];
+                var next = player + d;
+                if (!Open(next) || boxes.Contains(next))
+                    continue;
+                var behind = boxes.IndexOf(player - d);
+                if (behind >= 0 && Rng.NextDouble() < 0.6)
+                    boxes[behind] = player;
+                player = next;
+                if (behind < 0)
+                    continue;
+                if (Enumerable.Range(0, count).Any(i => boxes[i] == plates[i]))
+                    continue;
+                var bound = Bound(boxes);
+                if (bound <= best)
+                    continue;
+                best = bound;
+                bestBoxes = new List<Vector2Int>(boxes);
+                bestPlayer = player;
+                if (best >= target + 4)
+                    break; // 목표보다 조금 넉넉하면 충분
+            }
+            return (best, bestBoxes, bestPlayer);
+        }
+
+        /// <summary>완성 상태(돌이 전부 제 석판 위)에서 거꾸로 "당기기"로 BFS - 깊이 = 그 배치에서 최소 밀기 횟수(정확값).
+        /// 상태 = 돌 위치 + 플레이어가 갈 수 있는 구역의 대표 칸. 가장 깊은 배치 중 석판 위에 돌이 하나도 없는 것을 돌려준다.</summary>
+        private (int Depth, List<Vector2Int> Boxes, Vector2Int Player) FarthestStart(HashSet<Vector2Int> walls, List<Vector2Int> plates,
+            System.Diagnostics.Stopwatch watch, double deadlineMs)
+        {
+            var w = _width;
+            var h = _height;
+            var n = w * h;
+            var wall = new bool[n];
+            foreach (var c in walls)
+                wall[c.y * w + c.x] = true;
+            var dx = new[] { 0, 0, -1, 1 };
+            var dy = new[] { 1, -1, 0, 0 };
+            var count = plates.Count;
+            var plateIdx = plates.Select(c => c.y * w + c.x).ToArray();
+            var isPlate = new bool[n];
+            foreach (var p in plateIdx)
+                isPlate[p] = true;
+
+            var occ = new bool[n];
+            var mark = new int[n];
+            var stampValue = 0;
+            var stack = new int[n];
+
+            // from에서 갈 수 있는 칸을 mark에 표시, 대표 칸(가장 작은 번호) 반환
+            int Flood(int from)
+            {
+                stampValue++;
+                var top = 0;
+                stack[top++] = from;
+                mark[from] = stampValue;
+                var min = from;
+                while (top > 0)
+                {
+                    var c = stack[--top];
+                    if (c < min)
+                        min = c;
+                    int cx = c % w, cy = c / w;
+                    for (var k = 0; k < 4; k++)
+                    {
+                        int nx = cx + dx[k], ny = cy + dy[k];
+                        if (nx < 0 || ny < 0 || nx >= w || ny >= h)
+                            continue;
+                        var nc = ny * w + nx;
+                        if (wall[nc] || occ[nc] || mark[nc] == stampValue)
+                            continue;
+                        mark[nc] = stampValue;
+                        stack[top++] = nc;
+                    }
+                }
+                return min;
+            }
+
+            long Key(int[] b, int rep)
+            {
+                long key = rep;
+                if (_colored)
+                {
+                    foreach (var v in b)
+                        key = key * 256 + v;
+                    return key;
+                }
+                var sorted = (int[])b.Clone();
+                System.Array.Sort(sorted); // 색 구분이 없으면 돌끼리 같은 것 - 같은 배치를 하나로
+                foreach (var v in sorted)
+                    key = key * 256 + v;
+                return key;
+            }
+
+            // 펼칠 때 대표 칸을 구해서 중복을 거른다(자식마다 구역을 다시 칠하지 않아 빠르다). 자식은 (돌, 정확한 플레이어 칸)으로만 1차 중복 제거.
+            var seen = new HashSet<long>();
+            var queued = new HashSet<long>();
+            var frontier = new List<(int[] Boxes, int Player)>();
+            foreach (var c in plateIdx)
+                occ[c] = true;
+            for (var c = 0; c < n; c++)
+                if (!wall[c] && !occ[c])
+                    frontier.Add(((int[])plateIdx.Clone(), c));
+            foreach (var c in plateIdx)
+                occ[c] = false;
+
+            var target = TargetPushes;
+            var bestDepth = 0;
+            int[] bestBoxes = null;
+            var bestPlayer = 0;
+            for (var depth = 0; frontier.Count > 0; depth++)
+            {
+                var next = new List<(int[] Boxes, int Player)>();
+                queued.Clear();
+                foreach (var (b, p) in frontier)
+                {
+                    foreach (var c in b)
+                        occ[c] = true;
+                    var rep = Flood(p);
+                    if (!seen.Add(Key(b, rep)))
+                    {
+                        foreach (var c in b)
+                            occ[c] = false;
+                        continue;
+                    }
+                    var reach = stampValue;
+                    var onPlate = false;
+                    for (var i = 0; i < count && !onPlate; i++)
+                        onPlate = _colored ? b[i] == plateIdx[i] : isPlate[b[i]];
+                    if (!onPlate && (bestBoxes == null || depth > bestDepth))
+                    {
+                        bestDepth = depth;
+                        bestBoxes = b;
+                        bestPlayer = p;
+                        if (depth >= target)
+                        {
+                            foreach (var c in b)
+                                occ[c] = false;
+                            return (bestDepth, bestBoxes.Select(v => new Vector2Int(v % w, v / w)).ToList(), new Vector2Int(bestPlayer % w, bestPlayer / w));
+                        }
+                    }
+                    for (var i = 0; i < count; i++)
+                    {
+                        int bx = b[i] % w, by = b[i] / w;
+                        for (var k = 0; k < 4; k++)
+                        {
+                            // 당기기: 플레이어가 돌 옆 P(= 돌 - d)에 서서 한 칸 더 물러나면(P - d) 돌이 P로 따라온다
+                            int px = bx - dx[k], py = by - dy[k], qx = px - dx[k], qy = py - dy[k];
+                            if (qx < 0 || qy < 0 || qx >= w || qy >= h || px < 0 || py < 0 || px >= w || py >= h)
+                                continue;
+                            var pc = py * w + px;
+                            var qc = qy * w + qx;
+                            if (mark[pc] != reach || wall[qc] || occ[qc])
+                                continue;
+                            var nb = (int[])b.Clone();
+                            nb[i] = pc;
+                            if (queued.Add(Key(nb, qc)))
+                                next.Add((nb, qc));
+                        }
+                    }
+                    foreach (var c in b)
+                        occ[c] = false;
+                    if (seen.Count > SearchStateLimit || watch.Elapsed.TotalMilliseconds > deadlineMs)
+                    {
+                        next.Clear();
+                        break;
+                    }
+                }
+                frontier = next;
+            }
+            if (bestBoxes == null)
+                return (0, null, Vector2Int.zero);
+            return (bestDepth, bestBoxes.Select(v => new Vector2Int(v % w, v / w)).ToList(), new Vector2Int(bestPlayer % w, bestPlayer / w));
+        }
+
         protected override void OnBegin()
         {
             for (var i = 0; i < _plates.Count; i++)
-                ArtTile(_plates[i], "Plate", 0.92f, PlateColor(i), PlateColor(i), 0.8f, -9, "Plate");
+            {
+                // 석판 - 3층부터 돌과 같은 모양 홈(○△□◇), 그 전엔 둥근 문양(아무 돌이나)
+                var slabTint = PlateColor(i);
+                slabTint.a = 0.9f;
+                ArtTile(_plates[i], _colored ? "Slab_" + (i % 5) : "Slab", 1f, slabTint, PlateColor(i), 0.8f, -9, "Plate");
+            }
+            _stoneArt = PuzzleArt("Block") != null;
             for (var i = 0; i < _startBoxes.Count; i++)
             {
                 _boxes.Add(_startBoxes[i]);
-                _boxRenderers.Add(ArtTile(_startBoxes[i], "Crate", 0.92f, Color.white, Color.white, 0.78f, 1, "Box")); // 나무 상자(색은 Redraw가)
+                _boxRenderers.Add(ArtTile(_startBoxes[i], _colored ? "Block_" + (i % 5) : "Block", 0.95f, Color.white, Color.white, 0.78f, 1, "Box")); // 돌덩이(색은 Redraw가)
             }
             Redraw();
         }
@@ -682,8 +938,8 @@ namespace LoopRogue
 
         private Color BoxColor(int i)
         {
-            if (!_colored)
-                return OnOwnPlate(i) ? new Color(0.95f, 0.75f, 0.3f) : new Color(0.55f, 0.36f, 0.2f);
+            if (!_colored) // 돌 그림이면 평소엔 돌 색 그대로, 그림이 없으면 예전 갈색 사각형
+                return OnOwnPlate(i) ? new Color(0.95f, 0.75f, 0.3f) : _stoneArt ? new Color(0.82f, 0.8f, 0.78f) : new Color(0.55f, 0.36f, 0.2f);
             var c = Palette[i % Palette.Length];
             return OnOwnPlate(i) ? Color.Lerp(c, Color.white, 0.35f) : c * 0.7f + new Color(0f, 0f, 0f, 0.3f);
         }

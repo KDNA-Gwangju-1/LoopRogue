@@ -741,7 +741,6 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 룬 순서	Rune Order
 순서가 틀렸다	Wrong order
 상자 밀기	Box Push
-상자 {0} / {1}   이동 {2}	Boxes {0} / {1}   Moves {2}
 전투 퍼즐	Combat Puzzle
 {0}턴 안에 몹을 전부 쓰러뜨려라.	Defeat every monster within {0} turns.
 한 대도 맞지 말고 몹을 전부 쓰러뜨려라.	Defeat every monster without taking a single hit.
@@ -786,8 +785,6 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 룬이 빛나는 순서대로 밟아라. 라운드마다 길어지고, 4층부터 마지막 라운드는 거꾸로 밟아야 한다!	Step on the runes in the order they light up. Each round is longer, and from floor 4 the last round must be done in reverse!
 거꾸로!	Reverse!
 이번엔 거꾸로 밟아라!	This time, in reverse!
-상자를 밀어 같은 색 발판에 올려라. 당길 수는 없다! [Z] 되돌리기, 막히면 [G] 포기 → 다시 도전	Push each box onto the plate of its color. You can't pull! [Z] undo, stuck? [G] give up → retry
-상자를 밀어 노란 발판에 전부 올려라. 당길 수는 없다! [Z] 되돌리기, 막히면 [G] 포기 → 다시 도전	Push every box onto a yellow plate. You can't pull! [Z] undo, stuck? [G] give up → retry
 되돌리기 [Z]	Undo [Z]
 되돌릴 수가 없다	Nothing to undo
 머리 위 번호 순서대로 쓰러뜨려라. 다른 몹을 먼저 잡으면 실패! (회전 베기·폭탄 조심)	Defeat monsters in the order of the numbers above them. Kill another first and you fail! (Careful with Spin Slash and bombs)
@@ -812,3 +809,6 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 성공! {0}, 레벨업 카드 1장	Success! {0}, 1 level-up card
 {0} 영약 +{1}	{0} Elixir +{1}
 (영구)	(permanent)
+돌을 밀어 같은 모양·색 석판에 올려라. 당길 수는 없다! [Z] 되돌리기, 막히면 [G] 포기 → 다시 도전	Push the stones onto the slabs with the same shape and color. You can't pull! [Z] Undo, stuck? [G] Give up → Retry
+돌을 밀어 석판에 전부 올려라. 당길 수는 없다! [Z] 되돌리기, 막히면 [G] 포기 → 다시 도전	Push all the stones onto the slabs. You can't pull! [Z] Undo, stuck? [G] Give up → Retry
+돌 {0} / {1}   이동 {2}	Stones {0} / {1}   Moves {2}
