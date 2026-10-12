@@ -229,6 +229,22 @@ namespace LoopRogue
             Fx.Play("heal", player.transform.position, 1.3f, fps: 14f, sortingOrder: 8);
         }
 
+        /// <summary>퍼즐·미니게임·도전 성공(보너스 카드) - 화면이 금빛으로 반짝이고, 발밑에서 별빛 빛줄기가 퍼지며 금가루가 터진다.
+        /// 레벨업 기둥(OnLevelUp)은 진짜 레벨이 오를 때만 - 보너스 카드인데 레벨업처럼 보여 헷갈렸다(사용자 지적).</summary>
+        public static void OnBonusReward(PlayerActor player)
+        {
+            if (!Enabled)
+                return;
+            var pos = player.transform.position;
+            ScreenFlash.Play(new Color(1f, 0.88f, 0.45f), 0.45f, 0.35f); // 화면 전체가 금빛으로 한 번 반짝
+            Fx.Play("success", pos, 3.2f, fps: 18f, sortingOrder: 9);    // 별빛 빛줄기 + 퍼지는 고리(3칸 크기)
+            CameraShake.Shake(0.06f, 0.12f);
+            ActorJuice.Get(player).Flash(new Color(1f, 0.9f, 0.45f));
+            DeathBurst.Spawn(pos, new Color(1f, 0.82f, 0.25f), count: 30, speed: 6f, size: 0.16f);
+            DeathBurst.Spawn(pos, new Color(1f, 1f, 0.85f), count: 14, speed: 9f, size: 0.09f);
+            Fx.Play("coin", pos + Vector3.up * GridConstants.CellSize * 0.5f, 0.5f, fps: 14f, sortingOrder: 10, riseCells: 1.1f);
+        }
+
         /// <summary>레벨업 - 발밑에서 금빛 기둥이 솟는다.</summary>
         public static void OnLevelUp(PlayerActor player)
         {
@@ -309,6 +325,64 @@ namespace LoopRogue
                 case ItemType.Barrier:
                     Fx.Play("item_ring", at, 1.6f, tint: new Color(0.55f, 0.85f, 1f), fps: 14f, sortingOrder: 8);
                     break;
+            }
+        }
+    }
+
+    /// <summary>화면 전체를 한 색으로 잠깐 덮었다가 사라지게(성공 반짝임 등). 맨 위 캔버스 하나를 처음 쓸 때 만들어 두고 다시 쓴다.
+    /// 실제 시간 기준(Time.unscaledDeltaTime)이라 멈춤과 상관없이 사라진다. 봇 중엔 아무것도 안 한다.</summary>
+    public class ScreenFlash : MonoBehaviour
+    {
+        private static ScreenFlash _instance;
+        private UnityEngine.UI.Image _image;
+        private Color _color;
+        private float _peak, _duration, _time;
+
+        public static void Play(Color color, float peakAlpha, float duration)
+        {
+            if (DamagePopup.Suppressed)
+                return;
+            if (_instance == null)
+            {
+                var go = new GameObject("ScreenFlash", typeof(RectTransform));
+                var canvas = go.AddComponent<Canvas>();
+                canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                canvas.sortingOrder = 45; // 퍼즐 안내(40) 위, 대화창(50)·Esc 메뉴(100) 아래
+                _instance = go.AddComponent<ScreenFlash>();
+                var imageGo = new GameObject("Flash", typeof(RectTransform));
+                imageGo.transform.SetParent(go.transform, false);
+                var rect = (RectTransform)imageGo.transform;
+                rect.anchorMin = Vector2.zero;
+                rect.anchorMax = Vector2.one;
+                rect.offsetMin = rect.offsetMax = Vector2.zero;
+                _instance._image = imageGo.AddComponent<UnityEngine.UI.Image>();
+                _instance._image.raycastTarget = false; // 클릭·터치는 그대로 아래로
+            }
+            _instance._color = color;
+            _instance._peak = peakAlpha;
+            _instance._duration = Mathf.Max(0.01f, duration);
+            _instance._time = 0f;
+            _instance.enabled = true;
+            _instance._image.enabled = true;
+            _instance.Apply();
+        }
+
+        private void Apply()
+        {
+            var t = Mathf.Clamp01(_time / _duration);
+            // 아주 짧게 확 밝아졌다가(앞 15%) 부드럽게 사라진다
+            var a = t < 0.15f ? _peak * (t / 0.15f) : _peak * (1f - (t - 0.15f) / 0.85f) * (1f - (t - 0.15f) / 0.85f);
+            _image.color = new Color(_color.r, _color.g, _color.b, a);
+        }
+
+        private void Update()
+        {
+            _time += Time.unscaledDeltaTime;
+            Apply();
+            if (_time >= _duration)
+            {
+                _image.enabled = false;
+                enabled = false;
             }
         }
     }

@@ -231,7 +231,7 @@ namespace LoopRogue
             if (!_current.IsTestRoom)
                 StageProgress.MarkRoomCleared(_current.RoomNumber);
             ShowMessage(Loc.T("성공! 레벨업 카드 1장"));
-            HitFeedback.OnLevelUp(_player);
+            HitFeedback.OnBonusReward(_player);
             _player.Levels.GrantBonusUpgrade();
             SpawnExit();
         }
@@ -619,7 +619,7 @@ namespace LoopRogue
                 GoldWallet.Add(gold);
                 _player.Levels.GrantBonusUpgrade();
                 ShowMessage(Loc.F("도전 성공! 골드 +{0}, 레벨업 카드 1장", gold));
-                HitFeedback.OnLevelUp(_player);
+                HitFeedback.OnBonusReward(_player);
             }
         }
 
