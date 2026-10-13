@@ -461,7 +461,7 @@ namespace LoopRogue
 
             _statPanel.SetText(BuildStatText(), maxHeight);
 
-            var hasRelics = Relics.OwnedCount > 0;
+            var hasRelics = Relics.OwnedCount > 0 || Curses.ActiveDeals.Count > 0; // 오른쪽 칸 = 저주 계약(위) + 유물
             if (_ownedRelicPanel.Root.activeSelf != hasRelics)
                 _ownedRelicPanel.Root.SetActive(hasRelics);
             if (hasRelics)
@@ -471,6 +471,20 @@ namespace LoopRogue
         private static string BuildRelicText()
         {
             var sb = new System.Text.StringBuilder();
+            // 그림자 거래상 계약 - 맨 위(이번 시도 동안, 죽거나 층을 넘기면 풀린다)
+            var deals = Curses.ActiveDeals;
+            if (deals.Count > 0)
+            {
+                sb.AppendLine(Loc.F("<b><color=#C890FF>[저주 계약 {0}개]</color></b>  <size=12><color=#9AA0AA>죽거나 층을 넘기면 풀린다</color></size>", deals.Count));
+                foreach (var d in deals)
+                {
+                    sb.AppendLine($"<color=#C890FF>{d.Name}</color>");
+                    sb.AppendLine(Loc.F("<size=12>   <color=#FF8080>대가: {0}</color>  <color=#8CE08C>얻은 것: {1}</color></size>", d.Cost, d.Gain));
+                }
+                if (Relics.OwnedCount == 0)
+                    return sb.ToString().TrimEnd();
+                sb.AppendLine();
+            }
             sb.AppendLine(Loc.F("<b><color=#E8A0FF>[유물 {0}개]</color></b>", Relics.OwnedCount));
             foreach (var r in Relics.OwnedRelics())
             {

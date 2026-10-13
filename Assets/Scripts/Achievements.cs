@@ -125,6 +125,8 @@ namespace LoopRogue
                 Title = Loc.T("기억의 계승자"), Effect = TitleEffect.Health, Value = 15f, GachaTickets = 3, Hidden = true },
             new AchievementDef { SteamId = "ACH_SMITH_MET", Name = Loc.T("이름 없는 자"), Description = Loc.T("이름 없는 대장장이를 만난다"),
                 Title = Loc.T("대장장이의 손님"), Effect = TitleEffect.Gold, Value = 0.04f, GachaTickets = 2, Hidden = true },
+            new AchievementDef { SteamId = "ACH_SECRET_WALL", Name = Loc.T("무너진 벽 너머"), Description = Loc.T("숨겨진 보물상자를 찾는다"),
+                Title = Loc.T("벽 너머를 본 자"), Effect = TitleEffect.Gold, Value = 0.04f, GachaTickets = 2 }, // 조건은 보여 준다(사용자 결정 - 이스터에그를 찾아보게 하는 귀띔)
             new AchievementDef { SteamId = "ACH_UNKNOWN", Name = "Unknown", Description = Loc.T("Unknown 장비 세트를 받는다"),
                 Title = "Unknown", Effect = TitleEffect.Attack, Value = 5f, GachaTickets = 5, Hidden = true },
         });

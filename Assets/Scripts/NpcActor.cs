@@ -226,9 +226,20 @@ namespace LoopRogue
                 Loc.F("<color=#C890FF>{0}</color>  <color=#FF8080>대가: {1}</color>  <color=#8CE08C>얻는 것: {2}</color>", d.Name, d.Cost, d.Gain),
                 () => TakeDeal(d))).ToList();
             choices.Add(new NpcDialogUI.Choice(Loc.T("거절한다"), null));
-            NpcDialogUI.Instance.Show(DisplayName,
-                Loc.F("{0}\n<size=13><color=#9AA0AA>계약은 하나만. 배율 효과는 이번 시도 동안(죽거나 층을 넘기면 풀린다).</color></size>", LoopLine(CurseGreetings)),
-                choices);
+            NpcDialogUI.Instance.Show(DisplayName, $"{LoopLine(CurseGreetings)}\n{CurseTermsLine()}", choices);
+        }
+
+        /// <summary>계약 조건을 거래상이 직접 말한다(사용자 결정 10-13 - 회색 안내만으론 "영구인 줄 알았다"는 오해가 생겼다):
+        /// 하나만 고를 것, 배율 효과는 죽거나 층을 떠날 때까지, 그 자리에서 받는 것(골드·카드)은 영영 네 것.</summary>
+        private static string CurseTermsLine()
+        {
+            var lines = new[]
+            {
+                Loc.T("하나만 골라라. 힘은 네가 쓰러지거나 이 층을 떠날 때까지만 빌려주지... 당장 쥐여 주는 것만은 영영 네 것이고."),
+                Loc.T("명심해라. 이 힘은 이번 걸음이 끝날 때까지만이다. 죽거나 층을 넘으면 도로 거둬 가지. 흐흐."),
+                Loc.T("계약은 하나뿐. 효력은 네 숨이 붙어 있는 동안, 이 층 안에서만이다. 그 자리에서 건네는 것만은 돌려받지 않지."),
+            };
+            return $"<color=#C8B0E8>{lines[Rng.Next(lines.Length)]}</color>";
         }
 
         private void TakeDeal(CurseDeal deal)

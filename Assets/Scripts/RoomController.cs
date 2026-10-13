@@ -392,6 +392,7 @@ namespace LoopRogue
             if (def.IsTestRoom)
                 foreach (var (pos, type) in TestMap.Events)
                     SpawnEvent(pos, type);
+            TrySpawnSecretWall(def, layout);
 
             _thornsKills.Clear();
             _challengeEnemies.Clear();
@@ -1212,6 +1213,85 @@ namespace LoopRogue
             return renderer;
         }
 
+        // ---- 숨겨진 보물 벽(게임에 한 곳, 사용자 구상 10-13 - 이스터에그) ----
+        // 새 게임을 시작하면 층 2~9, 방 3~9 중 한 곳을 정해 두고, 그 방을 깔 때마다 가장자리 쪽 빈 칸 하나에 금 간 벽(Tiles/WallCracked)을 세운다.
+        // 폭탄으로 부수면 그 자리에 숨겨진 보물상자(RoomEventType.SecretChest)가 나오고, 그 회차에선 다시 안 나온다(엔딩 뒤 새 게임이면 새 자리).
+        private const string SecretStageKey = "LoopRogue_SecretWallStage";
+        private const string SecretRoomKey = "LoopRogue_SecretWallRoom";
+        private const string SecretDoneKey = "LoopRogue_SecretWallDone";
+        private Vector2Int? _secretWall;
+
+        private static (int Stage, int Room) SecretSpot()
+        {
+            if (!PlayerPrefs.HasKey(SecretStageKey))
+            {
+                PlayerPrefs.SetInt(SecretStageKey, Rng.Next(2, StageProgress.MaxStage));      // 2~9층
+                PlayerPrefs.SetInt(SecretRoomKey, Rng.Next(3, GameBootstrap.RoomsPerStage));  // 방 3~9
+                PlayerPrefs.Save();
+            }
+            return (PlayerPrefs.GetInt(SecretStageKey), PlayerPrefs.GetInt(SecretRoomKey));
+        }
+
+        private void TrySpawnSecretWall(RoomDefinition def, RoomLayout layout)
+        {
+            _secretWall = null;
+            if (_loadCleared || def.IsBossRoom || def.IsTestRoom || def.IsTutorialRoom || PlayerPrefs.GetInt(SecretDoneKey, 0) == 1)
+                return;
+            var (stage, room) = SecretSpot();
+            if (_stage != stage || def.RoomNumber != room)
+                return;
+
+            // 방 가장자리(또는 기존 벽 옆) 빈 칸 중, 플레이어 시작 칸에서 3칸 이상 떨어지고 주변 빈 칸이 2개 이상인 곳(길을 막지 않게)
+            var cells = new List<Vector2Int>();
+            for (var x = 0; x < Map.Width; x++)
+            for (var y = 0; y < Map.Height; y++)
+            {
+                var p = new Vector2Int(x, y);
+                if (!Map.IsWalkable(p) || Mathf.Max(Mathf.Abs(p.x - layout.PlayerStart.x), Mathf.Abs(p.y - layout.PlayerStart.y)) < 3)
+                    continue;
+                var edge = x == 0 || y == 0 || x == Map.Width - 1 || y == Map.Height - 1 || Directions4.Any(d => Map.IsWall(p + d));
+                var open = Directions4.Count(d => Map.IsWalkable(p + d));
+                if (edge && open >= 2)
+                    cells.Add(p);
+            }
+            if (cells.Count == 0)
+                return;
+            var cell = cells[Rng.Next(cells.Count)];
+            Map.AddWall(cell);
+            var sprite = Resources.Load<Sprite>("Tiles/WallCracked");
+            GameObject go;
+            if (_tiledRoom && sprite != null)
+                go = CreateTile(transform, cell, sprite, -8, Color.white).gameObject;
+            else
+            {
+                go = new GameObject("SecretWall");
+                go.transform.SetParent(transform, false);
+                VisualUtil.CreateSquareVisual(go, WallColor * 0.9f, GridConstants.CellSize, sortingOrder: -8);
+                go.transform.position = new Vector3(cell.x * GridConstants.CellSize, cell.y * GridConstants.CellSize, 0f);
+            }
+            _roomObjects.Add(go);
+            _wallObjects[cell] = go;
+            _secretWall = cell;
+        }
+
+        private static readonly Vector2Int[] Directions4 = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+
+        /// <summary>폭탄으로 숨겨진 벽이 부서졌다 - 그 자리에 숨겨진 보물상자.</summary>
+        private void OnSecretWallBroken(Vector2Int cell)
+        {
+            _secretWall = null;
+            PlayerPrefs.SetInt(SecretDoneKey, 1);
+            PlayerPrefs.Save();
+            SpawnEvent(cell, RoomEventType.SecretChest);
+            ShowMessage(Loc.T("<color=#FFD966>무너진 벽 너머에 무언가 있다!</color> 숨겨진 보물상자를 찾았다"));
+            Achievements.Unlock("ACH_SECRET_WALL");
+            if (HitFeedback.Enabled)
+            {
+                SfxPlayer.Play(Sfx.Appear);
+                HitFeedback.OnSummon(new Vector3(cell.x * GridConstants.CellSize, cell.y * GridConstants.CellSize, 0f));
+            }
+        }
+
         // ---- 2층 오우거 균열(BossBrain) ----
         public const int OgreFallStunTurns = 2;
         public const int OgreFallImmuneTurns = 2;   // 빠졌다 나온 뒤 다시 안 빠지는 턴(연속 기절 방지)
@@ -1394,6 +1474,8 @@ namespace LoopRogue
                 }
             }
             OnWallRemoved(p);
+            if (_secretWall == p)
+                OnSecretWallBroken(p);
             if (_boarPillars.Remove(p) && _boarPillars.Count == 0)
                 ShowMessage(Loc.T("<color=#FFB060>기둥이 모두 무너졌다!</color> 멧돼지의 단단함이 풀렸다!"));
         }
@@ -1653,10 +1735,13 @@ namespace LoopRogue
             var passes = 1;
             if (GlitchRoom.Active == GlitchRoom.Rule.DoubleTurn && ++GlitchRoom.EnemyPhase % 2 == 0)
                 passes = 2; // 오류방 - 두 턴에 한 번 더 움직인다
+            // 이번 몹 턴 "도중에" 방이 끝났을 때만 멈춘다. 예전엔 _roomCleared만 봐서, 방을 비운 뒤 나온 몹(도전의 깃발 정예·미믹)이
+            // 이미 클리어된 방이라는 이유로 매 턴 여기서 걸려 아무 행동도 안 했다.
+            var clearedBefore = _roomCleared;
             for (var pass = 0; pass < passes; pass++)
             foreach (var enemy in snapshot)
             {
-                if (_roomCleared)
+                if (_roomCleared && !clearedBefore)
                     return; // 반사 부적 등으로 이번 몹 턴 도중 보스가 죽어 방이 끝났다 - 남은 졸개는 행동하지 않는다
                 if (enemy == null || enemy.Stats.IsDead || !_enemies.Contains(enemy))
                     continue; // 보스와 함께 치워진 졸개(Destroy는 프레임 끝이라 아직 null이 아니다)

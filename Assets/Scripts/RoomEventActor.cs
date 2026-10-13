@@ -17,6 +17,7 @@ namespace LoopRogue
         FateDice,      // 운명의 주사위 - 1~6 무작위 결과
         ElixirSpring,  // 영약의 샘 - 무작위 영약 1개(영구)
         Whetstone,     // 숫돌 - 이번 시도 동안 주는 피해 증가
+        SecretChest,   // 숨겨진 보물상자 - 게임에 한 곳뿐인 금 간 벽을 폭탄으로 부수면 나온다(RoomController.TrySpawnSecretWall)
     }
 
     /// <summary>방 이벤트 칸 - 한 시도에 스테이지당 보물상자 1 + (확률로) 다른 이벤트 1, 방 3~9 중. 칸 하나를 차지하는 액터라
@@ -26,6 +27,7 @@ namespace LoopRogue
     {
         /// <summary>보물상자 골드 = 방 클리어 골드의 이 배수, 저주받은 상자 대박은 그 두 배.</summary>
         public const int TreasureGoldMultiplier = 5;
+        public const int SecretChestGoldMultiplier = TreasureGoldMultiplier * 2; // 숨겨진 보물상자 - 보물상자 골드의 2배 + 아이템 2개
         public const int CursedJackpotMultiplier = 10;
         public const float CursedHealthLossRate = 0.3f;
         public const int DiceGoldMultiplier = 4;
@@ -62,6 +64,7 @@ namespace LoopRogue
             RoomEventType.Hourglass => Loc.T("시간의 모래시계"),
             RoomEventType.FateDice => Loc.T("운명의 주사위"),
             RoomEventType.ElixirSpring => Loc.T("영약의 샘"),
+            RoomEventType.SecretChest => Loc.T("숨겨진 보물상자"),
             _ => Loc.T("숫돌"),
         };
 
@@ -71,7 +74,7 @@ namespace LoopRogue
             Stats = new CharacterStats(1f, 0f);
 
             // 도트 그림(제자리에서 반짝이는 반복) - 미믹은 보물상자 그림 그대로.
-            var look = type == RoomEventType.Mimic ? RoomEventType.TreasureChest : type;
+            var look = type == RoomEventType.Mimic || type == RoomEventType.SecretChest ? RoomEventType.TreasureChest : type;
             var fx = Fx.Play($"event_{look}", transform.position, 0.95f, fps: 6f, loop: true, sortingOrder: 0, parent: transform);
             if (fx != null)
                 return;
@@ -90,7 +93,7 @@ namespace LoopRogue
                 _ => new Color(0.6f, 0.65f, 0.7f),
             };
             // 이벤트 도트 그림(보물상자 / 회복 샘 / 축복 제단 / 저주받은 상자) - 없으면 예전 색 마름모
-            if (VisualUtil.TryCreateProp(gameObject, $"Event_{type}", sortingOrder: 0) != null)
+            if (VisualUtil.TryCreateProp(gameObject, $"Event_{look}", sortingOrder: 0) != null)
                 return;
             var renderer = VisualUtil.CreateSquareVisual(gameObject, color, GridConstants.CellSize * 0.45f, sortingOrder: 0);
             transform.rotation = Quaternion.Euler(0f, 0f, 45f); // 마름모 - 몹(사각형)과 구분
@@ -126,6 +129,18 @@ namespace LoopRogue
                     return item.HasValue
                         ? Loc.F("보물상자! 골드 +{0}, {1}{2} 획득", gold, ItemInfo.Name(item.Value), (extra.HasValue ? $", {ItemInfo.Name(extra.Value)}" : ""))
                         : Loc.F("보물상자! 골드 +{0} (아이템은 이미 다 있다)", gold);
+                }
+                case RoomEventType.SecretChest:
+                {
+                    var gold = roomClearGold * SecretChestGoldMultiplier;
+                    GoldWallet.Add(gold);
+                    var items = new[] { Inventory.GiveRandomMissing(), Inventory.GiveRandomMissing(),
+                            Relics.Has(RelicType.TreasureHunter) ? Inventory.GiveRandomMissing() : null }
+                        .Where(i => i.HasValue).Select(i => ItemInfo.Name(i.Value)).ToList();
+                    HitFeedback.OnBonusReward(player);
+                    return items.Count > 0
+                        ? Loc.F("숨겨진 보물상자! 골드 +{0}, {1} 획득", gold, string.Join(", ", items))
+                        : Loc.F("숨겨진 보물상자! 골드 +{0} (아이템은 이미 다 있다)", gold);
                 }
                 case RoomEventType.HealingSpring:
                     player.Stats.FullHeal();
