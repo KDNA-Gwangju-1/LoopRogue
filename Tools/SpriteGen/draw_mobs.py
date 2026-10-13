@@ -1,6 +1,7 @@
 """LoopRogue 새 몹 4종 도트 그림 생성 (PIL 없이 zlib PNG).
 Shaman(고블린 주술사) / OrcCharger(오크 돌격병) / Jelly(분열 젤리) / Rogue(그림자 암살자)
-48x48, idle 4 / walk 4 / attack 3 프레임, south/east/west/north. west = east 좌우 반전.
+48x48, idle 8 / walk 8 / attack 8 프레임(10-13 4/4/3 → 8), south/east/west/north. west = east 좌우 반전.
+걷기 8장 = 왼발 4장 + 오른발 4장(SpriteAnimator가 한 칸마다 절반씩 번갈아 쓴다).
 usage: python draw_mobs.py <Assets/Resources/Sprites 경로> <미리보기 png 경로>"""
 import math
 import os
@@ -125,6 +126,32 @@ def write_png(path, canvas):
 
 OUTLINE = hexc('1b1420')
 
+# ---- 8프레임 동작표 ----
+IDLE_BOB = [0, 0, 0, 0, 1, 1, 1, 1]
+WALK_BOB = [0, 1, 1, 0, 0, 1, 1, 0]
+WALK_LIFT = [0, 1, 2, 1, 0, 0, 0, 0]   # 왼발
+WALK_LIFT2 = [0, 0, 0, 0, 0, 1, 2, 1]  # 오른발
+FLAP = [0, 1, 1, 1, 0, -1, -1, -1]     # 망토 자락
+# 공격 8장: 준비 → 힘 모으기 → 절정 2장 → 되돌아오기
+SHAMAN_RAISE = [1, 2, 4, 5, 5, 4, 3, 1]
+ORC_LUNGE = [0, 1, 2, 4, 4, 3, 2, 1]
+ROGUE_THRUST = [0, 1, 3, 5, 5, 4, 2, 1]
+# 대기 전용 잔움직임(같은 그림체 안에서 - 숨쉬기 한 칸만 오르내리던 걸 8단계로)
+ORB_PULSE = [0.0, 0.3, 0.6, 0.9, 1.0, 0.7, 0.4, 0.1]   # 주술사 지팡이 구슬 빛
+HEM_SWAY = [0, 0, 1, 1, 0, 0, -1, -1]                    # 주술사 로브 밑단
+BREATH = [0, 0, 1, 1, 1, 1, 0, 0]                        # 오크 어깨·가슴(몸 전체 bob과 박자를 어긋나게)
+METAL_GLINT = [-5, -3, -1, 1, 3, 5, None, None]          # 오크 투구 위를 지나가는 반짝임
+DAGGER_GLINT = [None, None, 0, 1, 2, 3, None, None]      # 도적 단검 날을 따라 내려가는 반짝임
+GLINT = hexc('f4f6ff')
+
+
+def bob_of(pose, t):
+    return IDLE_BOB[t] if pose == 'idle' else (WALK_BOB[t] if pose == 'walk' else 0)
+
+
+def lifts(pose, t):
+    return (WALK_LIFT[t], WALK_LIFT2[t]) if pose == 'walk' else (0, 0)
+
 # ---------------------------------------------------------------- 고블린 주술사
 
 
@@ -135,13 +162,12 @@ def draw_shaman(d, pose, t):
     trim = hexc('c9a24a')
     staff = hexc('7a5530')
     orb = hexc('7dffa0')
-    bob = [0, 0, 1, 1][t] if pose == 'idle' else ([0, 1, 0, 1][t] if pose == 'walk' else 0)
-    raise_ = [2, 5, 3][t] if pose == 'attack' else 0
+    bob = bob_of(pose, t)
+    raise_ = SHAMAN_RAISE[t] if pose == 'attack' else 0
     cx = 24
     y = bob
     # 발
-    lift = [0, 2, 0, 0][t] if pose == 'walk' else 0
-    lift2 = [0, 0, 0, 2][t] if pose == 'walk' else 0
+    lift, lift2 = lifts(pose, t)
     boot = hexc('3a2a1c')
     if d == 'east':
         c.rect(cx - 3, 38 - lift, cx, 40 - lift, boot)
@@ -156,9 +182,12 @@ def draw_shaman(d, pose, t):
         top = 13 + y - raise_
         c.line(sx, top, sx, 40 + y - raise_ // 2, staff)
         c.line(sx + 1, top + 1, sx + 1, 40 + y - raise_ // 2, shade(staff, 0.7))
-        r = 2.6 + (1.2 if pose == 'attack' and t == 1 else 0)
-        if pose == 'attack':
+        r = 2.6 + (1.2 if pose == 'attack' and raise_ >= 5 else 0.6 if pose == 'attack' and raise_ >= 4 else 0)
+        if pose == 'attack' and raise_ >= 2:
             c.ellipse(sx + 0.5, top - 2, r + 2, r + 2, hexc('7dffa0', 90), lit=False)
+        elif pose == 'idle' and ORB_PULSE[t] > 0.25:  # 대기 - 구슬 빛이 숨 쉬듯 번졌다 줄었다
+            k = ORB_PULSE[t]
+            c.ellipse(sx + 0.5, top - 2, r + 0.8 + k * 1.4, r + 0.8 + k * 1.4, hexc('7dffa0', int(40 + 60 * k)), lit=False)
         c.ellipse(sx + 0.5, top - 2, r, r, orb)
         c.set(sx - 1, top - 4, hexc('e8fff0'))
     if d == 'north':
@@ -166,6 +195,13 @@ def draw_shaman(d, pose, t):
     # 로브
     c.trapezoid(cx, 24 + y, 38 + y, 11, 17, robe)
     c.rect(cx - 7, 37 + y, cx + 7, 38 + y, trim)
+    hem = HEM_SWAY[t] if pose == 'idle' else (WALK_LIFT[t] - WALK_LIFT2[t] if pose == 'walk' else 0)
+    if hem > 0:  # 밑단이 오른쪽으로 살짝 쓸림
+        c.rect(cx + 8, 36 + y, cx + 8, 38 + y, shade(robe, 0.75))
+        c.set(cx + 8, 38 + y, trim)
+    elif hem < 0:
+        c.rect(cx - 9, 36 + y, cx - 9, 38 + y, shade(robe, 1.2))
+        c.set(cx - 9, 38 + y, trim)
     c.rect(cx - 5, 29 + y, cx + 5, 29 + y, trim)
     # 머리
     hx = cx + (1 if d == 'east' else 0)
@@ -216,14 +252,13 @@ def draw_orc(d, pose, t):
     metal = hexc('8c8f99')
     pants = hexc('4a3828')
     horn = hexc('e8dfc8')
-    bob = [0, 0, 1, 1][t] if pose == 'idle' else ([0, 1, 0, 1][t] if pose == 'walk' else 0)
-    lunge = [1, 4, 2][t] if pose == 'attack' else 0
+    bob = bob_of(pose, t)
+    lunge = ORC_LUNGE[t] if pose == 'attack' else 0
     cx = 24
     y = bob
     fx = lunge if d == 'east' else 0
     fy = lunge if d == 'south' else (-lunge if d == 'north' else 0)
-    lift = [0, 2, 0, 0][t] if pose == 'walk' else 0
-    lift2 = [0, 0, 0, 2][t] if pose == 'walk' else 0
+    lift, lift2 = lifts(pose, t)
     boot = hexc('2e241c')
     # 다리
     if d == 'east':
@@ -237,11 +272,12 @@ def draw_orc(d, pose, t):
         c.rect(cx - 8, 39 - lift, cx - 3, 40 - lift, boot)
         c.rect(cx + 3, 39 - lift2, cx + 8, 40 - lift2, boot)
     bx, by = cx + fx, y + fy
+    breath = BREATH[t] if pose == 'idle' else 0  # 가슴이 부풀고 어깨가 한 칸 들린다
     # 몸통
     if d == 'east':
-        c.ellipse(bx, 27 + by, 9, 8, armor)
+        c.ellipse(bx + breath * 0.5, 27 + by - breath * 0.5, 9 + breath * 0.5, 8 + breath * 0.5, armor)
     else:
-        c.ellipse(bx, 27 + by, 11, 8, armor)
+        c.ellipse(bx, 27 + by - breath * 0.5, 11 + breath * 0.5, 8 + breath * 0.5, armor)
         c.rect(bx - 1, 21 + by, bx + 1, 34 + by, shade(armor, 0.7))  # 가죽 끈
     c.rect(bx - 8 if d != 'east' else bx - 7, 32 + by, bx + 8 if d != 'east' else bx + 7, 33 + by, hexc('3a2a1c'))
     # 팔
@@ -253,12 +289,12 @@ def draw_orc(d, pose, t):
         c.ellipse(bx + 12, 28 + by, 3, 5, skin)
         c.ellipse(bx - 12, 33 + by, 2.5, 2.5, shade(skin, 0.9))
         c.ellipse(bx + 12, 33 + by, 2.5, 2.5, shade(skin, 0.9))
-    # 어깨 갑옷
+    # 어깨 갑옷(숨 들이쉬면 한 칸 위로)
     if d == 'east':
-        c.ellipse(bx - 1, 21 + by, 5, 3.5, metal)
+        c.ellipse(bx - 1, 21 + by - breath, 5, 3.5, metal)
     else:
-        c.ellipse(bx - 10, 21 + by, 4.5, 3.5, metal)
-        c.ellipse(bx + 10, 21 + by, 4.5, 3.5, metal)
+        c.ellipse(bx - 10, 21 + by - breath, 4.5, 3.5, metal)
+        c.ellipse(bx + 10, 21 + by - breath, 4.5, 3.5, metal)
     # 머리
     hx = bx + (3 if d == 'east' else 0)
     hy = 15 + by
@@ -275,6 +311,14 @@ def draw_orc(d, pose, t):
         c.line(hx - 9, hy - 7, hx - 9, hy - 10, horn)
         c.line(hx + 6, hy - 3, hx + 9, hy - 7, horn)
         c.line(hx + 9, hy - 7, hx + 9, hy - 10, horn)
+    if pose == 'idle' and METAL_GLINT[t] is not None:  # 투구 위를 가로지르는 쇠 반짝임
+        gx = hx + METAL_GLINT[t]
+        for gy in (hy - 5, hy - 4):
+            if c.get(gx, gy) is not None:
+                c.set(gx, gy, GLINT)  # 2칸짜리 반짝임(가운데 흰색 + 다음 칸 옅게)
+                if c.get(gx + 1, gy) is not None:
+                    c.set(gx + 1, gy, hexc('c8ccd8'))
+                break
     if d == 'south':
         c.set(hx - 2, hy + 1, hexc('ff3a2a'))
         c.set(hx + 2, hy + 1, hexc('ff3a2a'))
@@ -298,12 +342,15 @@ def draw_jelly(d, pose, t):
     body = hexc('4a8cff', 225)
     core = hexc('1f4fb8', 235)
     cx = 24
-    if pose == 'idle':
-        rx, ry, oy, ox = [(10, 8, 0, 0), (10.5, 7.5, 0, 0), (11, 7, 0, 0), (10.5, 7.5, 0, 0)][t]
-    elif pose == 'walk':
-        rx, ry, oy, ox = [(11, 7, 0, 0), (9, 9, -3, 0), (9.5, 8.5, -4, 0), (10.5, 7.5, -1, 0)][t]
-    else:
-        rx, ry, oy, ox = [(11.5, 6.5, 0, 0), (9, 9.5, -2, 4), (10, 8, -1, 2)][t]
+    if pose == 'idle':  # 말랑말랑 숨쉬기(옆으로 퍼졌다 위로 솟았다)
+        rx, ry, oy, ox = [(10, 8, 0, 0), (10.25, 7.75, 0, 0), (10.5, 7.5, 0, 0), (10.75, 7.25, 0, 0),
+                          (11, 7, 0, 0), (10.75, 7.25, 0, 0), (10.5, 7.5, 0, 0), (10.25, 7.75, 0, 0)][t]
+    elif pose == 'walk':  # 한 칸에 한 번 통통 - 앞 4장과 뒤 4장이 같은 한 번 뛰기
+        hop = [(11, 7, 0, 0), (9.5, 8.5, -2, 0), (9.25, 8.75, -4, 0), (10.25, 7.75, -1.5, 0)]
+        rx, ry, oy, ox = hop[t % 4]
+    else:  # 납작 웅크렸다 → 앞으로 덮치기 → 되돌아오기
+        rx, ry, oy, ox = [(11, 7, 0, 0), (11.5, 6.5, 0, 0), (10.25, 8, -1, 2), (9, 9.5, -2, 4),
+                          (9, 9.5, -2, 4), (9.5, 8.75, -1.5, 3), (10, 8, -1, 2), (10.5, 7.5, -0.5, 1)][t]
     fx = ox if d == 'east' else 0
     fy = (ox // 2 if d == 'south' else (-ox // 2 if d == 'north' else 0))
     bcx = cx + fx
@@ -339,12 +386,11 @@ def draw_rogue(d, pose, t):
     scarf = hexc('a02a3a')
     blade = hexc('d8dde8')
     eye = hexc('d080ff')
-    bob = [0, 0, 1, 1][t] if pose == 'idle' else ([0, 1, 0, 1][t] if pose == 'walk' else 0)
+    bob = bob_of(pose, t)
     cx = 24
     y = bob
-    thrust = [1, 5, 2][t] if pose == 'attack' else 0
-    lift = [0, 2, 0, 0][t] if pose == 'walk' else 0
-    lift2 = [0, 0, 0, 2][t] if pose == 'walk' else 0
+    thrust = ROGUE_THRUST[t] if pose == 'attack' else 0
+    lift, lift2 = lifts(pose, t)
     boot = hexc('1e1828')
     if d == 'east':
         c.rect(cx - 3, 36 - lift, cx - 1, 40 - lift, boot)
@@ -359,22 +405,36 @@ def draw_rogue(d, pose, t):
             c.line(hx, hy, hx, hy + 5 + thrust // 2, blade)
             c.set(hx + 1, hy + 1, shade(blade, 0.7))
             c.rect(hx - 1, hy - 1, hx + 1, hy - 1, hexc('6a5030'))
+            if pose == 'idle' and DAGGER_GLINT[t] is not None:
+                c.set(hx, hy + 1 + DAGGER_GLINT[t], GLINT)
         elif d == 'east':
             hx, hy = cx + 6 + thrust, 28 + y
             c.line(hx, hy, hx + 5 + thrust // 2, hy, blade)
             c.set(hx + 1, hy + 1, shade(blade, 0.7))
             c.rect(hx - 1, hy - 1, hx - 1, hy + 1, hexc('6a5030'))
+            if pose == 'idle' and DAGGER_GLINT[t] is not None:
+                c.set(hx + 1 + DAGGER_GLINT[t], hy, GLINT)
         else:
             hx, hy = cx - 8, 27 + y - thrust
             c.line(hx, hy, hx, hy - 4, blade)
+            if pose == 'idle' and DAGGER_GLINT[t] is not None:
+                c.set(hx, hy - 1 - DAGGER_GLINT[t], GLINT)
     if d == 'north':
         draw_dagger()
     # 망토
     c.trapezoid(cx + (1 if d == 'east' else 0), 21 + y, 37 + y, 10, 16, cloak)
     # 망토 자락 펄럭임
-    flap = [0, 1, 0, -1][t] if pose != 'attack' else -2
+    flap = FLAP[t] if pose != 'attack' else (-1 if thrust < 3 else -2)
     if d == 'east':
         c.trapezoid(cx - 6 + flap, 26 + y, 37 + y, 2, 5, shade(cloak, 0.8), lit=False)
+    elif pose != 'attack':
+        # 앞·뒤 모습 - 망토 밑단 양 끝이 자락처럼 8단계로 나풀거린다
+        for side, k in ((-1, flap), (1, -flap)):
+            ex = cx - 8 if side < 0 else cx + 7  # 망토 밑줄 양 끝 칸
+            if k > 0:
+                c.rect(ex + side, 34 + y, ex + side, 37 + y, shade(cloak, 0.8 if side > 0 else 1.15))
+            elif k < 0:
+                c.px[int(37 + y)][int(ex)] = None
     # 목도리
     c.rect(cx - 5, 22 + y, cx + 5, 23 + y, scarf)
     if d == 'north':
@@ -409,7 +469,7 @@ MOBS = {
     'Jelly': draw_jelly,
     'Rogue': draw_rogue,
 }
-POSES = {'idle': 4, 'walk': 4, 'attack': 3}
+POSES = {'idle': 8, 'walk': 8, 'attack': 8}
 
 
 def main(out_root, preview_path):
@@ -429,7 +489,7 @@ def main(out_root, preview_path):
                     write_png(os.path.join(folder, f'{pose}_{d}_{t}.png'), cv)
                     sheet.append((mob, pose, d, t, cv))
     # 미리보기: 몹마다 한 줄(방향 4 × idle0, walk1, attack1), 4배 확대, 회색 배경
-    cols = [(p, d, t) for d in ('south', 'east', 'west', 'north') for (p, t) in (('idle', 0), ('walk', 1), ('attack', 1))]
+    cols = [(p, d, t) for d in ('south', 'east', 'west', 'north') for (p, t) in (('idle', 0), ('walk', 2), ('attack', 3))]
     S = 4
     PW, PH = len(cols) * W * S, len(MOBS) * H * S
     img = [[(70, 72, 80, 255)] * PW for _ in range(PH)]

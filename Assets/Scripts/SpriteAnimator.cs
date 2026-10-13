@@ -60,6 +60,14 @@ namespace LoopRogue
         private float _stepStart = -1f;
         private Vector3 _stepFrom;
         private bool _lit;
+        private int _stepParity; // 8장 걷기 - 한 칸마다 앞 4장(왼발)·뒤 4장(오른발)을 번갈아
+
+        /// <summary>8장짜리 세트는 프레임당 시간을 줄여 한 바퀴 시간을 4장 때와 같게(10-13 4→8프레임 작업). 예전부터 8장이던
+        /// 슬라임·거미 대기는 그 속도 그대로 둔다(_smooth = false).</summary>
+        private bool _smooth = true;
+
+        private float FrameTime(float baseSeconds, int length) =>
+            _smooth && length >= 8 ? baseSeconds * 4f / length : baseSeconds;
 
         /// <summary>세트의 대기(남쪽) 첫 프레임 - 없으면 null(그림 파일이 아직 없으면 호출부가 예전 사각형으로).</summary>
         public static Sprite FirstFrame(string setName)
@@ -71,6 +79,7 @@ namespace LoopRogue
         public void Setup(string setName, SpriteRenderer renderer, Color debrisColor)
         {
             _set = Load(setName);
+            _smooth = setName != "Slime" && setName != "Spider";
             _renderer = renderer;
             _actor = GetComponent<GridActor>();
             DebrisColor = debrisColor;
@@ -92,7 +101,8 @@ namespace LoopRogue
             if (!LockedToFacing)
                 _dir = DirIndex(direction, _dir);
             _attackStart = Time.time;
-            _attackUntil = Time.time + AttackFrameSeconds * Frames(_set.Attack).Length;
+            var length = Frames(_set.Attack).Length;
+            _attackUntil = Time.time + FrameTime(AttackFrameSeconds, length) * length;
         }
 
         private void LateUpdate()
@@ -115,6 +125,7 @@ namespace LoopRogue
                 {
                     _stepFrom = new Vector3(_lastPos.x * GridConstants.CellSize, _lastPos.y * GridConstants.CellSize, 0f);
                     _stepStart = Time.time;
+                    _stepParity ^= 1;
                 }
                 _lastPos = _actor.GridPos;
             }
@@ -133,7 +144,7 @@ namespace LoopRogue
                 var attack = Frames(_set.Attack);
                 if (attack.Length > 0)
                 {
-                    var i = Mathf.Min(attack.Length - 1, (int)((Time.time - _attackStart) / AttackFrameSeconds));
+                    var i = Mathf.Min(attack.Length - 1, (int)((Time.time - _attackStart) / FrameTime(AttackFrameSeconds, attack.Length)));
                     _renderer.sprite = attack[i];
                     return;
                 }
@@ -142,7 +153,15 @@ namespace LoopRogue
             if (stepping)
             {
                 var walk = Frames(_set.Walk);
-                _renderer.sprite = walk[(int)((Time.time - _stepStart) / WalkFrameSeconds) % walk.Length];
+                if (_smooth && walk.Length >= 8)
+                {
+                    // 한 칸 = 반 바퀴(한쪽 발) - 걸음마다 번갈아 앞·뒤 절반을 한 칸 걷는 시간에 맞춰 돌린다
+                    var half = walk.Length / 2;
+                    var k = Mathf.Min(half - 1, (int)((Time.time - _stepStart) / (StepSeconds / half)));
+                    _renderer.sprite = walk[_stepParity * half + k];
+                }
+                else
+                    _renderer.sprite = walk[(int)((Time.time - _stepStart) / WalkFrameSeconds) % walk.Length];
                 return;
             }
 
@@ -150,12 +169,12 @@ namespace LoopRogue
             if (_lit)
             {
                 var lit = Frames(_set.Lit);
-                _renderer.sprite = lit[(int)(_time / LitFrameSeconds) % lit.Length];
+                _renderer.sprite = lit[(int)(_time / FrameTime(LitFrameSeconds, lit.Length)) % lit.Length];
                 return;
             }
             var idle = Frames(_set.Idle);
             if (idle.Length > 0)
-                _renderer.sprite = idle[(int)(_time / IdleFrameSeconds) % idle.Length];
+                _renderer.sprite = idle[(int)(_time / FrameTime(IdleFrameSeconds, idle.Length)) % idle.Length];
         }
 
         /// <summary>지금 방향의 프레임 - 그 방향 그림이 없으면 남쪽 것.</summary>
