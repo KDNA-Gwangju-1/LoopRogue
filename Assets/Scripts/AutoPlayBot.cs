@@ -160,6 +160,12 @@ namespace LoopRogue
             public int PatternResolves;   // 보스 예고 공격 발동 횟수
             public int Enrages;           // 보스 광폭화 횟수
             public int Heals, Charges, ChargeHits, Blinks, Splits; // 새 몹: 치유사 회복, 돌진(적중), 도적 순간이동, 분열체 갈라짐
+            public int Knights, KnightKills, KnightReads, KnightSlashes, KnightSlashHits, RelicReads; // 히든 몹 기억하는 기사: 등장, 처치, 간파, 강타(적중), 유물 "기사의 기억"으로 피함
+            public int KnightEchoes, KnightEchoHits; // 기억 재현(적중)
+            public int OgreFalls, PlayerCracks; // 2층 오우거 균열 - 오우거가 빠진 횟수 / 봇이 빠진 횟수
+            public int SmithsMet;    // 히든 NPC 대장장이를 만난 횟수
+            public bool SmithForged; // Unknown 세트를 받았는지
+            public int SmithForgeStage; // 받은 층
             public int Puzzles;           // 퍼즐·미니게임 방(봇은 성공으로 치고 넘어감 - 카드 1장씩)
             public int PatternHits;       // 그중 맞은 횟수
             public int Dodges;            // 봇이 예고 칸에서 피한 횟수
@@ -446,6 +452,16 @@ namespace LoopRogue
             EnemyActor.ChargeCount = 0;
             EnemyActor.ChargeHitCount = 0;
             EnemyActor.BlinkCount = 0;
+            EnemyActor.KnightReadCount = 0;
+            EnemyActor.KnightSlashCount = 0;
+            EnemyActor.KnightSlashHitCount = 0;
+            EnemyActor.KnightEchoCount = 0;
+            EnemyActor.KnightEchoHitCount = 0;
+            RoomController.KnightSpawnCount = 0;
+            RoomController.KnightKillCount = 0;
+            CharacterStats.KnightMemoryReadCount = 0;
+            RoomController.OgreFallCount = 0;
+            RoomController.PlayerCrackCount = 0;
             RoomController.SplitCount = 0;
             RoomController.PuzzleClearCount = 0;
             BossBrain.PatternHitCount = 0;
@@ -975,6 +991,8 @@ namespace LoopRogue
                     _run.MerchantsMet++;
                 else if (_room.Npc.Type == NpcType.Wanderer)
                     _run.WanderersMet++;
+                else if (_room.Npc.Type == NpcType.Blacksmith)
+                    _run.SmithsMet++;
                 else
                     _run.CurseNpcsMet++;
             }
@@ -1111,6 +1129,8 @@ namespace LoopRogue
             var npcType = npc.Type;
             var npcName = npc.DisplayName; // 그림자 거래상은 계약하면 바로 사라진다
             var bought = npc.BotInteract(_player);
+            if (npcType == NpcType.Blacksmith && Blacksmith.Current == Blacksmith.Stage.Done && _run.SmithForgeStage == 0)
+                _run.SmithForgeStage = _room.Stage;
             var cursed = Curses.ActiveDeals.Count > cursesBefore;
             if (cursed)
                 _run.CursesTaken++;
@@ -1126,7 +1146,8 @@ namespace LoopRogue
             if (completed)
                 _run.QuestCompleted++;
 
-            var what = npcType == NpcType.Wanderer
+            var what = npcType == NpcType.Blacksmith ? $"대장장이 - {Blacksmith.Current}"
+                : npcType == NpcType.Wanderer
                 ? (completed ? "보고 - 의뢰 보상" : accepted ? "의뢰 수락" : "이미 의뢰 보유")
                 : npcType == NpcType.Curse
                     ? (cursed ? $"계약: {Curses.ActiveDeals[Curses.ActiveDeals.Count - 1].Name}" : "거절(체력 부족)")
@@ -1969,7 +1990,7 @@ namespace LoopRogue
                 var i = (int)slot;
                 r.TotalPulls[i] = GachaSystem.GetPullCount(slot);
                 r.ShopLevels[i] = GachaSystem.GetShopLevel(slot);
-                if (EquipmentWallet.GetEquipped(slot) == ItemGrade.Eternal)
+                if (EquipmentWallet.GetEquipped(slot) >= ItemGrade.Eternal) // Unknown(대장장이 세트)도 영원 이상으로 센다
                     r.EternalCount++;
             }
             for (var i = 0; i < PotionOrder.Length; i++)
@@ -1981,6 +2002,17 @@ namespace LoopRogue
             r.Charges = EnemyActor.ChargeCount;
             r.ChargeHits = EnemyActor.ChargeHitCount;
             r.Blinks = EnemyActor.BlinkCount;
+            r.Knights = RoomController.KnightSpawnCount;
+            r.KnightKills = RoomController.KnightKillCount;
+            r.KnightReads = EnemyActor.KnightReadCount;
+            r.KnightSlashes = EnemyActor.KnightSlashCount;
+            r.KnightSlashHits = EnemyActor.KnightSlashHitCount;
+            r.KnightEchoes = EnemyActor.KnightEchoCount;
+            r.KnightEchoHits = EnemyActor.KnightEchoHitCount;
+            r.RelicReads = CharacterStats.KnightMemoryReadCount;
+            r.SmithForged = Blacksmith.Current == Blacksmith.Stage.Done;
+            r.OgreFalls = RoomController.OgreFallCount;
+            r.PlayerCracks = RoomController.PlayerCrackCount;
             r.Splits = RoomController.SplitCount;
             r.Puzzles = RoomController.PuzzleClearCount;
             r.PatternHits = BossBrain.PatternHitCount;
@@ -2145,6 +2177,14 @@ namespace LoopRogue
                 var charges = _results.Sum(r => r.Charges);
                 Log($"5층+ 새 몹(판당): 치유사 회복 {_results.Average(r => r.Heals):0}회 / 돌진 {_results.Average(r => r.Charges):0}회(적중 {(charges > 0 ? _results.Sum(r => r.ChargeHits) * 100f / charges : 0f):0}%) / " +
                     $"도적 순간이동 {_results.Average(r => r.Blinks):0}회 / 분열 {_results.Average(r => r.Splits):0}회");
+                var knightSlashes = _results.Sum(r => r.KnightSlashes);
+                Log($"히든 몹 기억하는 기사(판당): 등장 {_results.Average(r => r.Knights):0.00}회 / 처치 {_results.Average(r => r.KnightKills):0.00}회 / 간파 {_results.Average(r => r.KnightReads):0.0}회 / " +
+                    $"강타 {_results.Average(r => r.KnightSlashes):0.0}회(적중 {(knightSlashes > 0 ? _results.Sum(r => r.KnightSlashHits) * 100f / knightSlashes : 0f):0}%) / 기억 재현 {_results.Average(r => r.KnightEchoes):0.0}회(적중 {(_results.Sum(r => r.KnightEchoes) > 0 ? _results.Sum(r => r.KnightEchoHits) * 100f / _results.Sum(r => r.KnightEchoes) : 0f):0}%) / 유물로 피함 {_results.Average(r => r.RelicReads):0.0}회 / " +
+                    $"처치한 판 {_results.Count(r => r.KnightKills > 0)}/{_results.Count}");
+                Log($"2층 오우거 균열(판당): 오우거가 빠짐 {_results.Average(r => r.OgreFalls):0.0}회 / 봇이 빠짐 {_results.Average(r => r.PlayerCracks):0.0}회");
+                var forged = _results.Where(r => r.SmithForged).ToList();
+                Log($"히든 NPC 대장장이(판당): 만남 {_results.Average(r => r.SmithsMet):0.00}회 / Unknown 세트 받은 판 {forged.Count}/{_results.Count}" +
+                    (forged.Count > 0 ? $" (받은 층 평균 {forged.Average(r => r.SmithForgeStage):0.0})" : ""));
                 Log($"퍼즐·미니게임 방(판당): {_results.Average(r => r.Puzzles):0.0}개 - 봇은 성공으로 치고 넘어감(레벨업 카드 같은 수)");
                 var bombs = _results.Sum(r => r.BombExplosions);
                 Log($"아이템(판당): 얻음 {_results.Average(r => r.ItemObtained.Sum()):0.0}개 / 씀 {_results.Average(r => r.ItemUsed.Sum()):0.0}개 | 종류별 씀(전체) " +

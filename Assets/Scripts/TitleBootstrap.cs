@@ -32,6 +32,11 @@ namespace LoopRogue
         private Image _resetImage;
         private float _resetConfirmUntil = -1f;
 
+        // 테스트 배포용 버튼(오른쪽 아래) - 누르면 잠깐 안내 글로 바뀌었다가 돌아온다.
+        private Text _surveyLabel;
+        private Text _recordLabel;
+        private float _playtestLabelUntil = -1f;
+
         private void Awake()
         {
             StageProgress.EnsureLoaded();
@@ -50,6 +55,8 @@ namespace LoopRogue
             // 확인 대기 시간이 지나면 초기화 버튼을 원래 상태로 되돌린다.
             if (_resetConfirmUntil > 0f && Time.unscaledTime > _resetConfirmUntil)
                 SetResetButtonState(confirming: false);
+            if (_playtestLabelUntil > 0f && Time.unscaledTime > _playtestLabelUntil)
+                ResetPlaytestLabels();
 
 
             if (GameInput.Down(Key.Enter) || GameInput.Down(Key.Space))
@@ -89,6 +96,12 @@ namespace LoopRogue
 
         private static void StartGame() => SceneManager.LoadScene(LobbySceneName);
 
+        private static void StartTutorial()
+        {
+            TutorialStage.RequestFromTitle();
+            SceneManager.LoadScene("Main");
+        }
+
         /// <summary>실수 방지로 두 번 눌러야 초기화된다 - 첫 클릭은 버튼을 빨갛게 바꾸고 "한 번 더"를 안내만 한다.</summary>
         private void OnResetClicked()
         {
@@ -111,6 +124,39 @@ namespace LoopRogue
             else
                 _resetImage.color = confirming ? ResetConfirmColor : ResetButtonColor;
             _resetLabel.text = confirming ? Loc.T("정말 초기화? 한 번 더 클릭") : Loc.T("데이터 초기화");
+        }
+
+        private const float PlaytestLabelSeconds = 2.5f;
+
+        private void OnSurveyClicked()
+        {
+            ResetPlaytestLabels();
+            _surveyLabel.text = Playtest.OpenSurvey() ? Loc.T("브라우저에서 열었어요") : Loc.T("설문 링크가 아직 없어요");
+            _playtestLabelUntil = Time.unscaledTime + PlaytestLabelSeconds;
+        }
+
+        private void OnCopyRecordClicked()
+        {
+            ResetPlaytestLabels();
+            Playtest.CopyRecord();
+            _recordLabel.text = Loc.T("복사했어요! 설문에 붙여 넣기");
+            _playtestLabelUntil = Time.unscaledTime + PlaytestLabelSeconds;
+        }
+
+        private void ResetPlaytestLabels()
+        {
+            _playtestLabelUntil = -1f;
+            _surveyLabel.text = Loc.T("설문 참여");
+            _recordLabel.text = Loc.T("내 기록 복사");
+        }
+
+        /// <summary>CreateButton은 가운데 줄에 세우니, 테스트용 버튼은 오른쪽 아래 구석으로 옮긴다.</summary>
+        private static void PlaceBottomRight(RectTransform rect, float bottom)
+        {
+            rect.anchorMin = new Vector2(1f, 0f);
+            rect.anchorMax = new Vector2(1f, 0f);
+            rect.pivot = new Vector2(1f, 0f);
+            rect.anchoredPosition = new Vector2(-24f, bottom);
         }
 
         private static void QuitGame()
@@ -149,6 +195,22 @@ namespace LoopRogue
                 Loc.T("데이터 초기화"), 16, OnResetClicked, "Reset", new Color(1f, 0.82f, 0.78f));
             _resetImage = resetRect.GetComponent<Image>();
             _resetLabel = resetRect.GetComponentInChildren<Text>();
+
+            // 테스트 배포용 - 설문 링크 열기 / 설문에 붙여 넣을 기록 복사
+            var surveyRect = CreateButton(canvasGo.transform, "SurveyButton", ButtonColor, 0f, 240f, 40f,
+                Loc.T("설문 참여"), 16, OnSurveyClicked, "Reset", new Color(0.85f, 0.93f, 1f));
+            PlaceBottomRight(surveyRect, 76f);
+            _surveyLabel = surveyRect.GetComponentInChildren<Text>();
+            var recordRect = CreateButton(canvasGo.transform, "RecordButton", ButtonColor, 0f, 240f, 40f,
+                Loc.T("내 기록 복사"), 16, OnCopyRecordClicked, "Reset", new Color(0.85f, 0.93f, 1f));
+            PlaceBottomRight(recordRect, 24f);
+            _recordLabel = recordRect.GetComponentInChildren<Text>();
+
+            // 튜토리얼 스테이지 다시 하기(왼쪽 아래) - 죽을 일 없는 방 4개, 끝나면 타이틀로
+            var tutorialRect = CreateButton(canvasGo.transform, "TutorialButton", ButtonColor, 0f, 240f, 40f,
+                Loc.T("튜토리얼"), 16, StartTutorial, "Reset", new Color(1f, 0.93f, 0.75f));
+            tutorialRect.anchorMin = tutorialRect.anchorMax = tutorialRect.pivot = new Vector2(0f, 0f);
+            tutorialRect.anchoredPosition = new Vector2(24f, 24f);
         }
 
         /// <summary>도트 던전 그림(Resources/Backgrounds/TitleDungeon, 320x180) - 화면 비율이 16:9가 아니어도 빈틈 없이 덮게

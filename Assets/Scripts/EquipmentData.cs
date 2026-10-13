@@ -28,6 +28,7 @@ namespace LoopRogue
         Ancient,      // 고대
         Transcendent, // 초월
         Eternal,      // 영원
+        Unknown,      // Unknown - 뽑기로는 안 나온다. 히든 NPC 대장장이(Blacksmith)가 벼려 준다
     }
 
     public static class EquipmentData
@@ -71,6 +72,8 @@ namespace LoopRogue
             { ItemGrade.Ancient, new GradeInfo { Name = Loc.T("고대"), Multiplier = 10f, Color = new Color(0.3f, 0.95f, 0.9f) } },
             { ItemGrade.Transcendent, new GradeInfo { Name = Loc.T("초월"), Multiplier = 15f, Color = new Color(1f, 0.5f, 0.85f) } },
             { ItemGrade.Eternal, new GradeInfo { Name = Loc.T("영원"), Multiplier = 22f, Color = new Color(1f, 0.95f, 0.5f) } },
+            // Unknown(모든 언어에서 영어 그대로, 사용자 결정) - 수치는 영원과 같고(사용자 결정 "가볍게") 세 부위를 다 끼면 세트 효과(EquipmentEffects.HasMemorySet)
+            { ItemGrade.Unknown, new GradeInfo { Name = "Unknown", Multiplier = 22f, Color = new Color(0.5f, 0.95f, 0.9f) } },
         });
 
         public static Dictionary<ItemGrade, GradeInfo> Grades => GradesCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)

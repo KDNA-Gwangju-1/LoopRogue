@@ -10,6 +10,7 @@ namespace LoopRogue
         Merchant, // 떠돌이 상인 - 판매 후보 중 3개를 골드로
         Wanderer, // 길 잃은 모험가 - 방 1에서 의뢰, 방 10에서 보고
         Curse,    // 그림자 거래상 - 대가를 치르는 저주 계약(Curses)
+        Blacksmith, // 히든 - 이름 없는 대장장이(장비 전부 영원일 때, 기사의 검 조각 → Unknown 세트)
     }
 
     /// <summary>방 안의 NPC - 일반 방을 클리어하면 가끔 그 방에 나타난다(RoomController.TrySpawnRoomClearNpc). 칸 하나를 차지하고
@@ -51,6 +52,7 @@ namespace LoopRogue
         {
             NpcType.Merchant => Loc.T("떠돌이 상인"),
             NpcType.Wanderer => Loc.T("길 잃은 모험가"),
+            NpcType.Blacksmith => LoopRogue.Blacksmith.Name,
             _ => Loc.T("그림자 거래상"),
         };
 
@@ -124,6 +126,7 @@ namespace LoopRogue
         {
             NpcType.Merchant => new Color(0.95f, 0.7f, 0.3f),
             NpcType.Wanderer => new Color(0.45f, 0.85f, 0.55f),
+            NpcType.Blacksmith => new Color(0.85f, 0.45f, 0.25f),
             _ => new Color(0.45f, 0.2f, 0.6f),
         };
 
@@ -167,7 +170,8 @@ namespace LoopRogue
         private void Update()
         {
             AnimateAppear();
-            var show = Type != NpcType.Wanderer ? !_talkedOnce : _isReport ? RunQuest.Active : !RunQuest.Active;
+            var show = Type == NpcType.Blacksmith ? LoopRogue.Blacksmith.Current is LoopRogue.Blacksmith.Stage.NotMet or LoopRogue.Blacksmith.Stage.HasFragment
+                : Type != NpcType.Wanderer ? !_talkedOnce : _isReport ? RunQuest.Active : !RunQuest.Active;
             if (_marker.gameObject.activeSelf != show)
                 _marker.gameObject.SetActive(show);
             if (show)
@@ -192,6 +196,8 @@ namespace LoopRogue
                 ShowShop(_talkedOnce ? Loc.T("또 왔나? 천천히 골라 보게.") : MerchantGreeting());
             else if (Type == NpcType.Wanderer)
                 ShowWanderer();
+            else if (Type == NpcType.Blacksmith)
+                ShowBlacksmith();
             else
                 ShowCurse();
             _talkedOnce = true;
@@ -434,10 +440,74 @@ namespace LoopRogue
                     RunQuest.Accept();
                 return bought;
             }
+            if (Type == NpcType.Blacksmith)
+            {
+                if (LoopRogue.Blacksmith.Current == LoopRogue.Blacksmith.Stage.NotMet)
+                    AcceptSmithQuest(silent: true);
+                else
+                    LoopRogue.Blacksmith.Forge();
+                return bought;
+            }
             foreach (var entry in _stock.OrderBy(e => e.Kind))
                 if (TryPurchase(entry))
                     bought.Add((entry.Kind, entry.Name, entry.Price));
             return bought;
+        }
+
+        // ===================== 이름 없는 대장장이(히든) =====================
+
+        private void ShowBlacksmith()
+        {
+            var ui = NpcDialogUI.Instance;
+            var leave = new NpcDialogUI.Choice(Loc.T("떠난다"), null);
+            switch (LoopRogue.Blacksmith.Current)
+            {
+                case LoopRogue.Blacksmith.Stage.NotMet:
+                    ui.Show(DisplayName,
+                        Loc.T("...흠. 그 검, 그 갑옷, 그 반지. 전부 '영원'이로군. 뽑기 상자에서 나올 수 있는 건 거기까지야.\n") +
+                        Loc.F("그 너머를 원하나? 재료가 하나 필요해. 고리를 기억하는 기사가 쥔 부러진 검 - <color=#7FE0D8>{0}</color>을 가져와.\n", LoopRogue.Blacksmith.FragmentName) +
+                        Loc.T("<size=13><color=#9AA0AA>(죽어도 의뢰는 남는다. 의뢰 중엔 기사가 더 자주 나타난다)</color></size>"),
+                        new[]
+                        {
+                            new NpcDialogUI.Choice(Loc.T("의뢰를 받는다"), () => AcceptSmithQuest(silent: false)),
+                            new NpcDialogUI.Choice(Loc.T("거절한다"), null),
+                        });
+                    return;
+                case LoopRogue.Blacksmith.Stage.QuestAccepted:
+                    ui.Show(DisplayName, Loc.F("<color=#7FE0D8>{0}</color>을 가져오면 벼려 주지. 녹슨 갑옷에 청록 눈빛을 한 놈이다.", LoopRogue.Blacksmith.FragmentName),
+                        new[] { leave });
+                    return;
+                case LoopRogue.Blacksmith.Stage.HasFragment:
+                    ui.Show(DisplayName,
+                        Loc.T("그 조각... 가져왔군. 아직 따뜻해. 기억이 남아 있다는 뜻이지.\n잠깐이면 된다."),
+                        new[] { new NpcDialogUI.Choice(Loc.T("조각을 건넨다"), ForgeSet), leave });
+                    return;
+                default:
+                    ui.Show(DisplayName, Loc.T("벼린 건 잘 쓰고 있나? ...이름은 묻지 마라. 나도 잊었으니까."), new[] { leave });
+                    return;
+            }
+        }
+
+        private void AcceptSmithQuest(bool silent)
+        {
+            LoopRogue.Blacksmith.AcceptQuest();
+            MemoryKnight.AllowAgainThisStage();
+            if (silent)
+                return;
+            _room.ShowMessage(Loc.F("의뢰를 받았다: {0}의 {1}", MemoryKnight.Name, LoopRogue.Blacksmith.FragmentName));
+            NpcDialogUI.Instance.Show(DisplayName, Loc.T("그 기사는 같은 수를 두 번 쓰면 읽어 낸다. 칼질을 섞어라. ...살아서 와."),
+                new[] { new NpcDialogUI.Choice(Loc.T("떠난다"), null) });
+        }
+
+        private void ForgeSet()
+        {
+            if (!LoopRogue.Blacksmith.Forge())
+                return;
+            _room.ShowMessage(Loc.F("<color=#7FE0D8>Unknown 장비 세트</color>를 받았다! 세트 효과 「{0}」: {1}", EquipmentEffects.MemorySetName, EquipmentEffects.MemorySetDescription));
+            HitFeedback.OnBonusReward(_player);
+            NpcDialogUI.Instance.Show(DisplayName,
+                Loc.T("이름은 없다. 나처럼. ...잘 써라. 그 장비는 고리를 한 번 더 기억해 줄 거다."),
+                new[] { new NpcDialogUI.Choice(Loc.T("떠난다"), null) });
         }
 
         // ===================== 길 잃은 모험가 =====================

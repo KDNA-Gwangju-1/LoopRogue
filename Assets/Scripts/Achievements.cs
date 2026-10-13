@@ -27,6 +27,8 @@ namespace LoopRogue
         public int SlotTickets;
         public int GachaTickets;
         public Func<bool> Condition;
+        /// <summary>히든 업적 - 달성 전엔 업적 창에 이름·조건·칭호를 가린다(AchievementPanel).</summary>
+        public bool Hidden;
 
         public string EffectText => Effect switch
         {
@@ -92,7 +94,7 @@ namespace LoopRogue
                 Condition = () => LobbyQuests.LifetimeKills >= 3000 },
             new AchievementDef { SteamId = "ACH_ETERNAL", Name = Loc.T("영원을 손에"), Description = Loc.T("'영원' 등급 장비를 장착한다"),
                 Title = Loc.T("영원의 소유자"), Effect = TitleEffect.Crit, Value = 0.02f, SlotTickets = 10,
-                Condition = () => Enum.GetValues(typeof(ItemSlot)).Cast<ItemSlot>().Any(s => EquipmentWallet.GetEquipped(s) == ItemGrade.Eternal) },
+                Condition = () => Enum.GetValues(typeof(ItemSlot)).Cast<ItemSlot>().Any(s => EquipmentWallet.GetEquipped(s) >= ItemGrade.Eternal) },
             new AchievementDef { SteamId = "ACH_JACKPOT", Name = Loc.T("잭팟!"), Description = Loc.T("운명의 슬롯에서 3개를 맞춘다"),
                 Title = Loc.T("행운아"), Effect = TitleEffect.Gold, Value = 0.05f, SlotTickets = 10 },
             new AchievementDef { SteamId = "ACH_MERCHANT_10", Name = Loc.T("단골손님"), Description = Loc.T("떠돌이 상인에게 물건을 10번 산다"),
@@ -109,6 +111,22 @@ namespace LoopRogue
             new AchievementDef { SteamId = "ACH_CODEX_ALL", Name = Loc.T("모든 것을 본 자"), Description = Loc.T("도감을 전부 채운다"),
                 Title = Loc.T("고리의 사서"), Effect = TitleEffect.Gold, Value = 0.05f, GachaTickets = 5,
                 Condition = () => Codex.FoundCount() >= Codex.TotalCount() },
+
+            // ---- 히든 업적(달성 전엔 가려짐) - 칭호 효과는 다른 업적과 같은 작은 값(칭호는 하나만 장착) ----
+            new AchievementDef { SteamId = "ACH_GLITCH", Name = Loc.T("고리의 틈"), Description = Loc.T("오류방을 처음으로 바로잡는다"),
+                Title = Loc.T("틈을 본 자"), Effect = TitleEffect.Exp, Value = 0.03f, SlotTickets = 5, Hidden = true },
+            new AchievementDef { SteamId = "ACH_KNIGHT_MET", Name = Loc.T("말하는 몬스터"), Description = Loc.T("기억하는 기사를 만난다"),
+                Title = Loc.T("기억을 들은 자"), Effect = TitleEffect.Gold, Value = 0.03f, SlotTickets = 5, Hidden = true },
+            new AchievementDef { SteamId = "ACH_KNIGHT_KILL", Name = Loc.T("기억을 꺾다"), Description = Loc.T("기억하는 기사를 쓰러뜨린다"),
+                Title = Loc.T("기사 사냥꾼"), Effect = TitleEffect.Attack, Value = 3f, GachaTickets = 2, Hidden = true },
+            new AchievementDef { SteamId = "ACH_KNIGHT_PERFECT", Name = Loc.T("완벽한 간파"), Description = Loc.T("강타·기억 재현에 한 번도 맞지 않고 기억하는 기사를 쓰러뜨린다"),
+                Title = Loc.T("읽히지 않는 자"), Effect = TitleEffect.Crit, Value = 0.02f, GachaTickets = 3, Hidden = true },
+            new AchievementDef { SteamId = "ACH_KNIGHT_RELIC", Name = Loc.T("이어받은 기억"), Description = Loc.T("히든 유물 「기사의 기억」을 얻는다"),
+                Title = Loc.T("기억의 계승자"), Effect = TitleEffect.Health, Value = 15f, GachaTickets = 3, Hidden = true },
+            new AchievementDef { SteamId = "ACH_SMITH_MET", Name = Loc.T("이름 없는 자"), Description = Loc.T("이름 없는 대장장이를 만난다"),
+                Title = Loc.T("대장장이의 손님"), Effect = TitleEffect.Gold, Value = 0.04f, GachaTickets = 2, Hidden = true },
+            new AchievementDef { SteamId = "ACH_UNKNOWN", Name = "Unknown", Description = Loc.T("Unknown 장비 세트를 받는다"),
+                Title = "Unknown", Effect = TitleEffect.Attack, Value = 5f, GachaTickets = 5, Hidden = true },
         });
 
         public static AchievementDef[] All => AllCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)

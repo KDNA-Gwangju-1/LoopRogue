@@ -5,7 +5,7 @@ using UnityEngine;
 namespace LoopRogue
 {
     /// <summary>시야 제한(안개) - 칸마다 검은 덮개를 깔고, 플레이어에게서 VisionRadius 안이면서 벽에 가리지 않은 칸만 걷어낸다.
-    /// 한 번 본 칸은 어둡게 기억(지형만 보이고 몹은 안 보임), 못 본 칸은 거의 까맣게. 몹은 지금 보이는 칸에 있을 때만 그린다
+    /// 시야 밖은 한 번 봤던 칸이어도 지형까지 거의 까맣게 덮는다(사용자 결정 10-13 - 예전엔 본 칸을 어둡게 기억). 몹은 지금 보이는 칸에 있을 때만 그린다
     /// (보스는 항상 보임). 예고 칸(보스/폭발)은 어둠 속이어도 비쳐 보인다 - 안 보이는 공격에 맞는 건 불합리해서.
     /// 순수 표시용이라 게임 로직(몹 행동, 판정)은 그대로이고, 자동 플레이 봇(DamagePopup.Suppressed) 중엔 아무것도 안 한다.</summary>
     public class FogOfWar : MonoBehaviour
@@ -14,7 +14,6 @@ namespace LoopRogue
         public const float VisionRadius = 4.5f;
 
         private const float UnseenAlpha = 0.95f;
-        private const float ExploredAlpha = 0.6f;
         private const float DangerMaxAlpha = 0.3f;
         private const int SortingOrder = 8; // 액터(0~1)·파편(5~6) 위, 데미지 숫자(10) 아래
 
@@ -23,7 +22,6 @@ namespace LoopRogue
         private int _width;
         private int _height;
         private SpriteRenderer[,] _cells;
-        private bool[,] _explored;
         private readonly HashSet<Vector2Int> _visible = new HashSet<Vector2Int>();
         private SpriteRenderer _exitTracked;
         private bool _exitSeen;
@@ -44,7 +42,6 @@ namespace LoopRogue
             fog._width = layout.Width;
             fog._height = layout.Height;
             fog._cells = new SpriteRenderer[layout.Width, layout.Height];
-            fog._explored = new bool[layout.Width, layout.Height];
 
             for (var x = 0; x < layout.Width; x++)
             for (var y = 0; y < layout.Height; y++)
@@ -77,16 +74,7 @@ namespace LoopRogue
             for (var y = 0; y < _height; y++)
             {
                 var p = new Vector2Int(x, y);
-                float alpha;
-                if (_visible.Contains(p))
-                {
-                    _explored[x, y] = true;
-                    alpha = 0f;
-                }
-                else
-                {
-                    alpha = _explored[x, y] ? ExploredAlpha : UnseenAlpha;
-                }
+                var alpha = _visible.Contains(p) ? 0f : UnseenAlpha;
                 if (danger.Contains(p))
                     alpha = Mathf.Min(alpha, DangerMaxAlpha);
                 _cells[x, y].color = new Color(0f, 0f, 0f, alpha);

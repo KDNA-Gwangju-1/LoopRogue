@@ -68,6 +68,31 @@ namespace LoopRogue
         /// <summary>돌진 최대 칸 수 - 방 끝까지 가로지르면 걸어 돌아오는 사이 기절이 풀려 여전히 때릴 틈이 없었다.</summary>
         public const int MaxChargeDistance = 5;
 
+        // ---- 1층 거대 멧돼지 기믹(사용자 구상 10-13) ----
+        // 체력이 BoarPillarHealthRatio 이하가 되면 주변에 돌기둥 4개(RoomController.SpawnBoarPillars) + 돌진 거리 BoarPhaseChargeDistance.
+        // 기둥이 하나라도 서 있으면 받는 피해 × BoarArmorMultiplier. 돌진하다 기둥에 막히면 그 기둥이 부서지고 BoarCrashStunTurns 기절.
+        // 4개를 전부 부수면 단단함이 풀린다(폭탄으로 부숴도 된다).
+        public const float BoarPillarHealthRatio = 0.5f;
+        public const int BoarPhaseChargeDistance = 8;
+        public const float BoarArmorMultiplier = 0.1f;
+        public const int BoarCrashStunTurns = 3;
+        private bool _pillarPhase;
+
+        private bool IsBoar => _stage == 1;
+
+        // ---- 2층 오우거 기믹(사용자 구상 10-13 A안 - 균열은 양쪽 모두에게 위험) ----
+        // 체력이 OgreCrackHealthRatio 이하가 되면 강타가 내려찍은 테두리 칸 중 OgreCracksPerSlam칸에 균열을 남긴다(RoomController.AddOgreCracks).
+        // 오우거가 밟으면 빠져서 기절, 플레이어가 밟으면 묶임 - 판정은 RoomController.CheckOgreCrack / CheckPlayerCrack.
+        public const float OgreCrackHealthRatio = 0.5f;
+        public const int OgreCracksPerSlam = 4;
+        private bool _crackPhase;
+        private bool IsOgre => _stage == 2;
+        private int ChargeDistance => IsBoar && _pillarPhase ? BoarPhaseChargeDistance : MaxChargeDistance;
+
+        /// <summary>보스가 받는 피해 배율 - 멧돼지 기둥이 서 있으면 BoarArmorMultiplier(EnemyActor.DamageTakenMultiplier).</summary>
+        public float ArmorMultiplier(RoomController room) =>
+            IsBoar && _pillarPhase && room != null && room.BoarPillarCount > 0 ? BoarArmorMultiplier : 1f;
+
         private int _stunTurns;
         private BossPatternType? _pending;
         private readonly HashSet<Vector2Int> _pendingTiles = new HashSet<Vector2Int>();
@@ -191,6 +216,23 @@ namespace LoopRogue
                 return true; // 기절 중 - 아무것도 안 함(공격 기회)
             }
 
+            if (IsBoar && !_pillarPhase && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * BoarPillarHealthRatio)
+            {
+                _pillarPhase = true;
+                if (room.SpawnBoarPillars(_boss) > 0)
+                {
+                    room.ShowMessage(Loc.T("<color=#FFB060>멧돼지가 땅을 들이받자 돌기둥이 솟았다!</color> 기둥이 서 있는 동안 멧돼지는 단단하다"));
+                    room.ShowMessage(Loc.T("기둥 뒤에 서서 돌진을 유도해 기둥에 박게 하자!"));
+                }
+            }
+
+            if (IsOgre && !_crackPhase && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * OgreCrackHealthRatio)
+            {
+                _crackPhase = true;
+                room.ShowMessage(Loc.T("<color=#FFB060>오우거가 분노해 바닥을 부술 기세로 몽둥이를 쥔다!</color> 강타가 바닥에 균열을 남긴다"));
+                room.ShowMessage(Loc.T("균열은 오우거도 나도 빠뜨린다 - 균열 너머로 유도하되, 내가 밟지는 말자"));
+            }
+
             if (!_enraged && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * EnrageHealthRatio)
             {
                 _enraged = true;
@@ -301,10 +343,18 @@ namespace LoopRogue
 
             if (type == BossPatternType.Charge)
             {
-                DoChargeMove(room.Map);
-                _stunTurns = ChargeStunTurns;
-                room.ShowMessage(Loc.T("보스가 돌진 후 비틀거린다!"));
+                var crashed = DoChargeMove(room);
+                _stunTurns = crashed ? BoarCrashStunTurns : ChargeStunTurns;
+                if (!crashed)
+                    room.ShowMessage(Loc.T("보스가 돌진 후 비틀거린다!"));
+                else if (room.BoarPillarCount > 0)
+                    room.ShowMessage(Loc.F("<color=#FFB060>멧돼지가 기둥에 박았다!</color> 크게 비틀거린다 (남은 기둥 {0})", room.BoarPillarCount));
+                else
+                    room.ShowMessage(Loc.T("<color=#FFB060>멧돼지가 마지막 기둥에 박았다!</color> 크게 비틀거린다")); // "모두 무너졌다"는 RoomController가
             }
+
+            if (type == BossPatternType.Slam && IsOgre && _crackPhase)
+                room.AddOgreCracks(_pendingTiles, OgreCracksPerSlam);
 
             PatternResolveCount++;
             HitFeedback.OnBossPatternResolved(player, _pendingTiles.Contains(player.GridPos), type, _pendingTiles);
@@ -432,11 +482,11 @@ namespace LoopRogue
                         _chargeDirection = Vector2Int.left;
                     if (body == 0)
                     {
-                        AddRay(map, origin, _chargeDirection, MaxChargeDistance);
+                        AddRay(map, origin, _chargeDirection, ChargeDistance);
                         break;
                     }
                     // 큰 몸은 몸 폭만큼의 띠를 쓸고 간다 - 몸이 벽에 닿기 직전까지(캐릭터는 예고만 통과, 실제 돌진은 DoChargeMove가 막힘 확인)
-                    for (var k = 1; k <= MaxChargeDistance; k++)
+                    for (var k = 1; k <= ChargeDistance; k++)
                     {
                         var center = origin + _chargeDirection * k;
                         var fits = true;
@@ -452,19 +502,26 @@ namespace LoopRogue
             }
         }
 
-        /// <summary>돌진 방향으로 벽/다른 캐릭터에 막히기 직전 칸까지 이동(플레이어가 길 위에 있으면 그 앞까지).</summary>
-        private void DoChargeMove(GridMap map)
+        /// <summary>돌진 방향으로 벽/다른 캐릭터에 막히기 직전 칸까지 이동(플레이어가 길 위에 있으면 그 앞까지).
+        /// 멧돼지 기둥에 막혔으면 그 기둥을 부수고 true(남은 거리를 다 달리기 전에 막혀도).</summary>
+        private bool DoChargeMove(RoomController room)
         {
+            var map = room.Map;
             var pos = _boss.GridPos;
-            for (var i = 0; i < MaxChargeDistance; i++)
+            var blockedAt = (Vector2Int?)null;
+            for (var i = 0; i < ChargeDistance; i++)
             {
                 var next = pos + _chargeDirection;
                 if (!map.CanOccupy(_boss, next)) // 몸 전체가 들어가야 전진
+                {
+                    blockedAt = next;
                     break;
+                }
                 pos = next;
             }
             if (pos != _boss.GridPos)
                 map.MoveActor(_boss, pos);
+            return blockedAt.HasValue && room.BoarPillarCount > 0 && room.BreakBoarPillars(GridMap.Cells(blockedAt.Value, _boss.FootprintRadius));
         }
 
         private void AddSquare(GridMap map, Vector2Int center, int radius)

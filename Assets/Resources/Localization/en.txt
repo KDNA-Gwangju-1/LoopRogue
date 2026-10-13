@@ -817,3 +817,152 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 쓰러진 몹이 한 번 되살아난다!	Fallen monsters rise once more!
 몹이 두 턴에 한 번 더 움직인다!	Monsters move an extra time every other turn!
 오류를 바로잡았다! 골드 +{0}, 오류 조각 +1 (모은 조각 {1}개)	Error corrected! Gold +{0}, Glitch Shard +1 ({1} collected)
+기억하는 기사	The Remembering Knight
+<color=#7FE0D8>{0}</color>: "{1}"	<color=#7FE0D8>{0}</color>: "{1}"
+...또 너로군. 지난 고리에서도 내 검을 꺾었지.	...You again. You broke my blade in the last loop, too.
+기억한다. 네 검 끝이 어디로 가는지도.	I remember. Even where the tip of your blade will go.
+이번 고리에서도 만났군. 피할 수 없는 사이인가 보다.	We meet in this loop as well. It seems we cannot avoid each other.
+...너도 기억하는 자인가. 그렇다면 칼을 뽑아라.	...Do you remember too? Then draw your blade.
+몇 번째 고리인지 세다가 잊었다. 너는 몇 번째냐?	I lost count of the loops. Which one is this for you?
+다른 놈들은 잊는다. 나는 잊지 못한다. 그래서 여기 서 있지.	The others forget. I cannot. That is why I stand here.
+또 그 돌진인가. 보인다.	That charge again? I can see it.
+같은 길로 두 번 달려오는 자는 없다. 너 말고는.	No one rushes down the same path twice. No one but you.
+빙글빙글 도는 칼은 한 번 보면 충분하다.	A spinning blade only needs to be seen once.
+회전이 느려졌군.	Your spin has slowed.
+같은 칼질이다. 읽었다.	The same swing. I read it.
+단조롭군. 고리를 너무 오래 돌았나?	Predictable. Have you been looping too long?
+물러나라. 아니면 받아라.	Step back. Or take it.
+이 일격은 몇 번이고 연습했다.	I have practiced this strike countless times.
+거기 서 있으면 베인다.	Stand there and you will be cut.
+...아직이다. 숨을 고르마.	...Not yet. Let me catch my breath.
+이대로 쓰러질 순 없다. 잠시 물러난다.	I cannot fall like this. I will fall back for a moment.
+...드디어 끝인가. 이 기억을... 네가 가져가라.	...Is this finally the end? Take this memory... with you.
+다음 고리에서... 다시 보자.	In the next loop... we meet again.
+또 졌군. 그래도 잊지는 않겠다.	Defeated again. Still, I will not forget.
+간파!	Read!
+숨 고르기	Catching breath
+{0} 처치! 골드 +{1}, 히든 유물 <color=#7FE0D8>「{2}」</color> 획득	{0} slain! Gold +{1}, hidden relic <color=#7FE0D8>"{2}"</color> obtained
+{0} 처치! 골드 +{1}	{0} slain! Gold +{1}
+기사의 기억	Knight's Memory
+몹·보스의 공격을 12% 확률로 간파해 피해를 받지 않음	12% chance to read a monster's or boss's attack and take no damage
+히든 유물 - 보스 보상으로는 나오지 않는다	Hidden relic - never offered as a boss reward
+어딘가에 고리를 기억하는 자가 있다고 한다	They say someone, somewhere, remembers the loop
+몬스터 중 혼자만 고리를 기억하는 기사. 같은 공격을 연달아 쓰면 읽고 피한다(간파) - 일반 공격·대시·회전 베기를 섞자. 	The only monster that remembers the loop. Use the same attack repeatedly and it reads and dodges it - mix normal attacks, dashes and spins. 
+붙어 있으면 앞 3칸을 예고하고 강하게 베니 한 칸 물러나자. 체력이 낮아지면 한 번 물러나 숨을 고른다. 3층부터 아주 드물게.	When adjacent it marks the 3 tiles in front and strikes hard - step back one tile. At low health it retreats once to catch its breath. Very rare, from floor 3.
+어딘가에 말을 하는 몬스터가 있다고 한다	They say there is a monster somewhere that speaks
+간파! 공격을 읽고 피했다	Read! You saw the attack coming and dodged
+설문 참여	Take the survey
+내 기록 복사	Copy my record
+브라우저에서 열었어요	Opened in your browser
+설문 링크가 아직 없어요	No survey link yet
+복사했어요! 설문에 붙여 넣기	Copied! Paste it into the survey
+이름 없는 대장장이	The Nameless Blacksmith
+기사의 검 조각	Knight's Blade Shard
+기억의 벼림	Forged Memory
+방마다 처음 받는 피해 1번 무효	Negate the first hit you take in each room
+<color=#7FE0D8>세트 효과 「{0}」</color>  <size=12>{1}</size>	<color=#7FE0D8>Set bonus "{0}"</color>  <size=12>{1}</size>
+  <color=#7FE0D8>세트 「{0}」</color>	  <color=#7FE0D8>Set "{0}"</color>
+...흠. 그 검, 그 갑옷, 그 반지. 전부 '영원'이로군. 뽑기 상자에서 나올 수 있는 건 거기까지야.\n	...Hm. That sword, that armor, that ring. All Eternal. That's as far as the gacha box goes.\n
+그 너머를 원하나? 재료가 하나 필요해. 고리를 기억하는 기사가 쥔 부러진 검 - <color=#7FE0D8>{0}</color>을 가져와.\n	Want what lies beyond? I need one material. The broken blade held by the knight who remembers the loop - bring me the <color=#7FE0D8>{0}</color>.\n
+<size=13><color=#9AA0AA>(죽어도 의뢰는 남는다. 의뢰 중엔 기사가 더 자주 나타난다)</color></size>	<size=13><color=#9AA0AA>(The request stays even if you die. The knight appears more often while it's active)</color></size>
+<color=#7FE0D8>{0}</color>을 가져오면 벼려 주지. 녹슨 갑옷에 청록 눈빛을 한 놈이다.	Bring me the <color=#7FE0D8>{0}</color> and I'll forge for you. He wears rusted armor and has teal eyes.
+그 조각... 가져왔군. 아직 따뜻해. 기억이 남아 있다는 뜻이지.\n잠깐이면 된다.	That shard... you brought it. Still warm. That means a memory remains in it.\nThis won't take long.
+조각을 건넨다	Hand over the shard
+벼린 건 잘 쓰고 있나? ...이름은 묻지 마라. 나도 잊었으니까.	Making good use of what I forged? ...Don't ask my name. I've forgotten it too.
+의뢰를 받았다: {0}의 {1}	Request accepted: {1} of {0}
+그 기사는 같은 수를 두 번 쓰면 읽어 낸다. 칼질을 섞어라. ...살아서 와.	That knight reads any move used twice. Mix up your strikes. ...Come back alive.
+이름은 없다. 나처럼. ...잘 써라. 그 장비는 고리를 한 번 더 기억해 줄 거다.	It has no name. Like me. ...Use it well. That gear will remember the loop one more time for you.
+<color=#7FE0D8>{0}</color>을 얻었다! 다음 방을 비우면 대장장이가 찾아온다	Obtained the <color=#7FE0D8>{0}</color>! The blacksmith will come once you clear the next room
+<color=#7FE0D8>Unknown 장비 세트</color>를 받았다! 세트 효과 「{0}」: {1}	Received the <color=#7FE0D8>Unknown equipment set</color>! Set bonus "{0}": {1}
+네 돌진, 기억해 뒀다. 이번엔 내 차례다.	I remembered your charge. Now it's my turn.
+그렇게 달려들었지. 이렇게.	You rushed in like this. Just like this.
+네 회전 베기다. 돌려주마.	Your spinning slash. I'll give it back.
+빙글빙글... 이렇게 하는 거였나?	Round and round... Was it like this?
+마지막으로 쓴 스킬을 기억했다가 따라 한다(기억 재현) - 회전 베기면 주변 8칸, 대시면 같은 줄을 청록으로 예고한다.	It remembers the last skill you used and copies it (Echo) - a spin marks the 8 tiles around it, a dash marks your line, both in teal.
+...던전이 흔들린다.	...The dungeon trembles.
+강타!	Heavy Strike!
+기억 재현!	Echo!
+<color=#FF7A70>기사의 강타!</color> 빨간 칸에서 한 칸 물러나세요	<color=#FF7A70>Knight's Heavy Strike!</color> Step back out of the red tiles
+<color=#7FE0D8>기억 재현 - 회전 베기!</color> 기사 주변 8칸에서 벗어나세요	<color=#7FE0D8>Echo - Spin!</color> Get out of the 8 tiles around the knight
+<color=#7FE0D8>기억 재현 - 돌진!</color> 청록 줄에서 옆으로 비켜서세요	<color=#7FE0D8>Echo - Charge!</color> Step aside out of the teal line
+<color=#9AA0AA>투구 틈의 빛이 희미하게 깜빡이다 꺼졌다... 더 깊은 곳의 기사라면 무언가 남길지도.</color>	<color=#9AA0AA>The light in the visor flickered faintly and went out... A knight in the deeper floors might leave something behind.</color>
+깊은 층 어딘가에 고리를 기억하는 자가 있다고 한다	They say someone deep in the dungeon remembers the loop
+<color=#8CE08C>기본 조작 끝!</color>	<color=#8CE08C>Basics complete!</color>
+<color=#8CE08C>좋아요!</color>	<color=#8CE08C>Nice!</color>
+이제 방을 비우고 출구를 찾아 내려가세요. 처음 보는 것들은 그때그때 알려 드릴게요.	Now clear the room and find the exit to go deeper. I'll explain new things as you meet them.
+<color=#FFD966>기본 조작 {0}/{1}</color>  {2}	<color=#FFD966>Basics {0}/{1}</color>  {2}
+이동	Move
+공격	Attack
+회전 베기	Spin Slash
+왼쪽 아래 방향 버튼으로 한 칸씩 움직여요. 내가 한 번 움직이면 몹도 한 번 움직여요(턴제).	Move one tile at a time with the arrow buttons at the bottom left. Each time you move, monsters move once too (turn-based).
+<b>WASD</b> 또는 <b>방향키</b>로 한 칸씩 움직여요. 내가 한 번 움직이면 몹도 한 번 움직여요(턴제).	Move one tile at a time with <b>WASD</b> or the <b>arrow keys</b>. Each time you move, monsters move once too (turn-based).
+몹이 있는 쪽으로 방향 버튼을 누르면 공격해요. 붙어서 때려 보세요.	Press a direction button toward a monster to attack it. Get next to one and strike.
+몹이 있는 쪽으로 <b>이동 키</b>를 누르면 공격해요. 붙어서 때려 보세요.	Press a <b>move key</b> toward a monster to attack it. Get next to one and strike.
+아래의 <b>Q 칸</b>을 누르고 방향 → 몇 칸을 단숨에 달려가며 처음 만난 몹을 때려요. 쓰고 나면 몇 턴 쉬어야 해요.	Tap the <b>Q slot</b> below, then a direction → rush several tiles at once and hit the first monster in the way. It needs a few turns to recharge.
+<b>Q</b>를 누른 뒤 <b>방향 키</b> → 몇 칸을 단숨에 달려가며 처음 만난 몹을 때려요. 쓰고 나면 몇 턴 쉬어야 해요.	Press <b>Q</b>, then a <b>direction key</b> → rush several tiles at once and hit the first monster in the way. It needs a few turns to recharge.
+아래의 <b>E 칸</b>을 누르면 주변 8칸의 몹을 한꺼번에 베요. 둘러싸였을 때 좋아요.	Tap the <b>E slot</b> below to slash every monster in the 8 tiles around you. Great when surrounded.
+<b>E</b>를 누르면 주변 8칸의 몹을 한꺼번에 베요. 둘러싸였을 때 좋아요.	Press <b>E</b> to slash every monster in the 8 tiles around you. Great when surrounded.
+<b>대기</b> 버튼으로 제자리에서 한 턴 쉬어요. 몹이 다가오길 기다리거나 위험한 칸을 넘길 때 써요.	Use the <b>Wait</b> button to skip a turn in place. Handy for letting monsters come to you or waiting out a dangerous tile.
+<b>Space</b>로 제자리에서 한 턴 쉬어요. 몹이 다가오길 기다리거나 위험한 칸을 넘길 때 써요.	Press <b>Space</b> to skip a turn in place. Handy for letting monsters come to you or waiting out a dangerous tile.
+<color=#7FD4FF>안내</color>  {0}	<color=#7FD4FF>Tip</color>  {0}
+출구	Exit
+아이템	Items
+레벨업	Level Up
+빨간 칸	Red Tiles
+NPC	NPC
+죽어도 괜찮아요	It's okay to die
+방을 비우면 <b>출구(계단)</b>가 열려요. 안개 속에 있으니 찾아가서 밟으세요. 방을 비울 때마다 체력도 조금 회복돼요.	Clearing a room opens the <b>exit (stairs)</b>. It's hidden in the fog, so find it and step on it. You also recover a little health each time you clear a room.
+아이템을 얻었어요! <b>가방 칸</b>을 눌러 퀵슬롯(1/2/3)에 올린 뒤, 숫자 칸을 눌러 써요. 아끼다 죽으면 잃어요.	You got an item! Tap the <b>bag slot</b> to put it in a quick slot (1/2/3), then tap the number slot to use it. You lose items if you die saving them.
+아이템을 얻었어요! <b>I</b>로 가방을 열어 퀵슬롯(1/2/3)에 올린 뒤, <b>숫자 키</b>로 써요. 아끼다 죽으면 잃어요.	You got an item! Open your bag with <b>I</b>, put it in a quick slot (1/2/3), then use it with the <b>number keys</b>. You lose items if you die saving them.
+레벨업! 카드 하나를 골라 강해지세요. <b>능력치</b> 버튼으로 지금 상태를 볼 수 있어요.	Level up! Pick one card to grow stronger. Check your current stats with the <b>Stats</b> button.
+레벨업! 카드 하나를 골라(<b>1/2/3</b>) 강해지세요. <b>Tab</b>으로 지금 능력치·장비를 볼 수 있어요.	Level up! Pick one card (<b>1/2/3</b>) to grow stronger. Press <b>Tab</b> to see your stats and gear.
+바닥의 <b>빨간 칸</b>은 다음 턴에 공격이 떨어지는 자리예요. 그 칸에서 비켜서세요!	<b>Red tiles</b> on the floor will be hit next turn. Step off them!
+누군가 나타났어요. 옆에 가서 <b>대화</b> 버튼을 누르세요. 대화는 턴을 쓰지 않아요.	Someone appeared. Walk up and press the <b>Talk</b> button. Talking doesn't use a turn.
+누군가 나타났어요. 옆에 가서 <b>F</b>로 말을 걸어 보세요. 대화는 턴을 쓰지 않아요.	Someone appeared. Walk up and press <b>F</b> to talk. Talking doesn't use a turn.
+층의 끝, <b>보스방</b>이에요. 보스는 바닥에 공격할 칸을 먼저 보여 주고 다음 턴에 때려요. 보스방엔 안개가 없어요.	The end of the floor: the <b>boss room</b>. Bosses mark the tiles they'll hit first, then strike next turn. There is no fog in boss rooms.
+죽어도 <b>레벨과 능력치는 그대로</b>예요. 그 층 처음부터 다시 도전해요(골드는 조금 잃어요). 로비에서 뽑기·영약으로 더 강해질 수도 있어요.	Even if you die, <b>your level and stats stay</b>. You retry the floor from the start (losing a little gold). You can also get stronger in the lobby with gacha and elixirs.
+건너뛰기	Skip
+튜토리얼	Tutorial
+<color=#9A9AA2>끝남</color>  (←→ 다시 보기)	<color=#9A9AA2>Done</color>  (←→ to replay)
+<color=#8CE08C>진행 중</color>	<color=#8CE08C>In progress</color>
+고리의 틈	A Crack in the Loop
+오류방을 처음으로 바로잡는다	Set a glitch room right for the first time
+틈을 본 자	Crack Seer
+말하는 몬스터	The Talking Monster
+기억하는 기사를 만난다	Meet the Remembering Knight
+기억을 들은 자	One Who Heard
+기억을 꺾다	Breaking a Memory
+기억하는 기사를 쓰러뜨린다	Defeat the Remembering Knight
+기사 사냥꾼	Knight Hunter
+완벽한 간파	Perfect Read
+강타·기억 재현에 한 번도 맞지 않고 기억하는 기사를 쓰러뜨린다	Defeat the Remembering Knight without being hit by Heavy Strike or Echo
+읽히지 않는 자	The Unreadable
+이어받은 기억	Inherited Memory
+히든 유물 「기사의 기억」을 얻는다	Obtain the hidden relic "Knight's Memory"
+기억의 계승자	Heir of Memory
+이름 없는 자	The Nameless
+이름 없는 대장장이를 만난다	Meet the Nameless Blacksmith
+대장장이의 손님	Smith's Guest
+Unknown 장비 세트를 받는다	Receive the Unknown equipment set
+<b>능력치</b> 버튼을 눌러 보세요. 공격력·체력·장비·유물을 한눈에 볼 수 있어요. 한 번 더 누르면 닫혀요.	Tap the <b>Stats</b> button. You can see your attack, health, gear and relics at a glance. Tap again to close.
+<b>Tab</b>을 눌러 능력치 창을 열어 보세요. 공격력·체력·장비·유물을 한눈에 볼 수 있어요. 한 번 더 누르면 닫혀요.	Press <b>Tab</b> to open the stats window. You can see your attack, health, gear and relics at a glance. Press again to close.
+<color=#FFD966>튜토리얼 1/4</color>  첫걸음 - 움직여 보고 출구(계단)로	<color=#FFD966>Tutorial 1/4</color>  First Steps - move around and head for the exit (stairs)
+<color=#FFD966>튜토리얼 2/4</color>  공격 - 슬라임에게 부딪혀 보세요	<color=#FFD966>Tutorial 2/4</color>  Attack - bump into the slime
+<color=#FFD966>튜토리얼 3/4</color>  스킬 - 대시와 회전 베기	<color=#FFD966>Tutorial 3/4</color>  Skills - Dash and Spin Slash
+<color=#FFD966>튜토리얼 4/4</color>  위험 피하기 - 빨간 칸에서 비키고, 아이템도 써 보세요	<color=#FFD966>Tutorial 4/4</color>  Dodging - step off the red tiles, and try using an item
+튜토리얼   Room {0}/{1}	Tutorial   Room {0}/{1}
+<color=#FFD966>튜토리얼 완료!</color>  골드 +{0}	<color=#FFD966>Tutorial complete!</color>  Gold +{0}
+<color=#FFD966>튜토리얼 완료!</color>	<color=#FFD966>Tutorial complete!</color>
+잠시 후 타이틀로 돌아갑니다	Returning to the title shortly
+이제 진짜 던전으로 내려갑니다...	Now, down into the real dungeon...
+<color=#FFB060>멧돼지가 땅을 들이받자 돌기둥이 솟았다!</color> 기둥이 서 있는 동안 멧돼지는 단단하다	<color=#FFB060>The boar slams the ground and stone pillars rise!</color> While the pillars stand, the boar is armored
+기둥 뒤에 서서 돌진을 유도해 기둥에 박게 하자!	Stand behind a pillar and lure its charge into it!
+<color=#FFB060>멧돼지가 기둥에 박았다!</color> 크게 비틀거린다 (남은 기둥 {0})	<color=#FFB060>The boar crashed into a pillar!</color> It's badly dazed ({0} pillars left)
+<color=#FFB060>멧돼지가 마지막 기둥에 박았다!</color> 크게 비틀거린다	<color=#FFB060>The boar crashed into the last pillar!</color> It's badly dazed
+<color=#FFB060>기둥이 모두 무너졌다!</color> 멧돼지의 단단함이 풀렸다!	<color=#FFB060>All the pillars have fallen!</color> The boar's armor is gone!
+체력이 절반 아래로 떨어지면 돌기둥 4개를 세우고 8칸까지 돌진한다. 기둥이 서 있는 동안엔 거의 다치지 않으니, 기둥 뒤에 서서 돌진을 기둥에 박게 하자(박으면 3턴 기절).	Below half health it raises 4 stone pillars and charges up to 8 tiles. It barely takes damage while the pillars stand, so stand behind one and make it crash (3-turn stun).
+<color=#FFB060>오우거가 분노해 바닥을 부술 기세로 몽둥이를 쥔다!</color> 강타가 바닥에 균열을 남긴다	<color=#FFB060>The ogre grips its club hard enough to shatter the floor!</color> Its slams now leave cracks
+균열은 오우거도 나도 빠뜨린다 - 균열 너머로 유도하되, 내가 밟지는 말자	Cracks trap the ogre and you alike - lure it across them, but don't step in one yourself
+<color=#FFB060>오우거가 균열에 빠졌다!</color> 다리가 걸려 꼼짝 못 한다 - 지금이다!	<color=#FFB060>The ogre fell into a crack!</color> Its leg is stuck - now's your chance!
+<color=#FF8080>균열에 발이 빠졌다!</color> 한 턴 움직일 수 없다 (공격은 가능)	<color=#FF8080>Your foot sank into a crack!</color> You can't move for a turn (you can still attack)
+체력이 절반 아래로 떨어지면 강타가 바닥에 균열을 남긴다. 오우거가 밟으면 빠져서 2턴 기절하고, 내가 밟으면 1턴 묶인다. 균열 너머에 서서 오우거를 걸어오게 하자.	Below half health its slams leave cracks in the floor. If the ogre steps on one it falls in and is stunned for 2 turns; if you do, you're stuck for 1 turn. Stand beyond a crack and make the ogre walk to you.

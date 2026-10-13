@@ -15,6 +15,8 @@ namespace LoopRogue
 
         /// <summary>엔딩 후 처음으로 돌아갈 때 남기는 것(사용자 결정: 도감 + 업적·칭호) - 업적 진행용 누적 기록(누적 사망·상인 구매)과
         /// 노인의 누적 사망 대사 기록도 업적과 같이 남긴다. 나머지(골드·층·장비·영약·유물·아이템·런·퀘스트·이용권)는 전부 처음부터.</summary>
+        private const string PlayTimeKey = "LoopRogue_PlayTimeSeconds";
+
         private static readonly string[] KeptStrings = { "LoopRogue_Codex", "LoopRogue_Achievements", "LoopRogue_Title" };
         private static readonly string[] KeptInts =
         {
@@ -22,6 +24,7 @@ namespace LoopRogue
             // 마지막 업적(10층 클리어) 보상 이용권이 엔딩 직후 지워지던 문제 + 처치 업적 진행이 처음부터 다시 세지던 문제.
             // 누적 처치를 남기면 이미 받은 처치 보상 기록도 같이 남겨야 같은 보상을 또 받지 않는다.
             "LoopRogue_GachaTickets", "LoopRogue_SlotTickets", "LoopRogue_Quest_Kills", "LoopRogue_Quest_KillClaimed",
+            Tutorial.BasicsKey, Tutorial.HintsKey, TutorialStage.DoneKey, TutorialStage.RewardKey, // 첫 판 안내는 한 번 봤으면 엔딩 뒤에도 다시 안 띄운다
         };
 
         public static void ResetAll()
@@ -43,7 +46,9 @@ namespace LoopRogue
                 if (PlayerPrefs.HasKey(key))
                     ints[key] = PlayerPrefs.GetInt(key);
 
+            var playTime = PlayerPrefs.GetFloat(PlayTimeKey, 0f); // 누적 플레이 시간(테스트 기록용)도 엔딩 뒤에 남긴다
             GameSettings.Preserve(() => PlayerPrefs.DeleteAll());
+            PlayerPrefs.SetFloat(PlayTimeKey, playTime);
             foreach (var pair in strings)
                 PlayerPrefs.SetString(pair.Key, pair.Value);
             foreach (var pair in ints)
@@ -67,6 +72,7 @@ namespace LoopRogue
             Codex.Reload();
             Achievements.Reload(); // 칭호 효과가 RunProgress 기본값에 들어가므로 그보다 먼저
             SlotMachine.Reload();
+            MemoryKnight.Reload();
             RunProgress.Reload(); // 기본값 계산에 위 지갑들을 쓰므로 마지막에.
         }
     }

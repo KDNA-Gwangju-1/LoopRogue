@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace LoopRogue
 {
@@ -67,7 +68,7 @@ namespace LoopRogue
 
         private static Dictionary<ItemSlot, (string Name, string Description)[]> Effects => EffectsCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
 
-        public static int TierOf(ItemGrade grade) => grade >= ItemGrade.Legendary ? grade - ItemGrade.Legendary + 1 : 0;
+        public static int TierOf(ItemGrade grade) => grade >= ItemGrade.Legendary ? Mathf.Min(MaxTier, grade - ItemGrade.Legendary + 1) : 0; // Unknown은 영원과 같은 5단계
 
         /// <summary>지금 장착한 장비의 효과 단계.</summary>
         public static int Tier(ItemSlot slot)
@@ -81,6 +82,22 @@ namespace LoopRogue
         public static string Name(ItemSlot slot, int tier) => Effects[slot][tier - 1].Name;
 
         public static string Description(ItemSlot slot, int tier) => Effects[slot][tier - 1].Description;
+
+        // ---- Unknown 세트(대장장이) ----
+        /// <summary>검·갑옷·반지를 전부 Unknown 등급으로 끼고 있는지 - 세트 효과 "기억의 벼림": 방마다 처음 받는 피해 1번 무효(PlayerActor.OnRoomEntered).</summary>
+        public static bool HasMemorySet
+        {
+            get
+            {
+                foreach (ItemSlot slot in System.Enum.GetValues(typeof(ItemSlot)))
+                    if (EquipmentWallet.GetEquipped(slot) != ItemGrade.Unknown)
+                        return false;
+                return true;
+            }
+        }
+
+        public static string MemorySetName => Loc.T("기억의 벼림");
+        public static string MemorySetDescription => Loc.T("방마다 처음 받는 피해 1번 무효");
 
         // ---- 자주 쓰는 계산 ----
         public static int SkillCooldownReduction => Has(ItemSlot.Accessory, 4) ? 2 : Has(ItemSlot.Accessory, 1) ? 1 : 0;

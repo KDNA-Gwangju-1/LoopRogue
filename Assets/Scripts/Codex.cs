@@ -49,13 +49,16 @@ namespace LoopRogue
             {
                 var r = relic;
                 var boss = Relics.IsBossRelic(r);
+                var hidden = Relics.IsHiddenRelic(r);
                 list.Add(new CodexEntry
                 {
                     Key = RelicKey(r),
                     Category = CodexCategory.Relic,
                     Name = Relics.Name(r),
-                    Description = () => $"{Relics.Description(r)}\n<color=#9AA0AA>{(boss ? Loc.F("{0}층 보스 전용 유물", (int)r + 1) : Loc.T("일반 유물 - 어느 층 보스 보상에서든 나온다"))}</color>",
-                    Hint = boss ? Loc.F("{0}층 보스를 처음 쓰러뜨리면 보상 후보로 나타난다", (int)r + 1) : Loc.T("층 보스를 처음 쓰러뜨리면 보상 후보로 나타날 수 있다"),
+                    Description = () => $"{Relics.Description(r)}\n<color=#9AA0AA>{(boss ? Loc.F("{0}층 보스 전용 유물", (int)r + 1) : hidden ? Loc.T("히든 유물 - 보스 보상으로는 나오지 않는다") : Loc.T("일반 유물 - 어느 층 보스 보상에서든 나온다"))}</color>",
+                    Hint = boss ? Loc.F("{0}층 보스를 처음 쓰러뜨리면 보상 후보로 나타난다", (int)r + 1)
+                        : hidden ? Loc.T("깊은 층 어딘가에 고리를 기억하는 자가 있다고 한다")
+                        : Loc.T("층 보스를 처음 쓰러뜨리면 보상 후보로 나타날 수 있다"),
                     Image = () => PixelUi.Get($"UI/Relics/Relic_{r}"),
                     FallbackColor = new Color(0.7f, 0.5f, 0.9f),
                     Note = () => Relics.Has(r) ? Loc.T("<color=#8CE08C>보유 중</color>") : Loc.T("<color=#888888>미보유</color>"),
@@ -82,11 +85,18 @@ namespace LoopRogue
                 Loc.T("조금 떨어져 있으면 연기와 함께 플레이어 등 뒤로 순간이동한다. 순간이동 직후 첫 공격은 1.5배로 아프다. 나타나면 바로 때려서 기습 전에 잡자. 8층부터."));
             AddMonster(list, "Mimic", Loc.T("미믹"), "Mimic", new Color(0.65f, 0.45f, 0.25f),
                 Loc.T("보물상자인 척하는 상자 괴물. 밟으면 튀어나온다. 튼튼하고 아프게 물지만, 잡으면 보물상자보다 훨씬 많은 골드와 아이템을 뱉는다."));
+            AddMonster(list, "Knight", MemoryKnight.Name, MemoryKnight.SpriteSet, MemoryKnight.TintColor,
+                Loc.T("몬스터 중 혼자만 고리를 기억하는 기사. 같은 공격을 연달아 쓰면 읽고 피한다(간파) - 일반 공격·대시·회전 베기를 섞자. ") +
+                Loc.T("붙어 있으면 앞 3칸을 예고하고 강하게 베니 한 칸 물러나자. 체력이 낮아지면 한 번 물러나 숨을 고른다. 3층부터 아주 드물게.") + " " +
+                Loc.T("마지막으로 쓴 스킬을 기억했다가 따라 한다(기억 재현) - 회전 베기면 주변 8칸, 대시면 같은 줄을 청록으로 예고한다."),
+                Loc.T("어딘가에 말을 하는 몬스터가 있다고 한다"));
 
             AddBoss(list, 1, new Color(0.5f, 0.33f, 0.2f),
-                Loc.T("엄니를 앞세워 플레이어 쪽 일직선으로 최대 5칸 돌진한다. 돌진할 줄에서 옆으로 비키자. 돌진한 뒤엔 2턴 동안 비틀거린다 - 때릴 기회."));
+                Loc.T("엄니를 앞세워 플레이어 쪽 일직선으로 최대 5칸 돌진한다. 돌진할 줄에서 옆으로 비키자. 돌진한 뒤엔 2턴 동안 비틀거린다 - 때릴 기회.") + " " +
+                Loc.T("체력이 절반 아래로 떨어지면 돌기둥 4개를 세우고 8칸까지 돌진한다. 기둥이 서 있는 동안엔 거의 다치지 않으니, 기둥 뒤에 서서 돌진을 기둥에 박게 하자(박으면 3턴 기절)."));
             AddBoss(list, 2, new Color(0.48f, 0.6f, 0.33f),
-                Loc.T("몽둥이로 자기 주변 3x3을 내려찍는다. 예고가 뜨면 한 칸 더 떨어지자."));
+                Loc.T("몽둥이로 자기 주변 3x3을 내려찍는다. 예고가 뜨면 한 칸 더 떨어지자.") + " " +
+                Loc.T("체력이 절반 아래로 떨어지면 강타가 바닥에 균열을 남긴다. 오우거가 밟으면 빠져서 2턴 기절하고, 내가 밟으면 1턴 묶인다. 균열 너머에 서서 오우거를 걸어오게 하자."));
             AddBoss(list, 3, new Color(0.5f, 0.5f, 0.55f),
                 Loc.T("땅을 쳐서 자기 가로줄과 세로줄 전체를 가른다. 골렘과 같은 줄에 서지 말고 대각선 쪽에 붙자."));
             AddBoss(list, 4, new Color(0.84f, 0.23f, 0.3f),
@@ -125,14 +135,14 @@ namespace LoopRogue
 
         public static string BossKey(int stage) => "B:" + stage;
 
-        private static void AddMonster(List<CodexEntry> list, string key, string name, string spriteSet, Color color, string description) =>
+        private static void AddMonster(List<CodexEntry> list, string key, string name, string spriteSet, Color color, string description, string hint = null) =>
             list.Add(new CodexEntry
             {
                 Key = "M:" + key,
                 Category = CodexCategory.Monster,
                 Name = name,
                 Description = () => description,
-                Hint = Loc.T("처음 처치하면 기록된다"),
+                Hint = hint ?? Loc.T("처음 처치하면 기록된다"),
                 Image = () => SpriteAnimator.FirstFrame(spriteSet),
                 FallbackColor = color,
             });
@@ -141,7 +151,7 @@ namespace LoopRogue
 
         /// <summary>처치한 몹의 도감 키 - 졸개(= 슬라임 모습)도 슬라임으로, 층 보스는 보스 도감(변신 중인 10층 보스도 10층으로).</summary>
         public static string MonsterKey(EnemyActor e) =>
-            e.IsBoss ? BossKey(e.BossStage) : e.IsMimic ? "M:Mimic" : e.IsMinion || e.Kind == EnemyKind.Melee ? "M:Slime" : "M:" + e.Kind;
+            e.IsBoss ? BossKey(e.BossStage) : e.IsMimic ? "M:Mimic" : e.IsKnight ? "M:Knight" : e.IsMinion || e.Kind == EnemyKind.Melee ? "M:Slime" : "M:" + e.Kind;
 
         public static void Reload()
         {

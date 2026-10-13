@@ -112,7 +112,7 @@ namespace LoopRogue
             var hud = hudGo.AddComponent<GameHUD>();
             hud.Initialize(player);
 
-            var rooms = BuildStageRooms(stage);
+            var rooms = TutorialStage.TryBegin() ? TutorialStage.BuildRooms() : BuildStageRooms(stage); // 처음 온 사람·타이틀 [튜토리얼]
             if (TestMap.Active)
                 rooms = TestMap.BuildRooms(rooms); // 에디터 메뉴 "테스트 맵" - [이벤트 전부 깐 방, 이 층 보스방]
             var loopManager = new LoopManager();
@@ -168,6 +168,14 @@ namespace LoopRogue
             _ => 1.3f,
         };
 
+        /// <summary>그 층 보스의 최대 체력·공격력 - 보스방과 히든 몹 기억하는 기사(보스 체력, 보스 공격력의 75%)가 같이 쓴다.</summary>
+        public static (float Health, float Attack) BossStats(int stage)
+        {
+            var stageMultiplier = StageScaling.EnemyMultiplier(stage);
+            var extraBoss = ExtraBossMultiplier(stage) * BossPatternBalance(stage) * BossScaleForBotTest;
+            return (150f * stageMultiplier * BossStatMultiplier * extraBoss, 12f * stageMultiplier * BossStatMultiplier * extraBoss);
+        }
+
         private static List<RoomDefinition> BuildStageRooms(int stage)
         {
             var stagePower = stage - 1; // 0-based - 방 크기/몹 수 가산에 그대로 씀.
@@ -190,9 +198,7 @@ namespace LoopRogue
             }
 
             var bossSize = Mathf.Min(12 + stagePower / 2, 18);
-            var extraBoss = ExtraBossMultiplier(stage) * BossPatternBalance(stage) * BossScaleForBotTest;
-            var bossHp = 150f * stageMultiplier * BossStatMultiplier * extraBoss;
-            var bossAtk = 12f * stageMultiplier * BossStatMultiplier * extraBoss;
+            var (bossHp, bossAtk) = BossStats(stage);
 
             var bossRoom = MakeRoom($"Stage {stage} Boss", bossSize, bossSize, 1,
                 enemyHp: bossHp, enemyAtk: bossAtk, isBossRoom: true);

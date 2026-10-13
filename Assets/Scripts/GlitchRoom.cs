@@ -57,7 +57,7 @@ namespace LoopRogue
         /// <summary>이 방이 지금 오류방이어야 하는지 - 층마다 한 번 굴려 정한 방 번호와 같고 아직 안 깼으면.</summary>
         public static bool ShouldGlitch(RoomDefinition def, int roomCount)
         {
-            if (def == null || def.IsBossRoom || def.IsTestRoom || def.HasEvent || TestMap.Active)
+            if (def == null || def.IsBossRoom || def.IsTestRoom || def.IsTutorialRoom || def.HasEvent || TestMap.Active)
                 return false;
             if (TestMode)
                 return true;

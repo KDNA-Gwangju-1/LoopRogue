@@ -11,6 +11,7 @@ namespace LoopRogue
     {
         private const float RowHeight = 27f;
         private const float RowGap = 3f;
+        private const float MaxPanelHeight = 700f;
         private const float PanelWidth = 940f;
 
         private static readonly Color RowLocked = new Color(0.1f, 0.1f, 0.12f, 0.92f);
@@ -133,6 +134,12 @@ namespace LoopRogue
                 image.color = image.sprite != null ? PixelUi.Tint(color, 0.5f) : color;
 
                 var mark = isEquipped ? Loc.T("<color=#FFD966>[장착]</color>") : unlocked ? Loc.T("<color=#8CE08C>[달성]</color>") : "<color=#777777>[ - ]</color>";
+                if (def.Hidden && !unlocked)
+                {
+                    // 이름·조건·칭호·보상 전부 가린다(사용자 결정 - 조건도 모르게)
+                    text.text = $"{mark}  <color=#7FE0D8><b>???</b></color>  <color=#7A7A82>???</color>   <color=#7A7A82>「???」 ???</color>";
+                    continue;
+                }
                 var nameColor = unlocked ? "#FFFFFF" : "#9A9AA2";
                 var detailColor = unlocked ? "#C8CCD6" : "#7A7A82";
                 text.text = $"{mark}  <color={nameColor}><b>{def.Name}</b></color>  <color={detailColor}>{def.Description}</color>" +
@@ -144,7 +151,10 @@ namespace LoopRogue
         {
             var count = Achievements.All.Length;
             const float header = 52f, footer = 34f, side = 20f;
-            var height = header + count * (RowHeight + RowGap) + footer;
+            // 업적이 늘어도 화면(높이 720)을 넘지 않게 - 줄 간격을 MaxPanelHeight 안에 맞춘다(히든 업적 추가로 25개)
+            var rowStep = Mathf.Min(RowHeight + RowGap, (MaxPanelHeight - header - footer) / Mathf.Max(1, count));
+            var rowHeight = rowStep - RowGap;
+            var height = header + count * rowStep + footer;
 
             var panelImage = HudUi.CreateImage(canvas, "AchievementPanel", new Color(0.05f, 0.05f, 0.07f, 0.96f));
             var skinned = PixelUi.Slice(panelImage, "Panel");
@@ -184,8 +194,8 @@ namespace LoopRogue
                 rowRect.anchorMin = new Vector2(0f, 1f);
                 rowRect.anchorMax = new Vector2(1f, 1f);
                 rowRect.pivot = new Vector2(0.5f, 1f);
-                var top = header + i * (RowHeight + RowGap);
-                rowRect.offsetMin = new Vector2(side, -(top + RowHeight));
+                var top = header + i * rowStep;
+                rowRect.offsetMin = new Vector2(side, -(top + rowHeight));
                 rowRect.offsetMax = new Vector2(-side, -top);
                 var text = HudUi.CreateText(image.transform, "Text", 13, TextAnchor.MiddleLeft);
                 text.supportRichText = true;

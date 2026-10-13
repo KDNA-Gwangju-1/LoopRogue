@@ -43,7 +43,8 @@ namespace LoopRogue
             _stage = stage;
             _roomIndex = 0;
             RollRoomEvent();
-            StageProgress.BeginAttempt();
+            if (!TutorialStage.Active)
+                StageProgress.BeginAttempt(); // 튜토리얼은 그 층 시도 횟수(반복 보상 감소)에 안 센다
             Curses.Reset(); // 저주 계약은 시도 단위
             RunBuffs.Reset(); // 방 이벤트 효과(숫돌·피의 제단·모래시계)도
             Codex.SyncOwned();    // 도감이 생기기 전 저장으로 이미 가진 유물/아이템
@@ -51,8 +52,8 @@ namespace LoopRogue
 
             _roomController.Initialize(player, this, stage);
             _player.OnAttemptStarted();
-            if (GameHUD.AutoPlayActive)
-                EnterRoom(); // 봇은 시작 방 고르기 창이 없어서 첫 방도 여기서 퍼즐 확률을 굴린다
+            if (GameHUD.AutoPlayActive || TutorialStage.Active)
+                EnterRoom(); // 봇은 시작 방 고르기 창이 없어서 첫 방도 여기서 퍼즐 확률을 굴린다(튜토리얼도 고르기 없이 방 1부터)
             else
                 _roomController.LoadRoom(_rooms[_roomIndex]); // 사람은 고르기 창 뒤 자리 표시용 - 고른 뒤 EnterRoom
             RefreshHudProgress();
@@ -61,7 +62,7 @@ namespace LoopRogue
             // 시작 방 고르기(사람만) - 방1은 이미 깔아둔 채로 입력만 잠그고, 다른 방을 고르면 그 방으로 바꿔 로드.
             if (PuzzleTrial.Active)
                 _roomController.LoadPuzzle(_rooms[_roomIndex], PuzzleTrial.Type.Value); // 에디터 메뉴 "퍼즐·미니게임 체험" - 고르기 없이 바로
-            else if (!GameHUD.AutoPlayActive && !TestMap.Active)
+            else if (!GameHUD.AutoPlayActive && !TestMap.Active && !TutorialStage.Active)
             {
                 _roomController.IsInputLocked = true;
                 _hud.ShowRoomSelect(stage, _rooms, 0, StartFromSelectedRoom);
@@ -74,6 +75,8 @@ namespace LoopRogue
                       && !NpcDialogUI.BlocksInput, // 대화창을 Esc로 닫은 그 프레임에 메뉴가 바로 열리지 않게
                 lobbyLabel: Loc.F("로비로 이동 (이번 시도 골드 {0:0}% 손실)  [L]", Relics.DeathPenaltyRate * 100f),
                 goToTitle: RetreatToTitle);
+
+            Tutorial.Attach(_roomController, _player, _hud); // 첫 판 안내(봇·테스트 맵에선 안 만든다)
         }
 
         private void StartFromSelectedRoom(int index)
@@ -84,6 +87,13 @@ namespace LoopRogue
 
         public void AdvanceToNextRoom()
         {
+            if (TutorialStage.Active && _roomIndex + 1 >= _rooms.Count)
+            {
+                _roomController.IsInputLocked = true;
+                TutorialStage.Complete(_roomController); // 완료 알림 + 첫 보상 골드 → 잠시 뒤 진짜 1층(또는 타이틀)로
+                SaveProgress();
+                return;
+            }
             _roomIndex++;
             EnterRoom();
         }
@@ -94,7 +104,7 @@ namespace LoopRogue
         private void EnterRoom()
         {
             var def = _rooms[_roomIndex];
-            var puzzleAllowed = !def.IsBossRoom && !def.IsTestRoom && !def.HasEvent && !TestMap.Active;
+            var puzzleAllowed = !def.IsBossRoom && !def.IsTestRoom && !def.IsTutorialRoom && !def.HasEvent && !TestMap.Active;
             if (puzzleAllowed && !GameHUD.AutoPlayActive && PuzzleBase.TestModeNext(out var testType))
                 _roomController.LoadPuzzle(def, testType);
             else if (puzzleAllowed && RollPuzzleOnce(def.RoomNumber))
@@ -111,6 +121,11 @@ namespace LoopRogue
             else
                 _roomController.LoadRoom(def); // IsInputLocked를 다시 false로 풀어준다.
             RefreshHudProgress();
+            if (def.IsTutorialRoom)
+            {
+                TutorialStage.OnRoomEntered(def);
+                _hud.ShowMessage(TutorialStage.Caption(def.TutorialStep));
+            }
         }
 
         /// <summary>이 층에서 이 방을 처음 들어갈 때만 퍼즐 확률을 굴린다 - 두 번째부터는 걸렸든 아니든 항상 전투(StageProgress.PuzzleRolled).</summary>
@@ -282,6 +297,8 @@ namespace LoopRogue
         {
             foreach (var room in _rooms)
                 room.HasEvent = false;
+            if (TutorialStage.Active)
+                return; // 튜토리얼 방엔 이벤트 없음
 
             var last = Mathf.Min(LastEventRoomIndex, _rooms.Count - 2); // 보스방 제외
             if (last < FirstEventRoomIndex)

@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -27,6 +28,10 @@ namespace LoopRogue
 
         /// <summary>테스트 맵 방(TestMap) - 정해진 배치에 이벤트 11종을 전부 깐다.</summary>
         public bool IsTestRoom;
+        /// <summary>튜토리얼 스테이지 방(TutorialStage) - 배치 고정(TutorialLayout), 몹 보상 없음, 층 진행·이벤트·퍼즐·오류방·히든 몹과 무관.</summary>
+        public bool IsTutorialRoom;
+        public int TutorialStep;
+        public RoomLayout TutorialLayout;
     }
 
     /// <summary>방 하나의 실제 상태(격자/벽/적 목록/이벤트/바닥 시각화/보스 예고 칸)를 관리하고, 적 전멸 시 다음 방
@@ -142,6 +147,7 @@ namespace LoopRogue
 
         public int Stage => _stage;
         public IReadOnlyList<EnemyActor> Enemies => _enemies;
+        public PlayerActor Player => _player;
         public string RoomName => _current?.RoomName;
         public bool IsBossRoom => _current != null && _current.IsBossRoom;
 
@@ -353,7 +359,7 @@ namespace LoopRogue
             _current = def;
             ClearRoom();
 
-            var layout = def.IsTestRoom ? TestMap.Layout() : RoomLayoutGenerator.Generate(def, Rng);
+            var layout = def.TutorialLayout ?? (def.IsTestRoom ? TestMap.Layout() : RoomLayoutGenerator.Generate(def, Rng));
             Map = new GridMap(layout.Width, layout.Height);
             foreach (var wall in layout.Walls)
                 Map.AddWall(wall);
@@ -378,6 +384,9 @@ namespace LoopRogue
                 SpawnEnemy(layout.EnemyPositions[i], def, kind);
             }
 
+            // 히든 몹 기사 - 방을 깔 때 굴리고, 나오는 건 방을 비운 순간(FinishRoomCleared). 기사를 잡아야 출구·NPC가 나온다.
+            _knightPending = !_loadCleared && !glitch && MemoryKnight.ShouldSpawn(def, _stage, Rng);
+
             if (def.HasEvent && layout.EventPosition.HasValue && !_loadCleared)
                 SpawnEvent(layout.EventPosition.Value, def.EventType);
             if (def.IsTestRoom)
@@ -396,6 +405,8 @@ namespace LoopRogue
                 _roomCleared = true; // 퍼즐 실패 후 돌아온 이전 방 - 이미 깬 방이라 출구만
                 SpawnExit();
             }
+            else if (def.IsTutorialRoom && _enemies.Count == 0)
+                FinishRoomCleared(); // 튜토리얼 첫 방(몹 없음) - 들어가자마자 출구
         }
 
         private EnemyActor SpawnEnemy(Vector2Int pos, RoomDefinition def, EnemyKind kind, float healthScale = 1f, float attackScale = 1f)
@@ -419,6 +430,8 @@ namespace LoopRogue
             };
             var enemy = go.AddComponent<EnemyActor>();
             enemy.Initialize(def.EnemyMaxHealth * hpRatio * healthScale, def.EnemyAttackPower * atkRatio * attackScale, def.IsBossRoom, kind);
+            if (def.IsTutorialRoom)
+                enemy.MarkAsTutorialMob(); // 골드·경험치 없음
             if (def.IsBossRoom)
                 enemy.SetupBossPatterns(def.BossPatterns, _stage);
             Map.PlaceActor(enemy, pos);
@@ -452,7 +465,9 @@ namespace LoopRogue
             var room = _current.RoomNumber;
             var report = RunQuest.Active && room == RunQuest.ReportRoom;
             NpcType type;
-            if (report || (!RunQuest.Active && room == RunQuest.AcceptRoom && Rng.NextDouble() < WandererChance))
+            if (!report && LoopRogue.Blacksmith.ShouldAppear(Rng))
+                type = NpcType.Blacksmith; // 히든 - 조각을 들고 있으면 반드시
+            else if (report || (!RunQuest.Active && room == RunQuest.AcceptRoom && Rng.NextDouble() < WandererChance))
                 type = NpcType.Wanderer;
             else if (Rng.NextDouble() < MerchantChance)
                 type = NpcType.Merchant;
@@ -471,6 +486,8 @@ namespace LoopRogue
             _npc.Initialize(type, _stage, this, _player, isReport: report);
             Map.PlaceActor(_npc, pos.Value);
             _npc.PlayAppearEffect();
+            if (type == NpcType.Blacksmith)
+                Achievements.Unlock("ACH_SMITH_MET");
             ShowMessage(report
                 ? Loc.F("{0}이(가) 기다리고 있었다! (옆에서 F: 보고)", _npc.DisplayName)
                 : Loc.F("{0}이(가) 나타났다! (옆에서 F: 대화)", _npc.DisplayName));
@@ -598,6 +615,89 @@ namespace LoopRogue
             HitFeedback.OnSummon(mimic.transform.position);
         }
 
+        /// <summary>이 방을 비우면 기사가 나온다(방을 깔 때 MemoryKnight.ShouldSpawn으로 정함).</summary>
+        private bool _knightPending;
+
+        /// <summary>히든 몹 "기억하는 기사" - 방을 비운 순간 플레이어에게서 3~4칸 떨어진 빈 칸(시야 안쪽)에 나타난다(없으면 2칸 이상 아무 데나).
+        /// 그 방의 마지막 몹이 되어, 잡아야 방 클리어(출구·NPC). 나왔으면 true.</summary>
+        private bool SpawnKnight()
+        {
+            var cells = new List<Vector2Int>();
+            for (var pass = 0; pass < 2 && cells.Count == 0; pass++)
+                for (var x = 0; x < Map.Width; x++)
+                for (var y = 0; y < Map.Height; y++)
+                {
+                    var p = new Vector2Int(x, y);
+                    var d = Mathf.Max(Mathf.Abs(p.x - _player.GridPos.x), Mathf.Abs(p.y - _player.GridPos.y));
+                    var inRange = pass == 0 ? d >= 3 && d <= 4 : d >= 2;
+                    if (inRange && Map.IsWalkable(p) && ExitPosition != p && !_traps.ContainsKey(p))
+                        cells.Add(p);
+                }
+            if (cells.Count == 0)
+                return false;
+            var (bossHp, bossAtk) = GameBootstrap.BossStats(_stage);
+            var knight = SpawnEnemy(cells[Rng.Next(cells.Count)], _current, EnemyKind.Melee,
+                bossHp * MemoryKnight.BossHealthRate / Mathf.Max(0.01f, _current.EnemyMaxHealth),
+                MemoryKnight.NormalAttackRatio);
+            knight.MarkAsKnight(bossAtk * MemoryKnight.BossPatternRate);
+            knight.FaceToward(_player.GridPos);
+            KnightSpawnCount++;
+            MemoryKnight.MarkAppeared(_stage);
+            Achievements.Unlock("ACH_KNIGHT_MET");
+            if (HitFeedback.Enabled)
+                StartCoroutine(KnightEntrance(knight));
+            else
+                ShowMessage(MemoryKnight.Say(MemoryKnight.AppearLine())); // 봇 - 연출 없이 바로
+            return true;
+        }
+
+        private const float KnightRumbleSeconds = 1f;
+        private const float KnightRumbleStep = 0.12f;
+
+        /// <summary>기사 등장 연출 - 던전이 점점 세게 울리며(화면 흔들림 + 어두워짐 + 천장 먼지) 1초쯤 뒤 쿵 하고 기사가 나타난다.
+        /// 그동안 입력은 잠그고, 기사는 크기 0으로 숨겨 둔다(칸은 이미 차지 - 판정은 그대로).</summary>
+        private IEnumerator KnightEntrance(EnemyActor knight)
+        {
+            var lockedHere = !IsInputLocked;
+            if (lockedHere)
+                IsInputLocked = true;
+            var baseScale = knight.transform.localScale;
+            knight.transform.localScale = Vector3.zero;
+            var cs = GridConstants.CellSize;
+
+            ShowMessage(Loc.T("...던전이 흔들린다."));
+            SfxPlayer.Play(Sfx.Slam);
+            ScreenFlash.Play(Color.black, 0.35f, KnightRumbleSeconds + 0.3f);
+            for (var t = 0f; t < KnightRumbleSeconds; t += KnightRumbleStep)
+            {
+                CameraShake.Shake(Mathf.Lerp(0.04f, 0.14f, t / KnightRumbleSeconds), KnightRumbleStep + 0.05f);
+                if (_player != null && Rng.NextDouble() < 0.7) // 천장에서 떨어지는 먼지
+                {
+                    var dust = _player.transform.position + new Vector3((float)(Rng.NextDouble() * 8 - 4) * cs, (float)(Rng.NextDouble() * 6 - 3) * cs, 0f);
+                    DeathBurst.Spawn(dust, new Color(0.55f, 0.5f, 0.45f, 0.85f), 5, cs * 0.6f, cs * 0.08f);
+                }
+                yield return new WaitForSeconds(KnightRumbleStep);
+            }
+
+            if (knight != null)
+            {
+                knight.transform.localScale = baseScale;
+                var pos = knight.transform.position;
+                HitFeedback.OnSummon(pos);
+                DeathBurst.Spawn(pos, new Color(0.45f, 0.95f, 0.88f, 0.9f), 18, cs * 2.4f, cs * 0.16f);
+                DeathBurst.Spawn(pos, new Color(0.5f, 0.45f, 0.4f, 0.9f), 12, cs * 1.6f, cs * 0.14f);
+                CameraShake.Shake(0.32f, 0.4f);
+                SfxPlayer.Play(Sfx.Slam);
+                ScreenFlash.Play(new Color(0.5f, 0.95f, 0.9f), 0.25f, 0.3f);
+                ShowMessage(MemoryKnight.Say(MemoryKnight.AppearLine()));
+            }
+            if (lockedHere && this != null)
+                IsInputLocked = false;
+        }
+
+        /// <summary>봇 통계용 - 기사가 나온 횟수, 잡은 횟수.</summary>
+        public static int KnightSpawnCount, KnightKillCount;
+
         /// <summary>도전의 깃발 - 정예 몹 한 무리. 전부 잡으면 보상(GiveEventEnemyReward).</summary>
         public void StartChallenge(Vector2Int flagPos)
         {
@@ -674,6 +774,34 @@ namespace LoopRogue
                 var item = Inventory.GiveRandomMissing();
                 ShowMessage(Loc.F("미믹 처치! 골드 +{0}{1}", gold, (item.HasValue ? Loc.F(", {0} 획득", ItemInfo.Name(item.Value)) : "")));
                 HitFeedback.OnGold(enemy.transform.position);
+            }
+            if (enemy.IsKnight)
+            {
+                var gold = RoomClearGold * MemoryKnight.GoldRooms;
+                GoldWallet.Add(gold);
+                HitFeedback.OnGold(enemy.transform.position);
+                KnightKillCount++;
+                Achievements.Unlock("ACH_KNIGHT_KILL");
+                if (!enemy.KnightPatternLanded)
+                    Achievements.Unlock("ACH_KNIGHT_PERFECT");
+                if (LoopRogue.Blacksmith.OnKnightDefeated())
+                    ShowMessage(Loc.F("<color=#7FE0D8>{0}</color>을 얻었다! 다음 방을 비우면 대장장이가 찾아온다", LoopRogue.Blacksmith.FragmentName));
+                var first = MemoryKnight.MarkDefeated(_stage);
+                var relic = !Relics.Has(RelicType.KnightMemory) && MemoryKnight.CanDropRelic(_stage);
+                ShowMessage(MemoryKnight.Say(MemoryKnight.DeathLine(relic)));
+                if (relic)
+                {
+                    Relics.Acquire(RelicType.KnightMemory, _player);
+                    Achievements.Unlock("ACH_KNIGHT_RELIC");
+                    ShowMessage(Loc.F("{0} 처치! 골드 +{1}, 히든 유물 <color=#7FE0D8>「{2}」</color> 획득", MemoryKnight.Name, gold, Relics.Name(RelicType.KnightMemory)));
+                    HitFeedback.OnBonusReward(_player);
+                }
+                else
+                {
+                    ShowMessage(Loc.F("{0} 처치! 골드 +{1}", MemoryKnight.Name, gold));
+                    if (first && !Relics.Has(RelicType.KnightMemory)) // 얕은 층 - 유물은 더 깊은 곳에서(처음 잡았을 때만 귀띔)
+                        ShowMessage(Loc.T("<color=#9AA0AA>투구 틈의 빛이 희미하게 깜빡이다 꺼졌다... 더 깊은 곳의 기사라면 무언가 남길지도.</color>"));
+                }
             }
             if (_challengeEnemies.Remove(enemy) && _challengeEnemies.Count == 0)
             {
@@ -784,6 +912,7 @@ namespace LoopRogue
             GoldWallet.Add(gold);
             var total = GlitchRoom.AddFragment();
             StageProgress.MarkGlitchCleared();
+            Achievements.Unlock("ACH_GLITCH");
             GlitchRoom.End();
             GlitchClearCount++;
             _glitchVisual?.Restore();
@@ -1083,6 +1212,192 @@ namespace LoopRogue
             return renderer;
         }
 
+        // ---- 2층 오우거 균열(BossBrain) ----
+        public const int OgreFallStunTurns = 2;
+        public const int OgreFallImmuneTurns = 2;   // 빠졌다 나온 뒤 다시 안 빠지는 턴(연속 기절 방지)
+        public const int PlayerCrackRootTurns = 1;
+        private readonly Dictionary<Vector2Int, GameObject> _cracks = new Dictionary<Vector2Int, GameObject>();
+        private int _ogreFallImmune;
+
+        public int CrackCount => _cracks.Count;
+        public bool IsCrack(Vector2Int pos) => _cracks.ContainsKey(pos);
+
+        /// <summary>강타가 내려찍은 칸 중 count칸(빈 바닥, 출구·이미 균열인 칸 제외)에 균열을 남긴다.</summary>
+        public void AddOgreCracks(IEnumerable<Vector2Int> tiles, int count)
+        {
+            var candidates = tiles.Where(p => Map.IsInBounds(p) && !Map.IsWall(p) && !_cracks.ContainsKey(p) && ExitPosition != p
+                                              && !(Map.GetActorAt(p) is EnemyActor e && e.IsBoss)).OrderBy(_ => Rng.Next()).Take(count).ToList();
+            foreach (var p in candidates)
+            {
+                var go = new GameObject("Crack");
+                go.transform.SetParent(transform, false);
+                go.transform.position = new Vector3(p.x * GridConstants.CellSize, p.y * GridConstants.CellSize, 0f);
+                if (VisualUtil.TryCreateProp(go, "Floor_Crack_" + Rng.Next(2), -7) == null)
+                    VisualUtil.CreateSquareVisual(go, new Color(0.05f, 0.04f, 0.06f, 0.8f), GridConstants.CellSize * 0.7f, sortingOrder: -7);
+                _roomObjects.Add(go);
+                _cracks[p] = go;
+                if (!DamagePopup.Suppressed)
+                    DeathBurst.Spawn(go.transform.position, new Color(0.45f, 0.42f, 0.48f, 0.9f), 6, GridConstants.CellSize * 0.9f, GridConstants.CellSize * 0.09f);
+            }
+        }
+
+        private void CollapseCrack(Vector2Int p)
+        {
+            if (!_cracks.TryGetValue(p, out var go))
+                return;
+            _cracks.Remove(p);
+            if (go == null)
+                return;
+            if (!DamagePopup.Suppressed)
+                DeathBurst.Spawn(go.transform.position, new Color(0.5f, 0.45f, 0.4f, 0.95f), 12, GridConstants.CellSize * 1.4f, GridConstants.CellSize * 0.12f);
+            Destroy(go);
+        }
+
+        /// <summary>몹 턴이 끝날 때마다 - 오우거(보스) 몸이 균열에 걸쳐 있으면 빠진다: 그 균열들이 무너지고 기절.</summary>
+        private void CheckOgreCrack(EnemyActor enemy)
+        {
+            if (!enemy.IsBoss || _cracks.Count == 0 || enemy.Stats.IsDead)
+                return;
+            if (_ogreFallImmune > 0)
+            {
+                _ogreFallImmune--;
+                return;
+            }
+            if (enemy.StunTurns > 0)
+                return;
+            var under = GridMap.CellsOf(enemy).Where(c => _cracks.ContainsKey(c)).ToList();
+            if (under.Count == 0)
+                return;
+            foreach (var c in under)
+                CollapseCrack(c);
+            enemy.Stun(OgreFallStunTurns);
+            _ogreFallImmune = OgreFallStunTurns + OgreFallImmuneTurns;
+            OgreFallCount++;
+            ShowMessage(Loc.T("<color=#FFB060>오우거가 균열에 빠졌다!</color> 다리가 걸려 꼼짝 못 한다 - 지금이다!"));
+            if (HitFeedback.Enabled)
+            {
+                CameraShake.Shake(0.3f, 0.35f);
+                SfxPlayer.Play(Sfx.Slam);
+            }
+        }
+
+        /// <summary>플레이어가 한 칸 들어선 직후(이동·대시 착지) - 균열이면 발이 빠져 묶이고 균열은 무너진다. 묶였으면 true.</summary>
+        public bool CheckPlayerCrack()
+        {
+            var p = _player.GridPos;
+            if (!_cracks.ContainsKey(p))
+                return false;
+            CollapseCrack(p);
+            _player.ApplyRoot(PlayerCrackRootTurns);
+            PlayerCrackCount++;
+            ShowMessage(Loc.T("<color=#FF8080>균열에 발이 빠졌다!</color> 한 턴 움직일 수 없다 (공격은 가능)"));
+            if (HitFeedback.Enabled)
+                CameraShake.Shake(0.12f, 0.15f);
+            return true;
+        }
+
+        /// <summary>봇 통계용 - 오우거가 균열에 빠진 횟수 / 플레이어가 빠진 횟수.</summary>
+        public static int OgreFallCount, PlayerCrackCount;
+
+        // ---- 1층 거대 멧돼지 기둥(BossBrain) ----
+        private readonly HashSet<Vector2Int> _boarPillars = new HashSet<Vector2Int>();
+        private static readonly Color PillarTint = new Color(0.95f, 0.82f, 0.68f);
+
+        public int BoarPillarCount => _boarPillars.Count;
+
+        /// <summary>멧돼지 상하좌우로 4칸(안 되면 3·5칸) 떨어진 빈 칸에 돌기둥(벽 칸)을 세운다 - 세운 개수.
+        /// 기둥 뒤에 선 플레이어를 향해 돌진하면 몸 띠가 기둥에 걸려 박는다.</summary>
+        public int SpawnBoarPillars(EnemyActor boar)
+        {
+            _boarPillars.Clear();
+            foreach (var dir in new[] { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right })
+            {
+                foreach (var dist in new[] { 4, 3, 5 })
+                {
+                    var p = boar.GridPos + dir * dist;
+                    if (!Map.IsWalkable(p) || p == _player.GridPos || ExitPosition == p || _dangerTiles.Contains(p))
+                        continue;
+                    Map.AddWall(p);
+                    _boarPillars.Add(p);
+                    var go = _tiledRoom
+                        ? CreateTile(transform, p, DungeonTiles.Wall(true, _tileRng), -8, PillarTint).gameObject
+                        : CreatePillarSquare(p);
+                    _roomObjects.Add(go);
+                    _wallObjects[p] = go;
+                    if (!DamagePopup.Suppressed)
+                    {
+                        DeathBurst.Spawn(go.transform.position, new Color(0.6f, 0.52f, 0.42f, 0.9f), 10, GridConstants.CellSize * 1.4f, GridConstants.CellSize * 0.12f);
+                        StartCoroutine(RisePillar(go.transform));
+                    }
+                    break;
+                }
+            }
+            if (_boarPillars.Count > 0 && HitFeedback.Enabled)
+            {
+                CameraShake.Shake(0.22f, 0.4f);
+                SfxPlayer.Play(Sfx.Slam);
+            }
+            return _boarPillars.Count;
+        }
+
+        private GameObject CreatePillarSquare(Vector2Int p)
+        {
+            var go = new GameObject("Pillar");
+            go.transform.SetParent(transform, false);
+            VisualUtil.CreateSquareVisual(go, new Color(0.45f, 0.4f, 0.35f), GridConstants.CellSize, sortingOrder: -8);
+            go.transform.position = new Vector3(p.x * GridConstants.CellSize, p.y * GridConstants.CellSize, 0f);
+            return go;
+        }
+
+        /// <summary>기둥이 땅에서 솟아오르는 연출(크기만 - 칸은 이미 막혀 있다).</summary>
+        private static IEnumerator RisePillar(Transform pillar)
+        {
+            var baseScale = pillar.localScale;
+            for (var t = 0f; t < 0.3f && pillar != null; t += Time.deltaTime)
+            {
+                pillar.localScale = new Vector3(baseScale.x, baseScale.y * Mathf.SmoothStep(0.1f, 1f, t / 0.3f), 1f);
+                yield return null;
+            }
+            if (pillar != null)
+                pillar.localScale = baseScale;
+        }
+
+        /// <summary>cells 중 멧돼지 기둥을 전부 부순다(돌진에 박힘) - 하나라도 부쉈으면 true.</summary>
+        public bool BreakBoarPillars(IEnumerable<Vector2Int> cells)
+        {
+            var broke = false;
+            foreach (var p in cells.Where(c => _boarPillars.Contains(c)).ToList())
+            {
+                RemoveWallObject(p);
+                broke = true;
+            }
+            if (broke && HitFeedback.Enabled)
+            {
+                CameraShake.Shake(0.35f, 0.4f);
+                SfxPlayer.Play(Sfx.Explosion);
+            }
+            return broke;
+        }
+
+        /// <summary>벽 칸 하나를 지운다(그림·바닥 정리 포함) - 멧돼지 기둥이면 기둥 목록에서도 뺀다.</summary>
+        private void RemoveWallObject(Vector2Int p)
+        {
+            Map.RemoveWall(p);
+            if (_wallObjects.TryGetValue(p, out var wallGo))
+            {
+                _wallObjects.Remove(p);
+                if (wallGo != null)
+                {
+                    if (!DamagePopup.Suppressed)
+                        DeathBurst.Spawn(wallGo.transform.position, new Color(0.6f, 0.52f, 0.42f, 0.95f), 16, GridConstants.CellSize * 2f, GridConstants.CellSize * 0.16f);
+                    Destroy(wallGo);
+                }
+            }
+            OnWallRemoved(p);
+            if (_boarPillars.Remove(p) && _boarPillars.Count == 0)
+                ShowMessage(Loc.T("<color=#FFB060>기둥이 모두 무너졌다!</color> 멧돼지의 단단함이 풀렸다!"));
+        }
+
         /// <summary>폭탄으로 벽이 부서진 뒤 - 그 자리에 바닥을 깔고, 바로 위 벽은 이제 아래가 바닥이니 앞면으로.</summary>
         private void OnWallRemoved(Vector2Int cell)
         {
@@ -1113,6 +1428,10 @@ namespace LoopRogue
 
         private void ClearRoom()
         {
+            _knightPending = false;
+            _boarPillars.Clear();
+            _cracks.Clear();
+            _ogreFallImmune = 0;
             GlitchRoom.End();
             _glitchVisual = null;
             if (Puzzle != null)
@@ -1206,6 +1525,18 @@ namespace LoopRogue
         {
             if (_roomCleared)
                 return;
+            if (_knightPending)
+            {
+                _knightPending = false;
+                if (SpawnKnight())
+                    return; // 기사를 잡으면 다시 여기로 와서 진짜 클리어
+            }
+            if (_current.IsTutorialRoom)
+            {
+                _roomCleared = true; // 튜토리얼 - 골드·회복·방 클리어 기록·NPC 없이 출구만
+                SpawnExit();
+                return;
+            }
             _roomCleared = true;
             RoomClearCount++;
             LastClearedRoom = _current.RoomName;
@@ -1332,6 +1663,7 @@ namespace LoopRogue
 
                 enemy.TakeTurn(_player, claimedSlots, this);
                 CheckTrap(enemy);
+                CheckOgreCrack(enemy); // 2층 오우거 - 균열에 빠짐
 
                 if (_player.Stats.IsDead)
                 {
@@ -1537,16 +1869,8 @@ namespace LoopRogue
 
             foreach (var t in area)
             {
-                if (!Map.IsWall(t))
-                    continue;
-                Map.RemoveWall(t);
-                if (_wallObjects.TryGetValue(t, out var wallGo))
-                {
-                    _wallObjects.Remove(t);
-                    if (wallGo != null)
-                        Destroy(wallGo);
-                }
-                OnWallRemoved(t);
+                if (Map.IsWall(t))
+                    RemoveWallObject(t); // 멧돼지 기둥도 폭탄으로 부서진다
             }
 
             var damage = _player.Stats.AttackPower * ItemInfo.BombDamageRate;

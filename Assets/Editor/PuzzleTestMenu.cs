@@ -41,5 +41,42 @@ namespace LoopRogue.EditorTools
             Menu.SetChecked(GlitchMenuPath, EditorPrefs.GetBool(GlitchRoom.TestModePrefKey, false));
             return true;
         }
+
+        private const string KnightMenuPath = "LoopRogue/기억하는 기사 테스트 모드 (전투 방마다 기사)";
+
+        /// <summary>기억하는 기사 테스트 모드 - 켜면 일반 전투 방(보스방·오류방 제외)마다 히든 몹 기억하는 기사가 하나 섞여 나온다(층 제한 없음).</summary>
+        [MenuItem(KnightMenuPath)]
+        private static void ToggleKnight()
+        {
+            var on = !EditorPrefs.GetBool(MemoryKnight.TestModePrefKey, false);
+            EditorPrefs.SetBool(MemoryKnight.TestModePrefKey, on);
+            Menu.SetChecked(KnightMenuPath, on);
+        }
+
+        [MenuItem(KnightMenuPath, true)]
+        private static bool ToggleKnightValidate()
+        {
+            Menu.SetChecked(KnightMenuPath, EditorPrefs.GetBool(MemoryKnight.TestModePrefKey, false));
+            return true;
+        }
+
+        private const string SmithMenuPath = "LoopRogue/대장장이 테스트 모드 (장비 조건 없이 방 클리어마다)";
+
+        /// <summary>대장장이 테스트 모드 - 켜면 장비가 영원이 아니어도 일반 방을 비울 때마다 대장장이가 나온다(의뢰를 받기 전까지).
+        /// 의뢰 진행(기사 처치 → 조각 → ??? 세트)은 그대로 저장된다.</summary>
+        [MenuItem(SmithMenuPath)]
+        private static void ToggleSmith()
+        {
+            var on = !EditorPrefs.GetBool(Blacksmith.TestModePrefKey, false);
+            EditorPrefs.SetBool(Blacksmith.TestModePrefKey, on);
+            Menu.SetChecked(SmithMenuPath, on);
+        }
+
+        [MenuItem(SmithMenuPath, true)]
+        private static bool ToggleSmithValidate()
+        {
+            Menu.SetChecked(SmithMenuPath, EditorPrefs.GetBool(Blacksmith.TestModePrefKey, false));
+            return true;
+        }
     }
 }

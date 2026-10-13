@@ -102,12 +102,23 @@ namespace LoopRogue
         /// <summary>유물 "두 번째 숨"으로 되살아난 직후 - 플레이어를 안전한 칸으로 옮긴다(PlayerActor).</summary>
         public System.Action OnRevived;
 
+        private static readonly System.Random ReadRng = new System.Random();
+
+        /// <summary>봇 통계용 - 유물 "기사의 기억"으로 피한 횟수.</summary>
+        public static int KnightMemoryReadCount;
+
         public float TakeIncomingDamage(float rawDamage)
         {
             if (BlockNextHit)
             {
                 BlockNextHit = false;
                 return 0f;
+            }
+            if (Relics.Has(RelicType.KnightMemory) && ReadRng.NextDouble() < Relics.KnightMemoryReadChance)
+            {
+                KnightMemoryReadCount++;
+                OnArmorEffect?.Invoke(Loc.T("간파! 공격을 읽고 피했다"));
+                return 0f; // 히든 유물 "기사의 기억"
             }
             var reduction = Mathf.Clamp(DamageReductionRate, -MaxDamageReduction, MaxDamageReduction);
             var damage = rawDamage * (1f - reduction);
@@ -118,6 +129,8 @@ namespace LoopRogue
             var absorbed = Mathf.Min(Shield, damage);
             Shield -= absorbed;
             var toHealth = damage - absorbed;
+            if (TutorialStage.Active && toHealth >= CurrentHealth)
+                toHealth = Mathf.Max(0f, CurrentHealth - 1f); // 튜토리얼 스테이지 - 죽지 않는다
 
             if (UndyingReady && toHealth >= CurrentHealth)
             {

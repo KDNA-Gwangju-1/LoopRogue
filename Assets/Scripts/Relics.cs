@@ -32,6 +32,8 @@ namespace LoopRogue
         IronSkin,
         Berserker,
         FirstStrike,
+        // 히든(보스 보상 후보로 안 나온다 - 히든 몹·NPC가 준다)
+        KnightMemory,   // 기억하는 기사 첫 처치
     }
 
     public static class Relics
@@ -63,6 +65,7 @@ namespace LoopRogue
         public const float IronSkinDamageFactor = 0.9f;
         public const float BerserkerThreshold = 0.5f;
         public const float BerserkerBonus = 0.3f;
+        public const float KnightMemoryReadChance = 0.12f;
 
         private static readonly LocCache<Dictionary<RelicType, (string Name, string Description)>> InfoCache = new LocCache<Dictionary<RelicType, (string Name, string Description)>>(() => new Dictionary<RelicType, (string, string)>
         {
@@ -88,6 +91,7 @@ namespace LoopRogue
             { RelicType.IronSkin, (Loc.T("철의 피부"), Loc.T("받는 피해 -10%(카드 피해 감소와 별도)")) },
             { RelicType.Berserker, (Loc.T("광전사"), Loc.T("체력 50% 이하일 때 주는 피해 +30%")) },
             { RelicType.FirstStrike, (Loc.T("첫 일격"), Loc.T("방마다 첫 공격은 치명타 확정")) },
+            { RelicType.KnightMemory, (Loc.T("기사의 기억"), Loc.T("몹·보스의 공격을 12% 확률로 간파해 피해를 받지 않음")) },
         });
 
         private static Dictionary<RelicType, (string Name, string Description)> Info => InfoCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
@@ -151,6 +155,7 @@ namespace LoopRogue
         public static string Name(RelicType type) => Info[type].Name;
         public static string Description(RelicType type) => Info[type].Description;
         public static bool IsBossRelic(RelicType type) => (int)type < BossRelicCount;
+        public static bool IsHiddenRelic(RelicType type) => type >= RelicType.KnightMemory;
         public static RelicType BossRelic(int stage) => (RelicType)(Mathf.Clamp(stage, 1, BossRelicCount) - 1);
 
         /// <summary>그 스테이지 보스를 처음 잡았을 때만 후보 3개(보스 전용 1 + 일반 2). 이미 보상을 받은 스테이지면 null.
@@ -168,7 +173,7 @@ namespace LoopRogue
             if (!Owned.Contains(boss))
                 offer.Add(boss);
             var general = Enumerable.Range(BossRelicCount, Info.Count - BossRelicCount)
-                .Select(i => (RelicType)i).Where(r => !Owned.Contains(r)).OrderBy(_ => Rng.Next()).ToList();
+                .Select(i => (RelicType)i).Where(r => !Owned.Contains(r) && !IsHiddenRelic(r)).OrderBy(_ => Rng.Next()).ToList();
             foreach (var r in general)
             {
                 if (offer.Count >= OfferCount)

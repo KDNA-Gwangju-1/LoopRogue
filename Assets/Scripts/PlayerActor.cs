@@ -53,6 +53,9 @@ namespace LoopRogue
         /// <summary>남은 쿨타임(행동 횟수). 0이면 사용 가능. 스킬을 쓰면 N이 되고 이후 행동(이동/공격/대기/스킬) 1번마다 1씩 준다.</summary>
         public int DashCooldown { get; private set; }
         public int SpinCooldown { get; private set; }
+
+        /// <summary>마지막으로 쓴 스킬(대시·회전 베기, 없으면 Other) - 기억하는 기사의 "기억 재현"이 따라 한다. 방에 들어갈 때 지운다.</summary>
+        public AttackStyle LastSkill { get; private set; }
         /// <summary>Q를 눌러 대시 방향을 고르는 중(다음 방향키 = 대시, Q 다시 = 취소).</summary>
         public bool IsAimingDash { get; private set; }
 
@@ -368,9 +371,12 @@ namespace LoopRogue
             // 연막은 그 방에서만 - 새 방에 들어가면 걷힌다(몹 목록은 이미 새 방 것)
             InSmoke = false;
             _smokedEnemies.Clear();
+            LastSkill = AttackStyle.Other;
 
             Stats.Shield = EquipmentEffects.Has(ItemSlot.Armor, 1) ? Stats.MaxHealth * EquipmentEffects.RoomShieldRate : 0f;
             _firstStrikeReady = Relics.Has(RelicType.FirstStrike); // 유물 "첫 일격"
+            if (EquipmentEffects.HasMemorySet)
+                Stats.BlockNextHit = true; // Unknown 세트 "기억의 벼림" - 방마다 처음 받는 피해 1번 무효
 
             if (Relics.Has(RelicType.PhantomBanner)) // 유물 "망령의 깃발" - 옆 빈 칸에 허수아비
             {
@@ -630,7 +636,7 @@ namespace LoopRogue
             {
                 BeginAction();
                 PlayAttackFlash(direction);
-                if (StrikeEnemy(enemy, direction, 1f))
+                if (StrikeEnemy(enemy, direction, 1f, style: AttackStyle.Normal))
                     return; // 다음 방/승리 전환은 이미 끝났다 - 새 방 몹은 이번 턴엔 안 움직인다.
                 if (NormalAttackRelicHits(targetPos, direction))
                     return;
@@ -650,6 +656,7 @@ namespace LoopRogue
                 Map.MoveActor(this, targetPos);
                 if (_room.TryUseExit(targetPos))
                     return; // 다음 방으로 넘어감 - 새 방 몹은 이번 턴에 안 움직인다
+                _room.CheckPlayerCrack(); // 2층 오우거 균열 - 밟으면 묶인다
                 _room.Puzzle?.PlayerMoved(targetPos); // 룬·보물 찾기처럼 밟은 칸에 반응하는 퍼즐
             }
             else
@@ -665,8 +672,14 @@ namespace LoopRogue
         /// 방패병 정면(지금 서 있는 칸이 방패가 보는 칸)이면 피해가 ShieldFrontDamageRate배 - 회전 베기만 ignoreShield로 무시한다.
         /// 흡혈은 일반 공격(방향키로 때리기)에만 - 스킬(대시/회전 베기)은 흡혈 없음(사용자 결정: 회전 베기가 몹마다 흡혈해서
         /// 일반 방에서 맞는 만큼 회복해 버렸다).
-        private bool StrikeEnemy(EnemyActor enemy, Vector2Int direction, float damageRate, bool ignoreShield = false, bool isSkill = false)
+        private bool StrikeEnemy(EnemyActor enemy, Vector2Int direction, float damageRate, bool ignoreShield = false, bool isSkill = false,
+            AttackStyle style = AttackStyle.Other)
         {
+            if (enemy.TryReadAttack(style, _room)) // 기억하는 기사의 간파 - 같은 공격을 연달아 쓰면 피한다
+            {
+                BreakSmoke();
+                return false;
+            }
             var raw = Stats.RollAttackDamage(out var isCritical);
             if (_firstStrikeReady) // 유물 "첫 일격" - 방마다 첫 타격은 치명타 확정
             {
@@ -851,17 +864,19 @@ namespace LoopRogue
             DashCooldown = Mathf.Max(1, DashCooldownTurns - EquipmentEffects.SkillCooldownReduction // 반지 "민첩"
                 - (Relics.Has(RelicType.Gale) ? Relics.GaleDashCooldownReduction : 0)); // 유물 "질풍"
             var from = transform.position;
+            LastSkill = AttackStyle.Dash;
             if (landing != GridPos)
                 Map.MoveActor(this, landing);
             HitFeedback.OnDash(this, from);
             if (hit == null && _room.TryUseExit(landing))
                 return true;
+            _room.CheckPlayerCrack(); // 대시로 내려선 칸이 균열이면 묶인다
 
             if (hit != null)
             {
                 PlayAttackFlash(dir);
                 var dashRate = Relics.Has(RelicType.ChargeHorn) ? Relics.ChargeHornDashDamage : 1f; // 유물 "돌진의 뿔"
-                if (StrikeEnemy(hit, dir, dashRate, isSkill: true))
+                if (StrikeEnemy(hit, dir, dashRate, isSkill: true, style: AttackStyle.Dash))
                     return true;
             }
 
@@ -908,6 +923,7 @@ namespace LoopRogue
 
             BeginAction();
             SpinCooldown = SpinCooldownTurns - EquipmentEffects.SkillCooldownReduction;
+            LastSkill = AttackStyle.Spin;
             PlayAttackFlash();
             HitFeedback.OnSpin(this);
             // 보스를 맨 뒤에 - 보스가 먼저 죽으면 남은 졸개가 같이 치워져서 그 뒤 타격이 의미 없어진다.
@@ -915,7 +931,7 @@ namespace LoopRogue
             {
                 if (enemy == null || enemy.Stats.IsDead)
                     continue;
-                if (StrikeEnemy(enemy, offset, SpinDamageRate, ignoreShield: true, isSkill: true))
+                if (StrikeEnemy(enemy, offset, SpinDamageRate, ignoreShield: true, isSkill: true, style: AttackStyle.Spin))
                     return true; // 방 전환 - 남은 대상은 이미 정리됐다
             }
             if (Relics.Has(RelicType.PulseCore)) // 유물 "파동의 핵" - 맞고 살아남은 몹 1턴 기절
@@ -948,6 +964,7 @@ namespace LoopRogue
         private void Wait()
         {
             BeginAction();
+            Tutorial.NotifyWaited(); // 첫 판 안내 "대기" 단계
             EndTurn();
         }
 

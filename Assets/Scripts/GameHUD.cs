@@ -462,7 +462,7 @@ namespace LoopRogue
             sb.AppendLine(Loc.F("<b><color=#E8A0FF>[유물 {0}개]</color></b>", Relics.OwnedCount));
             foreach (var r in Relics.OwnedRelics())
             {
-                var color = Relics.IsBossRelic(r) ? "#FF9A80" : "#E8C8FF";
+                var color = Relics.IsBossRelic(r) ? "#FF9A80" : Relics.IsHiddenRelic(r) ? "#7FE0D8" : "#E8C8FF";
                 sb.AppendLine($"<color={color}>{Relics.Name(r)}</color>");
                 sb.AppendLine($"<size=12>   {Relics.Description(r)}</size>");
             }
@@ -522,6 +522,8 @@ namespace LoopRogue
                 for (var t = 1; t <= tier; t++)
                     sb.AppendLine($"   <size=12>{EquipmentEffects.Name(slot, t)}: {EquipmentEffects.Description(slot, t)}</size>");
             }
+            if (EquipmentEffects.HasMemorySet)
+                sb.AppendLine(Loc.F("<color=#7FE0D8>세트 효과 「{0}」</color>  <size=12>{1}</size>", EquipmentEffects.MemorySetName, EquipmentEffects.MemorySetDescription));
 
             return sb.ToString().TrimEnd();
         }
@@ -544,6 +546,11 @@ namespace LoopRogue
         public void RefreshProgress(int stage, int roomNumber, int roomCount, int loopCount)
         {
             // 시도 횟수는 이 스테이지 누적(로비 왕복 포함) - 반복 보상 감소가 이 숫자로 정해진다.
+            if (TutorialStage.Active)
+            {
+                _progressText.text = Loc.F("튜토리얼   Room {0}/{1}", roomNumber, roomCount);
+                return;
+            }
             var reward = StageProgress.RepeatRewardMultiplier;
             var rewardText = reward < 0.999f ? Loc.F("   보상 {0:0}%", reward * 100f) : string.Empty;
             _progressText.text = Loc.F("Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}", stage, StageProgress.MaxStage, roomNumber, roomCount, StageProgress.AttemptsThisStage, rewardText);

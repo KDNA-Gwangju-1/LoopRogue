@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Linq;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -483,6 +484,8 @@ namespace LoopRogue
             var hp = EquipmentData.HealthBonus(slot, grade.Value);
             var tier = EquipmentEffects.TierOf(grade.Value);
             var effects = tier > 0 ? Loc.F("  <color=#FFD966>효과 {0}/{1}</color>", tier, EquipmentEffects.MaxTier) : ""; // 효과 설명은 게임 중 Tab 상태창
+            if (slot == ItemSlot.Accessory && EquipmentEffects.HasMemorySet)
+                effects += Loc.F("  <color=#7FE0D8>세트 「{0}」</color>", EquipmentEffects.MemorySetName);
             return Loc.F("{0}: {1} (공격력+{2:0.#} 체력+{3:0.#}){4}", slot, EquipmentData.DisplayName(slot, grade.Value), atk, hp, effects);
         }
 
@@ -833,7 +836,7 @@ namespace LoopRogue
             const float tableX = 0f;
             const float columnWidth = 66f;
             const float tableY = -160f;
-            var grades = (ItemGrade[])Enum.GetValues(typeof(ItemGrade));
+            var grades = ((ItemGrade[])Enum.GetValues(typeof(ItemGrade))).Where(g => g <= ItemGrade.Eternal).ToArray(); // Unknown은 뽑기로 안 나온다
             var height = (grades.Length + 2) * 19f;
 
             var title = CreateLabel(parent, "ChanceTitle", Loc.T("등급 확률 (상점 레벨별)"), 16, FontStyle.Bold,

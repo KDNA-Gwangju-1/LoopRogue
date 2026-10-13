@@ -18,6 +18,13 @@ namespace LoopRogue
 
         public static void Spawn(Vector3 worldPos, float amount, Color color, bool isCritical = false)
         {
+            var text = isCritical ? $"CRIT -{amount:0}!" : (amount > 0 ? $"-{amount:0}" : "0");
+            SpawnText(worldPos, text, isCritical ? new Color(1f, 0.8f, 0.1f) : color, isCritical);
+        }
+
+        /// <summary>숫자 대신 글자(기억하는 기사의 "간파!" 등)를 같은 방식으로 띄운다.</summary>
+        public static void SpawnText(Vector3 worldPos, string text, Color color, bool big = false)
+        {
             if (Suppressed || !GameSettings.DamageNumbers)
                 return; // 설정 "피해 숫자 표시" 끄기
 
@@ -28,13 +35,13 @@ namespace LoopRogue
             go.transform.position = worldPos + new Vector3(jitterX, 0.5f, -1f);
 
             var textMesh = go.AddComponent<TextMesh>();
-            textMesh.text = isCritical ? $"CRIT -{amount:0}!" : (amount > 0 ? $"-{amount:0}" : "0");
+            textMesh.text = text;
             textMesh.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            textMesh.fontSize = isCritical ? 64 : 48;
-            textMesh.characterSize = isCritical ? 0.14f : 0.12f;
+            textMesh.fontSize = big ? 64 : 48;
+            textMesh.characterSize = big ? 0.14f : 0.12f;
             textMesh.anchor = TextAnchor.MiddleCenter;
             textMesh.alignment = TextAlignment.Center;
-            textMesh.color = isCritical ? new Color(1f, 0.8f, 0.1f) : color;
+            textMesh.color = color;
 
             var renderer = go.GetComponent<MeshRenderer>();
             renderer.material = textMesh.font.material;
