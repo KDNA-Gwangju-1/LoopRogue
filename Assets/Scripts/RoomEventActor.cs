@@ -17,7 +17,7 @@ namespace LoopRogue
         FateDice,      // 운명의 주사위 - 1~6 무작위 결과
         ElixirSpring,  // 영약의 샘 - 무작위 영약 1개(영구)
         Whetstone,     // 숫돌 - 이번 시도 동안 주는 피해 증가
-        SecretChest,   // 숨겨진 보물상자 - 게임에 한 곳뿐인 금 간 벽을 폭탄으로 부수면 나온다(RoomController.TrySpawnSecretWall)
+        SecretChest,   // 숨겨진 보물상자 - 금 간 벽(방마다 10%, 층마다 한 번)을 폭탄으로 부수면 나온다(RoomController.TrySpawnSecretWall)
     }
 
     /// <summary>방 이벤트 칸 - 한 시도에 스테이지당 보물상자 1 + (확률로) 다른 이벤트 1, 방 3~9 중. 칸 하나를 차지하는 액터라

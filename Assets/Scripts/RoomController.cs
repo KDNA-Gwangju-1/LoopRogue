@@ -1213,32 +1213,20 @@ namespace LoopRogue
             return renderer;
         }
 
-        // ---- 숨겨진 보물 벽(게임에 한 곳, 사용자 구상 10-13 - 이스터에그) ----
-        // 새 게임을 시작하면 층 2~9, 방 3~9 중 한 곳을 정해 두고, 그 방을 깔 때마다 가장자리 쪽 빈 칸 하나에 금 간 벽(Tiles/WallCracked)을 세운다.
-        // 폭탄으로 부수면 그 자리에 숨겨진 보물상자(RoomEventType.SecretChest)가 나오고, 그 회차에선 다시 안 나온다(엔딩 뒤 새 게임이면 새 자리).
-        private const string SecretStageKey = "LoopRogue_SecretWallStage";
-        private const string SecretRoomKey = "LoopRogue_SecretWallRoom";
-        private const string SecretDoneKey = "LoopRogue_SecretWallDone";
+        // ---- 숨겨진 보물 벽(사용자 구상 10-13 - 이스터에그) ----
+        // 전투 방(방 2부터, 보스방 제외)을 깔 때마다 SecretWallChance 확률로 가장자리 쪽 빈 칸 하나에 금 간 벽(Tiles/WallCracked)을 세운다.
+        // 폭탄으로 부수면 그 자리에 숨겨진 보물상자(RoomEventType.SecretChest). 층마다 한 번 - 찾으면 그 층에선 더 안 나온다.
+        // (처음엔 회차에 한 곳으로 정해 뒀는데, 폭탄 수급이 운이라 그 방을 지날 때 폭탄이 없으면 놓치기 쉬워 방마다 10% + 층마다 한 번으로 바꿈.)
+        public const float SecretWallChance = 0.1f;
+        private const string SecretFoundStageKey = "LoopRogue_SecretWallFoundStage"; // 이번 회차에 찾은 마지막 층(그 층에선 더 안 나옴)
         private Vector2Int? _secretWall;
-
-        private static (int Stage, int Room) SecretSpot()
-        {
-            if (!PlayerPrefs.HasKey(SecretStageKey))
-            {
-                PlayerPrefs.SetInt(SecretStageKey, Rng.Next(2, StageProgress.MaxStage));      // 2~9층
-                PlayerPrefs.SetInt(SecretRoomKey, Rng.Next(3, GameBootstrap.RoomsPerStage));  // 방 3~9
-                PlayerPrefs.Save();
-            }
-            return (PlayerPrefs.GetInt(SecretStageKey), PlayerPrefs.GetInt(SecretRoomKey));
-        }
 
         private void TrySpawnSecretWall(RoomDefinition def, RoomLayout layout)
         {
             _secretWall = null;
-            if (_loadCleared || def.IsBossRoom || def.IsTestRoom || def.IsTutorialRoom || PlayerPrefs.GetInt(SecretDoneKey, 0) == 1)
+            if (_loadCleared || def.IsBossRoom || def.IsTestRoom || def.IsTutorialRoom || def.RoomNumber < 2)
                 return;
-            var (stage, room) = SecretSpot();
-            if (_stage != stage || def.RoomNumber != room)
+            if (PlayerPrefs.GetInt(SecretFoundStageKey, 0) == _stage || Rng.NextDouble() >= SecretWallChance)
                 return;
 
             // 방 가장자리(또는 기존 벽 옆) 빈 칸 중, 플레이어 시작 칸에서 3칸 이상 떨어지고 주변 빈 칸이 2개 이상인 곳(길을 막지 않게)
@@ -1280,7 +1268,7 @@ namespace LoopRogue
         private void OnSecretWallBroken(Vector2Int cell)
         {
             _secretWall = null;
-            PlayerPrefs.SetInt(SecretDoneKey, 1);
+            PlayerPrefs.SetInt(SecretFoundStageKey, _stage);
             PlayerPrefs.Save();
             SpawnEvent(cell, RoomEventType.SecretChest);
             ShowMessage(Loc.T("<color=#FFD966>무너진 벽 너머에 무언가 있다!</color> 숨겨진 보물상자를 찾았다"));
