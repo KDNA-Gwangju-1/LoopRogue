@@ -163,6 +163,7 @@ namespace LoopRogue
             public int Knights, KnightKills, KnightReads, KnightSlashes, KnightSlashHits, RelicReads; // 히든 몹 기억하는 기사: 등장, 처치, 간파, 강타(적중), 유물 "기사의 기억"으로 피함
             public int KnightEchoes, KnightEchoHits; // 기억 재현(적중)
             public int OgreFalls, PlayerCracks; // 2층 오우거 균열 - 오우거가 빠진 횟수 / 봇이 빠진 횟수
+            public int GolemResonances; // 3층 골렘 수정 공명 횟수
             public int SmithsMet;    // 히든 NPC 대장장이를 만난 횟수
             public bool SmithForged; // Unknown 세트를 받았는지
             public int SmithForgeStage; // 받은 층
@@ -461,6 +462,7 @@ namespace LoopRogue
             RoomController.KnightKillCount = 0;
             CharacterStats.KnightMemoryReadCount = 0;
             RoomController.OgreFallCount = 0;
+            BossBrain.GolemResonanceCount = 0;
             RoomController.PlayerCrackCount = 0;
             RoomController.SplitCount = 0;
             RoomController.PuzzleClearCount = 0;
@@ -2012,6 +2014,7 @@ namespace LoopRogue
             r.RelicReads = CharacterStats.KnightMemoryReadCount;
             r.SmithForged = Blacksmith.Current == Blacksmith.Stage.Done;
             r.OgreFalls = RoomController.OgreFallCount;
+            r.GolemResonances = BossBrain.GolemResonanceCount;
             r.PlayerCracks = RoomController.PlayerCrackCount;
             r.Splits = RoomController.SplitCount;
             r.Puzzles = RoomController.PuzzleClearCount;
@@ -2181,7 +2184,7 @@ namespace LoopRogue
                 Log($"히든 몹 기억하는 기사(판당): 등장 {_results.Average(r => r.Knights):0.00}회 / 처치 {_results.Average(r => r.KnightKills):0.00}회 / 간파 {_results.Average(r => r.KnightReads):0.0}회 / " +
                     $"강타 {_results.Average(r => r.KnightSlashes):0.0}회(적중 {(knightSlashes > 0 ? _results.Sum(r => r.KnightSlashHits) * 100f / knightSlashes : 0f):0}%) / 기억 재현 {_results.Average(r => r.KnightEchoes):0.0}회(적중 {(_results.Sum(r => r.KnightEchoes) > 0 ? _results.Sum(r => r.KnightEchoHits) * 100f / _results.Sum(r => r.KnightEchoes) : 0f):0}%) / 유물로 피함 {_results.Average(r => r.RelicReads):0.0}회 / " +
                     $"처치한 판 {_results.Count(r => r.KnightKills > 0)}/{_results.Count}");
-                Log($"2층 오우거 균열(판당): 오우거가 빠짐 {_results.Average(r => r.OgreFalls):0.0}회 / 봇이 빠짐 {_results.Average(r => r.PlayerCracks):0.0}회");
+                Log($"2층 오우거 균열(판당): 오우거가 빠짐 {_results.Average(r => r.OgreFalls):0.0}회 / 봇이 빠짐 {_results.Average(r => r.PlayerCracks):0.0}회 | 3층 골렘 수정 공명 {_results.Average(r => r.GolemResonances):0.0}회");
                 var forged = _results.Where(r => r.SmithForged).ToList();
                 Log($"히든 NPC 대장장이(판당): 만남 {_results.Average(r => r.SmithsMet):0.00}회 / Unknown 세트 받은 판 {forged.Count}/{_results.Count}" +
                     (forged.Count > 0 ? $" (받은 층 평균 {forged.Average(r => r.SmithForgeStage):0.0})" : ""));

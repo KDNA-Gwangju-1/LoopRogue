@@ -985,3 +985,9 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 숨겨진 보물상자를 찾는다	Find the hidden treasure chest
 벽 너머를 본 자	Wall Seer
 오래된 던전엔 숨겨진 게 많지. 금이 간 벽을 보거든 폭탄 냄새를 맡게 해 주게. 허허.	Old dungeons hide many things. If you see a cracked wall, let it smell a bomb. Heh heh.
+<color=#7FE0D8>수정이 공명해 터졌다!</color> 골렘이 크게 휘청인다	<color=#7FE0D8>The crystal resonated and burst!</color> The golem staggers badly
+<color=#7FE0D8>골렘이 땅을 울리자 바닥에서 공명 수정이 솟았다!</color>	<color=#7FE0D8>The golem shakes the ground and resonance crystals rise from the floor!</color>
+십자 베기가 수정에 닿으면 수정이 터져 골렘이 다친다 - 수정 주변은 나도 위험	If its Cross Slash reaches a crystal, the crystal bursts and hurts the golem - but it's dangerous near the crystal for you too
+<color=#7FE0D8>골렘의 몸이 갈라지며 돌이 쏟아진다!</color> 이제 십자 베기가 돌무더기를 남긴다	<color=#7FE0D8>The golem's body cracks and stones pour out!</color> Its Cross Slash now leaves rubble
+돌무더기 뒤에 숨으면 십자 베기를 막을 수 있다 - 대신 길도 막힌다	Hide behind rubble to block the Cross Slash - but it blocks your path too
+체력이 줄면 바닥에 공명 수정이 솟는다. 십자 베기가 수정에 닿으면 수정이 터져 골렘이 크게 다치지만 수정 주변도 위험하다. 더 몰리면 십자 베기가 돌무더기를 남겨 엄폐물이 된다.	As its health drops, resonance crystals rise from the floor. If its Cross Slash reaches one, the crystal bursts and badly hurts the golem, but the area around it is dangerous too. When pushed further, its Cross Slash leaves rubble you can take cover behind.

@@ -1280,6 +1280,88 @@ namespace LoopRogue
             }
         }
 
+        // ---- 3층 돌 골렘 공명 수정·돌무더기(BossBrain) ----
+        private readonly HashSet<Vector2Int> _golemCrystals = new HashSet<Vector2Int>();
+
+        public bool IsGolemCrystal(Vector2Int p) => _golemCrystals.Contains(p);
+
+        /// <summary>공명 수정을 targetCount개가 되도록 세운다(벽 칸) - 골렘 몸에서 3칸, 플레이어에게서 2칸 이상, 수정끼리 3칸 이상 떨어진 빈 칸. 새로 세운 개수.</summary>
+        public int SpawnGolemCrystals(EnemyActor golem, int targetCount)
+        {
+            var need = targetCount - _golemCrystals.Count;
+            if (need <= 0)
+                return 0;
+            var cells = new List<Vector2Int>();
+            for (var x = 0; x < Map.Width; x++)
+            for (var y = 0; y < Map.Height; y++)
+            {
+                var p = new Vector2Int(x, y);
+                if (Map.IsWalkable(p) && GridMap.FootprintChebyshev(golem, p) >= 3 && ExitPosition != p && !_dangerTiles.Contains(p)
+                    && Mathf.Max(Mathf.Abs(p.x - _player.GridPos.x), Mathf.Abs(p.y - _player.GridPos.y)) >= 2)
+                    cells.Add(p);
+            }
+            var placed = 0;
+            foreach (var p in cells.OrderBy(_ => Rng.Next()))
+            {
+                if (placed >= need)
+                    break;
+                if (_golemCrystals.Any(c => Mathf.Max(Mathf.Abs(c.x - p.x), Mathf.Abs(c.y - p.y)) < 3))
+                    continue;
+                Map.AddWall(p);
+                var go = new GameObject("GolemCrystal");
+                go.transform.SetParent(transform, false);
+                go.transform.position = new Vector3(p.x * GridConstants.CellSize, p.y * GridConstants.CellSize, 0f);
+                if (VisualUtil.TryCreateProp(go, "Golem_Crystal_1", -7) == null)
+                    VisualUtil.CreateSquareVisual(go, new Color(0.4f, 0.9f, 0.95f), GridConstants.CellSize * 0.6f, sortingOrder: -7);
+                _roomObjects.Add(go);
+                _wallObjects[p] = go;
+                _golemCrystals.Add(p);
+                placed++;
+                if (!DamagePopup.Suppressed)
+                    DeathBurst.Spawn(go.transform.position, new Color(0.5f, 0.95f, 0.95f, 0.9f), 10, GridConstants.CellSize * 1.4f, GridConstants.CellSize * 0.12f);
+            }
+            if (placed > 0 && HitFeedback.Enabled)
+            {
+                CameraShake.Shake(0.18f, 0.35f);
+                SfxPlayer.Play(Sfx.Slam);
+            }
+            return placed;
+        }
+
+        /// <summary>공명 수정이 터진다(골렘 십자 베기에 닿음) - 칸이 비고 청록 파편이 크게 튄다.</summary>
+        public void ExplodeGolemCrystal(Vector2Int p)
+        {
+            if (!_golemCrystals.Contains(p))
+                return;
+            var pos = new Vector3(p.x * GridConstants.CellSize, p.y * GridConstants.CellSize, 0f);
+            RemoveWallObject(p); // 깨지는 연출(crystal_shatter)은 여기서
+            if (HitFeedback.Enabled)
+            {
+                DeathBurst.Spawn(pos, new Color(0.55f, 1f, 1f, 0.95f), 16, GridConstants.CellSize * 2.6f, GridConstants.CellSize * 0.14f);
+                HitFeedback.OnExplosion(pos);
+            }
+        }
+
+        /// <summary>골렘 십자 베기가 지나간 칸 중 count칸(빈 칸, 출구·수정 아닌 곳)에 돌무더기(벽)를 떨어뜨린다 - 다음 십자를 막는 엄폐물.</summary>
+        public void DropGolemRubble(IEnumerable<Vector2Int> tiles, int count)
+        {
+            var cells = tiles.Where(p => Map.IsWalkable(p) && p != _player.GridPos && ExitPosition != p && !_golemCrystals.Contains(p))
+                .OrderBy(_ => Rng.Next()).Take(count).ToList();
+            foreach (var p in cells)
+            {
+                Map.AddWall(p);
+                var go = new GameObject("GolemRubble");
+                go.transform.SetParent(transform, false);
+                go.transform.position = new Vector3(p.x * GridConstants.CellSize, p.y * GridConstants.CellSize, 0f);
+                if (VisualUtil.TryCreateProp(go, "Golem_Rubble", -7) == null)
+                    VisualUtil.CreateSquareVisual(go, new Color(0.5f, 0.5f, 0.55f), GridConstants.CellSize * 0.85f, sortingOrder: -7);
+                _roomObjects.Add(go);
+                _wallObjects[p] = go;
+                if (!DamagePopup.Suppressed)
+                    DeathBurst.Spawn(go.transform.position, new Color(0.55f, 0.53f, 0.6f, 0.95f), 10, GridConstants.CellSize * 1.2f, GridConstants.CellSize * 0.13f);
+            }
+        }
+
         // ---- 2층 오우거 균열(BossBrain) ----
         public const int OgreFallStunTurns = 2;
         public const int OgreFallImmuneTurns = 2;   // 빠졌다 나온 뒤 다시 안 빠지는 턴(연속 기절 방지)
@@ -1451,12 +1533,18 @@ namespace LoopRogue
         private void RemoveWallObject(Vector2Int p)
         {
             Map.RemoveWall(p);
+            var wasCrystal = _golemCrystals.Remove(p); // 3층 골렘 수정 - 공명이든 폭탄이든 깨지는 그림
             if (_wallObjects.TryGetValue(p, out var wallGo))
             {
                 _wallObjects.Remove(p);
                 if (wallGo != null)
                 {
-                    if (!DamagePopup.Suppressed)
+                    if (wasCrystal)
+                    {
+                        if (Fx.Play("crystal_shatter", wallGo.transform.position, 1.6f, fps: 14f, sortingOrder: 6) == null && !DamagePopup.Suppressed)
+                            DeathBurst.Spawn(wallGo.transform.position, new Color(0.55f, 1f, 1f, 0.95f), 16, GridConstants.CellSize * 2f, GridConstants.CellSize * 0.16f);
+                    }
+                    else if (!DamagePopup.Suppressed)
                         DeathBurst.Spawn(wallGo.transform.position, new Color(0.6f, 0.52f, 0.42f, 0.95f), 16, GridConstants.CellSize * 2f, GridConstants.CellSize * 0.16f);
                     Destroy(wallGo);
                 }
@@ -1502,6 +1590,7 @@ namespace LoopRogue
             _boarPillars.Clear();
             _cracks.Clear();
             _ogreFallImmune = 0;
+            _golemCrystals.Clear();
             GlitchRoom.End();
             _glitchVisual = null;
             if (Puzzle != null)
