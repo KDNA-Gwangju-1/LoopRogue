@@ -966,3 +966,8 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 <color=#FFB060>오우거가 균열에 빠졌다!</color> 다리가 걸려 꼼짝 못 한다 - 지금이다!	<color=#FFB060>The ogre fell into a crack!</color> Its leg is stuck - now's your chance!
 <color=#FF8080>균열에 발이 빠졌다!</color> 한 턴 움직일 수 없다 (공격은 가능)	<color=#FF8080>Your foot sank into a crack!</color> You can't move for a turn (you can still attack)
 체력이 절반 아래로 떨어지면 강타가 바닥에 균열을 남긴다. 오우거가 밟으면 빠져서 2턴 기절하고, 내가 밟으면 1턴 묶인다. 균열 너머에 서서 오우거를 걸어오게 하자.	Below half health its slams leave cracks in the floor. If the ogre steps on one it falls in and is stunned for 2 turns; if you do, you're stuck for 1 turn. Stand beyond a crack and make the ogre walk to you.
+출구가 열렸다! (문)	The exit opened! (door)
+방을 비우면 <b>출구(문)</b>가 열려요. 안개 속에 있으니 찾아가서 밟으세요. 방을 비울 때마다 체력도 조금 회복돼요.	Clearing a room opens the <b>exit (door)</b>. It's hidden in the fog, so find it and step on it. You also recover a little health each time you clear a room.
+<color=#FFD966>튜토리얼 1/4</color>  첫걸음 - 움직여 보고 출구(문)로	<color=#FFD966>Tutorial 1/4</color>  First Steps - move around and head for the exit (door)
+←/→ 또는 클릭: 고르기   B: 보스방   [Enter/Space] 시작  (깬 뒤엔 다음 방으로)	←/→ or Click: Select   B: Boss Room   [Enter/Space] Start  (then onward to next room)
+←/→ 또는 클릭: 시작 방 고르기   [Enter/Space] 계속하기   [L] 로비로 이동	←/→ or Click: Choose start room   [Enter/Space] Continue   [L] Go to Lobby

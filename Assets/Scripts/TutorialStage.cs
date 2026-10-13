@@ -90,7 +90,7 @@ namespace LoopRogue
         /// <summary>방 입장 때 위쪽 안내 줄에 띄우는 제목.</summary>
         public static string Caption(int step) => step switch
         {
-            1 => Loc.T("<color=#FFD966>튜토리얼 1/4</color>  첫걸음 - 움직여 보고 출구(계단)로"),
+            1 => Loc.T("<color=#FFD966>튜토리얼 1/4</color>  첫걸음 - 움직여 보고 출구(문)로"),
             2 => Loc.T("<color=#FFD966>튜토리얼 2/4</color>  공격 - 슬라임에게 부딪혀 보세요"),
             3 => Loc.T("<color=#FFD966>튜토리얼 3/4</color>  스킬 - 대시와 회전 베기"),
             _ => Loc.T("<color=#FFD966>튜토리얼 4/4</color>  위험 피하기 - 빨간 칸에서 비키고, 아이템도 써 보세요"),

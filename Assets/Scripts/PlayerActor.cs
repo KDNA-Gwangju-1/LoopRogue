@@ -483,8 +483,8 @@ namespace LoopRogue
             if (direction.HasValue && GlitchRoom.Active == GlitchRoom.Rule.ReverseControls)
                 direction = -direction.Value; // 오류방 - 방향이 뒤집혔다
 
-            if (InventoryUI.LastCloseFrame == Time.frameCount)
-                return; // 인벤토리를 닫은 키가 이동/대기로 또 읽히지 않게
+            if (InventoryUI.LastCloseFrame == Time.frameCount || RoomMapView.LastConfirmFrame == Time.frameCount)
+                return; // 인벤토리를 닫은 키·시작 방을 확정한 스페이스가 이동/대기로 또 읽히지 않게
 
             // 퍼즐·미니게임 방 - G로 포기, 몹과 싸우는 퍼즐이 아니면 스킬·아이템 금지
             var puzzle = _room.Puzzle;

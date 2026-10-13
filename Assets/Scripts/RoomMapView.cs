@@ -131,7 +131,10 @@ namespace LoopRogue
             Refresh();
         }
 
-        /// <summary>매 프레임 - 확정(Enter 또는 고른 칸 다시 클릭)이면 true.</summary>
+        /// <summary>확정한 프레임 - 같은 프레임에 스페이스가 플레이어 "대기"로도 읽히지 않게(PlayerActor).</summary>
+        public static int LastConfirmFrame { get; private set; } = -1;
+
+        /// <summary>매 프레임 - 확정(Enter·Space 또는 고른 칸 다시 클릭)이면 true.</summary>
         public bool HandleInput()
         {
             var count = _unlocked; // 잠긴 칸은 건너뛴다(열린 칸 안에서만 돈다)
@@ -145,7 +148,7 @@ namespace LoopRogue
                     Selected = (Selected + 1) % count;
                 if (GameInput.Down(Key.B))
                     Selected = count - 1; // 보스방이 아직 잠겨 있으면 열린 칸 중 마지막
-                confirm = GameInput.Down(Key.Enter);
+                confirm = GameInput.Down(Key.Enter) || GameInput.Down(Key.Space); // 스페이스로도 시작(사용자 요청)
             }
 
             var mouse = Pointer.current;
@@ -168,6 +171,8 @@ namespace LoopRogue
             if (Selected != before)
                 Refresh();
             PlaceMarker();
+            if (confirm)
+                LastConfirmFrame = Time.frameCount;
             return confirm;
         }
 

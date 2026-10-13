@@ -1599,16 +1599,16 @@ namespace LoopRogue
             ExitPosition = best.Value;
             var go = new GameObject("Exit");
             go.transform.SetParent(transform, false);
-            // 내려가는 던전 계단 도트(Resources/Tiles/Stairs) - 그림이 없으면 예전 파란 칸
-            var stairs = Resources.Load<Sprite>("Tiles/Stairs");
+            // 다음 방으로 가는 문 도트(Resources/Tiles/ExitDoor, 사용자 요청 10-13 계단 → 문) - 없으면 예전 계단, 그것도 없으면 파란 칸
+            var stairs = Resources.Load<Sprite>("Tiles/ExitDoor") ?? Resources.Load<Sprite>("Tiles/Stairs");
             ExitRenderer = stairs != null
                 ? VisualUtil.CreateSpriteVisual(go, stairs, GridConstants.CellSize, sortingOrder: -6)
                 : VisualUtil.CreateSquareVisual(go, ExitColor, GridConstants.CellSize * 0.85f, sortingOrder: -6);
             go.transform.position = new Vector3(best.Value.x * GridConstants.CellSize, best.Value.y * GridConstants.CellSize, 0f);
             if (stairs == null)
-                go.AddComponent<ExitMarker>(); // 예전 파란 칸만 깜빡임 - 계단은 늘 밝게(사용자 요청)
+                go.AddComponent<ExitMarker>(); // 예전 파란 칸만 깜빡임 - 문(계단)은 늘 밝게(사용자 요청)
             _roomObjects.Add(go);
-            ShowMessage(stairs != null ? Loc.T("출구가 열렸다! (계단)") : Loc.T("출구가 열렸다! (파란 칸)"));
+            ShowMessage(stairs != null ? Loc.T("출구가 열렸다! (문)") : Loc.T("출구가 열렸다! (파란 칸)"));
         }
 
         /// <summary>플레이어가 pos로 막 옮겨왔을 때 - 출구면 다음 방으로 보내고 true(호출부는 이번 턴을 그대로 끝낸다).</summary>

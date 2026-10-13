@@ -127,6 +127,7 @@ namespace LoopRogue
         /// <summary>스테이지 입장 시 시작 방 고르기 - 고르기 전까지는 호출부(LoopManager)가 입력을 잠가둔다.</summary>
         public void ShowRoomSelect(int stage, IReadOnlyList<RoomDefinition> rooms, int defaultRoom, Action<int> onSelected)
         {
+            _mapChoiceOpenedFrame = Time.frameCount;
             _onRoomSelected = onSelected;
             _roomCount = rooms.Count;
             _roomSelectTitle.text = Loc.F("스테이지 {0} - 어디서 시작할까?", stage);
@@ -135,9 +136,13 @@ namespace LoopRogue
             _roomSelectPanel.SetActive(true);
         }
 
+        /// <summary>시작 방 고르기·사망 창이 열린 프레임 - 그 프레임엔 확정 입력을 안 받는다(대기 스페이스를 누른 턴에 죽으면
+        /// 같은 스페이스가 곧바로 "계속하기"로 읽혀 창을 보기도 전에 넘어가지 않게).</summary>
+        private int _mapChoiceOpenedFrame = -1;
+
         private void HandleRoomSelect()
         {
-            if (_onRoomSelected == null || !_roomMap.HandleInput())
+            if (_onRoomSelected == null || Time.frameCount <= _mapChoiceOpenedFrame || !_roomMap.HandleInput())
                 return;
 
             var callback = _onRoomSelected;
@@ -176,6 +181,7 @@ namespace LoopRogue
         {
             _pendingRelics = options;
             _onRelicPicked = onPicked;
+            _relicInputFromFrame = Time.frameCount + 1;
 
             foreach (Transform child in _relicPanel.transform)
                 Destroy(child.gameObject);
@@ -225,12 +231,19 @@ namespace LoopRogue
             }
         }
 
+        /// <summary>유물 창이 입력을 받기 시작하는 프레임 - 창이 보이게 된 다음 프레임부터. 보스 경험치로 뜬 레벨업 카드를 1/2/3·클릭으로 고른
+        /// 바로 그 프레임에 카드가 닫히면서 유물 창이 같은 키·클릭을 또 읽어, 창이 보이기도 전에 유물이 저절로 골라지던 버그.</summary>
+        private int _relicInputFromFrame;
+
         private void HandleRelicChoice()
         {
             if (_pendingRelics == null)
                 return;
-            _relicPanel.SetActive(_pendingOptions == null);
-            if (_pendingOptions != null)
+            var visible = _pendingOptions == null;
+            if (visible && !_relicPanel.activeSelf)
+                _relicInputFromFrame = Time.frameCount + 1;
+            _relicPanel.SetActive(visible);
+            if (!visible || Time.frameCount < _relicInputFromFrame)
                 return;
 
             var index = GameInput.Down(Key.Digit1) ? 0 : GameInput.Down(Key.Digit2) ? 1 : GameInput.Down(Key.Digit3) ? 2 : -1;
@@ -292,9 +305,8 @@ namespace LoopRogue
         /// 고른다(업그레이드 카드와 같은 컨벤션).</summary>
         private void HandleDeathChoice()
         {
-            if (_onContinueAfterDeath == null)
+            if (_onContinueAfterDeath == null || Time.frameCount <= _mapChoiceOpenedFrame)
                 return;
-
 
             if (_roomMap.HandleInput())
                 ChooseDeathContinue(_roomMap.Selected);
@@ -607,6 +619,7 @@ namespace LoopRogue
         public void ShowDeathChoice(Action<int> onContinue, Action onLobby, int goldPenalty, IReadOnlyList<RoomDefinition> rooms, int defaultRoom,
             bool bossRoom = false)
         {
+            _mapChoiceOpenedFrame = Time.frameCount;
             _deathTipText.text = Loc.F("<color=#C8B88A>시간지기 노인의 한마디</color>  \"{0}\"", LobbyGuide.DeathTip(bossRoom));
             _onContinueAfterDeath = onContinue;
             _roomCount = rooms.Count;
@@ -1188,7 +1201,7 @@ namespace LoopRogue
             _deathPenaltyText.fontSize = 15;
             _deathPenaltyText.color = new Color(1f, 0.6f, 0.4f);
 
-            var prompt = CreateLabel(_deathPanel.transform, Loc.T("←/→ 또는 클릭: 시작 방 고르기   [Enter] 계속하기   [L] 로비로 이동"),
+            var prompt = CreateLabel(_deathPanel.transform, Loc.T("←/→ 또는 클릭: 시작 방 고르기   [Enter/Space] 계속하기   [L] 로비로 이동"),
                 new Vector2(10f, -315f), new Vector2(-10f, -275f));
             prompt.alignment = TextAnchor.MiddleCenter;
             prompt.fontSize = 16;
@@ -1213,7 +1226,7 @@ namespace LoopRogue
             _roomSelectTitle.fontSize = 20;
             _roomSelectTitle.fontStyle = FontStyle.Bold;
 
-            var prompt = CreateLabel(_roomSelectPanel.transform, Loc.T("←/→ 또는 클릭: 고르기   B: 보스방   [Enter] 시작  (깬 뒤엔 다음 방으로)"),
+            var prompt = CreateLabel(_roomSelectPanel.transform, Loc.T("←/→ 또는 클릭: 고르기   B: 보스방   [Enter/Space] 시작  (깬 뒤엔 다음 방으로)"),
                 new Vector2(10f, -265f), new Vector2(-10f, -225f));
             prompt.alignment = TextAnchor.MiddleCenter;
             prompt.fontSize = 15;
