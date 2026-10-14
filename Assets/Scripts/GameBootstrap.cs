@@ -112,7 +112,8 @@ namespace LoopRogue
             var hud = hudGo.AddComponent<GameHUD>();
             hud.Initialize(player);
 
-            var rooms = TutorialStage.TryBegin() ? TutorialStage.BuildRooms() : BuildStageRooms(stage); // 처음 온 사람·타이틀 [튜토리얼]
+            var rooms = BossRush.Active ? BuildBossRushRooms()
+                : TutorialStage.TryBegin() ? TutorialStage.BuildRooms() : BuildStageRooms(stage); // 처음 온 사람·타이틀 [튜토리얼]
             if (TestMap.Active)
                 rooms = TestMap.BuildRooms(rooms); // 에디터 메뉴 "테스트 맵" - [이벤트 전부 깐 방, 이 층 보스방]
             var loopManager = new LoopManager();
@@ -205,6 +206,22 @@ namespace LoopRogue
             bossRoom.BossPatterns = BossBrain.StagePatterns(stage);
             rooms.Add(bossRoom);
 
+            return rooms;
+        }
+
+        /// <summary>보스 러시(BossRush) - 1~9층 보스방을 차례로(크기·체력·공격력·패턴은 그 층 보스방 그대로).</summary>
+        private static List<RoomDefinition> BuildBossRushRooms()
+        {
+            var rooms = new List<RoomDefinition>();
+            for (var s = 1; s <= BossRush.LastStage; s++)
+            {
+                var size = Mathf.Min(12 + (s - 1) / 2, 18);
+                var (hp, atk) = BossStats(s);
+                var room = MakeRoom($"Boss Rush {s}", size, size, 1, enemyHp: hp, enemyAtk: atk, isBossRoom: true);
+                room.BossPatterns = BossBrain.StagePatterns(s);
+                room.BossStage = s;
+                rooms.Add(room);
+            }
             return rooms;
         }
 

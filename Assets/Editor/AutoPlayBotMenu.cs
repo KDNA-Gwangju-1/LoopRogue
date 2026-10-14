@@ -144,6 +144,131 @@ namespace LoopRogue.EditorTools
         [MenuItem(HandoffMenu + "9층")] private static void Handoff9() => StartHandoff(9);
         [MenuItem(HandoffMenu + "10층")] private static void Handoff10() => StartHandoff(10);
 
+        // ---- 봇 기준 상태(reference_snapshots.tsv)로 N층 보스방에 바로 들어가기 - N층을 막 깬 판(N+1층 입장 시점)의 저장값을 그대로 덮어쓴다
+        // (레벨·스탯·장비·영약·유물·골드). 시작 전에 지금 저장을 백업 - "봇 전 저장 되돌리기"로 복구.
+        private const string BossTestMenu = "LoopRogue/기준 스펙으로 N층 보스방 (저장 백업 후 덮어쓰기)/";
+        [MenuItem(BossTestMenu + "1층")] private static void BossTest1() => StartBossTest(1);
+        [MenuItem(BossTestMenu + "2층")] private static void BossTest2() => StartBossTest(2);
+        [MenuItem(BossTestMenu + "3층")] private static void BossTest3() => StartBossTest(3);
+        [MenuItem(BossTestMenu + "4층")] private static void BossTest4() => StartBossTest(4);
+        [MenuItem(BossTestMenu + "5층")] private static void BossTest5() => StartBossTest(5);
+        [MenuItem(BossTestMenu + "6층")] private static void BossTest6() => StartBossTest(6);
+        [MenuItem(BossTestMenu + "7층")] private static void BossTest7() => StartBossTest(7);
+        [MenuItem(BossTestMenu + "8층")] private static void BossTest8() => StartBossTest(8);
+        [MenuItem(BossTestMenu + "9층")] private static void BossTest9() => StartBossTest(9);
+        [MenuItem(BossTestMenu + "10층")] private static void BossTest10() => StartBossTest(10);
+
+        private static void StartBossTest(int stage)
+        {
+            if (EditorApplication.isPlaying)
+                return;
+            var file = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(BackupPath), "reference_snapshots.tsv");
+            if (!System.IO.File.Exists(file))
+            {
+                EditorUtility.DisplayDialog("기준 상태 없음", "BotLogs/reference_snapshots.tsv가 없습니다. 자동 플레이 봇(100판)을 먼저 한 번 돌리세요.", "확인");
+                return;
+            }
+            // N층을 막 깬 상태 = N+1층 입장 시점(10층은 그다음이 없어서 10층 입장 시점)
+            var snapshots = new System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<string[]>>();
+            foreach (var line in System.IO.File.ReadAllLines(file))
+            {
+                var parts = line.Split('	');
+                if (parts.Length != 4 || !int.TryParse(parts[0], out var s))
+                    continue;
+                if (!snapshots.TryGetValue(s, out var list))
+                    snapshots[s] = list = new System.Collections.Generic.List<string[]>();
+                if (parts[1] != "-")
+                    list.Add(parts);
+            }
+            var source = snapshots.ContainsKey(stage + 1) ? stage + 1 : stage;
+            if (!snapshots.ContainsKey(source))
+            {
+                EditorUtility.DisplayDialog("기준 상태 없음", $"{source}층 입장 기준 상태가 없습니다.", "확인");
+                return;
+            }
+            if (!BackupBeforeBot())
+                return;
+            LoopRogue.GameSettings.Preserve(() => UnityEngine.PlayerPrefs.DeleteAll());
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            foreach (var p in snapshots[source])
+            {
+                if (p[2] == "f")
+                    UnityEngine.PlayerPrefs.SetFloat(p[1], float.Parse(p[3], inv));
+                else
+                    UnityEngine.PlayerPrefs.SetInt(p[1], int.Parse(p[3], inv));
+            }
+            UnityEngine.PlayerPrefs.SetInt("LoopRogue_CurrentStage", stage);
+            UnityEngine.PlayerPrefs.SetInt("LoopRogue_StageAttempts", 0);
+            UnityEngine.PlayerPrefs.SetInt(LoopRogue.TutorialStage.DoneKey, 1); // 튜토리얼로 새지 않게
+            UnityEngine.PlayerPrefs.Save();
+            EditorPrefs.SetBool(LoopRogue.LoopManager.BossDirectPrefKey, true);
+            UnityEngine.Debug.Log($"[테스트] {source}층 입장 기준 상태로 {stage}층 보스방 시작 - 끝나면 '봇 전 저장 되돌리기'로 원래 저장 복구");
+            EditorSceneManagerOpenMain();
+            EditorApplication.isPlaying = true;
+        }
+
+        // ---- 보스 러시 - 1~9층 기믹 보스만 차례로. 10층 입장 기준 상태(봇 중간값)에 공격력 ×1.5·체력 ×2를 얹어 9층 보스도 넉넉히 잡게.
+        // 테스트 맵처럼 시작 전에 저장을 백업했다가 Play를 멈추면 되돌린다.
+        private const float BossRushAttackBoost = 1.5f;
+        private const float BossRushHealthBoost = 2f;
+
+        [MenuItem("LoopRogue/보스 러시 1~9층 (끝나면 저장 되돌림)")]
+        private static void StartBossRush()
+        {
+            if (EditorApplication.isPlaying)
+                return;
+            var file = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(BackupPath), "reference_snapshots.tsv");
+            var snapshot = new System.Collections.Generic.List<string[]>();
+            if (System.IO.File.Exists(file))
+                foreach (var line in System.IO.File.ReadAllLines(file))
+                {
+                    var parts = line.Split('	');
+                    if (parts.Length == 4 && parts[0] == "10" && parts[1] != "-")
+                        snapshot.Add(parts);
+                }
+            if (snapshot.Count == 0)
+            {
+                EditorUtility.DisplayDialog("기준 상태 없음", "BotLogs/reference_snapshots.tsv에 10층 입장 기준 상태가 없습니다. 자동 플레이 봇(100판)을 먼저 한 번 돌리세요.", "확인");
+                return;
+            }
+            UnityEngine.PlayerPrefs.Save();
+            if (RunReg($"export \"{PrefsRegistryKey}\" \"{TestBackupPath}\" /y"))
+                EditorPrefs.SetBool(TestRestorePendingKey, true);
+            else if (!EditorUtility.DisplayDialog("저장 백업 실패", "지금 저장을 백업하지 못했습니다. 보스 러시 중 바뀐 저장이 그대로 남습니다. 그래도 시작할까요?", "시작", "취소"))
+                return;
+            LoopRogue.GameSettings.Preserve(() => UnityEngine.PlayerPrefs.DeleteAll());
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            foreach (var p in snapshot)
+            {
+                if (p[2] != "f")
+                {
+                    UnityEngine.PlayerPrefs.SetInt(p[1], int.Parse(p[3], inv));
+                    continue;
+                }
+                var v = float.Parse(p[3], inv);
+                if (p[1] == "LoopRogue_Run_AttackPower")
+                    v *= BossRushAttackBoost;
+                else if (p[1] == "LoopRogue_Run_MaxHealth" || p[1] == "LoopRogue_Run_CurrentHealth")
+                    v *= BossRushHealthBoost;
+                UnityEngine.PlayerPrefs.SetFloat(p[1], v);
+            }
+            UnityEngine.PlayerPrefs.SetInt("LoopRogue_CurrentStage", LoopRogue.BossRush.LastStage);
+            UnityEngine.PlayerPrefs.SetInt("LoopRogue_StageAttempts", 0);
+            UnityEngine.PlayerPrefs.SetInt(LoopRogue.TutorialStage.DoneKey, 1);
+            UnityEngine.PlayerPrefs.Save();
+            EditorPrefs.SetBool(LoopRogue.BossRush.PrefKey, true);
+            UnityEngine.Debug.Log($"[보스 러시] 10층 입장 기준 상태(공격력 ×{BossRushAttackBoost}, 체력 ×{BossRushHealthBoost})로 1~9층 보스 연속 - Play를 멈추면 저장 되돌림");
+            EditorSceneManagerOpenMain();
+            EditorApplication.isPlaying = true;
+        }
+
+        /// <summary>Main 씬에서 바로 시작(타이틀·로비를 거치지 않게).</summary>
+        private static void EditorSceneManagerOpenMain()
+        {
+            if (UnityEditor.SceneManagement.EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                UnityEditor.SceneManagement.EditorSceneManager.OpenScene("Assets/Scenes/Main.unity");
+        }
+
         private static void StartHandoff(int stage)
         {
             if (EditorApplication.isPlaying || !BackupBeforeBot())

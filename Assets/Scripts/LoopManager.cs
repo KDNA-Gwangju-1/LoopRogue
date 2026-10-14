@@ -60,9 +60,14 @@ namespace LoopRogue
             _attemptStartGold = GoldWallet.Gold;
 
             // 시작 방 고르기(사람만) - 방1은 이미 깔아둔 채로 입력만 잠그고, 다른 방을 고르면 그 방으로 바꿔 로드.
-            if (PuzzleTrial.Active)
+            if (ConsumeBossDirect())
+            {
+                _roomIndex = _rooms.Count - 1; // 에디터 메뉴 "기준 스펙으로 N층 보스방" - 고르기 없이 보스방으로
+                EnterRoom();
+            }
+            else if (PuzzleTrial.Active)
                 _roomController.LoadPuzzle(_rooms[_roomIndex], PuzzleTrial.Type.Value); // 에디터 메뉴 "퍼즐·미니게임 체험" - 고르기 없이 바로
-            else if (!GameHUD.AutoPlayActive && !TestMap.Active && !TutorialStage.Active)
+            else if (!GameHUD.AutoPlayActive && !TestMap.Active && !TutorialStage.Active && !BossRush.Active)
             {
                 _roomController.IsInputLocked = true;
                 _hud.ShowRoomSelect(stage, _rooms, 0, StartFromSelectedRoom);
@@ -77,6 +82,21 @@ namespace LoopRogue
                 goToTitle: RetreatToTitle);
 
             Tutorial.Attach(_roomController, _player, _hud); // 첫 판 안내(봇·테스트 맵에선 안 만든다)
+        }
+
+        /// <summary>에디터 테스트 - 다음 Main 진입을 그 층 보스방에서 바로 시작(한 번만).</summary>
+        public const string BossDirectPrefKey = "LoopRogue_Test_BossDirect";
+
+        private static bool ConsumeBossDirect()
+        {
+#if UNITY_EDITOR
+            if (GameHUD.AutoPlayActive || !UnityEditor.EditorPrefs.GetBool(BossDirectPrefKey, false))
+                return false;
+            UnityEditor.EditorPrefs.SetBool(BossDirectPrefKey, false);
+            return true;
+#else
+            return false;
+#endif
         }
 
         private void StartFromSelectedRoom(int index)
@@ -297,8 +317,8 @@ namespace LoopRogue
         {
             foreach (var room in _rooms)
                 room.HasEvent = false;
-            if (TutorialStage.Active)
-                return; // 튜토리얼 방엔 이벤트 없음
+            if (TutorialStage.Active || BossRush.Active)
+                return; // 튜토리얼·보스 러시 방엔 이벤트 없음
 
             var last = Mathf.Min(LastEventRoomIndex, _rooms.Count - 2); // 보스방 제외
             if (last < FirstEventRoomIndex)
