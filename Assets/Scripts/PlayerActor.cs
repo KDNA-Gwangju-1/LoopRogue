@@ -311,7 +311,7 @@ namespace LoopRogue
                     CriticalChanceRate = RunProgress.CriticalChanceRate + addedCritical,
                     DamageReductionRate = RunProgress.DamageReductionRate,
                     LifeStealRate = RunProgress.LifeStealRate,
-                    RegenPerTurnRate = RunProgress.RegenPerTurnRate,
+                    RoomShieldCardRate = RunProgress.RoomShieldCardRate,
                     KillHealRate = RunProgress.KillHealRate,
                     ExpBonusRate = RunProgress.ExpBonusRate,
                     GoldBonusRate = RunProgress.GoldBonusRate,
@@ -373,7 +373,8 @@ namespace LoopRogue
             _smokedEnemies.Clear();
             LastSkill = AttackStyle.Other;
 
-            Stats.Shield = EquipmentEffects.Has(ItemSlot.Armor, 1) ? Stats.MaxHealth * EquipmentEffects.RoomShieldRate : 0f;
+            var shieldRate = (EquipmentEffects.Has(ItemSlot.Armor, 1) ? EquipmentEffects.RoomShieldRate : 0f) + Stats.RoomShieldCardRate; // 갑옷 효과 + 수호막 카드
+            Stats.Shield = Stats.MaxHealth * shieldRate;
             _firstStrikeReady = Relics.Has(RelicType.FirstStrike); // 유물 "첫 일격"
             if (EquipmentEffects.HasMemorySet)
                 Stats.BlockNextHit = true; // Unknown 세트 "기억의 벼림" - 방마다 처음 받는 피해 1번 무효
@@ -983,7 +984,6 @@ namespace LoopRogue
 
         private void EndTurn()
         {
-            Stats.Heal(Stats.MaxHealth * Stats.RegenPerTurnRate); // 재생 카드 - 행동 1회(대기 포함) = 1턴
             _room.RunEnemyTurns();
         }
 

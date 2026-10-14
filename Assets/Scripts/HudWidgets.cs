@@ -160,13 +160,14 @@ namespace LoopRogue
             _fill = HudUi.CreateImage(bg.transform, "Fill", fillColor).rectTransform;
             HudUi.Stretch(_fill, 2f);
 
-            // 덧칠 띠(보호막 등) - 막대 위쪽 40%에 겹쳐 그린다.
+            // 덧칠 구간(보호막 등) - 채움 끝에서 이어지는 막대 높이 전체 구간(SetOverlay). 처음엔 위쪽 40%에 왼쪽부터 겹쳐 그렸는데
+            // 체력 위에 얇게 깔려 잘 안 보였다(10-14 피드백).
             if (overlayColor.HasValue)
             {
                 _overlay = HudUi.CreateImage(bg.transform, "Overlay", overlayColor.Value).rectTransform;
-                _overlay.anchorMin = new Vector2(0f, 0.6f);
+                _overlay.anchorMin = new Vector2(0f, 0f);
                 _overlay.anchorMax = new Vector2(0f, 1f);
-                _overlay.offsetMin = new Vector2(2f, 0f);
+                _overlay.offsetMin = new Vector2(0f, 2f);
                 _overlay.offsetMax = new Vector2(0f, -2f);
             }
 
@@ -198,10 +199,22 @@ namespace LoopRogue
             Label.text = text;
         }
 
-        public void SetOverlay(float ratio)
+        /// <summary>채움(fillRatio) 바로 뒤에 ratio만큼 덧칠 - 합이 1을 넘으면 오른쪽 끝에 맞춰 채움 위로 겹친다.</summary>
+        public void SetOverlay(float fillRatio, float ratio)
         {
-            if (_overlay != null)
-                SetWidth(_overlay, ratio);
+            if (_overlay == null)
+                return;
+            ratio = Mathf.Clamp01(ratio);
+            var end = Mathf.Min(1f, Mathf.Clamp01(fillRatio) + ratio);
+            var start = Mathf.Max(0f, end - ratio);
+            var visible = ratio * Rect.rect.width > 3f;
+            if (_overlay.gameObject.activeSelf != visible)
+                _overlay.gameObject.SetActive(visible);
+            // 채움(_fill)과 같은 좌표 규칙(앵커 비율 + 오른쪽 2px 안쪽)이라 이음새에 틈이 안 생긴다
+            _overlay.anchorMin = new Vector2(start, 0f);
+            _overlay.anchorMax = new Vector2(end, 1f);
+            _overlay.offsetMin = new Vector2(start > 0f ? -2f : 2f, 2f);
+            _overlay.offsetMax = new Vector2(-2f, -2f);
         }
 
         /// <summary>안쪽 여백(2px) 때문에 비율이 아주 작으면 폭이 음수가 되므로 그땐 숨긴다.</summary>

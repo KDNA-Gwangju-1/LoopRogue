@@ -41,7 +41,10 @@ namespace LoopRogue
         /// 상한에 닿으면 흡혈 카드는 더 이상 안 나온다(LevelSystem). 상한 도입 전 저장된 판도 적용은 이 값까지만.</summary>
         public const float MaxLifeSteal = 0.5f;
         public float EffectiveLifeSteal => Mathf.Clamp(LifeStealRate, 0f, Relics.LifeStealCap); // 유물 "피의 계약"이면 70%
-        public float RegenPerTurnRate; // 매 턴 최대체력 대비 회복 비율
+        /// <summary>수호막 카드 - 방에 들어갈 때마다 최대체력 대비 이만큼 보호막(PlayerActor.OnRoomEntered, 갑옷 보호막에 더함).
+        /// 10-14에 "재생"(매 턴 1.5% 회복)을 대신함 - 대기만 해도 차서 "공짜 회복이 사기"라는 테스트 피드백.</summary>
+        public float RoomShieldCardRate;
+        public const float MaxRoomShieldCard = 0.5f;
         public float KillHealRate;     // 적 처치 시 최대체력 대비 회복 비율
         public float ExpBonusRate;     // 획득 경험치 +%
         public float GoldBonusRate;    // 획득 골드 +%

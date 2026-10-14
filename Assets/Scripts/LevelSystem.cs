@@ -105,8 +105,9 @@ namespace LoopRogue
                 IsAvailable = s => s.LifeStealRate < Relics.LifeStealCap },
             new UpgradeOption { Category = UpgradeCategory.Special, Title = Loc.T("방어"), Description = Loc.T("받는 피해 -2% (최대 30%) / 골드 -5%"),
                 Apply = s => { s.DamageReductionRate += 0.02f; s.GoldBonusRate -= 0.05f; } },
-            new UpgradeOption { Category = UpgradeCategory.Special, Title = Loc.T("재생"), Description = Loc.T("매 턴 최대체력 1.5% 회복 / 받는 피해 +2%"),
-                Apply = s => { s.RegenPerTurnRate += 0.015f; s.DamageReductionRate -= 0.02f; } },
+            new UpgradeOption { Category = UpgradeCategory.Special, Title = Loc.T("수호막"), Description = Loc.T("방에 들어갈 때마다 최대체력 8% 보호막 (최대 50%) / 받는 피해 +2%"),
+                Apply = s => { s.RoomShieldCardRate = Math.Min(CharacterStats.MaxRoomShieldCard, s.RoomShieldCardRate + 0.08f); s.DamageReductionRate -= 0.02f; },
+                IsAvailable = s => s.RoomShieldCardRate < CharacterStats.MaxRoomShieldCard },
             new UpgradeOption { Category = UpgradeCategory.Special, Title = Loc.T("처치 회복"), Description = Loc.T("처치 시 최대체력 12% 회복 / 공격력 -3%"),
                 Apply = s => { s.KillHealRate += 0.12f; s.BaseAttack *= 0.97f; } },
 

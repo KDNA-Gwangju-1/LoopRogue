@@ -386,7 +386,7 @@ namespace LoopRogue
             _hpBar.Set(stats.CurrentHealth / maxHp, stats.Shield >= 1f
                 ? Loc.F("{0:0} / {1:0}  <color=#9FD8FF>+보호막 {2:0}</color>", stats.CurrentHealth, stats.MaxHealth, stats.Shield)
                 : $"{stats.CurrentHealth:0} / {stats.MaxHealth:0}");
-            _hpBar.SetOverlay(stats.Shield / maxHp);
+            _hpBar.SetOverlay(stats.CurrentHealth / maxHp, stats.Shield / maxHp); // 체력 끝에 이어 흰 보호막
             var expRatio = levels.IsMaxLevel ? 1f : levels.Exp / (float)Mathf.Max(1, levels.ExpToNext);
             _expBar.Set(expRatio, levels.IsMaxLevel
                 ? $"Lv.{levels.Level}   EXP MAX"
@@ -521,7 +521,7 @@ namespace LoopRogue
                 ? Loc.F("받는 피해  -{0:0.#}%  (최대 {1:0}%)", reduction * 100f, CharacterStats.MaxDamageReduction * 100f)
                 : Loc.F("받는 피해  <color=#FF7070>+{0:0.#}%</color>", -reduction * 100f));
             sb.AppendLine(Loc.F("흡혈  {0:0.#}%{1}", s.EffectiveLifeSteal * 100f, (s.LifeStealRate >= Relics.LifeStealCap ? Loc.T(" (최대)") : "")));
-            sb.AppendLine(Loc.F("재생  턴당 {0:0.#}%  (≈{1:0.#} HP)", s.RegenPerTurnRate * 100f, s.MaxHealth * s.RegenPerTurnRate));
+            sb.AppendLine(Loc.F("수호막  방마다 {0:0.#}%  (≈{1:0.#} HP)", s.RoomShieldCardRate * 100f, s.MaxHealth * s.RoomShieldCardRate));
             sb.AppendLine(Loc.F("처치 회복  {0:0.#}%  (≈{1:0.#} HP)", s.KillHealRate * 100f, s.MaxHealth * s.KillHealRate));
 
             sb.AppendLine();
@@ -908,7 +908,7 @@ namespace LoopRogue
 
             _hpBar = new HudBar(parent, "HpBar", new Vector2(ActionBarLayout.HpBarCenterX, ActionBarLayout.HpBarBottom),
                 new Vector2(ActionBarLayout.HpBarWidth, ActionBarLayout.HpBarHeight),
-                new Color(0.78f, 0.2f, 0.22f), 15, new Color(0.55f, 0.82f, 1f, 0.85f));
+                new Color(0.78f, 0.2f, 0.22f), 15, new Color(0.92f, 0.95f, 1f, 0.95f)); // 보호막 = 흰색
             _hpBar.Label.gameObject.AddComponent<Outline>().effectColor = new Color(0f, 0f, 0f, 0.9f);
             _expBar = new HudBar(parent, "ExpBar", Vector2.zero, Vector2.zero, new Color(0.85f, 0.7f, 0.25f), 12);
             _expBar.StretchAcrossBottom(ActionBarLayout.ExpBarHeight);

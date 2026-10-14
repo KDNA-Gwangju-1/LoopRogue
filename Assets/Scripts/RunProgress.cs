@@ -21,7 +21,7 @@ namespace LoopRogue
         private const string PermCriticalKey = "LoopRogue_Run_PermCritical";
         private const string DamageReductionKey = "LoopRogue_Run_DamageReduction";
         private const string LifeStealKey = "LoopRogue_Run_LifeSteal";
-        private const string RegenKey = "LoopRogue_Run_Regen";
+        private const string RoomShieldKey = "LoopRogue_Run_RoomShield"; // 10-14 재생(Run_Regen) 대신 - 옛 저장의 재생 값은 버린다
         private const string KillHealKey = "LoopRogue_Run_KillHeal";
         private const string ExpBonusKey = "LoopRogue_Run_ExpBonus";
         private const string GoldBonusKey = "LoopRogue_Run_GoldBonus";
@@ -47,7 +47,7 @@ namespace LoopRogue
         // 레벨업 카드로만 오르는 스탯들 - 장비/영약과 무관해서 스냅샷 값 그대로 복원한다.
         public static float DamageReductionRate { get; private set; }
         public static float LifeStealRate { get; private set; }
-        public static float RegenPerTurnRate { get; private set; }
+        public static float RoomShieldCardRate { get; private set; }
         public static float KillHealRate { get; private set; }
         public static float ExpBonusRate { get; private set; }
         public static float GoldBonusRate { get; private set; }
@@ -82,7 +82,7 @@ namespace LoopRogue
             CriticalChanceRate = PlayerPrefs.GetFloat(CriticalChanceKey, 0f);
             DamageReductionRate = PlayerPrefs.GetFloat(DamageReductionKey, 0f);
             LifeStealRate = PlayerPrefs.GetFloat(LifeStealKey, 0f);
-            RegenPerTurnRate = PlayerPrefs.GetFloat(RegenKey, 0f);
+            RoomShieldCardRate = PlayerPrefs.GetFloat(RoomShieldKey, 0f);
             KillHealRate = PlayerPrefs.GetFloat(KillHealKey, 0f);
             ExpBonusRate = PlayerPrefs.GetFloat(ExpBonusKey, 0f);
             GoldBonusRate = PlayerPrefs.GetFloat(GoldBonusKey, 0f);
@@ -105,7 +105,7 @@ namespace LoopRogue
             CriticalChanceRate = stats.CriticalChanceRate;
             DamageReductionRate = stats.DamageReductionRate;
             LifeStealRate = stats.LifeStealRate;
-            RegenPerTurnRate = stats.RegenPerTurnRate;
+            RoomShieldCardRate = stats.RoomShieldCardRate;
             KillHealRate = stats.KillHealRate;
             ExpBonusRate = stats.ExpBonusRate;
             GoldBonusRate = stats.GoldBonusRate;
@@ -124,7 +124,7 @@ namespace LoopRogue
             PlayerPrefs.SetFloat(CriticalChanceKey, CriticalChanceRate);
             PlayerPrefs.SetFloat(DamageReductionKey, DamageReductionRate);
             PlayerPrefs.SetFloat(LifeStealKey, LifeStealRate);
-            PlayerPrefs.SetFloat(RegenKey, RegenPerTurnRate);
+            PlayerPrefs.SetFloat(RoomShieldKey, RoomShieldCardRate);
             PlayerPrefs.SetFloat(KillHealKey, KillHealRate);
             PlayerPrefs.SetFloat(ExpBonusKey, ExpBonusRate);
             PlayerPrefs.SetFloat(GoldBonusKey, GoldBonusRate);
