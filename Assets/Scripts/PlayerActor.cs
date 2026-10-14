@@ -141,14 +141,14 @@ namespace LoopRogue
                 return false;
             }
 
-            BeginAction();
+            // 아이템은 턴을 쓰지 않는다(10-14 사용자) - 써도 몹이 행동하지 않고 쿨타임·거미줄·반사 남은 턴도 그대로. 같은 턴에 이어서 움직이거나 때릴 수 있다.
             if (EquipmentEffects.Has(ItemSlot.Accessory, 2) && ItemRng.NextDouble() < EquipmentEffects.ItemSaveChance)
                 _room.ShowMessage(Loc.F("절약! {0}이(가) 남았다", ItemInfo.Name(type))); // 반지 "절약"
             else
                 Inventory.Consume(type);
             ApplyItem(type, target);
             HitFeedback.OnItemUsed(this, type, target);
-            EndTurn();
+            TutorialStage.NotifyItemUsed(type, _room); // 튜토리얼 아이템 방 - 써 본 아이템 체크
             return true;
         }
 

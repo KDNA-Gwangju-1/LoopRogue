@@ -123,7 +123,7 @@ namespace LoopRogue
             RefreshHudProgress();
             if (def.IsTutorialRoom)
             {
-                TutorialStage.OnRoomEntered(def);
+                TutorialStage.OnRoomEntered(def, _roomController);
                 _hud.ShowMessage(TutorialStage.Caption(def.TutorialStep));
             }
         }

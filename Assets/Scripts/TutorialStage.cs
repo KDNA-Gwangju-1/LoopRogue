@@ -4,7 +4,9 @@ using UnityEngine;
 
 namespace LoopRogue
 {
-    /// <summary>튜토리얼 스테이지 - 죽을 일 없는 작은 방 4개(① 이동·출구 ② 공격 ③ 대시·회전 베기 ④ 빨간 예고 칸·아이템).
+    /// <summary>튜토리얼 스테이지 - 죽을 일 없는 작은 방 7개(① 이동·출구 ② 공격 ③ 대시·회전 베기 ④ 빨간 예고 칸·폭탄
+    /// ⑤~⑦ 아이템 3개씩 - 10종을 전부 한 번씩 써 봐야 출구로 나갈 수 있다(10-14 사용자)).
+    /// (아래 설명은 4방 시절 그대로)
     /// 처음 시작한 사람(저장된 런·사망 기록 없음)이 던전에 들어가면 자동으로 한 번, 타이틀 [튜토리얼] 버튼으로는 언제든.
     /// 화면 아래 안내 상자(Tutorial)가 방마다 할 일을 알려 준다. 플레이어 체력은 1 밑으로 안 떨어지고(CharacterStats),
     /// 몹은 골드·경험치를 안 주며, 층 진행·방 클리어 기록·이벤트·퍼즐·오류방·히든 몹과 무관하다. 마지막 방 출구로 나가면
@@ -15,7 +17,37 @@ namespace LoopRogue
         public const string RewardKey = "LoopRogue_TutorialRewardGiven"; // 완료 보상은 한 번만(타이틀에서 다시 해도 또 안 줌)
         public const int RewardGold = 100;
         private const float CompleteDelaySeconds = 2.8f;
-        public const int RoomCount = 4;
+        public const int RoomCount = 7;
+
+        // ⑤~⑦ 아이템 방 - 방에 들어가면 이 3개를 퀵슬롯 1·2·3에 넣어 주고, 다 써 봐야 출구가 통과된다(RoomController.TryUseExit).
+        private static readonly Dictionary<int, ItemType[]> RoomItems = new Dictionary<int, ItemType[]>
+        {
+            { 5, new[] { ItemType.Torch, ItemType.Trap, ItemType.Decoy } },
+            { 6, new[] { ItemType.Smoke, ItemType.Weakness, ItemType.Barrier } },
+            { 7, new[] { ItemType.Cleanse, ItemType.Flash, ItemType.Reflect } },
+        };
+        private static readonly List<ItemType> PendingItems = new List<ItemType>();
+
+        private static string PendingList() => string.Join(", ", PendingItems.ConvertAll(ItemInfo.Name));
+
+        /// <summary>아이템을 썼다(PlayerActor.TryUseItem) - 이 방에서 써 봐야 할 것이면 지우고 남은 것을 알린다.</summary>
+        public static void NotifyItemUsed(ItemType type, RoomController room)
+        {
+            if (!Active || !PendingItems.Remove(type))
+                return;
+            room.ShowMessage(PendingItems.Count > 0
+                ? Loc.F("좋아요! 남은 아이템: {0}", PendingList())
+                : Loc.T("<color=#8CE08C>아이템을 다 써 봤어요!</color> 몹을 정리하고 출구로"));
+        }
+
+        /// <summary>출구를 밟았는데 아직 안 써 본 아이템이 있으면 막고 true.</summary>
+        public static bool BlocksExit(RoomController room)
+        {
+            if (!Active || PendingItems.Count == 0)
+                return false;
+            room.ShowMessage(Loc.F("<color=#FFB060>아직 안 써 본 아이템이 있어요:</color> {0}", PendingList()));
+            return true;
+        }
         private const float EnemyHealth = 6f;
         private const float EnemyAttack = 1f;
 
@@ -90,17 +122,31 @@ namespace LoopRogue
         /// <summary>방 입장 때 위쪽 안내 줄에 띄우는 제목.</summary>
         public static string Caption(int step) => step switch
         {
-            1 => Loc.T("<color=#FFD966>튜토리얼 1/4</color>  첫걸음 - 움직여 보고 출구(문)로"),
-            2 => Loc.T("<color=#FFD966>튜토리얼 2/4</color>  공격 - 슬라임에게 부딪혀 보세요"),
-            3 => Loc.T("<color=#FFD966>튜토리얼 3/4</color>  스킬 - 대시와 회전 베기"),
-            _ => Loc.T("<color=#FFD966>튜토리얼 4/4</color>  위험 피하기 - 빨간 칸에서 비키고, 아이템도 써 보세요"),
+            1 => Loc.T("<color=#FFD966>튜토리얼 1/7</color>  첫걸음 - 움직여 보고 출구(문)로"),
+            2 => Loc.T("<color=#FFD966>튜토리얼 2/7</color>  공격 - 슬라임에게 부딪혀 보세요"),
+            3 => Loc.T("<color=#FFD966>튜토리얼 3/7</color>  스킬 - 대시와 회전 베기"),
+            4 => Loc.T("<color=#FFD966>튜토리얼 4/7</color>  위험 피하기 - 빨간 칸에서 비키고, 폭탄도 던져 보세요"),
+            5 => Loc.T("<color=#FFD966>튜토리얼 5/7</color>  아이템 ① 설치 - 횃불·덫·미끼를 놓아 보세요"),
+            6 => Loc.T("<color=#FFD966>튜토리얼 6/7</color>  아이템 ② 전투 보조 - 연막탄·약점 표식·보호막"),
+            _ => Loc.T("<color=#FFD966>튜토리얼 7/7</color>  아이템 ③ 위기 대처 - 정화제·섬광탄·반사 부적"),
         };
 
-        /// <summary>방 4는 아이템을 하나 쥐여 주고 시작(폭탄 - 퀵슬롯 1에 들어간다).</summary>
-        public static void OnRoomEntered(RoomDefinition def)
+        /// <summary>방 4는 폭탄, 방 5~7은 아이템 3개를 쥐여 주고 시작(퀵슬롯 1·2·3). 아이템 방은 쓰는 법을 한 줄씩 안내.</summary>
+        public static void OnRoomEntered(RoomDefinition def, RoomController room)
         {
+            PendingItems.Clear();
             if (def.TutorialStep == 4 && !Inventory.Has(ItemType.Bomb))
                 Inventory.Give(ItemType.Bomb);
+            if (!RoomItems.TryGetValue(def.TutorialStep, out var items))
+                return;
+            for (var i = 0; i < items.Length; i++)
+            {
+                Inventory.Give(items[i]);
+                Inventory.SetQuickSlot(i, items[i]); // 원래 퀵슬롯 자리와 상관없이 1·2·3에
+                PendingItems.Add(items[i]);
+                room.ShowMessage($"[{i + 1}] <color=#FFD966>{ItemInfo.Name(items[i])}</color> - {ItemInfo.Description(items[i])}");
+            }
+            room.ShowMessage(Loc.T("숫자 키로 아이템을 써요 - 놓거나 던지는 아이템은 숫자를 누른 뒤 방향키로. 세 개를 다 써 봐야 출구로 나갈 수 있어요"));
         }
 
         public static List<RoomDefinition> BuildRooms()
@@ -135,6 +181,31 @@ namespace LoopRogue
             var r4 = Room(4, l4, EnemyKind.Charger);
             r4.EnemyMaxHealth = EnemyHealth * 4f;
             rooms.Add(r4);
+
+            // ⑤ 아이템 - 설치(횃불·덫·미끼): 멀리서 다가오는 슬라임 둘 - 덫을 밟게 하고, 미끼로 시선을 돌린다
+            var l5 = new RoomLayout { Width = 11, Height = 9, PlayerStart = new Vector2Int(1, 4) };
+            l5.EnemyPositions.Add(new Vector2Int(8, 2));
+            l5.EnemyPositions.Add(new Vector2Int(8, 6));
+            var r5 = Room(5, l5, EnemyKind.Melee, EnemyKind.Melee);
+            r5.EnemyMaxHealth = EnemyHealth * 2f;
+            rooms.Add(r5);
+
+            // ⑥ 아이템 - 전투 보조(연막탄·약점 표식·보호막): 가까이 모인 슬라임 셋
+            var l6 = new RoomLayout { Width = 11, Height = 9, PlayerStart = new Vector2Int(2, 4) };
+            l6.EnemyPositions.Add(new Vector2Int(5, 3));
+            l6.EnemyPositions.Add(new Vector2Int(5, 5));
+            l6.EnemyPositions.Add(new Vector2Int(6, 4));
+            var r6 = Room(6, l6, EnemyKind.Melee, EnemyKind.Melee, EnemyKind.Melee);
+            r6.EnemyMaxHealth = EnemyHealth * 3f;
+            rooms.Add(r6);
+
+            // ⑦ 아이템 - 위기 대처(정화제·섬광탄·반사 부적): 거미줄을 쏘는 거미(정화제) + 슬라임
+            var l7 = new RoomLayout { Width = 11, Height = 9, PlayerStart = new Vector2Int(1, 4) };
+            l7.EnemyPositions.Add(new Vector2Int(5, 4));
+            l7.EnemyPositions.Add(new Vector2Int(8, 6));
+            var r7 = Room(7, l7, EnemyKind.Spider, EnemyKind.Melee);
+            r7.EnemyMaxHealth = EnemyHealth * 3f;
+            rooms.Add(r7);
 
             return rooms;
         }
