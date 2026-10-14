@@ -19,6 +19,10 @@ namespace LoopRogue
         Explosion,
         Appear,  // NPC 등장
         Curse,   // 저주 거래 성립
+        ChestRattle, // 뽑기 상자 덜컹
+        ChestOpen,   // 뽑기 상자 열림 - 올라가는 반짝임
+        Fanfare,     // 뽑기 전설 이상
+        GradeUp,     // 뽑기 상자 등급 한 칸 오름 - 음높이를 올려 가며 재생(PlayPitched)
     }
 
     /// <summary>효과음 - 음원 파일 없이 사인파/사각파/노이즈를 코드로 합성해 AudioClip을 만든다(처음 쓸 때 한 번).
@@ -49,6 +53,19 @@ namespace LoopRogue
             _instance._nextVoice = (_instance._nextVoice + 1) % VoiceCount;
             voice.pitch = Random.Range(0.92f, 1.08f);
             voice.PlayOneShot(clip, MasterVolume * GameSettings.SfxVolume); // × 설정 "효과음"(전체 볼륨은 AudioListener)
+        }
+
+        /// <summary>음높이를 정해서 재생(무작위 흔들림 없음) - 뽑기 등급 오름처럼 점점 높아지는 소리.</summary>
+        public static void PlayPitched(Sfx sfx, float pitch)
+        {
+            if (DamagePopup.Suppressed)
+                return;
+            if (_instance == null)
+                _instance = Create();
+            var voice = _instance._voices[_instance._nextVoice];
+            _instance._nextVoice = (_instance._nextVoice + 1) % VoiceCount;
+            voice.pitch = pitch;
+            voice.PlayOneShot(GetClip(sfx), MasterVolume * GameSettings.SfxVolume);
         }
 
         private static SfxPlayer Create()
@@ -121,6 +138,30 @@ namespace LoopRogue
                 // 저주 거래 - 낮게 떨리며 깔리는 불협화음
                 Sfx.Curse => Build("sfx_curse", 0.7f, p => (a.Sine(Mathf.Lerp(110f, 70f, p)) * 0.5f + b.Square(Mathf.Lerp(116f, 74f, p)) * 0.15f
                     + Noise() * 0.15f * Mathf.Sin(p * Mathf.PI)) * Decay(p, 1.8f)),
+                // 뽑기 상자 덜컹 - 나무 "똑"
+                Sfx.ChestRattle => Build("sfx_chest_rattle", 0.12f, p => (a.Sine(Mathf.Lerp(240f, 150f, p)) * 0.6f + Noise() * 0.45f * Decay(p, 25f)) * Decay(p, 9f)),
+                // 뽑기 상자 열림 - 네 음 올라가는 반짝임
+                Sfx.ChestOpen => Build("sfx_chest_open", 0.5f, p =>
+                {
+                    var step = Mathf.Min(3, (int)(p * 4f));
+                    var f = new[] { 784f, 988f, 1175f, 1568f }[step];
+                    var local = p * 4f - step;
+                    return (a.Sine(f) * 0.28f + b.Sine(f * 2f) * 0.08f) * Decay(local, 4f) * (1f - p * 0.4f);
+                }),
+                // 전설 이상 - 도미솔도 팡파르 후 화음 울림
+                Sfx.Fanfare => Build("sfx_fanfare", 1.1f, p =>
+                {
+                    var notes = new[] { 523f, 659f, 784f, 1047f };
+                    if (p < 0.4f)
+                    {
+                        var step = Mathf.Min(3, (int)(p / 0.1f));
+                        return a.Square(notes[step]) * 0.12f * Decay(p / 0.1f - step, 2f);
+                    }
+                    var q = (p - 0.4f) / 0.6f;
+                    return (a.Square(523f) * 0.07f + b.Square(659f) * 0.06f + Mathf.Sin(2f * Mathf.PI * 784f * p * 1.1f) * 0.1f) * Decay(q, 2.5f);
+                }),
+                // 등급 오름 - 맑은 "띵"(배음 하나)
+                Sfx.GradeUp => Build("sfx_grade_up", 0.28f, p => (a.Sine(880f) * 0.3f + b.Sine(1760f) * 0.12f) * Decay(p, 6f)),
                 _ => Build("sfx_none", 0.01f, p => 0f),
             };
         }

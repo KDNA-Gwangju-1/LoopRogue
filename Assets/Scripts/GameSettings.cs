@@ -19,9 +19,10 @@ namespace LoopRogue
         private const string VSyncKey = Prefix + "VSync";
         private const string ShakeKey = Prefix + "Shake";
         private const string DamageNumbersKey = Prefix + "DamageNumbers";
+        private const string GachaAnimationKey = Prefix + "GachaAnimation";
 
         private static readonly string[] IntKeys =
-            { MasterKey, SfxKey, BgmKey, ScreenModeKey, ResWidthKey, ResHeightKey, VSyncKey, ShakeKey, DamageNumbersKey, Loc.PrefKey };
+            { MasterKey, SfxKey, BgmKey, ScreenModeKey, ResWidthKey, ResHeightKey, VSyncKey, ShakeKey, DamageNumbersKey, GachaAnimationKey, Loc.PrefKey };
 
         public const int VolumeStep = 10;
 
@@ -34,6 +35,8 @@ namespace LoopRogue
         public static bool VSync { get; private set; } = true;
         public static bool ScreenShake { get; private set; } = true;
         public static bool DamageNumbers { get; private set; } = true;
+        /// <summary>뽑기 연출(상자 덜컹·등급 오르기) - 끄면 바로 결과 화면(GachaReveal).</summary>
+        public static bool GachaAnimation { get; private set; } = true;
 
         public enum ScreenMode { Fullscreen, Borderless, Windowed }
 
@@ -65,6 +68,7 @@ namespace LoopRogue
             VSync = PlayerPrefs.GetInt(VSyncKey, 1) == 1;
             ScreenShake = PlayerPrefs.GetInt(ShakeKey, 1) == 1;
             DamageNumbers = PlayerPrefs.GetInt(DamageNumbersKey, 1) == 1;
+            GachaAnimation = PlayerPrefs.GetInt(GachaAnimationKey, 1) == 1;
         }
 
         private static void Save()
@@ -78,6 +82,7 @@ namespace LoopRogue
             PlayerPrefs.SetInt(VSyncKey, VSync ? 1 : 0);
             PlayerPrefs.SetInt(ShakeKey, ScreenShake ? 1 : 0);
             PlayerPrefs.SetInt(DamageNumbersKey, DamageNumbers ? 1 : 0);
+            PlayerPrefs.SetInt(GachaAnimationKey, GachaAnimation ? 1 : 0);
             PlayerPrefs.Save();
         }
 
@@ -90,6 +95,7 @@ namespace LoopRogue
         public static void SetVSync(bool on) { VSync = on; ApplyVSync(); Save(); }
         public static void SetScreenShake(bool on) { ScreenShake = on; Save(); }
         public static void SetDamageNumbers(bool on) { DamageNumbers = on; Save(); }
+        public static void SetGachaAnimation(bool on) { GachaAnimation = on; Save(); }
 
         public static void ResetToDefaults()
         {
@@ -98,6 +104,7 @@ namespace LoopRogue
             Bgm = 70;
             ScreenShake = true;
             DamageNumbers = true;
+            GachaAnimation = true;
             VSync = true;
             ApplyAudio();
             ApplyVSync();

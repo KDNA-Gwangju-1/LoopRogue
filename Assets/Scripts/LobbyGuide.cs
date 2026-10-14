@@ -4,7 +4,7 @@ namespace LoopRogue
 {
     /// <summary>로비 허브의 NPC "시간지기 노인" - 장기 의뢰(LobbyQuests) 보상 받기 / 의뢰 현황 / 세계관 이야기(스테이지마다 바뀜) /
     /// 고리에 대해(누적 회차로 열리는 기억의 조각) / 조언. 인사는 누적 회차(LoopRecord)에 따라 바뀌고, 몇몇 회차엔 한 번만 하는 말이 있다.
-    /// 로비엔 걸어 다니는 캐릭터가 없어서 허브의 버튼이나 4 키로 말을 건다(LobbyBootstrap).</summary>
+    /// 로비 방(LobbyRoom)의 노인 NPC에게 부딪히거나 Space, 또는 4 키로 말을 건다(LobbyBootstrap).</summary>
     public static class LobbyGuide
     {
         public static string Name => Loc.T("시간지기 노인");

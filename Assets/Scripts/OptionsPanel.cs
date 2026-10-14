@@ -119,6 +119,7 @@ namespace LoopRogue
             AddRow(Loc.T("수직 동기화"), () => OnOff(GameSettings.VSync), _ => GameSettings.SetVSync(!GameSettings.VSync));
             AddRow(Loc.T("화면 흔들림"), () => OnOff(GameSettings.ScreenShake), _ => GameSettings.SetScreenShake(!GameSettings.ScreenShake));
             AddRow(Loc.T("피해 숫자 표시"), () => OnOff(GameSettings.DamageNumbers), _ => GameSettings.SetDamageNumbers(!GameSettings.DamageNumbers));
+            AddRow(Loc.T("뽑기 연출"), () => OnOff(GameSettings.GachaAnimation), _ => GameSettings.SetGachaAnimation(!GameSettings.GachaAnimation));
             // 첫 판 안내 - ←→로 처음부터 다시(다음 판 1층부터 다시 뜬다)
             AddRow(Loc.T("튜토리얼"), () => Tutorial.BasicsDone ? Loc.T("<color=#9A9AA2>끝남</color>  (←→ 다시 보기)") : Loc.T("<color=#8CE08C>진행 중</color>"),
                 _ => Tutorial.ResetAll());

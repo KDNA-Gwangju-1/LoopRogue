@@ -34,6 +34,7 @@ namespace LoopRogue
         private LobbyView _view;
         private readonly Dictionary<LobbyView, GameObject> _viewRoots = new Dictionary<LobbyView, GameObject>();
         private Text _titleText;
+        private GameObject _headerGroup;
         private GameObject _equipmentGroup;
         private GameObject _potionGroup;
 
@@ -96,6 +97,7 @@ namespace LoopRogue
             }
 
             BuildUI();
+            BuildLobbyRoom();
             RefreshEquipmentDisplay();
             RefreshGachaDisplay();
             RefreshPotionDisplay();
@@ -126,11 +128,10 @@ namespace LoopRogue
         private void Update()
         {
             _goldText.text = Loc.F("보유 골드: {0}", GoldWallet.Gold - _slotPendingPayout);
-            RefreshGuideButton();
             UpdateHover();
 
             // 안내자와 대화 중이거나 업적 창이 열려 있으면(닫은 프레임 포함) 로비 버튼·단축키를 안 받는다 - 그 창들이 Esc/숫자/클릭을 직접 처리한다.
-            if (NpcDialogUI.BlocksInput || AchievementPanel.BlocksInput || CodexPanel.BlocksInput)
+            if (NpcDialogUI.BlocksInput || AchievementPanel.BlocksInput || CodexPanel.BlocksInput || GachaReveal.BlocksInput)
                 return;
 
             // 클릭으로 화면이 바뀐 프레임엔 단축키를 안 읽는다(같은 프레임에 새 화면 키가 먹지 않게).
@@ -154,14 +155,28 @@ namespace LoopRogue
                         _achievementPanel.Open();
                     else if (GameInput.Down(Key.Digit6))
                         _codexPanel.Open();
-                    else if (GameInput.Down(Key.Enter) || GameInput.Down(Key.Space))
-                        StartRun();
                     // Esc = 타이틀로(로비엔 진행 중인 전투가 없어서 확인 없이 바로 이동 - 골드/장비는 전부 영구 저장).
                     else if (GameInput.Down(Key.Escape))
                         SceneManager.LoadScene("Title");
+                    else if (GameInput.PointerDown)
+                        _room.HandleClick(GameInput.PointerPosition); // UI 버튼에 안 맞은 클릭 = 방 안 클릭
+                    else
+                        _room.Tick(); // 걷기·말 걸기·문
                     return;
 
                 case LobbyView.Gacha:
+                    // 확률표 창이 열려 있으면 P/Esc로 닫기만(뒤 화면 단축키는 안 받음)
+                    if (ChanceOpen)
+                    {
+                        if (GameInput.Down(Key.P) || GameInput.Down(Key.Escape))
+                            SetChanceOpen(false);
+                        return;
+                    }
+                    if (GameInput.Down(Key.P))
+                    {
+                        SetChanceOpen(true);
+                        return;
+                    }
                     // 숫자키 = 1회, Shift+숫자키 = 10연차
                     if (GameInput.Down(Key.Digit1))
                         DoGacha(ItemSlot.Weapon, shift);
@@ -200,6 +215,8 @@ namespace LoopRogue
             var screenPos = GameInput.PointerPosition;
             foreach (var (rect, onClick) in _buttons)
             {
+                if (ChanceOpen && !rect.IsChildOf(_chanceGroup.transform))
+                    continue; // 확률표 창이 덮고 있을 땐 그 창 버튼만
                 if (rect.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(rect, screenPos, null))
                 {
                     onClick();
@@ -212,18 +229,20 @@ namespace LoopRogue
         private void ShowView(LobbyView view)
         {
             _view = view;
+            SetChanceOpen(false);
             foreach (var pair in _viewRoots)
                 pair.Value.SetActive(pair.Key == view);
             // 장비 요약은 로비와 뽑기 상점 둘 다에서 보여준다(뽑으면서 지금 장비를 봐야 해서).
-            _equipmentGroup.SetActive(view == LobbyView.Hub || view == LobbyView.Gacha);
-            _potionGroup.SetActive(view == LobbyView.Hub || view == LobbyView.Potion);
-            if (_backgrounds.TryGetValue(view, out var background) && background != null)
-            {
-                _background.sprite = background;
-                _background.enabled = true;
-            }
-            // 상점 안은 UI가 많아서 배경을 더 어둡게.
-            _shade.color = new Color(0f, 0f, 0f, view == LobbyView.Hub ? 0.2f : 0.45f);
+            // (허브는 걸어 다니는 방이라 요약 패널이 방을 가리지 않게 상점 안에서만)
+            _equipmentGroup.SetActive(view == LobbyView.Gacha);
+            _headerGroup.SetActive(view != LobbyView.Hub);
+            _potionGroup.SetActive(view == LobbyView.Potion);
+            // 허브는 배경 그림 대신 방(LobbyRoom)이 보인다. 상점 안은 배경 그림 + 어둡게(그림이 없으면 방이 어둡게 비침).
+            var hub = view == LobbyView.Hub;
+            _background.enabled = !hub && _backgrounds.TryGetValue(view, out var background) && background != null;
+            if (_background.enabled)
+                _background.sprite = _backgrounds[view];
+            _shade.color = new Color(0f, 0f, 0f, hub ? 0f : 0.55f);
             _titleText.text = view switch
             {
                 LobbyView.Gacha => Loc.T("뽑기 상점"),
@@ -270,6 +289,8 @@ namespace LoopRogue
         {
             var unlocked = StatPotionWallet.IsUnlocked(PotionType.Critical);
             _criticalButtonImage.color = ButtonTint(unlocked ? ButtonColor : ButtonLockedColor);
+            if (_criticalIcon != null)
+                _criticalIcon.color = unlocked ? Color.white : new Color(0.35f, 0.35f, 0.38f); // 잠겨 있으면 병도 어둡게
 
             _criticalButtonText.text = unlocked
                 ? Loc.F("[C] 치명타확률+{0:0.#}% 구매 (다음 비용 {1}골드)", StatPotionWallet.TotalCriticalChanceBonus() * 100f, StatPotionWallet.GetNextCost(PotionType.Critical))
@@ -296,9 +317,12 @@ namespace LoopRogue
             if (r.ShopLeveledUp)
                 message += Loc.F("  {0} 상점 Lv{1} 달성!", EquipmentData.Templates[slot].BaseName, GachaSystem.GetShopLevel(slot));
 
-            ShowResult(message, color);
-            RefreshEquipmentDisplay();
-            RefreshGachaDisplay();
+            RefreshGachaDisplay(); // 가격·뽑기권은 바로, 장비 요약·결과 줄은 연출이 끝난 뒤(미리 안 들키게)
+            GachaReveal.Play(slot, new[] { (r.Grade, r.Equipped) }, () =>
+            {
+                ShowResult(message, color);
+                RefreshEquipmentDisplay();
+            });
         }
 
         private void DoGacha(ItemSlot slot, bool multi)
@@ -338,9 +362,15 @@ namespace LoopRogue
             if (leveledUp)
                 message += Loc.F("  {0} 상점 Lv{1} 달성!", EquipmentData.Templates[slot].BaseName, GachaSystem.GetShopLevel(slot));
 
-            ShowResult(message, EquipmentData.Grades[best.Grade].Color);
-            RefreshEquipmentDisplay();
             RefreshGachaDisplay();
+            var reveal = new List<(ItemGrade, bool)>();
+            foreach (var r in results)
+                reveal.Add((r.Grade, r.Equipped));
+            GachaReveal.Play(slot, reveal, () =>
+            {
+                ShowResult(message, EquipmentData.Grades[best.Grade].Color);
+                RefreshEquipmentDisplay();
+            });
         }
 
         private void RefreshGachaDisplay()
@@ -522,11 +552,13 @@ namespace LoopRogue
             LoadArt();
             BuildBackground(root);
 
-            // 모든 화면 공통: 제목(화면 이름) / 골드 / 결과 안내 한 줄
-            CreatePanel(root, 0f, 282f, 200f, 80f);
-            _titleText = CreateLabel(root, "Title", string.Empty, 26, FontStyle.Bold, Color.white, 300f, 560f);
-            _goldText = CreateLabel(root, "GoldText", Loc.T("보유 골드: 0"), 18, FontStyle.Bold,
+            // 상점 화면 공통: 제목(상점 이름) / 골드 - 로비 방에선 숨김(스테이지는 문 위에, 골드는 상점에서만 필요 - 10-14 사용자)
+            _headerGroup = CreateGroup(root, "Header");
+            CreatePanel(_headerGroup.transform, 0f, 282f, 200f, 80f);
+            _titleText = CreateLabel(_headerGroup.transform, "Title", string.Empty, 26, FontStyle.Bold, Color.white, 300f, 560f);
+            _goldText = CreateLabel(_headerGroup.transform, "GoldText", Loc.T("보유 골드: 0"), 18, FontStyle.Bold,
                 new Color(1f, 0.85f, 0.3f), 262f, 560f);
+            // 결과 안내 한 줄은 모든 화면 공통
             _resultText = CreateLabel(root, "ResultText", string.Empty, 18, FontStyle.Normal, Color.white, 222f, 1000f);
             _resultText.gameObject.SetActive(false);
 
@@ -648,127 +680,122 @@ namespace LoopRogue
         private void BuildHubView(Transform parent)
         {
             var view = CreateView(parent, LobbyView.Hub);
-
-            // 상점 입구 3개 - 한 줄로
-            var shops = new[]
-            {
-                (LobbyView.Gacha, Loc.T("[1] 뽑기 상점"), Loc.T("검·갑옷·반지 뽑기"), new Color(0.3f, 0.3f, 0.5f)),
-                (LobbyView.Potion, Loc.T("[2] 영약 상점"), Loc.T("공격력·체력·치명타"), new Color(0.22f, 0.4f, 0.3f)),
-                (LobbyView.Casino, Loc.T("[3] 도박장"), Loc.T("운명의 슬롯"), new Color(0.5f, 0.3f, 0.15f)),
-            };
-            for (var i = 0; i < shops.Length; i++)
-            {
-                var (target, name, desc, color) = shops[i];
-                CreateHubCard(view, $"{target}Entrance", color, -30f, (i - 1) * 270f, $"Icon_{target}",
-                    $"<size=20><b>{name}</b></size>\n{desc}", () => ShowView(target));
-            }
-
-            // 노인 / 업적·칭호 / 도감 - 상점 입구와 같은 크기의 카드(왼쪽 아이콘 + 제목·설명) 한 줄(사용자 요청).
-            // 받을 보상·새 이야기·달성 수는 RefreshGuideButton이 설명 줄에 채운다.
-            _guideButtonText = CreateHubCard(view, "GuideButton", new Color(0.35f, 0.3f, 0.2f), -140f, -270f, "Icon_Guide",
-                string.Empty, LobbyGuide.Talk);
-            _achievementButtonText = CreateHubCard(view, "AchievementButton", new Color(0.4f, 0.32f, 0.12f), -140f, 0f, "Icon_Achievement",
-                string.Empty, () => _achievementPanel.Open());
-            _codexButtonText = CreateHubCard(view, "CodexButton", new Color(0.3f, 0.22f, 0.42f), -140f, 270f, "Icon_Codex",
-                string.Empty, () => _codexPanel.Open());
-
-            CreateButton(view, "StartButton", StartButtonColor, -235f, 480f, 50f,
-                out _, Loc.F("[Enter / Space] 스테이지 {0} 시작", StageProgress.CurrentStage), 20, Color.white, StartRun);
-
-            CreateLabel(view, "HubHint", Loc.T("Esc: 타이틀로"), 13, FontStyle.Normal, new Color(0.6f, 0.6f, 0.65f), -290f, 400f);
+            // 허브 = 걸어 다니는 방(LobbyRoom) - 예전 카드 6개·시작 버튼 대신 NPC와 문. 화면엔 아래 안내 한 줄만.
+            CreatePanel(view, 0f, -330f, 1000f, 44f);
+            var hint = CreateLabel(view, "HubHint",
+                Loc.T("방향키 이동 · NPC에게 부딪히거나 Space로 말 걸기 · 위쪽 문으로 들어가면 시작 · 숫자 1~6 바로 열기 · Esc 타이틀"),
+                15, FontStyle.Normal, new Color(0.85f, 0.85f, 0.9f), -330f, 980f);
+            hint.rectTransform.sizeDelta = new Vector2(980f, 36f);
         }
 
-        /// <summary>허브 카드(250x100) - 왼쪽에 22x22 도트 아이콘(4배), 오른쪽에 두 줄 글자(제목 크게 + 설명). 아이콘이 없으면 글자만 가운데.</summary>
-        private Text CreateHubCard(Transform view, string goName, Color color, float y, float x, string iconName, string content, Action onClick)
+        /// <summary>로비 방에 NPC 6명을 세운다(예전 허브 카드 6개와 같은 기능·같은 숫자키).</summary>
+        private void BuildLobbyRoom()
         {
-            var card = CreateButton(view, goName, color, y, 250f, 100f, out var label, content, 15, Color.white, onClick, x);
-            label.supportRichText = true;
-            var icon = Resources.Load<Sprite>($"UI/Lobby/{iconName}");
-            if (icon == null)
-            {
-                label.rectTransform.sizeDelta = new Vector2(230f, 90f);
-                return label;
-            }
-            var iconGo = new GameObject("Icon", typeof(RectTransform));
-            iconGo.transform.SetParent(card, false);
-            iconGo.AddComponent<Image>().sprite = icon;
-            var iconRect = iconGo.GetComponent<RectTransform>();
-            iconRect.sizeDelta = new Vector2(icon.rect.width, icon.rect.height) * PixelScale;
-            iconRect.anchoredPosition = new Vector2(-72f, 0f);
-            label.rectTransform.sizeDelta = new Vector2(160f, 90f);
-            label.rectTransform.anchoredPosition = new Vector2(40f, 0f);
-            return label;
+            _room = LobbyRoom.Create(StartRun, Loc.F("스테이지 {0} 시작", StageProgress.CurrentStage));
+            const int left = 1, right = LobbyRoom.Width - 2, top = LobbyRoom.Height - 2, upper = top - 2, lower = top - 5;
+            _room.AddNpc("LobbyGacha", new Vector2Int(left, upper), () => Loc.T("[1] 보물 상인"), () => string.Empty, () => ShowView(LobbyView.Gacha));
+            _room.AddNpc("LobbyAlchemist", new Vector2Int(left, lower), () => Loc.T("[2] 연금술사"), () => string.Empty, () => ShowView(LobbyView.Potion));
+            _room.AddNpc("LobbyGambler", new Vector2Int(right, upper), () => Loc.T("[3] 도박꾼"), () => string.Empty, () => ShowView(LobbyView.Casino));
+            _room.AddNpc("LobbyTimeKeeper", new Vector2Int(LobbyRoom.DoorCell.x - 3, top), () => $"[4] {LobbyGuide.Name}", GuideBadge, LobbyGuide.Talk);
+            _room.AddNpc("LobbyChronicler", new Vector2Int(LobbyRoom.DoorCell.x + 3, top), () => Loc.T("[5] 기록관"),
+                () => $"<color=#FFD966>{Achievements.UnlockedCount} / {Achievements.All.Length}</color>", () => _achievementPanel.Open());
+            _room.AddNpc("LobbyScholar", new Vector2Int(right, lower), () => Loc.T("[6] 도감 학자"),
+                () => $"<color=#B9A0FF>{Codex.FoundCount()} / {Codex.TotalCount()}</color>", () => _codexPanel.Open());
+            _room.Build();
         }
 
-        private Text _guideButtonText;
-        private int _guidePendingShown = -1;
-
-        private Text _achievementButtonText;
-        private Text _codexButtonText;
-
-        private void RefreshGuideButton()
+        /// <summary>노인 머리 위 - 받을 의뢰 보상이 있으면 노란 글씨, 회차 특별 대사가 있으면 "!".</summary>
+        private static string GuideBadge()
         {
-            SetIfChanged(_achievementButtonText, $"<size=20><b>{Loc.T("[5] 업적·칭호")}</b></size>\n<color=#FFD966>{Achievements.UnlockedCount} / {Achievements.All.Length}</color>");
-            SetIfChanged(_codexButtonText, $"<size=20><b>{Loc.T("[6] 도감")}</b></size>\n<color=#B9A0FF>{Codex.FoundCount()} / {Codex.TotalCount()}</color>");
-
             var pending = LobbyQuests.PendingCount;
-            var hasWord = LobbyGuide.HasSomethingToSay; // 회차 특별 대사가 기다리고 있으면 "!"
-            var key = pending * 2 + (hasWord ? 1 : 0);
-            if (key == _guidePendingShown)
-                return;
-            _guidePendingShown = key;
-            var desc = pending > 0 ? $"<color=#FFD966>{Loc.F("보상 {0}개 받기", pending)}</color>"
-                : hasWord ? $"<color=#B9A0FF>{Loc.T("할 이야기가 있다(!)")}</color>"
-                : Loc.T("이야기·조언·의뢰");
-            _guideButtonText.text = $"<size=20><b>[4] {LobbyGuide.Name}</b></size>\n{desc}";
+            if (pending > 0)
+                return $"<color=#FFD966>{Loc.F("보상 {0}개 받기", pending)}</color>";
+            return LobbyGuide.HasSomethingToSay ? "<color=#B9A0FF>!</color>" : string.Empty;
         }
 
-        private static void SetIfChanged(Text text, string value)
-        {
-            if (text.text != value)
-                text.text = value;
-        }
+        private LobbyRoom _room;
 
         private void BuildGachaView(Transform parent)
         {
             var view = CreateView(parent, LobbyView.Gacha);
 
-            // 슬롯별 뽑기 버튼 3개를 한 줄로(검/갑옷/반지) - 두 줄 텍스트라 버튼/라벨 높이를 키운다.
+            // 슬롯별 뽑기 버튼 3개를 한 줄로(검/갑옷/반지) - 확률표를 창으로 빼면서 아래가 비어 크고 널널하게(사용자 요청).
             foreach (ItemSlot slot in Enum.GetValues(typeof(ItemSlot)))
             {
-                var x = ((int)slot - 1) * 200f;
+                var x = ((int)slot - 1) * 265f;
                 var captured = slot;
-                CreateButton(view, $"Gacha{slot}Button", ButtonColor, 50f, 190f, 50f,
-                    out var label, string.Empty, 14, Color.white, () => DoGachaPull(captured), x);
-                label.rectTransform.sizeDelta = new Vector2(180f, 46f);
+                CreateButton(view, $"Gacha{slot}Button", ButtonColor, 20f, 245f, 84f,
+                    out var label, string.Empty, 17, Color.white, () => DoGachaPull(captured), x);
+                label.rectTransform.sizeDelta = new Vector2(225f, 74f);
                 _gachaButtonTexts[slot] = label;
 
                 // 바로 아래 10연차 버튼
-                CreateButton(view, $"Gacha{slot}MultiButton", new Color(0.35f, 0.3f, 0.45f), 2f, 190f, 34f,
-                    out var multiLabel, string.Empty, 14, Color.white, () => DoGachaMultiPull(captured), x);
+                CreateButton(view, $"Gacha{slot}MultiButton", new Color(0.35f, 0.3f, 0.45f), -56f, 245f, 50f,
+                    out var multiLabel, string.Empty, 16, Color.white, () => DoGachaMultiPull(captured), x);
                 _gachaMultiButtonTexts[slot] = multiLabel;
             }
 
-            CreatePanel(view, 0f, -148f, 300f, 256f);
-            BuildChanceTable(view);
+            // 등급 확률표는 바로 보여주지 않고 버튼으로 여는 창(사용자 요청) - 어둡게 덮고 가운데에 표, 닫기 버튼·P·Esc로 닫음
+            CreateButton(view, "ChanceButton", new Color(0.3f, 0.3f, 0.36f), -150f, 260f, 44f,
+                out _, Loc.T("[P] 등급 확률 보기"), 16, Color.white, () => SetChanceOpen(true));
             CreateBackButton(view);
+
+            _chanceGroup = CreateGroup(view, "ChanceGroup");
+            var dim = _chanceGroup.AddComponent<Image>();
+            dim.color = new Color(0f, 0f, 0f, 0.65f);
+            CreatePanel(_chanceGroup.transform, 0f, 0f, 320f, 290f);
+            BuildChanceTable(_chanceGroup.transform, -6f);
+            CreateButton(_chanceGroup.transform, "ChanceCloseButton", ButtonLockedColor, -178f, 180f, 38f,
+                out _, Loc.T("[P / Esc] 닫기"), 15, Color.white, () => SetChanceOpen(false));
+            _chanceGroup.SetActive(false);
+        }
+
+        private GameObject _chanceGroup;
+        private bool ChanceOpen => _chanceGroup != null && _chanceGroup.activeSelf;
+
+        private void SetChanceOpen(bool open)
+        {
+            if (_chanceGroup != null)
+                _chanceGroup.SetActive(open);
         }
 
         private void BuildPotionView(Transform parent)
         {
             var view = CreateView(parent, LobbyView.Potion);
 
-            CreateButton(view, "AttackPotionButton", ButtonColor, 20f, 480f, 38f,
-                out _attackButtonText, string.Empty, 17, Color.white, () => DoPotionBuy(PotionType.Attack, Loc.T("공격력")));
-
-            CreateButton(view, "HealthPotionButton", ButtonColor, -25f, 480f, 38f,
-                out _healthButtonText, string.Empty, 17, Color.white, () => DoPotionBuy(PotionType.Health, Loc.T("체력")));
-
-            var criticalRect = CreateButton(view, "CriticalPotionButton", ButtonColor, -70f, 480f, 38f,
-                out _criticalButtonText, string.Empty, 17, Color.white, () => DoPotionBuy(PotionType.Critical, Loc.T("치명타")));
+            // 영약마다 왼쪽에 병 그림(UI/Icons/Potion_*, 32x32 → 2배) + 오른쪽에 설명 - 10-14 영약 그림 추가로 버튼을 키움
+            PotionButton(view, "AttackPotionButton", -10f, "Potion_Attack", out _attackButtonText, () => DoPotionBuy(PotionType.Attack, Loc.T("공격력")));
+            PotionButton(view, "HealthPotionButton", -95f, "Potion_Health", out _healthButtonText, () => DoPotionBuy(PotionType.Health, Loc.T("체력")));
+            var criticalRect = PotionButton(view, "CriticalPotionButton", -180f, "Potion_Critical", out _criticalButtonText,
+                () => DoPotionBuy(PotionType.Critical, Loc.T("치명타")), out _criticalIcon);
             _criticalButtonImage = criticalRect.GetComponent<Image>();
 
             CreateBackButton(view);
+        }
+
+        private Image _criticalIcon;
+
+        private RectTransform PotionButton(Transform view, string goName, float y, string icon, out Text label, Action onClick) =>
+            PotionButton(view, goName, y, icon, out label, onClick, out _);
+
+        private RectTransform PotionButton(Transform view, string goName, float y, string icon, out Text label, Action onClick, out Image iconImage)
+        {
+            const float width = 560f, height = 76f;
+            var rect = CreateButton(view, goName, ButtonColor, y, width, height, out label, string.Empty, 18, Color.white, onClick);
+            iconImage = null;
+            var sprite = PixelUi.Icon(icon);
+            if (sprite == null)
+                return rect; // 그림이 없으면 예전처럼 글자만
+            var go = new GameObject("Icon", typeof(RectTransform));
+            go.transform.SetParent(rect, false);
+            iconImage = go.AddComponent<Image>();
+            iconImage.sprite = sprite;
+            var iconRect = go.GetComponent<RectTransform>();
+            iconRect.sizeDelta = new Vector2(sprite.rect.width, sprite.rect.height) * 2f;
+            iconRect.anchoredPosition = new Vector2(-width / 2f + 44f, 0f);
+            label.rectTransform.sizeDelta = new Vector2(width - 110f, height - 8f);
+            label.rectTransform.anchoredPosition = new Vector2(36f, 0f);
+            return rect;
         }
 
         private void BuildCasinoView(Transform parent)
@@ -831,11 +858,10 @@ namespace LoopRogue
         }
 
         /// <summary>등급 확률표 - 뽑기 버튼 아래에 등급 이름 열 + 검/갑옷/반지 열. 값은 RefreshGachaDisplay가 채운다.</summary>
-        private void BuildChanceTable(Transform parent)
+        private void BuildChanceTable(Transform parent, float tableY)
         {
             const float tableX = 0f;
             const float columnWidth = 66f;
-            const float tableY = -160f;
             var grades = ((ItemGrade[])Enum.GetValues(typeof(ItemGrade))).Where(g => g <= ItemGrade.Eternal).ToArray(); // Unknown은 뽑기로 안 나온다
             var height = (grades.Length + 2) * 19f;
 
