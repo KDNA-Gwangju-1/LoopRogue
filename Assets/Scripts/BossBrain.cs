@@ -14,6 +14,7 @@ namespace LoopRogue
         SnipeFollowUp, // 저격 2발 - 그때 플레이어 자리의 상하좌우 4칸(마름모, 가운데는 안전 → 대기하면 피함)
         Diagonal, // X자 - 플레이어 자리 기준 대각선 4줄(저격처럼 조준)
         MirrorShards, // 거울 파편(10층 거울 가면 기사 본모습 전용) - 4번의 공격 칸을 한꺼번에 예고(칸마다 몇 번째인지 숫자)하고 보스 턴마다 하나씩 터뜨림
+        RingInverse, // 역파동(5층 전용) - 파동과 반대로 거리 2·4·6…(짝수)을 친다. 바로 옆과 홀수 거리가 안전
     }
 
     /// <summary>스테이지 보스의 예고 공격 - 몇 턴마다 공격할 칸을 빨갛게 예고하고(그 턴은 안 움직임), 다음 턴에
@@ -197,7 +198,7 @@ namespace LoopRogue
             2 => new List<BossPatternType> { BossPatternType.Slam },
             3 => new List<BossPatternType> { BossPatternType.Cross },
             4 => new List<BossPatternType> { BossPatternType.Summon, BossPatternType.Slam },
-            5 => new List<BossPatternType> { BossPatternType.Ring },
+            5 => new List<BossPatternType> { BossPatternType.Ring, BossPatternType.RingInverse }, // 10-14 사용자 "패턴을 여러 개로, 범위도 크게" - 번갈아
             6 => new List<BossPatternType> { BossPatternType.Snipe },
             7 => new List<BossPatternType> { BossPatternType.Diagonal },
             8 => new List<BossPatternType> { BossPatternType.Charge, BossPatternType.Slam },
@@ -217,6 +218,7 @@ namespace LoopRogue
             BossPatternType.Cross => Loc.T("십자 베기"),
             BossPatternType.Summon => Loc.T("소환"),
             BossPatternType.Ring => Loc.T("파동"),
+            BossPatternType.RingInverse => Loc.T("역파동"),
             BossPatternType.Snipe => Loc.T("저격"),
             BossPatternType.SnipeFollowUp => Loc.T("저격(2발)"),
             BossPatternType.MirrorShards => Loc.T("거울 파편"),
@@ -482,7 +484,7 @@ namespace LoopRogue
             {
                 if (_stage == 4 && type == BossPatternType.Slam)
                     room.OnSlimeSlam(_pendingTiles);
-                else if (_stage == 5 && type == BossPatternType.Ring)
+                else if (_stage == 5 && (type == BossPatternType.Ring || type == BossPatternType.RingInverse))
                     room.OnSporeRing(_pendingTiles, _pendingTiles.Contains(player.GridPos)); // 감염으로 죽으면 몹 턴 루프가 사망 처리
                 else if (_stage == 6 && (type == BossPatternType.Snipe || type == BossPatternType.SnipeFollowUp))
                     room.OnSnipeTiles(_pendingTiles);
@@ -533,6 +535,19 @@ namespace LoopRogue
             }
         }
 
+        /// <summary>보스 몸 가장자리에서 거리 1~maxR 중 홀수(odd) 또는 짝수 거리 고리 칸.</summary>
+        private void AddRings(GridMap map, Vector2Int origin, int body, int maxR, bool odd)
+        {
+            var reach = Mathf.Min(maxR, Mathf.Max(map.Width, map.Height)) + body;
+            for (var dx = -reach; dx <= reach; dx++)
+            for (var dy = -reach; dy <= reach; dy++)
+            {
+                var r = Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) - body; // 몸 가장자리 기준 거리
+                if (r >= 1 && r <= maxR && (r % 2 == 1) == odd)
+                    AddTile(map, origin + new Vector2Int(dx, dy));
+            }
+        }
+
         private void ComputeTiles(BossPatternType type, PlayerActor player, GridMap map)
         {
             _pendingTiles.Clear();
@@ -561,13 +576,13 @@ namespace LoopRogue
                     // 거리 1과 3을 치고 그 사이 거리 2는 안전 - 보스 옆에서 때리다 예고가 뜨면 한 칸 물러나서 피한다.
                     // 예전(거리 2~3, 바로 옆 안전)은 옆에 붙어 계속 때리면 절대 안 맞아서 패턴이 보스의 공격 턴만 버리게
                     // 만들었다(봇 100판: 5층 81판 무사망). 1~2칸 전부 치면 예고 후 한 칸 이동으로는 못 빠져나간다.
-                    for (var dx = -3 - body; dx <= 3 + body; dx++)
-                    for (var dy = -3 - body; dy <= 3 + body; dy++)
-                    {
-                        var r = Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) - body; // 몸 가장자리 기준 거리
-                        if (r == 1 || r == 3)
-                            AddTile(map, origin + new Vector2Int(dx, dy));
-                    }
+                    // 5층 버섯 군주는 방 끝까지 홀수 거리 전부(1·3·5…) - 멀리 도망가서 피하는 길을 막는다(10-14 사용자 "범위를 키우자").
+                    // 10층 거울 가면 기사가 빌려 쓸 땐 예전처럼 1과 3만.
+                    AddRings(map, origin, body, _stage == 5 ? 99 : 3, odd: true);
+                    break;
+                case BossPatternType.RingInverse:
+                    // 역파동 - 짝수 거리(2·4·6…). 파동을 피하던 거리 2가 이번엔 위험, 보스 바로 옆이 안전
+                    AddRings(map, origin, body, 99, odd: false);
                     break;
                 case BossPatternType.Cross:
                     // 몸 폭만큼의 띠(3x3이면 3줄) - 가운데 한 줄만 치면 몸 옆 가장자리 칸에 붙어 계속 때려도 절대 안 맞았다

@@ -78,6 +78,7 @@ W/S·마우스: 고르기   Enter·클릭: 칭호 장착/해제 (달성한 업�
 십자 베기	Cross Slash
 소환	Summon
 파동	Shockwave
+역파동	Reverse Shockwave
 저격	Snipe
 저격(2발)	Double Snipe
 X자 베기	X Slash
@@ -112,7 +113,7 @@ X자 베기	X Slash
 몽둥이로 자기 주변 3x3을 내려찍는다. 예고가 뜨면 한 칸 더 떨어지자.	Smashes the 3x3 around itself with its club. When the warning appears, step one tile farther away.
 땅을 쳐서 자기 가로줄과 세로줄 전체를 가른다. 골렘과 같은 줄에 서지 말고 대각선 쪽에 붙자.	Strikes the ground, splitting its entire row and column. Don't share a line with the golem; stick to its diagonals.
 예고 없이 붉은 슬라임 졸개를 부르고(최대 2마리), 번갈아 주변 3x3을 짓누른다. 졸개부터 정리하자.	Summons red slime minions without warning (max 2) and alternately crushes the 3x3 around it. Clear the minions first.
-포자 파동이 군주에게서 1칸, 3칸 떨어진 고리를 덮친다. 딱 2칸 떨어진 고리가 안전하다. 박자가 빠르다.	Spore waves hit the rings 1 and 3 tiles from the Lord. The ring exactly 2 tiles away is safe. Fast tempo.
+포자 파동(군주에게서 1·3·5…칸 고리)과 역파동(2·4·6…칸 고리)을 번갈아 방 끝까지 퍼뜨린다. 예고를 보고 한 칸 비키자. 박자가 빠르다.	Alternates spore waves (rings 1·3·5… tiles from the Lord) and reverse waves (rings 2·4·6…) that reach the far walls. Watch the warning and step one tile aside. Fast tempo.
 두 발 연속 저격. 1발은 플레이어 자리와 대각선 4칸(X자) - 상하좌우로 한 칸 움직여 피한다. 2발은 그 자리의 상하좌우 4칸 - 제자리에서 대기하면 피한다.	Two consecutive snipes. Shot 1 hits the 4 diagonal tiles around you (X shape) - dodge by moving one tile orthogonally. Shot 2 hits the 4 orthogonal tiles around that spot - dodge by waiting in place.
 쌍단검으로 플레이어 자리를 기준으로 대각선 4줄을 벤다. 상하좌우로 비켜서 대각선에서 벗어나자.	Twin daggers slash 4 diagonal lines centered on you. Step orthogonally to get off the diagonals.
 돌진과 도끼 내려찍기(주변 3x3)를 번갈아 쓴다. 돌진 뒤 비틀거릴 때가 기회.	Alternates charges and axe smashes (surrounding 3x3). Its stagger after a charge is your chance.

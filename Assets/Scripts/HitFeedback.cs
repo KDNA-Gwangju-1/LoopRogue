@@ -151,6 +151,7 @@ namespace LoopRogue
                 BossPatternType.Charge => "boss_charge",
                 BossPatternType.Cross => "boss_cross",
                 BossPatternType.Ring => "boss_ring",
+                BossPatternType.RingInverse => "boss_ring",
                 BossPatternType.Snipe => "boss_snipe",
                 BossPatternType.SnipeFollowUp => "boss_snipe",
                 BossPatternType.Diagonal => "boss_diag",
