@@ -126,6 +126,8 @@ namespace LoopRogue
         /// <summary>남은 기절 턴(섬광탄/연막탄/덫) - 그동안 아무 행동도 안 한다.</summary>
         public int StunTurns { get; private set; }
         public void Stun(int turns) => StunTurns = Mathf.Max(StunTurns, turns);
+        /// <summary>섬광탄·덫 같은 몹 기절 + 보스 패턴 기절(돌진 뒤 비틀거림, 기둥·용암 충돌) - 머리 위 기절 별 표시용.</summary>
+        public bool IsStunned => StunTurns > 0 || (_brain != null && _brain.IsStunned);
 
         /// <summary>연막 속 - 플레이어가 공격할 때까지(PlayerActor.BreakSmoke) 플레이어를 못 찾아 아무것도 안 한다.</summary>
         public bool InSmoke { get; private set; }
@@ -145,7 +147,7 @@ namespace LoopRogue
                 _vulnerableUntil = Mathf.Max(_vulnerableUntil, Time.time + ItemInfo.WeaknessSeconds);
         }
 
-        public float DamageTakenMultiplier => (IsVulnerable ? ItemInfo.WeaknessDamageMultiplier : 1f)
+        public float DamageTakenMultiplier => IsShadowClone ? 0f : (IsVulnerable ? ItemInfo.WeaknessDamageMultiplier : 1f)
                                              * (_brain != null ? _brain.ArmorMultiplier(_turnRoom) : 1f); // 1층 멧돼지 기둥 - 단단함
 
         /// <summary>섬광탄 - 보스가 예고해둔 공격을 취소한다.</summary>
@@ -164,6 +166,16 @@ namespace LoopRogue
         public const int BossFootprintRadius = 1;
         public override int FootprintRadius => IsBoss ? BossFootprintRadius : 0;
         public bool IsMinion { get; private set; } // 보스가 소환한 졸개 - 골드/경험치 없음, 보스가 죽으면 같이 사라짐
+        /// <summary>7층 그림자 분신 - 칼이 안 통하고(받는 피해 0), 암살자의 X자 베기에만 사라진다(RoomController.OnDiagonalTiles).</summary>
+        public bool IsShadowClone { get; private set; }
+
+        public void MarkAsShadowClone()
+        {
+            IsShadowClone = true;
+            var renderer = GetComponent<SpriteRenderer>();
+            if (renderer != null)
+                renderer.color = new Color(0.35f, 0.25f, 0.5f, 0.7f); // 어두운 반투명 그림자
+        }
         public EnemyKind Kind { get; private set; }
 
         private BossBrain _brain;
@@ -253,6 +265,9 @@ namespace LoopRogue
             : Loc.F("{0}층 보스 · {1}", _bossStage, BossBrain.BossName(_bossStage));
 
         /// <summary>보스 전용 - 스테이지별 예고 공격 패턴을 붙이고 그 층 보스 그림(Resources/Sprites/Boss{층})을 입힌다.</summary>
+        /// <summary>보스 러시 - 입장하자마자 기믹 시작(체력은 이미 기믹 체력으로 깎아 둠).</summary>
+        public void StartGimmickNow(RoomController room) => _brain?.TryStartGimmick(room);
+
         public void SetupBossPatterns(List<BossPatternType> patterns, int stage)
         {
             _brain = new BossBrain(this, patterns, stage);
@@ -631,6 +646,8 @@ namespace LoopRogue
             // 미끼가 있으면 플레이어 대신 미끼를 노린다(보스 예고 패턴만은 플레이어 기준 그대로).
             _decoyTarget = room.ActiveDecoy;
             _tp = _decoyTarget != null ? _decoyTarget.GridPos : player.GridPos;
+            if (IsMinion && room.MinionTarget(this) is Vector2Int king)
+                _tp = king; // 4층 흡수 단계 - 졸개는 킹에게 기어간다
 
             // 보스는 예고/발동/소환 턴이면 그걸로 끝, 아니면 일반 근접 행동.
             if (_brain != null && _brain.TakePatternTurn(player, room))
@@ -1180,6 +1197,8 @@ namespace LoopRogue
         {
             if (IsAdjacentTo(_tp))
             {
+                if (IsBoss && _turnRoom != null && _turnRoom.BossInvulnerable)
+                    return; // 6·7·9층 무적 단계 - 따라다니며 패턴만 쓰고, 붙어서 때리지는 않는다(10-14 사용자)
                 HitTarget(player);
                 return;
             }

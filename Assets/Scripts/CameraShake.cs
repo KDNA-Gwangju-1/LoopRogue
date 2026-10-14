@@ -16,6 +16,7 @@ namespace LoopRogue
         private float _elapsed;
 
         private GridActor _follow;
+        private GridActor _focus; // 잠깐 다른 대상을 비춤(보스 기믹 컷신) - 없으면 _follow
         private Rect _bounds;
         private Vector3 _base;
         private Camera _camera;
@@ -52,6 +53,14 @@ namespace LoopRogue
             shake.transform.position = shake._base;
         }
 
+        /// <summary>컷신 동안 target을 비춘다(방 경계 제한은 그대로). null이면 다시 따라가던 대상으로 - 부드럽게 넘어간다.</summary>
+        public static void Focus(GridActor target)
+        {
+            var shake = Get(Camera.main);
+            if (shake != null)
+                shake._focus = target;
+        }
+
         private static CameraShake Get(Camera cam)
         {
             if (cam == null)
@@ -69,7 +78,7 @@ namespace LoopRogue
         /// <summary>따라갈 목표 위치 - 대상 칸 위치를 방 경계 안으로(방이 화면보다 좁은 축은 가운데로).</summary>
         private Vector3 Goal()
         {
-            var target = _follow.GridWorldPosition;
+            var target = (_focus != null ? _focus : _follow).GridWorldPosition;
             var halfHeight = _camera != null ? _camera.orthographicSize : 0f;
             var halfWidth = _camera != null ? halfHeight * _camera.aspect : 0f;
             var x = ClampAxis(target.x, _bounds.xMin, _bounds.xMax, halfWidth);

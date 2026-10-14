@@ -117,7 +117,7 @@ namespace LoopRogue
         private static readonly string[] CardPriority =
         {
             "공격력 강화", "흡혈", "체력 강화", "[도박] 광폭화", "날카로움", "처치 회복", "힘", "체력",
-            "균형 성장", "재생", "학습", "수집", "방어", "[도박] 철갑", "[도박] 황금 욕심", "완전 회복",
+            "균형 성장", "수호막", "학습", "수집", "방어", "[도박] 철갑", "[도박] 황금 욕심", "완전 회복",
         };
 
         /// <summary>한 판의 결과 - 스테이지 배열은 인덱스 0 = 스테이지 1, 클리어 못 한 스테이지는 -1.</summary>
@@ -163,7 +163,11 @@ namespace LoopRogue
             public int Knights, KnightKills, KnightReads, KnightSlashes, KnightSlashHits, RelicReads; // 히든 몹 기억하는 기사: 등장, 처치, 간파, 강타(적중), 유물 "기사의 기억"으로 피함
             public int KnightEchoes, KnightEchoHits; // 기억 재현(적중)
             public int OgreFalls, PlayerCracks; // 2층 오우거 균열 - 오우거가 빠진 횟수 / 봇이 빠진 횟수
-            public int GolemResonances; // 3층 골렘 수정 공명 횟수
+            public int GolemCrystalBreaks, GolemBlastKills, GolemRubbleBreaks; // 3층 수정 깸 / 수정 폭발 즉사 / 폭발에 깨진 바위
+            public int BoarCrashes;     // 1층 멧돼지가 기둥에 박은 횟수
+            public int BoarDeadlineKills; // 1층 기둥 제한 턴 즉사
+            public int OgreHoleFills, OgreCollapseKills; // 2층 구멍 메움 / 붕괴 즉사
+            public int[] GimmickKills = new int[11];      // 4~9층 기믹 즉사(인덱스 = 층)
             public int SmithsMet;    // 히든 NPC 대장장이를 만난 횟수
             public bool SmithForged; // Unknown 세트를 받았는지
             public int SmithForgeStage; // 받은 층
@@ -462,7 +466,14 @@ namespace LoopRogue
             RoomController.KnightKillCount = 0;
             CharacterStats.KnightMemoryReadCount = 0;
             RoomController.OgreFallCount = 0;
-            BossBrain.GolemResonanceCount = 0;
+            RoomController.GolemCrystalBreakCount = 0;
+            RoomController.GolemBlastKillCount = 0;
+            RoomController.GolemRubbleBreakCount = 0;
+            BossBrain.BoarCrashCount = 0;
+            RoomController.BoarDeadlineKillCount = 0;
+            RoomController.OgreHoleFillCount = 0;
+            RoomController.OgreCollapseKillCount = 0;
+            System.Array.Clear(RoomController.GimmickKills, 0, RoomController.GimmickKills.Length);
             RoomController.PlayerCrackCount = 0;
             RoomController.SplitCount = 0;
             RoomController.PuzzleClearCount = 0;
@@ -521,7 +532,7 @@ namespace LoopRogue
                 yield return ($"LoopRogue_GachaPulls_{slot}", false);
             }
             foreach (var k in new[] { "AttackPower", "MaxHealth", "CurrentHealth", "CriticalChance", "PermAttack", "PermHealth", "PermCritical",
-                         "DamageReduction", "LifeSteal", "Regen", "KillHeal", "ExpBonus", "GoldBonus" })
+                         "DamageReduction", "LifeSteal", "RoomShield", "KillHeal", "ExpBonus", "GoldBonus" })
                 yield return ("LoopRogue_Run_" + k, true);
         }
 
@@ -944,8 +955,29 @@ namespace LoopRogue
             Application.runInBackground = _savedRunInBackground;
             UnityEditor.EditorPrefs.SetBool(EnabledPrefKey, false);
             UnityEditor.EditorPrefs.SetString(ModePrefKey, "");
-            Destroy(gameObject); // OnDestroy가 연출 억제(DamagePopup.Suppressed)·봇 표시를 끈다
+            // 봇 표시를 지금 바로 끈다(OnDestroy는 프레임 끝) - 아래에서 새로 까는 보스방이 사람용으로 지어지게
+            DamagePopup.Suppressed = false;
+            Loc.ForceKorean = false;
+            GameHUD.AutoPlayActive = false;
+            LoopManager.SkipLobbyAfterStageClear = false;
+            Destroy(gameObject);
+
+            // 봇이 지나간 방은 카메라가 꺼진 채(Camera.main == null) 깔려서 카메라 따라가기가 없고 바닥도 단색이다 → 그 방에 두면
+            // 플레이어가 화면 밖이라 안 보이고 조작도 안 되는 것처럼 보였다(10-14 사용자). 출구를 밟은 것처럼 보스방을 새로 깔아 넘긴다.
+            if (_handoff && _room != null && !_room.IsBossRoom)
+                _room.Loop?.AdvanceToNextRoom();
             _room?.ShowMessage($"봇 인계: {reason}");
+
+            // 메뉴로 시작하면 키보드 포커스가 Game 창이 아닌 채로 남아 인계 뒤 키가 안 먹을 수 있다(10-14 사용자) - Game 창에 포커스.
+            UnityEditor.EditorApplication.ExecuteMenuItem("Window/General/Game");
+            // 그래도 안 움직이면 원인을 바로 보게 - 플레이어 행동 조건(CanAct)을 하나씩 남긴다.
+            if (_player != null)
+            {
+                var state = $"CanAct={_player.CanAct} | 입력잠금={_room?.IsInputLocked} 레벨업선택중={_player.Levels?.IsChoosingUpgrade} 사망={_player.Stats?.IsDead} " +
+                            $"일시정지={PauseMenu.BlocksInput} 인벤토리={InventoryUI.IsOpen} 대화창={NpcDialogUI.BlocksInput}";
+                Log($"인계 직후 상태: {state}");
+                Debug.Log($"[AutoPlayBot] 인계 직후 상태: {state}");
+            }
         }
 
         /// <summary>한 번의 판단/행동. 계속 진행해도 되면 true, 이번 프레임은 그만(씬 전환 등)이면 false.</summary>
@@ -1029,7 +1061,7 @@ namespace LoopRogue
             if (_handoff && _clearedCurrentRoom && !_room.IsBossRoom && StageProgress.CurrentStage == _handoffStage
                 && _room.RoomName != null && _room.RoomName.EndsWith("-10"))
             {
-                HandOff($"{_handoffStage}층 방10 클리어 - 출구로 가면 {BossBrain.BossName(_handoffStage)} 보스방");
+                HandOff($"{_handoffStage}층 방10 클리어 - {BossBrain.BossName(_handoffStage)} 보스방 입구에서 시작");
                 return false;
             }
 
@@ -1380,7 +1412,9 @@ namespace LoopRogue
                 return true;
             }
 
-            if (_player.DashCooldown == 0 && !Directions.Any(d => map.GetActorAt(start + d) is EnemyActor))
+            // 1층 멧돼지 기둥 단계엔 대시로 뛰어들지 않는다(기둥 뒤에서 돌진을 기다리는 중 - TryBoarLure)
+            var luringBoar = (_room.Stage == 1 && _room.BoarPillarCount > 0) || (_room.GimmickStage >= 6 && _room.GimmickStage <= 9 && (_room.BossInvulnerable || _room.LavaCracks.Count > 0));
+            if (!luringBoar && _player.DashCooldown == 0 && !Directions.Any(d => map.GetActorAt(start + d) is EnemyActor))
             {
                 foreach (var d in Directions)
                 {
@@ -1512,6 +1546,15 @@ namespace LoopRogue
                     return safest.Value;
                 }
             }
+
+            if (TryHandleGolemCrystals(map, danger, out var crystalStep))
+                return crystalStep;
+            if (TryStageGimmick(map, danger, out var gimmickStep))
+                return gimmickStep;
+            if (TryFillOgreHole(map, danger, out var fill))
+                return fill;
+            if (TryBoarLure(map, danger, out var lure))
+                return lure;
 
             // 방패병: 정면(피해 20%)은 피하고 옆/뒤로 돌아 들어간다. 붙어 있는 동안 방패병은 못 돌기 때문에 옆에 붙기만 하면 된다.
             // 적 체력이 CrossfireGiveUpTurns턴 동안 안 줄면(돌아갈 자리가 없는 좁은 방 등) 그냥 정면을 때린다.
@@ -1682,6 +1725,300 @@ namespace LoopRogue
             }
             _lastDecision = "대기";
             return null;
+        }
+
+        private static readonly HashSet<Vector2Int> LureSpotsBuffer = new HashSet<Vector2Int>();
+
+        /// <summary>3층 골렘 수정 폭탄 - 붙어 있으면 깬다. 가장 급한 수정을 제때(걸음 + 깨는 1턴 <= 남은 턴) 깰 수 있으면 깨러 가고,
+        /// 못 깨면서 폭발 예고 칸 위면 예고 밖(바위 뒤)으로 피한다. 급하지 않으면 가까운 수정부터 깨러 간다. 처리했으면 true.</summary>
+        private bool TryHandleGolemCrystals(GridMap map, IReadOnlyCollection<Vector2Int> danger, out Vector2Int? dir)
+        {
+            dir = null;
+            var fuse = _room.GolemCrystalFuse;
+            if (fuse.Count == 0)
+                return false;
+            var start = _player.GridPos;
+            foreach (var d in Directions)
+            {
+                if (fuse.ContainsKey(start + d))
+                {
+                    _lastDecision = "수정 깨기";
+                    dir = d;
+                    return true;
+                }
+            }
+
+            // 플레이어에서 각 칸까지 걸음 수(BFS)
+            var dist = new Dictionary<Vector2Int, int> { [start] = 0 };
+            var queue = new Queue<Vector2Int>();
+            queue.Enqueue(start);
+            while (queue.Count > 0)
+            {
+                var c = queue.Dequeue();
+                foreach (var d in Directions)
+                {
+                    var n = c + d;
+                    if (dist.ContainsKey(n) || !map.IsWalkable(n))
+                        continue;
+                    dist[n] = dist[c] + 1;
+                    queue.Enqueue(n);
+                }
+            }
+            int StepsTo(Vector2Int crystal)
+            {
+                var best = int.MaxValue;
+                foreach (var d in Directions)
+                    if (dist.TryGetValue(crystal + d, out var s) && s < best)
+                        best = s;
+                return best;
+            }
+
+            Vector2Int? target = null;
+            var targetLeft = int.MaxValue;
+            foreach (var pair in fuse)
+            {
+                var steps = StepsTo(pair.Key);
+                if (steps == int.MaxValue || steps + 1 > pair.Value)
+                    continue; // 제때 못 깬다
+                if (pair.Value < targetLeft || (pair.Value == targetLeft && steps < StepsTo(target.Value)))
+                {
+                    target = pair.Key;
+                    targetLeft = pair.Value;
+                }
+            }
+            var mostUrgent = fuse.Values.Min();
+            var urgentUnreachable = fuse.Any(p => p.Value == mostUrgent && (StepsTo(p.Key) + 1 > p.Value));
+            if (urgentUnreachable && danger.Contains(start))
+            {
+                var hide = FirstStepTo(c => !danger.Contains(c), map.IsWalkable);
+                if (hide.HasValue)
+                {
+                    _lastDecision = "바위 뒤로";
+                    dir = hide;
+                    return true;
+                }
+            }
+            if (!target.HasValue)
+                return false;
+            var goal = target.Value;
+            var step = FirstStepTo(c => Directions.Any(d => c + d == goal), map.IsWalkable);
+            if (!step.HasValue)
+                return false;
+            _lastDecision = "수정으로";
+            dir = step;
+            return true;
+        }
+
+        /// <summary>2층 오우거 바닥 구멍 - 4개 이상 쌓였거나 붙어 있는 적이 없으면 가까운 구멍을 메우러 간다(붙어서 그쪽으로 움직이면 메움).
+        /// 처리했으면 true.</summary>
+        private bool TryFillOgreHole(GridMap map, IReadOnlyCollection<Vector2Int> danger, out Vector2Int? dir)
+        {
+            dir = null;
+            var holes = _room.OgreHoles;
+            if (holes.Count == 0)
+                return false;
+            var start = _player.GridPos;
+            var engaged = Directions.Any(d => map.GetActorAt(start + d) is EnemyActor);
+            if (holes.Count < 4 && engaged)
+                return false; // 급하지 않으면 붙은 적부터
+            foreach (var d in Directions)
+            {
+                if (holes.Contains(start + d))
+                {
+                    _lastDecision = "구멍 메우기";
+                    dir = d;
+                    return true;
+                }
+            }
+            var step = FirstStepTo(c => Directions.Any(d => holes.Contains(c + d)), c => map.IsWalkable(c) && !danger.Contains(c));
+            if (!step.HasValue)
+                return false;
+            _lastDecision = "구멍으로";
+            dir = step;
+            return true;
+        }
+
+        /// <summary>1층 멧돼지 기둥 단계 - 기둥이 서 있는 동안 멧돼지는 받는 피해 90% 감소라 때려 봐야 소용없다. 멧돼지 몸 폭 안에서 같은 줄에 있는
+        /// 기둥 바로 뒤(1~2칸)에 서서 돌진이 기둥에 박히게 유도한다(돌진 방향 = 예고 때 플레이어 쪽 주축, 기둥은 벽이라 예고도 기둥 앞에서 끊김).
+        /// 10-14 측정: 정면으로 때리다 1층 보스방 사망 12회(목표 3) - 사람은 패턴을 보고 하는 걸 봇도 하게.
+        /// 처리했으면 true(dir == null이면 그 자리에서 대기).</summary>
+        private bool TryBoarLure(GridMap map, IReadOnlyCollection<Vector2Int> danger, out Vector2Int? dir)
+        {
+            dir = null;
+            if (_room.Stage == 1 && _room.BoarPillarCount > 0)
+                return LureBehind(map, danger, _room.BoarPillars, "기둥", out dir);
+            if (_room.GimmickStage == 8 && _room.LavaCracks.Count >= 4)
+                return LureBehind(map, danger, _room.LavaCracks, "용암", out dir);  // 8층 - 균열이 쌓여 위험할 때만 돌진을 빠뜨린다(무적이 아니라 그 전엔 그냥 싸운다)
+            if (_room.GimmickStage == 9 && _room.LichJars.Count > 0)
+                return LureBehind(map, danger, _room.LichJars, "항아리", out dir); // 9층 - 리치가 따라와 같은 줄이 되면 십자 마법이 항아리를 깬다
+            return false;
+        }
+
+        /// <summary>보스 몸 폭 안 같은 줄에 있는 장애물 바로 뒤(1~2칸)에 서서 보스의 돌진·줄 공격이 장애물에 걸리게 한다(1층 기둥·8층 용암·9층 항아리).</summary>
+        // 유도하며 기다리는데 장애물 수가 오래 안 바뀌면(보스가 갇혀 못 오는 등) 잠깐 싸우러 간다
+        private int _lureIdleTurns, _lureLastCount = -1, _lureBreakTurns;
+        private const int LureIdleLimit = 30, LureBreakLength = 10;
+
+        private bool LureBehind(GridMap map, IReadOnlyCollection<Vector2Int> danger, IEnumerable<Vector2Int> obstacles, string what, out Vector2Int? dir)
+        {
+            dir = null;
+            var count = obstacles.Count();
+            if (count != _lureLastCount)
+            {
+                _lureLastCount = count;
+                _lureIdleTurns = 0;
+                _lureBreakTurns = 0;
+            }
+            if (_lureBreakTurns > 0)
+            {
+                _lureBreakTurns--;
+                return false; // 잠깐 평소처럼 싸운다
+            }
+            if (++_lureIdleTurns > LureIdleLimit)
+            {
+                _lureIdleTurns = 0;
+                _lureBreakTurns = LureBreakLength;
+                return false;
+            }
+            EnemyActor boar = null;
+            foreach (var e in _room.Enemies)
+                if (e != null && e.IsBoss && !e.Stats.IsDead)
+                    boar = e;
+            if (boar == null)
+                return false;
+
+            var center = boar.GridPos;
+            var r = boar.FootprintRadius;
+            var spots = LureSpotsBuffer;
+            spots.Clear();
+            foreach (var p in obstacles)
+            foreach (var d in Directions)
+            {
+                var rel = p - center;
+                var along = rel.x * d.x + rel.y * d.y;
+                var side = d.x != 0 ? rel.y : rel.x;
+                if (along < r + 1 || Mathf.Abs(side) > r)
+                    continue; // 기둥이 몸 앞쪽(그 방향)에 있고 몸 폭 안이어야 돌진 경로에 걸린다
+                for (var k = 1; k <= 2; k++)
+                {
+                    var t = p + d * k;
+                    if ((t == _player.GridPos || map.IsWalkable(t)) && !danger.Contains(t) && GridMap.FootprintDistance(boar, t) > 1)
+                        spots.Add(t);
+                }
+            }
+            var loose = false;
+            if (spots.Count == 0)
+            {
+                // 같은 줄에 걸린 장애물이 없다 - 장애물을 사이에 두고 보스 반대편(줄은 안 맞아도)에 서서 기다리면 보스가 따라오며 줄이 맞는다
+                // (10-14 봇: 9층 항아리가 리치와 다른 줄이면 숨을 자리를 못 찾아 무적 리치와 싸우다 판당 29.5번 죽었다)
+                loose = true;
+                foreach (var p in obstacles)
+                foreach (var d in Directions)
+                {
+                    var rel = p - center;
+                    if (rel.x * d.x + rel.y * d.y < r + 1)
+                        continue; // 보스에서 봤을 때 장애물이 그 방향 앞쪽
+                    for (var k = 1; k <= 2; k++)
+                    {
+                        var t = p + d * k;
+                        if ((t == _player.GridPos || map.IsWalkable(t)) && !danger.Contains(t) && GridMap.FootprintDistance(boar, t) > 1)
+                            spots.Add(t);
+                    }
+                }
+                if (spots.Count == 0)
+                    return false;
+            }
+            if (spots.Contains(_player.GridPos))
+            {
+                _lastDecision = loose ? $"{what} 건너편 대기" : $"{what} 뒤 대기";
+                return true;
+            }
+            var step = FirstStepTo(spots.Contains, c => map.IsWalkable(c) && !danger.Contains(c));
+            if (!step.HasValue)
+                return false;
+            _lastDecision = $"{what} 뒤로";
+            dir = step;
+            return true;
+        }
+
+        /// <summary>4~7층 기믹 - 4 졸개부터 잡기 / 5 감염이면 빛버섯 / 6 촛불 옆에 서서 저격 기다리기 / 7 분신과 대각선 줄에 서서 X자 베기 기다리기.
+        /// (8·9층은 TryBoarLure의 장애물 유도.) 처리했으면 true(dir == null이면 그 자리 대기).</summary>
+        private bool TryStageGimmick(GridMap map, IReadOnlyCollection<Vector2Int> danger, out Vector2Int? dir)
+        {
+            dir = null;
+            var start = _player.GridPos;
+            Func<Vector2Int, bool> passable = c => map.IsWalkable(c) && !danger.Contains(c);
+            switch (_room.GimmickStage)
+            {
+                case 4:
+                {
+                    var minions = _room.Enemies.Where(e => e != null && e.IsMinion && !e.Stats.IsDead).ToList();
+                    if (minions.Count == 0)
+                        return false;
+                    foreach (var d in Directions)
+                        if (minions.Any(m => m.GridPos == start + d))
+                        {
+                            _lastDecision = "졸개 먼저";
+                            dir = d;
+                            return true;
+                        }
+                    var step = FirstStepTo(c => minions.Any(m => Mathf.Abs(m.GridPos.x - c.x) + Mathf.Abs(m.GridPos.y - c.y) == 1), passable);
+                    if (!step.HasValue)
+                        return false;
+                    _lastDecision = "졸개에게";
+                    dir = step;
+                    return true;
+                }
+                case 5:
+                {
+                    if (_room.Infection == 0 || _room.Mushrooms.Count == 0)
+                        return false;
+                    var shrooms = _room.Mushrooms;
+                    var step = FirstStepTo(c => shrooms.Contains(c), c => shrooms.Contains(c) || passable(c));
+                    if (!step.HasValue)
+                        return false;
+                    _lastDecision = "빛버섯으로";
+                    dir = step;
+                    return true;
+                }
+                case 6:
+                {
+                    var candles = _room.Candles;
+                    if (candles.Count == 0)
+                        return false;
+                    bool NextToCandle(Vector2Int c) => !candles.Contains(c) && candles.Any(k => Mathf.Max(Mathf.Abs(k.x - c.x), Mathf.Abs(k.y - c.y)) == 1);
+                    if (NextToCandle(start))
+                    {
+                        _lastDecision = "촛불 옆 대기";
+                        return true;
+                    }
+                    var step = FirstStepTo(NextToCandle, passable);
+                    if (!step.HasValue)
+                        return false;
+                    _lastDecision = "촛불 옆으로";
+                    dir = step;
+                    return true;
+                }
+                case 7:
+                {
+                    var clones = _room.Clones.Where(c => c != null).Select(c => c.GridPos).ToList();
+                    if (clones.Count == 0)
+                        return false;
+                    bool OnDiagonal(Vector2Int c) => clones.Any(k => Mathf.Abs(k.x - c.x) == Mathf.Abs(k.y - c.y) && Mathf.Abs(k.x - c.x) >= 2);
+                    if (OnDiagonal(start))
+                    {
+                        _lastDecision = "분신 대각선 대기";
+                        return true;
+                    }
+                    var step = FirstStepTo(OnDiagonal, passable);
+                    if (!step.HasValue)
+                        return false;
+                    _lastDecision = "분신 대각선으로";
+                    dir = step;
+                    return true;
+                }
+            }
+            return false;
         }
 
         /// <summary>플레이어 칸에서 passable 칸만 밟는 BFS로, isGoal을 만족하는 가장 가까운 칸까지의 첫 걸음 방향.</summary>
@@ -1941,7 +2278,7 @@ namespace LoopRogue
         {
             var s = _player.Stats;
             return $"Lv{_player.Levels.Level} HP {s.CurrentHealth:0}/{s.MaxHealth:0} ATK {s.AttackPower:0.#} 치명 {s.CriticalChanceRate * 100f:0}%(배율 {s.CriticalDamageMultiplier * 100f:0}%) " +
-                   $"피감 {s.DamageReductionRate * 100f:0}% 흡혈 {s.LifeStealRate * 100f:0}% 재생 {s.RegenPerTurnRate * 100f:0.#}% 처치회복 {s.KillHealRate * 100f:0}% " +
+                   $"피감 {s.DamageReductionRate * 100f:0}% 흡혈 {s.LifeStealRate * 100f:0}% 수호막 {s.RoomShieldCardRate * 100f:0.#}% 처치회복 {s.KillHealRate * 100f:0}% " +
                    $"경험치+{s.EffectiveExpBonus * 100f:0}% 골드+{s.EffectiveGoldBonus * 100f:0}% | 골드 {GoldWallet.Gold}";
         }
 
@@ -2014,7 +2351,14 @@ namespace LoopRogue
             r.RelicReads = CharacterStats.KnightMemoryReadCount;
             r.SmithForged = Blacksmith.Current == Blacksmith.Stage.Done;
             r.OgreFalls = RoomController.OgreFallCount;
-            r.GolemResonances = BossBrain.GolemResonanceCount;
+            r.GolemCrystalBreaks = RoomController.GolemCrystalBreakCount;
+            r.GolemBlastKills = RoomController.GolemBlastKillCount;
+            r.GolemRubbleBreaks = RoomController.GolemRubbleBreakCount;
+            r.BoarCrashes = BossBrain.BoarCrashCount;
+            r.BoarDeadlineKills = RoomController.BoarDeadlineKillCount;
+            r.OgreHoleFills = RoomController.OgreHoleFillCount;
+            r.OgreCollapseKills = RoomController.OgreCollapseKillCount;
+            r.GimmickKills = (int[])RoomController.GimmickKills.Clone();
             r.PlayerCracks = RoomController.PlayerCrackCount;
             r.Splits = RoomController.SplitCount;
             r.Puzzles = RoomController.PuzzleClearCount;
@@ -2184,7 +2528,8 @@ namespace LoopRogue
                 Log($"히든 몹 기억하는 기사(판당): 등장 {_results.Average(r => r.Knights):0.00}회 / 처치 {_results.Average(r => r.KnightKills):0.00}회 / 간파 {_results.Average(r => r.KnightReads):0.0}회 / " +
                     $"강타 {_results.Average(r => r.KnightSlashes):0.0}회(적중 {(knightSlashes > 0 ? _results.Sum(r => r.KnightSlashHits) * 100f / knightSlashes : 0f):0}%) / 기억 재현 {_results.Average(r => r.KnightEchoes):0.0}회(적중 {(_results.Sum(r => r.KnightEchoes) > 0 ? _results.Sum(r => r.KnightEchoHits) * 100f / _results.Sum(r => r.KnightEchoes) : 0f):0}%) / 유물로 피함 {_results.Average(r => r.RelicReads):0.0}회 / " +
                     $"처치한 판 {_results.Count(r => r.KnightKills > 0)}/{_results.Count}");
-                Log($"2층 오우거 균열(판당): 오우거가 빠짐 {_results.Average(r => r.OgreFalls):0.0}회 / 봇이 빠짐 {_results.Average(r => r.PlayerCracks):0.0}회 | 3층 골렘 수정 공명 {_results.Average(r => r.GolemResonances):0.0}회");
+                Log($"2층 오우거 균열(판당): 오우거가 빠짐 {_results.Average(r => r.OgreFalls):0.0}회 / 봇이 빠짐 {_results.Average(r => r.PlayerCracks):0.0}회 | 3층 수정 깸 {_results.Average(r => r.GolemCrystalBreaks):0.0}회(폭발 즉사 {_results.Average(r => r.GolemBlastKills):0.0}회, 바위 깨짐 {_results.Average(r => r.GolemRubbleBreaks):0.0}개) | 1층 멧돼지 기둥 충돌 {_results.Average(r => r.BoarCrashes):0.0}회(제한 턴 즉사 {_results.Average(r => r.BoarDeadlineKills):0.0}회) | 2층 구멍 메움 {_results.Average(r => r.OgreHoleFills):0.0}회(붕괴 즉사 {_results.Average(r => r.OgreCollapseKills):0.0}회)");
+                Log("4~9층 기믹 즉사(판당): " + string.Join(" / ", Enumerable.Range(4, 6).Select(s => $"{s}층 {_results.Average(r => r.GimmickKills[s]):0.0}")));
                 var forged = _results.Where(r => r.SmithForged).ToList();
                 Log($"히든 NPC 대장장이(판당): 만남 {_results.Average(r => r.SmithsMet):0.00}회 / Unknown 세트 받은 판 {forged.Count}/{_results.Count}" +
                     (forged.Count > 0 ? $" (받은 층 평균 {forged.Average(r => r.SmithForgeStage):0.0})" : ""));

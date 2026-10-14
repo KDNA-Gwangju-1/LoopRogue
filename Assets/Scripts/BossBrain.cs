@@ -84,63 +84,51 @@ namespace LoopRogue
         // 체력이 OgreCrackHealthRatio 이하가 되면 강타가 내려찍은 테두리 칸 중 OgreCracksPerSlam칸에 균열을 남긴다(RoomController.AddOgreCracks).
         // 오우거가 밟으면 빠져서 기절, 플레이어가 밟으면 묶임 - 판정은 RoomController.CheckOgreCrack / CheckPlayerCrack.
         public const float OgreCrackHealthRatio = 0.5f;
+        /// <summary>10-14 봇: 균열 덕에 2층 보스방 사망 3.1→0.7(목표 3)로 너무 쉬워져서 일단 끔(사용자). 코드는 그대로 - true면 다시 켜짐.</summary>
+        public const bool OgreCracksEnabled = false;
+        // 10-14 새 기믹(사용자): 체력 OgreHoleHealthRatio 이하부터 강타가 던전을 흔들어 바닥에 구멍 OgreHolesMin~Max개(RoomController.OpenOgreHoles).
+        // 플레이어가 붙어서 메운다(한 턴). 열린 구멍이 RoomController.OgreHoleCollapseCount개면 즉사.
+        public const bool OgreHolesEnabled = true;
+        public const float OgreHoleHealthRatio = 0.5f;
+        // 10-14 사용자 "구멍 메우면서 잡는 게 가능한가, 두 개씩은 너무 많다" - 강타(4~5턴마다)에 2~3개면 메우러 다니는 턴이 모자라서 1개로.
+        public const int OgreHolesMin = 1, OgreHolesMax = 1;
+        private bool _holePhase;
         public const int OgreCracksPerSlam = 4;
         private bool _crackPhase;
         private bool IsOgre => _stage == 2;
 
         // ---- 3층 돌 골렘 기믹(사용자 구상 10-13) ----
-        // 체력 GolemCrystalHealthRatio: 바닥에 공명 수정 GolemCrystalCount개(RoomController.SpawnGolemCrystals, 벽 칸).
-        //   십자 베기 줄이 수정에 닿으면 수정 주변 3x3도 함께 예고되고, 발동 때 수정이 터져 골렘이 최대 체력 × CrystalGolemDamageRate(수정마다) + 1턴 경직.
-        // 체력 GolemRubbleHealthRatio: 수정을 GolemPhase3Crystals개까지 다시 채우고, 십자 베기가 지나간 줄에 돌무더기 GolemRubblePerCross개(벽 - 십자를 막는 엄폐물).
-        public const float GolemCrystalHealthRatio = 0.66f;
-        public const float GolemRubbleHealthRatio = 0.33f;
-        public const int GolemCrystalCount = 4;
-        public const int GolemPhase3Crystals = 3;
-        public const float CrystalGolemDamageRate = 0.1f;
+        // 10-14 사용자 설계: 체력 80/60/40/20%마다 수정 1/2/3/4개가 솟고(RoomController.SpawnGolemCrystals - 수정마다 12턴 뒤 방 전체 폭발 즉사,
+        // 붙어서 깨거나 바위 뒤에 숨는다) 바위가 (수정 수 + 1)개 떨어진다. 바위는 폭발에 맞으면 깨진다(한 번 숨겨 주면 사라짐).
+        // 3번째 물결(40%)부터는 십자 베기가 지나간 줄에도 바위 GolemRubblePerCross개.
+        private static readonly float[] GolemWaveHealth = { 0.8f, 0.6f, 0.4f, 0.2f };
         public const int GolemRubblePerCross = 3;
-        private int _golemPhase;
+        private const int GolemCrossRubbleWave = 3;
+        private int _golemPhase; // 지나간 물결 수(0~4)
         private bool _collectCrystals;
         private readonly List<Vector2Int> _resonating = new List<Vector2Int>();
         private RoomController _room;
         private bool IsGolem => _stage == 3;
 
-        /// <summary>봇 통계용 - 골렘 수정이 공명해 터진 횟수.</summary>
-        public static int GolemResonanceCount;
+        /// <summary>봇 통계용 - 1층 멧돼지가 돌진하다 기둥에 박은 횟수.</summary>
+        public static int BoarCrashCount;
 
-        /// <summary>십자 베기 발동 때 - 닿은 수정을 터뜨려 골렘을 다치게 한다. 그걸로 골렘이 죽었으면 true.</summary>
-        private bool ResolveGolemCrystals(RoomController room)
-        {
-            var exploded = 0;
-            foreach (var c in _resonating)
-            {
-                if (!room.IsGolemCrystal(c))
-                    continue;
-                room.ExplodeGolemCrystal(c);
-                exploded++;
-            }
-            _resonating.Clear();
-            if (exploded == 0)
-                return false;
-            GolemResonanceCount += exploded;
-            var damage = _boss.Stats.MaxHealth * CrystalGolemDamageRate * exploded;
-            _boss.Stats.TakeDamage(damage);
-            DamagePopup.Spawn(_boss.transform.position, damage, new Color(0.5f, 0.95f, 0.95f), isCritical: true);
-            room.ShowMessage(Loc.T("<color=#7FE0D8>수정이 공명해 터졌다!</color> 골렘이 크게 휘청인다"));
-            if (_boss.Stats.IsDead)
-            {
-                room.HandleBossDamagedByItem(_boss);
-                return true;
-            }
-            _boss.Stun(1);
-            return false;
-        }
         private int ChargeDistance => IsBoar && _pillarPhase ? BoarPhaseChargeDistance : MaxChargeDistance;
 
         /// <summary>보스가 받는 피해 배율 - 멧돼지 기둥이 서 있으면 BoarArmorMultiplier(EnemyActor.DamageTakenMultiplier).</summary>
         public float ArmorMultiplier(RoomController room) =>
-            IsBoar && _pillarPhase && room != null && room.BoarPillarCount > 0 ? BoarArmorMultiplier : 1f;
+            room != null && room.BossInvulnerable ? 0f // 6·7·9층 기믹 - 촛불·분신·항아리가 남아 있는 동안 무적
+            : IsBoar && _pillarPhase && room != null && room.BoarPillarCount > 0 ? BoarArmorMultiplier : 1f;
+
+        // ---- 4~9층 기믹(10-14 사용자) - 체력 StageGimmickHealthRatio 이하에서 한 번 시작(RoomController.BeginStageGimmick)
+        public const float StageGimmickHealthRatio = 0.5f;
+        private bool _stageGimmickStarted;
+        private bool _collectJars;                                     // 9층 - 십자 마법 줄 끝에 닿은 항아리를 모은다(AddRay)
+        private readonly List<Vector2Int> _jarHits = new List<Vector2Int>();
 
         private int _stunTurns;
+        /// <summary>돌진 뒤 비틀거림·기둥/용암 충돌 등 패턴 쪽 기절 중인지(머리 위 기절 별 - StatusIcons).</summary>
+        public bool IsStunned => _stunTurns > 0;
         private BossPatternType? _pending;
         private readonly HashSet<Vector2Int> _pendingTiles = new HashSet<Vector2Int>();
         private Vector2Int _chargeDirection;
@@ -249,6 +237,62 @@ namespace LoopRogue
         /// <summary>거울 파편(4연격)이 진행 중인지 - 섬광탄으로도 안 멈추고, 보스가 기절해 있어도 계속 터진다(사용자 요청).</summary>
         public bool MirrorShardsActive => _pending == BossPatternType.MirrorShards;
 
+        /// <summary>체력 조건을 지난 기믹 시작(컷신) - 시작했으면 true(그 턴은 끝). 보스 러시는 입장하자마자 이걸 한 번 부른다.</summary>
+        public bool TryStartGimmick(RoomController room)
+        {
+            _room = room;
+            if (IsBoar && !_pillarPhase && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * BoarPillarHealthRatio)
+            {
+                _pillarPhase = true;
+                CancelPending(room); // 예고해 둔 돌진은 취소 - 컷신 뒤 처음부터
+                room.StartBoarPillarPhase(_boss); // 짧은 컷신: 멧돼지는 방 중앙, 플레이어는 그 2칸 아래 → 기둥이 솟는다(10-14 사용자)
+                return true;
+            }
+
+            // 3층 골렘 - 체력 80/60/40/20%를 지날 때마다 수정 n개 + 바위 n+1개(한 번에 여러 칸 깎였으면 지난 물결을 모두)
+            if (IsGolem && _golemPhase < GolemWaveHealth.Length && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * GolemWaveHealth[_golemPhase])
+            {
+                // 지난 물결을 모두 합쳐 컷신 한 번(바위가 하나씩 떨어지고 수정이 하나씩 솟는다 - RoomController.StartGolemWave)
+                int crystals = 0, rubble = 0;
+                var first = _golemPhase == 0;
+                var crossStarts = false;
+                while (_golemPhase < GolemWaveHealth.Length && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * GolemWaveHealth[_golemPhase])
+                {
+                    _golemPhase++;
+                    crystals += _golemPhase;
+                    rubble += _golemPhase + 1; // 폭발을 막아 줄 바위(안전지대) - 폭발에 맞으면 깨진다
+                    crossStarts |= _golemPhase == GolemCrossRubbleWave;
+                }
+                room.StartGolemWave(_boss, crystals, rubble, first, crossStarts);
+                return true;
+            }
+
+            if (IsOgre && OgreHolesEnabled && !_holePhase && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * OgreHoleHealthRatio)
+            {
+                _holePhase = true;
+                room.StartOgreHolePhase(_boss); // 컷신 - 첫 구멍 1개
+                return true;
+            }
+
+            if (!_stageGimmickStarted && _stage >= 4 && _stage <= 9 && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * StageGimmickHealthRatio)
+            {
+                _stageGimmickStarted = true;
+                room.BeginStageGimmick(_stage, _boss); // 컷신 - 소품·분신이 하나씩
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>그 층 기믹이 처음 시작하는 체력 비율 - 보스 러시는 보스를 이 체력으로 내보낸다. 기믹이 없으면 1.</summary>
+        public static float GimmickStartHealthRatio(int stage) => stage switch
+        {
+            1 => BoarPillarHealthRatio,
+            2 => OgreHoleHealthRatio,
+            3 => GolemWaveHealth[0],
+            >= 4 and <= 9 => StageGimmickHealthRatio,
+            _ => 1f,
+        };
+
         public bool TakePatternTurn(PlayerActor player, RoomController room)
         {
             _room = room;
@@ -264,34 +308,10 @@ namespace LoopRogue
                 return true; // 기절 중 - 아무것도 안 함(공격 기회)
             }
 
-            if (IsBoar && !_pillarPhase && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * BoarPillarHealthRatio)
-            {
-                _pillarPhase = true;
-                if (room.SpawnBoarPillars(_boss) > 0)
-                {
-                    room.ShowMessage(Loc.T("<color=#FFB060>멧돼지가 땅을 들이받자 돌기둥이 솟았다!</color> 기둥이 서 있는 동안 멧돼지는 단단하다"));
-                    room.ShowMessage(Loc.T("기둥 뒤에 서서 돌진을 유도해 기둥에 박게 하자!"));
-                }
-            }
+            if (TryStartGimmick(room))
+                return true;
 
-            if (IsGolem && _golemPhase < 1 && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * GolemCrystalHealthRatio)
-            {
-                _golemPhase = 1;
-                if (room.SpawnGolemCrystals(_boss, GolemCrystalCount) > 0)
-                {
-                    room.ShowMessage(Loc.T("<color=#7FE0D8>골렘이 땅을 울리자 바닥에서 공명 수정이 솟았다!</color>"));
-                    room.ShowMessage(Loc.T("십자 베기가 수정에 닿으면 수정이 터져 골렘이 다친다 - 수정 주변은 나도 위험"));
-                }
-            }
-            if (IsGolem && _golemPhase < 2 && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * GolemRubbleHealthRatio)
-            {
-                _golemPhase = 2;
-                room.SpawnGolemCrystals(_boss, GolemPhase3Crystals);
-                room.ShowMessage(Loc.T("<color=#7FE0D8>골렘의 몸이 갈라지며 돌이 쏟아진다!</color> 이제 십자 베기가 돌무더기를 남긴다"));
-                room.ShowMessage(Loc.T("돌무더기 뒤에 숨으면 십자 베기를 막을 수 있다 - 대신 길도 막힌다"));
-            }
-
-            if (IsOgre && !_crackPhase && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * OgreCrackHealthRatio)
+            if (IsOgre && OgreCracksEnabled && !_crackPhase && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * OgreCrackHealthRatio)
             {
                 _crackPhase = true;
                 room.ShowMessage(Loc.T("<color=#FFB060>오우거가 분노해 바닥을 부술 기세로 몽둥이를 쥔다!</color> 강타가 바닥에 균열을 남긴다"));
@@ -410,8 +430,14 @@ namespace LoopRogue
             {
                 var crashed = DoChargeMove(room);
                 _stunTurns = crashed ? BoarCrashStunTurns : ChargeStunTurns;
+                if (crashed && IsBoar)
+                    BoarCrashCount++;
                 if (!crashed)
                     room.ShowMessage(Loc.T("보스가 돌진 후 비틀거린다!"));
+                else if (!IsBoar)
+                {
+                    // 8층 용암 - 메시지는 RoomController.TryLavaFall이
+                }
                 else if (room.BoarPillarCount > 0)
                     room.ShowMessage(Loc.F("<color=#FFB060>멧돼지가 기둥에 박았다!</color> 크게 비틀거린다 (남은 기둥 {0})", room.BoarPillarCount));
                 else
@@ -420,6 +446,8 @@ namespace LoopRogue
 
             if (type == BossPatternType.Slam && IsOgre && _crackPhase)
                 room.AddOgreCracks(_pendingTiles, OgreCracksPerSlam);
+            if (type == BossPatternType.Slam && IsOgre && _holePhase)
+                room.OpenOgreHoles(_boss, UnityEngine.Random.Range(OgreHolesMin, OgreHolesMax + 1)); // 붕괴 즉사면 몹 턴 루프가 사망 처리
 
             PatternResolveCount++;
             HitFeedback.OnBossPatternResolved(player, _pendingTiles.Contains(player.GridPos), type, _pendingTiles);
@@ -450,14 +478,24 @@ namespace LoopRogue
                     DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.2f, 0.2f), isCritical: true);
                 }
             }
+            if (_stageGimmickStarted && room.GimmickStage == _stage)
+            {
+                if (_stage == 4 && type == BossPatternType.Slam)
+                    room.OnSlimeSlam(_pendingTiles);
+                else if (_stage == 5 && type == BossPatternType.Ring)
+                    room.OnSporeRing(_pendingTiles, _pendingTiles.Contains(player.GridPos)); // 감염으로 죽으면 몹 턴 루프가 사망 처리
+                else if (_stage == 6 && (type == BossPatternType.Snipe || type == BossPatternType.SnipeFollowUp))
+                    room.OnSnipeTiles(_pendingTiles);
+                else if (_stage == 7 && type == BossPatternType.Diagonal)
+                    room.OnDiagonalTiles(_pendingTiles);
+                else if (_stage == 8 && type == BossPatternType.Slam)
+                    room.AddLava(_pendingTiles);
+                else if (_stage == 9 && type == BossPatternType.Cross)
+                    room.BreakLichJars(_jarHits);
+            }
             if (type == BossPatternType.Cross && IsGolem)
             {
-                if (ResolveGolemCrystals(room))
-                {
-                    _pendingTiles.Clear(); // 수정 폭발로 골렘이 죽었다
-                    return;
-                }
-                if (_golemPhase >= 2)
+                if (_golemPhase >= GolemCrossRubbleWave)
                     room.DropGolemRubble(_pendingTiles, GolemRubblePerCross);
             }
             _pendingTiles.Clear();
@@ -499,6 +537,7 @@ namespace LoopRogue
         {
             _pendingTiles.Clear();
             _resonating.Clear();
+            _jarHits.Clear();
             var origin = _boss.GridPos;
             var body = _boss.FootprintRadius; // 3x3 보스면 1 - 보스 기준 범위는 몸 가장자리에서 잰다
 
@@ -534,13 +573,15 @@ namespace LoopRogue
                     // 몸 폭만큼의 띠(3x3이면 3줄) - 가운데 한 줄만 치면 몸 옆 가장자리 칸에 붙어 계속 때려도 절대 안 맞았다
                     // (봇 100판 2026-10-12: 십자 보스 3층 사망 0.0~0.2, 9층 1.3~1.7 - 보스 세기를 50% 올려도 그대로).
                     // 1칸 보스 때처럼 "몸에 붙은 칸은 전부 위험, 모서리 대각선으로 비키면 안전"이 되게.
-                    _collectCrystals = IsGolem && _golemPhase > 0; // 3층 골렘 - 줄 끝에 닿은 공명 수정을 모은다(AddRay)
+                    _collectCrystals = false; // 3층 골렘 공명(줄 끝 수정이 터짐) - 10-14 삭제(사용자), 수정은 시간 안에 깨는 폭탄으로 바뀜
+                    _collectJars = _stage == 9; // 9층 리치 - 줄 끝 항아리가 깨진다
                     foreach (var d in Directions)
                     {
                         var side = new Vector2Int(d.y, d.x); // d에 수직
                         for (var k = -body; k <= body; k++)
                             AddRay(map, origin + side * k, d);
                     }
+                    _collectJars = false;
                     _collectCrystals = false;
                     foreach (var c in _resonating) // 터질 수정 주변 3x3도 함께 예고(나도 맞는다)
                         for (var dx = -1; dx <= 1; dx++)
@@ -607,7 +648,12 @@ namespace LoopRogue
             }
             if (pos != _boss.GridPos)
                 map.MoveActor(_boss, pos);
-            return blockedAt.HasValue && room.BoarPillarCount > 0 && room.BreakBoarPillars(GridMap.Cells(blockedAt.Value, _boss.FootprintRadius));
+            if (!blockedAt.HasValue)
+                return false;
+            var front = GridMap.Cells(blockedAt.Value, _boss.FootprintRadius);
+            if (room.BoarPillarCount > 0 && room.BreakBoarPillars(front))
+                return true;
+            return room.TryLavaFall(front, _boss); // 8층 미노타우로스 - 용암 균열에 빠짐(피해·기절은 RoomController가)
         }
 
         private void AddSquare(GridMap map, Vector2Int center, int radius)
@@ -628,6 +674,8 @@ namespace LoopRogue
                 _pendingTiles.Add(p);
             if (_collectCrystals && length < maxLength && _room != null && _room.IsGolemCrystal(p) && !_resonating.Contains(p))
                 _resonating.Add(p); // 줄이 공명 수정에서 멈췄다 - 발동 때 터진다
+            if (_collectJars && length < maxLength && _room != null && _room.IsLichJar(p) && !_jarHits.Contains(p))
+                _jarHits.Add(p); // 9층 - 줄이 영혼 항아리에서 멈췄다 - 발동 때 깨진다
         }
 
         private readonly List<HashSet<Vector2Int>> _mirrorWaves = new List<HashSet<Vector2Int>>();

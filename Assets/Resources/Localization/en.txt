@@ -991,3 +991,96 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 <color=#7FE0D8>골렘의 몸이 갈라지며 돌이 쏟아진다!</color> 이제 십자 베기가 돌무더기를 남긴다	<color=#7FE0D8>The golem's body cracks and stones pour out!</color> Its Cross Slash now leaves rubble
 돌무더기 뒤에 숨으면 십자 베기를 막을 수 있다 - 대신 길도 막힌다	Hide behind rubble to block the Cross Slash - but it blocks your path too
 체력이 줄면 바닥에 공명 수정이 솟는다. 십자 베기가 수정에 닿으면 수정이 터져 골렘이 크게 다치지만 수정 주변도 위험하다. 더 몰리면 십자 베기가 돌무더기를 남겨 엄폐물이 된다.	As its health drops, resonance crystals rise from the floor. If its Cross Slash reaches one, the crystal bursts and badly hurts the golem, but the area around it is dangerous too. When pushed further, its Cross Slash leaves rubble you can take cover behind.
+[1] 보물 상인	[1] Treasure Merchant
+[2] 연금술사	[2] Alchemist
+[3] 도박꾼	[3] Gambler
+[5] 기록관	[5] Chronicler
+[6] 도감 학자	[6] Bestiary Scholar
+방향키 이동 · NPC에게 부딪히거나 Space로 말 걸기 · 위쪽 문으로 들어가면 시작 · 숫자 1~6 바로 열기 · Esc 타이틀	Arrows: move · Bump an NPC or press Space to talk · Enter the top door to start · 1-6: open directly · Esc: title
+클릭 / Space - 넘기기	Click / Space - skip
+장착!	Equipped!
+이미 더 좋은 장비가 있음	You already have better gear
+[P] 등급 확률 보기	[P] Grade odds
+[P / Esc] 닫기	[P / Esc] Close
+▶▶ 건너뛰기 [Space]	▶▶ Skip [Space]
+뽑기 연출	Gacha animation
+수호막	Ward
+방에 들어갈 때마다 최대체력 8% 보호막 (최대 50%) / 받는 피해 +2%	Gain a shield of 8% max HP on entering each room (max 50%) / Damage taken +2%
+수호막  방마다 {0:0.#}%  (≈{1:0.#} HP)	Ward  {0:0.#}% per room  (≈{1:0.#} HP)
+<color=#7FE0D8>수정이 공명해 터졌다!</color> 골렘이 잠깐 휘청인다	<color=#7FE0D8>The crystal resonated and burst!</color> The golem staggers briefly
+체력이 줄면 바닥에 공명 수정이 솟는다. 십자 베기가 수정에 닿으면 수정이 터져 골렘이 잠깐 휘청이지만 수정 주변도 위험하다. 더 몰리면 십자 베기가 돌무더기를 남겨 엄폐물이 된다.	As its health drops, resonance crystals rise from the floor. If its Cross Slash reaches one, the crystal bursts and the golem staggers briefly, but the area around it is dangerous too. When pushed further, its Cross Slash leaves rubble you can take cover behind.
+<color=#FF6060>멧돼지가 씩씩거린다...</color> 기둥을 다 부수기까지 {0}턴!	<color=#FF6060>The boar snorts...</color> {0} turns left to break every pillar!
+<color=#FF4040>멧돼지가 광폭해져 모든 것을 짓밟았다!</color>	<color=#FF4040>The boar went berserk and trampled everything!</color>
+기둥 {0}개 · {1}턴	{0} pillars · {1} turns
+기둥 뒤에 서서 돌진을 유도해 기둥에 박게 하자! <color=#FF6060>{0}턴 안에 다 못 부수면 끝장이다</color>	Stand behind a pillar and lure its charge into it! <color=#FF6060>Fail to break them all within {0} turns and it's over</color>
+{0}턴 안에 기둥을 다 부수지 못하면 멧돼지가 광폭해져 즉사한다.	If you can't break every pillar within {0} turns, the boar goes berserk and kills you instantly.
+<color=#FF4040>바닥이 통째로 무너져 내렸다!</color>	<color=#FF4040>The whole floor collapsed!</color>
+<color=#FF6060>바닥이 크게 갈라진다...</color> 구멍 {0}/{1} - 메우지 않으면 무너진다!	<color=#FF6060>The floor cracks wide...</color> Holes {0}/{1} - fill them or it collapses!
+구멍 {0}/{1}	Holes {0}/{1}
+<color=#FFB060>오우거가 분노해 몽둥이로 땅을 내리친다!</color> 이제 강타마다 던전이 흔들려 바닥에 구멍이 뚫린다	<color=#FFB060>The ogre slams the ground in rage!</color> Now every Slam shakes the dungeon and opens holes in the floor
+구멍에 붙어 그쪽으로 움직이면 메울 수 있다 - <color=#FF6060>구멍이 {0}개가 되면 바닥이 무너진다</color>	Stand next to a hole and move into it to fill it - <color=#FF6060>at {0} holes the floor collapses</color>
+체력이 절반 아래로 떨어지면 강타마다 던전이 흔들려 바닥에 구멍이 뚫린다. 구멍에 붙어 그쪽으로 움직이면 한 턴에 메울 수 있다. 구멍이 {0}개가 되면 바닥이 무너져 즉사한다.	Below half health, every Slam shakes the dungeon and opens holes in the floor. Stand next to a hole and move into it to fill it in one turn. At {0} holes the floor collapses and you die instantly.
+<color=#7FE0D8>골렘이 땅을 울리자 수정이 솟고 천장에서 바위가 떨어졌다!</color>	<color=#7FE0D8>The golem shakes the ground - crystals rise and boulders fall from the ceiling!</color>
+수정은 {0}턴 뒤 방 전체를 날려 버린다 - <color=#FF6060>붙어서 깨거나, 바위 뒤에 숨자</color>	The crystals will blast the whole room in {0} turns - <color=#FF6060>break them up close, or hide behind a boulder</color>
+<color=#FF4040>수정이 폭발해 방 전체를 휩쓸었다!</color>	<color=#FF4040>The crystal exploded and swept the whole room!</color>
+체력이 줄면 수정이 솟고 천장에서 바위가 떨어진다. 수정은 {0}턴 뒤 폭발해 수정에서 보이는 칸을 전부 날려 버린다(즉사) - 붙어서 깨거나 바위 뒤에 숨자. 더 몰리면 십자 베기가 바위를 더 남긴다.	As its health drops, crystals rise and boulders fall from the ceiling. Each crystal explodes after {0} turns and obliterates every tile it can see (instant death) - break it up close or hide behind a boulder. When pushed further, its Cross Slash leaves more boulders.
+<color=#7FE0D8>골렘이 땅을 울리자 수정 {0}개가 솟고 천장에서 바위가 떨어졌다!</color>	<color=#7FE0D8>The golem shakes the ground - {0} crystal(s) rise and boulders fall from the ceiling!</color>
+수정은 {0}턴 뒤 방 전체를 날려 버린다 - <color=#FF6060>붙어서 깨거나, 바위 뒤에 숨자</color> (바위는 폭발에 깨진다)	The crystals will blast the whole room in {0} turns - <color=#FF6060>break them up close, or hide behind a boulder</color> (boulders shatter in the blast)
+체력이 80·60·40·20%가 될 때마다 수정이 1·2·3·4개 솟고 천장에서 바위가 떨어진다. 수정은 {0}턴 뒤 폭발해 수정에서 보이는 칸을 전부 날려 버린다(즉사) - 붙어서 깨거나 바위 뒤에 숨자. 폭발을 받아 낸 바위는 깨진다. 40%부터는 십자 베기도 바위를 남긴다.	Each time its health hits 80/60/40/20%, 1/2/3/4 crystals rise and boulders fall from the ceiling. Each crystal explodes after {0} turns and obliterates every tile it can see (instant death) - break it up close or hide behind a boulder. A boulder that takes a blast shatters. From 40%, its Cross Slash also leaves boulders.
+<color=#FFD966>튜토리얼 1/7</color>  첫걸음 - 움직여 보고 출구(문)로	<color=#FFD966>Tutorial 1/7</color>  First steps - move around and head for the exit (door)
+<color=#FFD966>튜토리얼 2/7</color>  공격 - 슬라임에게 부딪혀 보세요	<color=#FFD966>Tutorial 2/7</color>  Attack - bump into the slime
+<color=#FFD966>튜토리얼 3/7</color>  스킬 - 대시와 회전 베기	<color=#FFD966>Tutorial 3/7</color>  Skills - Dash and Spin Slash
+<color=#FFD966>튜토리얼 4/7</color>  위험 피하기 - 빨간 칸에서 비키고, 폭탄도 던져 보세요	<color=#FFD966>Tutorial 4/7</color>  Dodging danger - step off red tiles, and try throwing a bomb
+<color=#FFD966>튜토리얼 5/7</color>  아이템 ① 설치 - 횃불·덫·미끼를 놓아 보세요	<color=#FFD966>Tutorial 5/7</color>  Items ① Placing - set down a Torch, Trap and Decoy
+<color=#FFD966>튜토리얼 6/7</color>  아이템 ② 전투 보조 - 연막탄·약점 표식·보호막	<color=#FFD966>Tutorial 6/7</color>  Items ② Combat support - Smoke, Weakness Mark, Barrier
+<color=#FFD966>튜토리얼 7/7</color>  아이템 ③ 위기 대처 - 정화제·섬광탄·반사 부적	<color=#FFD966>Tutorial 7/7</color>  Items ③ Emergencies - Cleanse, Flashbang, Reflect Charm
+좋아요! 남은 아이템: {0}	Nice! Items left: {0}
+<color=#8CE08C>아이템을 다 써 봤어요!</color> 몹을 정리하고 출구로	<color=#8CE08C>You've tried every item!</color> Clear the monsters and head for the exit
+<color=#FFB060>아직 안 써 본 아이템이 있어요:</color> {0}	<color=#FFB060>Items you haven't tried yet:</color> {0}
+숫자 키로 아이템을 써요 - 놓거나 던지는 아이템은 숫자를 누른 뒤 방향키로. 세 개를 다 써 봐야 출구로 나갈 수 있어요	Use items with the number keys - for items you place or throw, press the number then a direction. Try all three to unlock the exit
+<color=#80FFB0>빛버섯을 먹었다!</color> 감염이 씻겨 나갔다	<color=#80FFB0>Ate a glow mushroom!</color> The infection washed away
+<color=#A0E0FF>망령 궁수가 모습을 감추고 영혼 촛불이 켜졌다!</color> 촛불이 켜져 있는 동안 궁수는 무적	<color=#A0E0FF>The Phantom Archer vanished and spirit candles lit up!</color> It is invulnerable while the candles burn
+<color=#A0E0FF>촛불이 모두 꺼졌다!</color> 망령 궁수가 실체를 드러내며 비틀거린다	<color=#A0E0FF>All candles are out!</color> The Phantom Archer takes form and staggers
+<color=#A0E0FF>화살이 촛불을 꺼뜨렸다!</color> 남은 촛불 {0}	<color=#A0E0FF>The arrows snuffed a candle!</color> Candles left {0}
+<color=#B090D0>그림자 암살자가 분신을 만들었다!</color> 분신에겐 칼이 안 통하고, 분신이 있는 동안 암살자는 무적	<color=#B090D0>The Shadow Assassin made clones!</color> Blades pass through them, and it is invulnerable while they remain
+<color=#B090D0>분신이 모두 사라졌다!</color> 그림자 암살자가 비틀거린다	<color=#B090D0>All clones are gone!</color> The Shadow Assassin staggers
+<color=#B090D0>암살자의 칼날이 분신을 베었다!</color> 남은 분신 {0}	<color=#B090D0>The assassin's blades cut down a clone!</color> Clones left {0}
+<color=#C080FF>버섯 군주가 포자를 흩뿌린다!</color> 파동에 맞거나 시간이 지나면 감염된다	<color=#C080FF>The Mushroom Lord scatters spores!</color> Getting hit by a wave or waiting too long infects you
+<color=#C090FF>리치가 영혼을 항아리에 숨겼다!</color> 항아리가 남아 있는 동안 리치는 무적	<color=#C090FF>The Lich hid its soul in jars!</color> It is invulnerable while the jars remain
+<color=#C090FF>마법이 영혼 항아리를 깨뜨렸다!</color> 남은 항아리 {0}	<color=#C090FF>The spell shattered a soul jar!</color> Jars left {0}
+<color=#C090FF>항아리가 모두 깨졌다!</color> 리치의 영혼이 흔들린다	<color=#C090FF>All jars are broken!</color> The Lich's soul wavers
+<color=#FF4040>그림자들이 한꺼번에 덮쳤다!</color>	<color=#FF4040>The shadows struck all at once!</color>
+<color=#FF4040>리치가 죽음의 주문을 완성했다!</color>	<color=#FF4040>The Lich completed the death spell!</color>
+<color=#FF4040>망령 궁수의 화살비가 쏟아졌다!</color>	<color=#FF4040>The Phantom Archer's arrow rain poured down!</color>
+<color=#FF4040>슬라임 킹이 거대해져 모든 것을 삼켰다!</color>	<color=#FF4040>The Slime King grew huge and swallowed everything!</color>
+<color=#FF4040>용암이 한꺼번에 분출했다!</color>	<color=#FF4040>The lava erupted all at once!</color>
+<color=#FF4040>포자가 온몸을 뒤덮었다!</color>	<color=#FF4040>Spores covered your whole body!</color>
+<color=#FF6060>바닥이 끓어오른다...</color> 균열 {0}/{1}	<color=#FF6060>The floor is boiling...</color> Cracks {0}/{1}
+<color=#FF6060>시간이 얼마 없다...</color> {0}턴!	<color=#FF6060>Time is running out...</color> {0} turns!
+<color=#FF7070>슬라임 킹이 졸개를 불러들인다!</color> 졸개가 킹에게 붙어 있으면 흡수된다	<color=#FF7070>The Slime King calls its minions!</color> Minions that stay next to the King get absorbed
+<color=#FF7070>슬라임 킹이 졸개를 흡수했다!</color> 흡수 {0}/{1}	<color=#FF7070>The Slime King absorbed a minion!</color> Absorbed {0}/{1}
+<color=#FF7070>짓누르기에 졸개 {0}마리가 터졌다!</color> 킹이 산성에 다친다	<color=#FF7070>{0} minion(s) burst under the crush!</color> The acid hurts the King
+<color=#FF9040>미노타우로스가 용암 균열에 빠졌다!</color> 크게 다쳐 비틀거린다	<color=#FF9040>The Minotaur fell into a lava crack!</color> It is badly hurt and staggers
+<color=#FF9040>미노타우로스의 도끼가 바닥을 갈라 용암이 솟는다!</color>	<color=#FF9040>The Minotaur's axe splits the floor and lava wells up!</color>
+감염 {0}/{1}	Infection {0}/{1}
+감염 {0}/{1} · {2}턴	Infection {0}/{1} · {2} turns
+공기 중의 포자에 감염됐다!	Infected by spores in the air!
+균열 {0}/{1}	Cracks {0}/{1}
+균열 뒤에 서서 돌진을 균열에 빠뜨리자 - <color=#FF6060>균열이 {0}개 쌓이면 용암이 분출한다</color>	Stand behind a crack and lure its charge into it - <color=#FF6060>at {0} cracks the lava erupts</color>
+리치와 같은 줄, 항아리 뒤에 서서 십자 마법이 항아리를 깨게 하자 - <color=#FF6060>{0}턴 안에 다 못 깨면 끝장이다</color>	Stand in line with the Lich, behind a jar, so its cross spell breaks the jar - <color=#FF6060>fail to break them all within {0} turns and it's over</color>
+분신 {0} · {1}턴	Clones {0} · {1} turns
+분신과 대각선 줄에 서서 X자 베기가 분신을 베게 하자 - <color=#FF6060>{0}턴 안에 다 못 지우면 끝장이다</color>	Stand diagonal to a clone so the X Slash cuts it down - <color=#FF6060>fail to clear them all within {0} turns and it's over</color>
+졸개를 먼저 잡거나 킹의 짓누르기에 휘말리게 하자 - <color=#FF6060>{0}번 흡수되면 끝장이다</color>	Kill the minions first or get them caught in the King's crush - <color=#FF6060>{0} absorptions and it's over</color>
+촛불 {0} · {1}턴	Candles {0} · {1} turns
+촛불 옆에 서서 저격이 촛불을 덮게 하자 - <color=#FF6060>{0}턴 안에 다 못 끄면 끝장이다</color>	Stand next to a candle so the snipe covers it - <color=#FF6060>fail to snuff them all within {0} turns and it's over</color>
+파동 뒤에 피는 빛버섯을 밟으면 해독 - <color=#FF6060>감염 {0}이면 끝장이다</color>	Step on the glow mushrooms that sprout after waves to cure it - <color=#FF6060>at infection {0} it's over</color>
+포자에 감염됐다!	Infected by spores!
+항아리 {0} · {1}턴	Jars {0} · {1} turns
+흡수 {0}/{1}	Absorbed {0}/{1}
+체력이 절반 아래로 떨어지면 멀리서 졸개를 불러 킹에게 기어가게 한다. 킹에게 붙은 졸개는 흡수돼 킹을 회복시키고, {0}번 흡수되면 즉사한다. 졸개를 먼저 잡거나 짓누르기에 휘말리게 하면 터지며 킹이 다친다.	Below half health it summons minions far away that crawl to the King. Minions next to the King are absorbed and heal it; {0} absorptions means instant death. Kill them first, or let the crush catch them - they burst and hurt the King.
+체력이 절반 아래로 떨어지면 파동에 맞거나 시간이 지날 때마다 감염된다. 감염 {0}이면 즉사 - 파동 뒤에 피는 빛버섯을 밟으면 해독된다.	Below half health, getting hit by a wave or simply waiting infects you. Infection {0} means instant death - step on the glow mushrooms that sprout after waves to cure it.
+체력이 절반 아래로 떨어지면 영혼 촛불을 켜고 무적이 된다. 촛불 옆에 서서 저격이 촛불 칸을 덮게 하면 꺼진다. {0}턴 안에 다 못 끄면 즉사.	Below half health it lights spirit candles and becomes invulnerable. Stand next to a candle so a snipe covers it to snuff it out. Fail to snuff them all within {0} turns and you die instantly.
+체력이 절반 아래로 떨어지면 칼이 안 통하는 그림자 분신을 만들고 무적이 된다. 분신과 대각선 줄에 서면 X자 베기가 분신을 벤다. {0}턴 안에 다 못 지우면 즉사.	Below half health it creates shadow clones that blades pass through and becomes invulnerable. Stand diagonal to a clone and the X Slash will cut it down. Fail to clear them all within {0} turns and you die instantly.
+체력이 절반 아래로 떨어지면 도끼 내려찍기가 용암 균열을 남긴다. 균열 뒤에 서서 돌진을 유도하면 빠져서 크게 다치고 기절한다. 균열이 {0}개 쌓이면 분출해 즉사.	Below half health its axe slam leaves lava cracks. Stand behind a crack and lure its charge - it falls in, takes heavy damage and is stunned. At {0} cracks the lava erupts and you die instantly.
+체력이 절반 아래로 떨어지면 영혼 항아리에 영혼을 숨기고 무적이 된다. 리치와 같은 줄, 항아리 뒤에 서면 십자 마법이 항아리를 깬다. {0}턴 안에 다 못 깨면 즉사.	Below half health it hides its soul in jars and becomes invulnerable. Stand in line with the Lich behind a jar and its cross spell will break the jar. Fail to break them all within {0} turns and you die instantly.
+<color=#FFB060>거대 멧돼지가 분노해 울부짖는다!</color>	<color=#FFB060>The Giant Boar roars in fury!</color>

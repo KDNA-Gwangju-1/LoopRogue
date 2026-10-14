@@ -616,6 +616,22 @@ namespace LoopRogue
 
             var targetPos = GridPos + direction;
 
+            if (_room.IsGolemCrystal(targetPos))
+            {
+                _room.BreakGolemCrystal(targetPos); // 3층 골렘 수정 - 붙어서 그쪽으로 움직이면 한 번에 깬다(안 깨면 폭발)
+                PlayAttackFlash(direction);
+                EndTurn();
+                return;
+            }
+
+            if (_room.IsOgreHole(targetPos))
+            {
+                _room.FillOgreHole(targetPos); // 2층 오우거 바닥 구멍 - 붙어서 그쪽으로 움직이면 한 턴 써서 메운다
+                PlayAttackFlash(direction);
+                EndTurn();
+                return;
+            }
+
             if (!Map.IsInBounds(targetPos) || Map.IsWall(targetPos))
                 return; // 방 끝/벽 방향으로 헛눌러도 턴 소모 없음 - 로그라이크 관례.
 

@@ -21,6 +21,8 @@ namespace LoopRogue
         public float EnemyAttackPower;
         public bool IsBossRoom;
         public List<BossPatternType> BossPatterns = new List<BossPatternType>();
+        /// <summary>보스 러시(BossRush) - 이 보스방의 층(보스 종류·기믹). 0이면 지금 층.</summary>
+        public int BossStage;
 
         /// <summary>이번 시도에 이 방에 이벤트 칸이 있는지 - LoopManager가 시도마다 스테이지당 한 방만 켠다.</summary>
         public bool HasEvent;
@@ -36,7 +38,7 @@ namespace LoopRogue
 
     /// <summary>방 하나의 실제 상태(격자/벽/적 목록/이벤트/바닥 시각화/보스 예고 칸)를 관리하고, 적 전멸 시 다음 방
     /// 전환 또는 보스 격파를 LoopManager에 알린다. 방을 옮길 때마다 이전 방 내용을 지우고 같은 오브젝트를 재사용한다.</summary>
-    public class RoomController : MonoBehaviour
+    public partial class RoomController : MonoBehaviour // 4~9층 보스 기믹은 RoomController.BossGimmicks.cs
     {
         public GridMap Map { get; private set; }
         public bool IsInputLocked { get; set; }
@@ -142,6 +144,8 @@ namespace LoopRogue
         private NpcActor _npc;
         private PlayerActor _player;
         private LoopManager _loopManager;
+        /// <summary>자동 플레이 봇 인계(보스방을 새로 깔기)용.</summary>
+        public LoopManager Loop => _loopManager;
         private RoomDefinition _current;
         private int _stage;
 
@@ -358,6 +362,8 @@ namespace LoopRogue
         {
             _current = def;
             ClearRoom();
+            if (def.BossStage > 0)
+                _stage = def.BossStage; // 보스 러시 - 보스 그림·패턴·기믹이 이 층 것으로
 
             var layout = def.TutorialLayout ?? (def.IsTestRoom ? TestMap.Layout() : RoomLayoutGenerator.Generate(def, Rng));
             Map = new GridMap(layout.Width, layout.Height);
@@ -399,6 +405,8 @@ namespace LoopRogue
             _roomCleared = false;
             _player.OnRoomEntered(); // 갑옷 효과(보호막/불굴/응급 처치) 방마다 다시 채움
             IsInputLocked = false;
+            if (def.BossStage > 0 && !_loadCleared)
+                StartCoroutine(StartRushGimmick()); // 보스 러시 - 들어가자마자 기믹 컷신
             if (glitch)
                 StartGlitch(glitchTiles);
             if (_loadCleared)
@@ -408,6 +416,15 @@ namespace LoopRogue
             }
             else if (def.IsTutorialRoom && _enemies.Count == 0)
                 FinishRoomCleared(); // 튜토리얼 첫 방(몹 없음) - 들어가자마자 출구
+        }
+
+        /// <summary>보스 러시 - 방이 다 깔린 다음 프레임에 보스 기믹을 바로 시작.</summary>
+        private IEnumerator StartRushGimmick()
+        {
+            yield return null;
+            var boss = _enemies.FirstOrDefault(e => e != null && e.IsBoss && !e.Stats.IsDead);
+            if (boss != null && !_player.Stats.IsDead)
+                boss.StartGimmickNow(this);
         }
 
         private EnemyActor SpawnEnemy(Vector2Int pos, RoomDefinition def, EnemyKind kind, float healthScale = 1f, float attackScale = 1f)
@@ -435,6 +452,9 @@ namespace LoopRogue
                 enemy.MarkAsTutorialMob(); // 골드·경험치 없음
             if (def.IsBossRoom)
                 enemy.SetupBossPatterns(def.BossPatterns, _stage);
+            if (def.IsBossRoom && def.BossStage > 0)
+                // 보스 러시 - 기믹 체력으로 시작. 딱 그 값이면 0.8 같은 비율은 소수점 오차로 "이하" 판정을 빗나갈 수 있어서(3층 골렘 컷신이 안 나왔다) 1 더 깎는다.
+                enemy.Stats.CurrentHealth = Mathf.Max(1f, enemy.Stats.MaxHealth * BossBrain.GimmickStartHealthRatio(def.BossStage) - 1f);
             Map.PlaceActor(enemy, pos);
             enemy.FaceToward(_player.GridPos); // 방패병은 입장한 플레이어 쪽을 보고 시작
             _enemies.Add(enemy);
@@ -824,10 +844,20 @@ namespace LoopRogue
             if (toSpawn <= 0)
                 return;
 
-            // 보스 몸 바로 둘레 한 줄(3x3 보스면 5x5 테두리)
+            // 보스 몸 바로 둘레 한 줄(3x3 보스면 5x5 테두리) - 4층 흡수 단계면 멀리(킹까지 기어가야 흡수된다)
             var cells = new List<Vector2Int>();
+            if (SpawnMinionsFar)
+            {
+                for (var x = 0; x < Map.Width; x++)
+                for (var y = 0; y < Map.Height; y++)
+                {
+                    var p = new Vector2Int(x, y);
+                    if (Map.IsWalkable(p) && GridMap.FootprintChebyshev(boss, p) >= 4 && ExitPosition != p)
+                        cells.Add(p);
+                }
+            }
             var ring = boss.FootprintRadius + 1;
-            for (var dx = -ring; dx <= ring; dx++)
+            for (var dx = -ring; dx <= ring && cells.Count == 0; dx++)
             for (var dy = -ring; dy <= ring; dy++)
             {
                 var p = boss.GridPos + new Vector2Int(dx, dy);
@@ -1052,6 +1082,8 @@ namespace LoopRogue
             _dangerTiles.UnionWith(_bossDangerTiles);
             foreach (var bomb in _bombs.Values)
                 _dangerTiles.UnionWith(bomb.Tiles);
+            foreach (var tel in _crystalTelegraphs.Values)
+                _dangerTiles.UnionWith(tel.Tiles);
         }
 
         /// <summary>폭발병이 불을 붙였을 때 - 3x3 주황 예고.</summary>
@@ -1242,9 +1274,20 @@ namespace LoopRogue
                 if (edge && open >= 2)
                     cells.Add(p);
             }
-            if (cells.Count == 0)
+            // 주변 빈 칸 수만 보면 구석 통로·출구 쪽 길을 막아 갇힌 공간이 생겼다(10-14 봇: 몹이 갇히거나 출구에 못 가 턴 제한 초과 6판)
+            // → 세워도 방이 갈라지지 않는 칸만.
+            Vector2Int? chosen = null;
+            foreach (var c in cells.OrderBy(_ => Rng.Next()))
+            {
+                if (c != ExitPosition && WallKeepsConnected(c))
+                {
+                    chosen = c;
+                    break;
+                }
+            }
+            if (!chosen.HasValue)
                 return;
-            var cell = cells[Rng.Next(cells.Count)];
+            var cell = chosen.Value;
             Map.AddWall(cell);
             var sprite = Resources.Load<Sprite>("Tiles/WallCracked");
             GameObject go;
@@ -1263,6 +1306,40 @@ namespace LoopRogue
         }
 
         private static readonly Vector2Int[] Directions4 = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+
+        /// <summary>cell을 벽으로 막아도 방의 벽 아닌 칸(몹·플레이어·출구 자리 포함)이 전부 이어져 있는지 - 갇힌 공간이 생기면 false.
+        /// 금 간 벽·골렘 수정·돌무더기처럼 방을 깐 뒤에 세우는 벽은 이걸 통과한 칸에만.</summary>
+        private bool WallKeepsConnected(Vector2Int cell)
+        {
+            var total = 0;
+            Vector2Int? start = null;
+            for (var x = 0; x < Map.Width; x++)
+            for (var y = 0; y < Map.Height; y++)
+            {
+                var p = new Vector2Int(x, y);
+                if (p == cell || Map.IsWall(p))
+                    continue;
+                total++;
+                start ??= p;
+            }
+            if (!start.HasValue)
+                return false;
+            var seen = new HashSet<Vector2Int> { start.Value };
+            var queue = new Queue<Vector2Int>();
+            queue.Enqueue(start.Value);
+            while (queue.Count > 0)
+            {
+                var c = queue.Dequeue();
+                foreach (var d in Directions4)
+                {
+                    var n = c + d;
+                    if (n == cell || !Map.IsInBounds(n) || Map.IsWall(n) || !seen.Add(n))
+                        continue;
+                    queue.Enqueue(n);
+                }
+            }
+            return seen.Count == total;
+        }
 
         /// <summary>폭탄으로 숨겨진 벽이 부서졌다 - 그 자리에 숨겨진 보물상자.</summary>
         private void OnSecretWallBroken(Vector2Int cell)
@@ -1284,6 +1361,198 @@ namespace LoopRogue
         private readonly HashSet<Vector2Int> _golemCrystals = new HashSet<Vector2Int>();
 
         public bool IsGolemCrystal(Vector2Int p) => _golemCrystals.Contains(p);
+        public int GolemCrystalCount => _golemCrystals.Count;
+        private readonly HashSet<Vector2Int> _golemRubble = new HashSet<Vector2Int>(); // 폭발에 깨지는 바위(10-14)
+
+        // ---- 3층 골렘 수정 폭탄(10-14 사용자 컨셉): 수정이 솟으면 GolemCrystalFuseTurns턴 뒤 폭발 - 수정에서 직선으로 보이는 칸은 전부 즉사,
+        // 벽·바위(돌무더기)·다른 수정에 가려진 칸만 안전. 붙어서 수정 쪽으로 움직이면 한 번에 깨진다(PlayerActor.TryAct). 터지기
+        // CrystalWarnTurns턴 전부터 맞는 칸을 빨갛게 예고. 수정 위에 남은 턴.
+        public const int GolemCrystalFuseTurns = 16; // 12 → 16(10-14, 봇 3층 보스방 사망 20/목표 4)
+        private const int CrystalWarnTurns = 2;
+        private static readonly Color CrystalBlastColor = new Color(0.4f, 0.95f, 1f, 0.4f);
+        private readonly Dictionary<Vector2Int, int> _crystalFuse = new Dictionary<Vector2Int, int>();
+        private readonly Dictionary<Vector2Int, TextMesh> _crystalLabels = new Dictionary<Vector2Int, TextMesh>();
+        private readonly Dictionary<Vector2Int, (List<Vector2Int> Tiles, List<GameObject> Objects)> _crystalTelegraphs =
+            new Dictionary<Vector2Int, (List<Vector2Int>, List<GameObject>)>();
+        public IReadOnlyDictionary<Vector2Int, int> GolemCrystalFuse => _crystalFuse;
+        /// <summary>봇 통계용 - 깬 수정 수, 수정 폭발로 즉사한 횟수.</summary>
+        public static int GolemCrystalBreakCount, GolemBlastKillCount, GolemRubbleBreakCount;
+
+        /// <summary>플레이어가 수정을 깼다(한 턴).</summary>
+        public void BreakGolemCrystal(Vector2Int p)
+        {
+            if (!_golemCrystals.Contains(p))
+                return;
+            GolemCrystalBreakCount++;
+            RemoveWallObject(p); // 깨지는 연출 + 타이머·예고·숫자 정리
+        }
+
+        /// <summary>수정 c에서 직선으로 보이는(가운데에 벽·바위·다른 수정이 없는) 방 안 칸 전부 - 폭발 범위.</summary>
+        public List<Vector2Int> CrystalBlastTiles(Vector2Int c)
+        {
+            var list = new List<Vector2Int>();
+            for (var x = 0; x < Map.Width; x++)
+            for (var y = 0; y < Map.Height; y++)
+            {
+                var t = new Vector2Int(x, y);
+                if (t != c && !Map.IsWall(t) && LineClear(c, t))
+                    list.Add(t);
+            }
+            return list;
+        }
+
+        /// <summary>a에서 b까지 사이 칸(양 끝 제외)에 벽이 없으면 true - 브레젠험 직선.</summary>
+        private bool LineClear(Vector2Int a, Vector2Int b)
+        {
+            int x0 = a.x, y0 = a.y, x1 = b.x, y1 = b.y;
+            int dx = Mathf.Abs(x1 - x0), dy = -Mathf.Abs(y1 - y0);
+            int sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+            var err = dx + dy;
+            while (true)
+            {
+                if (x0 == x1 && y0 == y1)
+                    return true;
+                var e2 = 2 * err;
+                if (e2 >= dy)
+                {
+                    err += dy;
+                    x0 += sx;
+                }
+                if (e2 <= dx)
+                {
+                    err += dx;
+                    y0 += sy;
+                }
+                var p = new Vector2Int(x0, y0);
+                if (p != b && Map.IsWall(p))
+                    return false;
+            }
+        }
+
+        /// <summary>몹 턴이 끝날 때마다 - 수정 타이머를 줄이고, 2턴 전부터 예고, 0이면 폭발. 플레이어가 죽었으면 true.</summary>
+        private bool TickGolemCrystals()
+        {
+            if (_crystalFuse.Count == 0)
+                return false;
+            var killed = false;
+            foreach (var c in _crystalFuse.Keys.ToList())
+            {
+                if (!_crystalFuse.ContainsKey(c))
+                    continue; // 앞 수정 폭발로 같이 사라졌다
+                var left = --_crystalFuse[c];
+                if (left > 0)
+                {
+                    UpdateCrystalLabel(c);
+                    if (left <= CrystalWarnTurns)
+                        ShowCrystalTelegraph(c);
+                    continue;
+                }
+                // 폭발 - 범위는 지금 지형으로 다시 계산(그 사이 바위가 떨어졌을 수 있다)
+                var blast = CrystalBlastTiles(c);
+                var pos = new Vector3(c.x * GridConstants.CellSize, c.y * GridConstants.CellSize, 0f);
+                // 폭발을 받아 낸 바위(수정에서 보이는 바위)는 깨진다 - 이번 폭발은 막아 주지만 다음엔 새 바위를 찾아야 한다
+                var hitRubble = _golemRubble.Where(r => LineClear(c, r)).ToList();
+                RemoveWallObject(c);
+                foreach (var r in hitRubble)
+                {
+                    GolemRubbleBreakCount++;
+                    RemoveWallObject(r);
+                }
+                if (HitFeedback.Enabled)
+                {
+                    HitFeedback.OnExplosion(pos);
+                    CameraShake.Shake(0.45f, 0.8f);
+                    if (!DamagePopup.Suppressed)
+                        DeathBurst.Spawn(pos, new Color(0.55f, 1f, 1f, 0.95f), 30, GridConstants.CellSize * 4f, GridConstants.CellSize * 0.2f);
+                }
+                if (!killed && blast.Contains(_player.GridPos))
+                {
+                    killed = true;
+                    GolemBlastKillCount++;
+                    ShowMessage(Loc.T("<color=#FF4040>수정이 폭발해 방 전체를 휩쓸었다!</color>"));
+                }
+            }
+            if (!killed)
+                return false;
+            KillPlayerInstantly();
+            ClearAllTelegraphs();
+            _loopManager.OnPlayerDied();
+            return true;
+        }
+
+        private void ShowCrystalTelegraph(Vector2Int c)
+        {
+            ClearCrystalTelegraph(c);
+            var tiles = CrystalBlastTiles(c);
+            var objects = DamagePopup.Suppressed ? new List<GameObject>() : tiles.Select(t => SpawnTelegraphTile(t, CrystalBlastColor, -4)).ToList();
+            _crystalTelegraphs[c] = (tiles, objects);
+            RebuildDangerTiles();
+        }
+
+        private void ClearCrystalTelegraph(Vector2Int c)
+        {
+            if (!_crystalTelegraphs.TryGetValue(c, out var tel))
+                return;
+            foreach (var go in tel.Objects)
+                if (go != null)
+                    Destroy(go);
+            _crystalTelegraphs.Remove(c);
+            RebuildDangerTiles();
+        }
+
+        private void UpdateCrystalLabel(Vector2Int c)
+        {
+            if (DamagePopup.Suppressed || !_crystalFuse.TryGetValue(c, out var left))
+                return;
+            if (!_crystalLabels.TryGetValue(c, out var label) || label == null)
+            {
+                var go = new GameObject("CrystalFuse");
+                go.transform.SetParent(transform, false);
+                go.transform.position = new Vector3(c.x * GridConstants.CellSize, (c.y + 0.45f) * GridConstants.CellSize, -1f);
+                _roomObjects.Add(go);
+                label = go.AddComponent<TextMesh>();
+                label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                label.fontSize = 48;
+                label.characterSize = 0.09f;
+                label.anchor = TextAnchor.LowerCenter;
+                label.alignment = TextAlignment.Center;
+                label.fontStyle = FontStyle.Bold;
+                var meshRenderer = go.GetComponent<MeshRenderer>();
+                meshRenderer.material = label.font.material;
+                meshRenderer.sortingOrder = 30;
+                _crystalLabels[c] = label;
+            }
+            label.text = left.ToString();
+            label.color = left <= 3 ? new Color(1f, 0.3f, 0.3f) : left <= 6 ? new Color(1f, 0.8f, 0.3f) : new Color(0.75f, 1f, 1f);
+        }
+
+        /// <summary>수정이 사라졌다(깸·폭발·폭탄) - 타이머·숫자·예고 정리.</summary>
+        private void ForgetCrystal(Vector2Int c)
+        {
+            _crystalFuse.Remove(c);
+            if (_crystalLabels.TryGetValue(c, out var label))
+            {
+                if (label != null)
+                    Destroy(label.gameObject);
+                _crystalLabels.Remove(c);
+            }
+            ClearCrystalTelegraph(c);
+        }
+
+        /// <summary>골렘 둘레 아무 데나 바위 count개(수정이 솟을 때 - 폭발을 막아 줄 안전지대). 길을 끊는 칸·플레이어 2칸 안은 빼고.</summary>
+        public int DropGolemRubbleAround(EnemyActor golem, int count)
+        {
+            var cells = new List<Vector2Int>();
+            for (var x = 0; x < Map.Width; x++)
+            for (var y = 0; y < Map.Height; y++)
+            {
+                var p = new Vector2Int(x, y);
+                if (GridMap.FootprintChebyshev(golem, p) >= 2
+                    && Mathf.Max(Mathf.Abs(p.x - _player.GridPos.x), Mathf.Abs(p.y - _player.GridPos.y)) >= 2)
+                    cells.Add(p);
+            }
+            return DropGolemRubble(cells, count);
+        }
 
         /// <summary>공명 수정을 targetCount개가 되도록 세운다(벽 칸) - 골렘 몸에서 3칸, 플레이어에게서 2칸 이상, 수정끼리 3칸 이상 떨어진 빈 칸. 새로 세운 개수.</summary>
         public int SpawnGolemCrystals(EnemyActor golem, int targetCount)
@@ -1307,6 +1576,8 @@ namespace LoopRogue
                     break;
                 if (_golemCrystals.Any(c => Mathf.Max(Mathf.Abs(c.x - p.x), Mathf.Abs(c.y - p.y)) < 3))
                     continue;
+                if (!WallKeepsConnected(p))
+                    continue; // 골렘이나 플레이어가 갇히지 않게
                 Map.AddWall(p);
                 var go = new GameObject("GolemCrystal");
                 go.transform.SetParent(transform, false);
@@ -1316,6 +1587,8 @@ namespace LoopRogue
                 _roomObjects.Add(go);
                 _wallObjects[p] = go;
                 _golemCrystals.Add(p);
+                _crystalFuse[p] = GolemCrystalFuseTurns;
+                UpdateCrystalLabel(p);
                 placed++;
                 if (!DamagePopup.Suppressed)
                     DeathBurst.Spawn(go.transform.position, new Color(0.5f, 0.95f, 0.95f, 0.9f), 10, GridConstants.CellSize * 1.4f, GridConstants.CellSize * 0.12f);
@@ -1343,12 +1616,18 @@ namespace LoopRogue
         }
 
         /// <summary>골렘 십자 베기가 지나간 칸 중 count칸(빈 칸, 출구·수정 아닌 곳)에 돌무더기(벽)를 떨어뜨린다 - 다음 십자를 막는 엄폐물.</summary>
-        public void DropGolemRubble(IEnumerable<Vector2Int> tiles, int count)
+        public int DropGolemRubble(IEnumerable<Vector2Int> tiles, int count)
         {
             var cells = tiles.Where(p => Map.IsWalkable(p) && p != _player.GridPos && ExitPosition != p && !_golemCrystals.Contains(p))
-                .OrderBy(_ => Rng.Next()).Take(count).ToList();
+                .OrderBy(_ => Rng.Next()).ToList();
+            var placed = 0;
             foreach (var p in cells)
             {
+                if (placed >= count)
+                    break;
+                if (!WallKeepsConnected(p))
+                    continue; // 10-14 봇: 돌무더기·수정이 골렘 3x3을 빙 둘러싸 플레이어가 못 닿는 판이 있었다
+                placed++;
                 Map.AddWall(p);
                 var go = new GameObject("GolemRubble");
                 go.transform.SetParent(transform, false);
@@ -1357,9 +1636,11 @@ namespace LoopRogue
                     VisualUtil.CreateSquareVisual(go, new Color(0.5f, 0.5f, 0.55f), GridConstants.CellSize * 0.85f, sortingOrder: -7);
                 _roomObjects.Add(go);
                 _wallObjects[p] = go;
+                _golemRubble.Add(p);
                 if (!DamagePopup.Suppressed)
                     DeathBurst.Spawn(go.transform.position, new Color(0.55f, 0.53f, 0.6f, 0.95f), 10, GridConstants.CellSize * 1.2f, GridConstants.CellSize * 0.13f);
             }
+            return placed;
         }
 
         // ---- 2층 오우거 균열(BossBrain) ----
@@ -1454,38 +1735,392 @@ namespace LoopRogue
         private static readonly Color PillarTint = new Color(0.95f, 0.82f, 0.68f);
 
         public int BoarPillarCount => _boarPillars.Count;
+        public IReadOnlyCollection<Vector2Int> BoarPillars => _boarPillars;
+
+        // ---- 1층 멧돼지 기둥 제한 턴(10-14 사용자) - 기믹을 안 쓰고 버티기만 하면 끝나게: 기둥이 솟은 뒤 BoarPillarTurnLimit턴 안에
+        // 기둥을 다 못 부수면 멧돼지가 광폭 돌진으로 즉사시킨다(보호막·불굴·부활 무시). 남은 턴은 멧돼지 머리 위 숫자.
+        public const int BoarPillarTurnLimit = 150; // 10-14 300 → 150(사용자)
+        private static readonly int[] BoarWarnAt = { 100, 50, 20, 10, 5, 3, 2, 1 };
+        private int _boarTurnsLeft;
+        private TextMesh _boarTimerLabel;
+        public int BoarTurnsLeft => _boarPillars.Count > 0 ? _boarTurnsLeft : 0;
+        /// <summary>봇 통계용 - 기둥 제한 턴을 넘겨 즉사한 횟수.</summary>
+        public static int BoarDeadlineKillCount;
+
+        /// <summary>몹 턴이 끝날 때마다(= 플레이어 행동 1번) - 남은 턴을 줄이고, 0이 되면 즉사. 플레이어가 죽었으면 true.</summary>
+        private bool TickBoarDeadline()
+        {
+            // 기둥이 남은 채로 멧돼지를 잡았으면(피해 10%로도 잡을 수는 있다) 클리어한 방에서 즉사하지 않게 멈춘다
+            if (_boarPillars.Count == 0 || _boarTurnsLeft <= 0 || _roomCleared || !_enemies.Any(e => e != null && e.IsBoss && !e.Stats.IsDead))
+            {
+                _boarTurnsLeft = 0;
+                HideBoarTimer();
+                return false;
+            }
+            _boarTurnsLeft--;
+            UpdateBoarTimer();
+            if (_boarTurnsLeft > 0)
+            {
+                if (System.Array.IndexOf(BoarWarnAt, _boarTurnsLeft) >= 0)
+                    ShowMessage(Loc.F("<color=#FF6060>멧돼지가 씩씩거린다...</color> 기둥을 다 부수기까지 {0}턴!", _boarTurnsLeft));
+                return false;
+            }
+
+            HideBoarTimer();
+            BoarDeadlineKillCount++;
+            ShowMessage(Loc.T("<color=#FF4040>멧돼지가 광폭해져 모든 것을 짓밟았다!</color>"));
+            if (HitFeedback.Enabled)
+            {
+                CameraShake.Shake(0.5f, 0.9f);
+                SfxPlayer.Play(Sfx.Explosion);
+            }
+            KillPlayerInstantly();
+            ClearAllTelegraphs();
+            _loopManager.OnPlayerDied();
+            return true;
+        }
+
+        /// <summary>기믹 실패 즉사 - TakeIncomingDamage를 안 거쳐 보호막·불굴·부활·피해 무효가 안 걸린다. 사망 처리(OnPlayerDied)는 호출부가.</summary>
+        private void KillPlayerInstantly()
+        {
+            _player.Stats.Shield = 0f;
+            _player.Stats.TakeDamage(_player.Stats.CurrentHealth);
+        }
+
+        // ---- 2층 오우거 바닥 구멍(10-14 사용자 컨셉 "강타로 던전이 흔들려 바닥에 구멍 - 플레이어가 메운다") ----
+        // 강타마다 구멍(벽 칸, Props/Ogre_Hole)이 생기고, 플레이어가 붙어서 그쪽으로 움직이면 한 턴 써서 메운다(PlayerActor.TryAct).
+        // 열린 구멍이 OgreHoleCollapseCount개가 되면 바닥이 무너져 즉사. 오우거 머리 위 "구멍 n/8".
+        public const int OgreHoleCollapseCount = 8;
+        private const int OgreHoleNearRange = 4;
+        private readonly HashSet<Vector2Int> _ogreHoles = new HashSet<Vector2Int>();
+        private TextMesh _ogreHoleLabel;
+        public IReadOnlyCollection<Vector2Int> OgreHoles => _ogreHoles;
+        public bool IsOgreHole(Vector2Int p) => _ogreHoles.Contains(p);
+        /// <summary>봇 통계용 - 메운 구멍 수, 붕괴로 즉사한 횟수.</summary>
+        public static int OgreHoleFillCount, OgreCollapseKillCount;
+
+        /// <summary>강타 발동 때 구멍 count개를 연다(플레이어·오우거·출구에서 떨어진 빈 칸, 방이 갈라지지 않는 칸만).
+        /// 열린 구멍이 붕괴 개수에 닿으면 즉사시키고 true - 사망 처리는 몹 턴 루프(RunEnemyTurnsCore)가 이어서 한다.</summary>
+        public bool OpenOgreHoles(EnemyActor ogre, int count)
+        {
+            var cells = new List<Vector2Int>();
+            for (var x = 0; x < Map.Width; x++)
+            for (var y = 0; y < Map.Height; y++)
+            {
+                var p = new Vector2Int(x, y);
+                if (Map.IsWalkable(p) && ExitPosition != p && !_traps.ContainsKey(p)
+                    && Mathf.Max(Mathf.Abs(p.x - _player.GridPos.x), Mathf.Abs(p.y - _player.GridPos.y)) >= 2
+                    && GridMap.FootprintChebyshev(ogre, p) >= 2)
+                    cells.Add(p);
+            }
+            var placed = 0;
+            // 플레이어에게서 OgreHoleNearRange칸 안을 먼저 - 방 반대편에 뚫리면 메우러 가는 동안 다음 구멍이 열려서 따라잡을 수 없다(10-14 사용자)
+            int Near(Vector2Int p) => Mathf.Max(Mathf.Abs(p.x - _player.GridPos.x), Mathf.Abs(p.y - _player.GridPos.y)) <= OgreHoleNearRange ? 0 : 1;
+            foreach (var p in cells.OrderBy(Near).ThenBy(_ => Rng.Next()))
+            {
+                if (placed >= count)
+                    break;
+                if (!WallKeepsConnected(p))
+                    continue;
+                Map.AddWall(p);
+                var go = new GameObject("OgreHole");
+                go.transform.SetParent(transform, false);
+                go.transform.position = new Vector3(p.x * GridConstants.CellSize, p.y * GridConstants.CellSize, 0f);
+                if (VisualUtil.TryCreateProp(go, "Ogre_Hole", -7) == null)
+                    VisualUtil.CreateSquareVisual(go, new Color(0.05f, 0.04f, 0.06f), GridConstants.CellSize * 0.85f, sortingOrder: -7);
+                _roomObjects.Add(go);
+                _wallObjects[p] = go;
+                _ogreHoles.Add(p);
+                placed++;
+                if (!DamagePopup.Suppressed)
+                    DeathBurst.Spawn(go.transform.position, new Color(0.45f, 0.42f, 0.4f, 0.95f), 12, GridConstants.CellSize * 1.4f, GridConstants.CellSize * 0.12f);
+            }
+            if (placed > 0 && HitFeedback.Enabled)
+            {
+                CameraShake.Shake(0.3f, 0.5f); // 던전이 흔들린다
+                SfxPlayer.Play(Sfx.Slam);
+            }
+            UpdateOgreHoleLabel();
+            if (_ogreHoles.Count >= OgreHoleCollapseCount)
+            {
+                HideOgreHoleLabel();
+                OgreCollapseKillCount++;
+                ShowMessage(Loc.T("<color=#FF4040>바닥이 통째로 무너져 내렸다!</color>"));
+                if (HitFeedback.Enabled)
+                {
+                    CameraShake.Shake(0.5f, 0.9f);
+                    SfxPlayer.Play(Sfx.Explosion);
+                }
+                KillPlayerInstantly();
+                return true;
+            }
+            if (placed > 0 && _ogreHoles.Count >= OgreHoleCollapseCount - 2)
+                ShowMessage(Loc.F("<color=#FF6060>바닥이 크게 갈라진다...</color> 구멍 {0}/{1} - 메우지 않으면 무너진다!", _ogreHoles.Count, OgreHoleCollapseCount));
+            return false;
+        }
+
+        /// <summary>플레이어가 구멍을 메웠다(한 턴) - 벽을 걷고 바닥을 다시 깐다.</summary>
+        public void FillOgreHole(Vector2Int p)
+        {
+            if (!_ogreHoles.Contains(p))
+                return;
+            OgreHoleFillCount++;
+            RemoveWallObject(p); // 구멍 목록에서도 빠지고 바닥 타일이 다시 깔린다
+            if (HitFeedback.Enabled)
+                SfxPlayer.Play(Sfx.ChestRattle);
+        }
+
+        private void UpdateOgreHoleLabel()
+        {
+            if (DamagePopup.Suppressed)
+                return;
+            if (_ogreHoles.Count == 0)
+            {
+                HideOgreHoleLabel();
+                return;
+            }
+            var ogre = _enemies.FirstOrDefault(e => e != null && e.IsBoss && !e.Stats.IsDead);
+            if (ogre == null)
+                return;
+            if (_ogreHoleLabel == null)
+                _ogreHoleLabel = CreateBossLabel(ogre, "OgreHoles");
+            _ogreHoleLabel.text = Loc.F("구멍 {0}/{1}", _ogreHoles.Count, OgreHoleCollapseCount);
+            _ogreHoleLabel.color = _ogreHoles.Count >= OgreHoleCollapseCount - 2 ? new Color(1f, 0.3f, 0.3f)
+                : _ogreHoles.Count >= OgreHoleCollapseCount / 2 ? new Color(1f, 0.75f, 0.3f) : Color.white;
+        }
+
+        private void HideOgreHoleLabel()
+        {
+            if (_ogreHoleLabel != null)
+            {
+                Destroy(_ogreHoleLabel.gameObject);
+                _ogreHoleLabel = null;
+            }
+        }
+
+        /// <summary>3x3 보스 머리 위를 따라다니는 글자(멧돼지 남은 턴·오우거 구멍 수).</summary>
+        private TextMesh CreateBossLabel(EnemyActor boss, string goName)
+        {
+            var go = new GameObject(goName);
+            go.transform.SetParent(transform, false);
+            _roomObjects.Add(go);
+            var label = go.AddComponent<TextMesh>();
+            label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            label.fontSize = 48;
+            label.characterSize = 0.1f;
+            label.anchor = TextAnchor.LowerCenter;
+            label.alignment = TextAlignment.Center;
+            var meshRenderer = go.GetComponent<MeshRenderer>();
+            meshRenderer.material = label.font.material;
+            meshRenderer.sortingOrder = 30;
+            go.AddComponent<FollowAbove>().Target = boss.transform;
+            return label;
+        }
+
+        private void UpdateBoarTimer()
+        {
+            if (DamagePopup.Suppressed)
+                return;
+            var boar = _enemies.FirstOrDefault(e => e != null && e.IsBoss && !e.Stats.IsDead);
+            if (boar == null)
+                return;
+            if (_boarTimerLabel == null)
+                _boarTimerLabel = CreateBossLabel(boar, "BoarTimer");
+            _boarTimerLabel.text = Loc.F("기둥 {0}개 · {1}턴", _boarPillars.Count, _boarTurnsLeft);
+            _boarTimerLabel.color = _boarTurnsLeft <= 20 ? new Color(1f, 0.3f, 0.3f) : _boarTurnsLeft <= 100 ? new Color(1f, 0.75f, 0.3f) : Color.white;
+        }
+
+        private void HideBoarTimer()
+        {
+            if (_boarTimerLabel != null)
+            {
+                Destroy(_boarTimerLabel.gameObject);
+                _boarTimerLabel = null;
+            }
+        }
+
+        /// <summary>대상 위에 붙어 다니는 표시(대상 오브젝트엔 그림 배율이 걸려 있어 자식으로 안 붙인다).</summary>
+        private sealed class FollowAbove : MonoBehaviour
+        {
+            public Transform Target;
+
+            private void LateUpdate()
+            {
+                if (Target == null)
+                {
+                    Destroy(gameObject);
+                    return;
+                }
+                transform.position = Target.position + new Vector3(0f, GridConstants.CellSize * 2.1f, -1f); // 3x3 몸 위
+            }
+        }
 
         /// <summary>멧돼지 상하좌우로 4칸(안 되면 3·5칸) 떨어진 빈 칸에 돌기둥(벽 칸)을 세운다 - 세운 개수.
         /// 기둥 뒤에 선 플레이어를 향해 돌진하면 몸 띠가 기둥에 걸려 박는다.</summary>
+        private const int PillarInset = 2; // 멧돼지 기둥 - 벽에서 몇 칸 안쪽
+
+        /// <summary>1층 멧돼지 기둥 단계 시작(BossBrain) - 짧은 컷신: 울부짖음·흔들림 → 화면이 어두워진 사이 멧돼지는 방 중앙, 플레이어는 멧돼지 몸
+        /// 2칸 아래로 → 밝아지며 기둥이 솟는다. 그동안 입력은 잠근다. 봇 실행 중엔 연출 없이 바로.</summary>
+        public void StartBoarPillarPhase(EnemyActor boar)
+        {
+            // 공용 기믹 컷신(RoomController.Cutscenes) - 어두워진 사이 멧돼지는 중앙, 플레이어는 몸 2칸 아래 → 기둥이 하나씩 솟는다
+            var c = new GimmickCutscene { Line = Loc.T("<color=#FFB060>거대 멧돼지가 분노해 울부짖는다!</color>"), Fade = true };
+            c.Relocate = () =>
+            {
+                if (boar != null && !boar.Stats.IsDead)
+                    RelocateForBoarPhase(boar);
+                BeginBoarPillars();
+            };
+            foreach (var spot in BoarPillarTemplate())
+                c.Steps.Add(() => boar != null && !boar.Stats.IsDead && AddBoarPillar(spot)); // 솟아오르는 이펙트는 AddBoarPillar가
+            c.Finish = () =>
+            {
+                if (FinishBoarPillars() > 0)
+                    AnnounceBoarPillars();
+            };
+            PlayGimmickCutscene(c);
+        }
+
+        /// <summary>멧돼지를 방 중앙(못 들어가면 가장 가까운 자리)으로, 플레이어를 멧돼지 몸 2칸 아래(막혔으면 가까운 빈칸)로 옮긴다.</summary>
+        private void RelocateForBoarPhase(EnemyActor boar)
+        {
+            Map.RemoveActor(boar);
+            Map.RemoveActor(_player);
+            var r = boar.FootprintRadius;
+            var center = new Vector2Int(Map.Width / 2, Map.Height / 2);
+            var bossPos = boar.GridPos;
+            for (var d = 0; d <= 4; d++)
+            {
+                var found = false;
+                for (var dx = -d; dx <= d && !found; dx++)
+                for (var dy = -d; dy <= d && !found; dy++)
+                {
+                    var c = center + new Vector2Int(dx, dy);
+                    if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) == d && Map.CanOccupy(boar, c))
+                    {
+                        bossPos = c;
+                        found = true;
+                    }
+                }
+                if (found)
+                    break;
+            }
+            Map.PlaceActor(boar, bossPos);
+
+            var want = bossPos + new Vector2Int(0, -(r + 2));
+            var playerPos = _player.GridPos;
+            for (var d = 0; d <= 4; d++)
+            {
+                var found = false;
+                for (var dx = -d; dx <= d && !found; dx++)
+                for (var dy = -d; dy <= d && !found; dy++)
+                {
+                    var c = want + new Vector2Int(dx, dy);
+                    if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) == d && Map.IsWalkable(c) && GridMap.FootprintDistance(boar, c) > 1)
+                    {
+                        playerPos = c;
+                        found = true;
+                    }
+                }
+                if (found)
+                    break;
+            }
+            Map.PlaceActor(_player, playerPos);
+            if (boar.TryGetComponent<SpriteAnimator>(out var boarAnim))
+                boarAnim.SnapToGrid(); // 걸어가는 모션 대신 순간이동
+            if (_player.TryGetComponent<SpriteAnimator>(out var playerAnim))
+                playerAnim.SnapToGrid();
+        }
+
+        private void SpawnBoarPillarsAndAnnounce(EnemyActor boar)
+        {
+            if (SpawnBoarPillars(boar) > 0)
+                AnnounceBoarPillars();
+        }
+
+        private void AnnounceBoarPillars()
+        {
+            ShowMessage(Loc.T("<color=#FFB060>멧돼지가 땅을 들이받자 돌기둥이 솟았다!</color> 기둥이 서 있는 동안 멧돼지는 단단하다"));
+            ShowMessage(Loc.F("기둥 뒤에 서서 돌진을 유도해 기둥에 박게 하자! <color=#FF6060>{0}턴 안에 다 못 부수면 끝장이다</color>", BoarPillarTurnLimit));
+        }
+
         public int SpawnBoarPillars(EnemyActor boar)
         {
-            _boarPillars.Clear();
-            foreach (var dir in new[] { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right })
+            BeginBoarPillars();
+            foreach (var spot in BoarPillarTemplate())
+                AddBoarPillar(spot);
+            return FinishBoarPillars();
+        }
+
+        private void BeginBoarPillars() => _boarPillars.Clear();
+
+        /// <summary>맵 기준 배치(10-14 사용자) - 매번 무작위로 "4면의 중앙" 또는 "모서리 4칸"(둘 다 벽에서 PillarInset칸 안쪽).
+        /// 예전엔 멧돼지 몸 중심 기준 상하좌우 4칸.</summary>
+        private Vector2Int[] BoarPillarTemplate()
+        {
+            const int inset = PillarInset;
+            int w = Map.Width, h = Map.Height;
+            return Rng.Next(2) == 0
+                ? new[] { new Vector2Int(w / 2, inset), new Vector2Int(w / 2, h - 1 - inset), new Vector2Int(inset, h / 2), new Vector2Int(w - 1 - inset, h / 2) }
+                : new[] { new Vector2Int(inset, inset), new Vector2Int(w - 1 - inset, inset), new Vector2Int(inset, h - 1 - inset), new Vector2Int(w - 1 - inset, h - 1 - inset) };
+        }
+
+        /// <summary>기둥 하나 - 그 칸이 막혔으면(멧돼지 몸·플레이어·출구·예고 칸·벽, 길을 끊는 칸) 2칸 안 가까운 빈칸에. 세웠으면 true.</summary>
+        private bool AddBoarPillar(Vector2Int spot)
+        {
+            Vector2Int? found = null;
+            for (var r = 0; r <= 2 && !found.HasValue; r++)
+            for (var dx = -r; dx <= r && !found.HasValue; dx++)
+            for (var dy = -r; dy <= r && !found.HasValue; dy++)
             {
-                foreach (var dist in new[] { 4, 3, 5 })
-                {
-                    var p = boar.GridPos + dir * dist;
-                    if (!Map.IsWalkable(p) || p == _player.GridPos || ExitPosition == p || _dangerTiles.Contains(p))
-                        continue;
-                    Map.AddWall(p);
-                    _boarPillars.Add(p);
-                    var go = _tiledRoom
-                        ? CreateTile(transform, p, DungeonTiles.Wall(true, _tileRng), -8, PillarTint).gameObject
-                        : CreatePillarSquare(p);
-                    _roomObjects.Add(go);
-                    _wallObjects[p] = go;
-                    if (!DamagePopup.Suppressed)
-                    {
-                        DeathBurst.Spawn(go.transform.position, new Color(0.6f, 0.52f, 0.42f, 0.9f), 10, GridConstants.CellSize * 1.4f, GridConstants.CellSize * 0.12f);
-                        StartCoroutine(RisePillar(go.transform));
-                    }
-                    break;
-                }
+                if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) != r)
+                    continue; // 가까운 고리부터
+                var c = spot + new Vector2Int(dx, dy);
+                if (Map.IsWalkable(c) && c != _player.GridPos && ExitPosition != c && !_dangerTiles.Contains(c)
+                    && !_boarPillars.Contains(c) && WallKeepsConnected(c))
+                    found = c;
             }
-            if (_boarPillars.Count > 0 && HitFeedback.Enabled)
+            if (!found.HasValue)
+                return false;
+            var p = found.Value;
+            Map.AddWall(p);
+            _boarPillars.Add(p);
+            // 전용 돌기둥 그림(Props/Boar_Pillar, 칸 위로 살짝 솟음) + 솟아오르는 8프레임(Effects/pillar_rise) - 10-14. 없으면 예전 벽 타일
+            GameObject go;
+            SpriteRenderer pillarArt = null;
+            var pos = new Vector3(p.x * GridConstants.CellSize, p.y * GridConstants.CellSize, 0f);
+            if (Resources.Load<Sprite>("Sprites/Props/Boar_Pillar") != null)
             {
-                CameraShake.Shake(0.22f, 0.4f);
-                SfxPlayer.Play(Sfx.Slam);
+                go = new GameObject("Pillar");
+                go.transform.SetParent(transform, false);
+                go.transform.position = pos;
+                pillarArt = VisualUtil.TryCreateProp(go, "Boar_Pillar", -7);
+            }
+            else
+                go = _tiledRoom
+                    ? CreateTile(transform, p, DungeonTiles.Wall(true, _tileRng), -8, PillarTint).gameObject
+                    : CreatePillarSquare(p);
+            _roomObjects.Add(go);
+            _wallObjects[p] = go;
+            if (!DamagePopup.Suppressed)
+            {
+                DeathBurst.Spawn(go.transform.position, new Color(0.6f, 0.52f, 0.42f, 0.9f), 10, GridConstants.CellSize * 1.4f, GridConstants.CellSize * 0.12f);
+                var rise = pillarArt != null ? Fx.Play("pillar_rise", pos, 1f, fps: 16f, sortingOrder: -7) : null;
+                if (rise != null)
+                    StartCoroutine(ShowPillarAfterRise(pillarArt, 8f / 16f));
+                else
+                    StartCoroutine(RisePillar(go.transform));
+            }
+            return true;
+        }
+
+        /// <summary>기둥을 다 세운 뒤 - 제한 턴 시작. 세운 개수.</summary>
+        private int FinishBoarPillars()
+        {
+            if (_boarPillars.Count > 0)
+            {
+                _boarTurnsLeft = BoarPillarTurnLimit;
+                UpdateBoarTimer();
             }
             return _boarPillars.Count;
         }
@@ -1500,6 +2135,15 @@ namespace LoopRogue
         }
 
         /// <summary>기둥이 땅에서 솟아오르는 연출(크기만 - 칸은 이미 막혀 있다).</summary>
+        /// <summary>솟아오르는 이펙트가 도는 동안 서 있는 기둥 그림은 숨겨 둔다(이펙트 마지막 장 = 서 있는 기둥).</summary>
+        private static IEnumerator ShowPillarAfterRise(SpriteRenderer pillar, float seconds)
+        {
+            pillar.enabled = false;
+            yield return new WaitForSeconds(seconds);
+            if (pillar != null)
+                pillar.enabled = true;
+        }
+
         private static IEnumerator RisePillar(Transform pillar)
         {
             var baseScale = pillar.localScale;
@@ -1533,7 +2177,10 @@ namespace LoopRogue
         private void RemoveWallObject(Vector2Int p)
         {
             Map.RemoveWall(p);
-            var wasCrystal = _golemCrystals.Remove(p); // 3층 골렘 수정 - 공명이든 폭탄이든 깨지는 그림
+            var wasCrystal = _golemCrystals.Remove(p); // 3층 골렘 수정 - 깸·폭발·폭탄 모두 깨지는 그림
+            if (wasCrystal)
+                ForgetCrystal(p);
+            var wasRubble = _golemRubble.Remove(p); // 3층 골렘 바위 - 폭발·폭탄에 깨지는 그림(Effects/rubble_break 8프레임)
             if (_wallObjects.TryGetValue(p, out var wallGo))
             {
                 _wallObjects.Remove(p);
@@ -1544,16 +2191,31 @@ namespace LoopRogue
                         if (Fx.Play("crystal_shatter", wallGo.transform.position, 1.6f, fps: 14f, sortingOrder: 6) == null && !DamagePopup.Suppressed)
                             DeathBurst.Spawn(wallGo.transform.position, new Color(0.55f, 1f, 1f, 0.95f), 16, GridConstants.CellSize * 2f, GridConstants.CellSize * 0.16f);
                     }
+                    else if (wasRubble)
+                    {
+                        if (Fx.Play("rubble_break", wallGo.transform.position, 1.7f, fps: 14f, sortingOrder: 6) == null && !DamagePopup.Suppressed)
+                            DeathBurst.Spawn(wallGo.transform.position, new Color(0.6f, 0.58f, 0.6f, 0.95f), 14, GridConstants.CellSize * 1.8f, GridConstants.CellSize * 0.15f);
+                    }
                     else if (!DamagePopup.Suppressed)
                         DeathBurst.Spawn(wallGo.transform.position, new Color(0.6f, 0.52f, 0.42f, 0.95f), 16, GridConstants.CellSize * 2f, GridConstants.CellSize * 0.16f);
                     Destroy(wallGo);
                 }
             }
             OnWallRemoved(p);
+            if (_ogreHoles.Remove(p))
+                UpdateOgreHoleLabel(); // 메웠거나 폭탄으로 무너뜨렸다(폭발이 구멍을 메운다)
             if (_secretWall == p)
                 OnSecretWallBroken(p);
-            if (_boarPillars.Remove(p) && _boarPillars.Count == 0)
-                ShowMessage(Loc.T("<color=#FFB060>기둥이 모두 무너졌다!</color> 멧돼지의 단단함이 풀렸다!"));
+            if (_boarPillars.Remove(p))
+            {
+                if (_boarPillars.Count == 0)
+                {
+                    HideBoarTimer();
+                    ShowMessage(Loc.T("<color=#FFB060>기둥이 모두 무너졌다!</color> 멧돼지의 단단함이 풀렸다!"));
+                }
+                else
+                    UpdateBoarTimer();
+            }
         }
 
         /// <summary>폭탄으로 벽이 부서진 뒤 - 그 자리에 바닥을 깔고, 바로 위 벽은 이제 아래가 바닥이니 앞면으로.</summary>
@@ -1588,6 +2250,14 @@ namespace LoopRogue
         {
             _knightPending = false;
             _boarPillars.Clear();
+            _boarTurnsLeft = 0;
+            _boarTimerLabel = null; // 오브젝트는 _roomObjects와 함께 지워진다
+            _ogreHoles.Clear();
+            _ogreHoleLabel = null;
+            ClearStageGimmick();
+            foreach (var c in _crystalFuse.Keys.ToList())
+                ForgetCrystal(c);
+            _golemRubble.Clear();
             _cracks.Clear();
             _ogreFallImmune = 0;
             _golemCrystals.Clear();
@@ -1670,6 +2340,8 @@ namespace LoopRogue
                 }
                 _enemies.Clear();
                 ClearTelegraph();
+                foreach (var c in _golemCrystals.ToList())
+                    RemoveWallObject(c); // 3층 골렘이 죽으면 남은 수정은 터지지 않고 부서진다(10-14 사용자)
             }
 
             if (_enemies.Count > 0 || _roomCleared)
@@ -1694,6 +2366,20 @@ namespace LoopRogue
             {
                 _roomCleared = true; // 튜토리얼 - 골드·회복·방 클리어 기록·NPC 없이 출구만
                 SpawnExit();
+                return;
+            }
+            if (BossRush.Active && _current.IsBossRoom)
+            {
+                _roomCleared = true; // 보스 러시 - 스테이지 클리어 대신 다음 보스로(마지막이면 끝)
+                if (BossRush.IsLast(_current))
+                {
+                    ShowMessage(Loc.T("<color=#FFD24A>보스 러시 완료!</color> 1~9층 보스를 모두 쓰러뜨렸다"));
+                    return;
+                }
+                _player.Stats.FullHeal();
+                HitFeedback.OnHeal(_player);
+                SpawnExit();
+                ShowMessage(Loc.F("{0}층 보스 격파! 체력을 회복했다 - 출구로 가면 {1}층 보스", _current.BossStage, _current.BossStage + 1));
                 return;
             }
             _roomCleared = true;
@@ -1775,6 +2461,8 @@ namespace LoopRogue
         {
             if (!ExitPosition.HasValue || ExitPosition.Value != pos)
                 return false;
+            if (TutorialStage.BlocksExit(this))
+                return false; // 튜토리얼 아이템 방 - 아직 안 써 본 아이템이 있으면 출구 칸에 서 있기만 한다
             ExitPosition = null;
             ExitUseCount++;
             _loopManager.AdvanceToNextRoom();
@@ -1846,6 +2534,13 @@ namespace LoopRogue
                 if (dead != null && _player.ClaimKill(dead))
                     return;
             }
+
+            if (TickBoarDeadline())
+                return; // 1층 멧돼지 기둥 제한 턴 - 즉사
+            if (TickGolemCrystals())
+                return; // 3층 골렘 수정 폭발 - 즉사
+            if (TickStageGimmick())
+                return; // 4~9층 보스 기믹 실패 - 즉사
 
             EndOfEnemyTurns();
             Puzzle?.TurnEnd();
