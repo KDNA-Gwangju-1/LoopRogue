@@ -1792,6 +1792,27 @@ namespace LoopRogue
         // 열린 구멍이 OgreHoleCollapseCount개가 되면 바닥이 무너져 즉사. 오우거 머리 위 "구멍 n/8".
         public const int OgreHoleCollapseCount = 8;
         private const int OgreHoleNearRange = 4;
+        // 대지의 기세(10-14 사용자 "구멍을 메우면 버프를 줘서 잡기 편하게") - 메울 때마다 1단계(최대 OgreMightMaxStacks),
+        // 단계당 오우거에게 주는 피해 +OgreMightPerStack, 마지막으로 메운 뒤 OgreMightTurns턴 유지. 메우는 턴이 손해가 아니라 투자가 되게.
+        public const int OgreMightMaxStacks = 3;
+        public const float OgreMightPerStack = 0.3f;
+        public const int OgreMightTurns = 6;
+        private int _ogreMightStacks, _ogreMightTurns;
+        /// <summary>오우거가 받는 피해 배율(BossBrain.ArmorMultiplier).</summary>
+        public float OgreMightMultiplier => 1f + _ogreMightStacks * OgreMightPerStack;
+
+        /// <summary>몹 턴이 끝날 때마다 - 대지의 기세 남은 턴을 줄인다.</summary>
+        private void TickOgreMight()
+        {
+            if (_ogreMightStacks == 0 || --_ogreMightTurns > 0)
+            {
+                UpdateOgreHoleLabel();
+                return;
+            }
+            _ogreMightStacks = 0;
+            ShowMessage(Loc.T("대지의 기세가 흩어졌다"));
+            UpdateOgreHoleLabel();
+        }
         private readonly HashSet<Vector2Int> _ogreHoles = new HashSet<Vector2Int>();
         private TextMesh _ogreHoleLabel;
         public IReadOnlyCollection<Vector2Int> OgreHoles => _ogreHoles;
@@ -1865,7 +1886,13 @@ namespace LoopRogue
             if (!_ogreHoles.Contains(p))
                 return;
             OgreHoleFillCount++;
+            _ogreMightStacks = Mathf.Min(OgreMightMaxStacks, _ogreMightStacks + 1);
+            _ogreMightTurns = OgreMightTurns;
             RemoveWallObject(p); // 구멍 목록에서도 빠지고 바닥 타일이 다시 깔린다
+            ShowMessage(Loc.F("<color=#FFD070>대지의 기세 {0}단계!</color> 오우거에게 주는 피해 +{1:0}% ({2}턴)",
+                _ogreMightStacks, (OgreMightMultiplier - 1f) * 100f, OgreMightTurns));
+            if (HitFeedback.Enabled) // 플레이어 몸에서 금빛 흙가루가 튄다
+                DeathBurst.Spawn(_player.transform.position, new Color(1f, 0.82f, 0.4f, 0.95f), 12, GridConstants.CellSize * 1.2f, GridConstants.CellSize * 0.1f);
             if (HitFeedback.Enabled)
                 SfxPlayer.Play(Sfx.ChestRattle);
         }
@@ -1874,7 +1901,7 @@ namespace LoopRogue
         {
             if (DamagePopup.Suppressed)
                 return;
-            if (_ogreHoles.Count == 0)
+            if (_ogreHoles.Count == 0 && _ogreMightStacks == 0)
             {
                 HideOgreHoleLabel();
                 return;
@@ -1884,7 +1911,8 @@ namespace LoopRogue
                 return;
             if (_ogreHoleLabel == null)
                 _ogreHoleLabel = CreateBossLabel(ogre, "OgreHoles");
-            _ogreHoleLabel.text = Loc.F("구멍 {0}/{1}", _ogreHoles.Count, OgreHoleCollapseCount);
+            _ogreHoleLabel.text = Loc.F("구멍 {0}/{1}", _ogreHoles.Count, OgreHoleCollapseCount)
+                + (_ogreMightStacks > 0 ? "\n" + Loc.F("기세 +{0:0}% ({1}턴)", (OgreMightMultiplier - 1f) * 100f, _ogreMightTurns) : "");
             _ogreHoleLabel.color = _ogreHoles.Count >= OgreHoleCollapseCount - 2 ? new Color(1f, 0.3f, 0.3f)
                 : _ogreHoles.Count >= OgreHoleCollapseCount / 2 ? new Color(1f, 0.75f, 0.3f) : Color.white;
         }
@@ -2254,6 +2282,7 @@ namespace LoopRogue
             _boarTimerLabel = null; // 오브젝트는 _roomObjects와 함께 지워진다
             _ogreHoles.Clear();
             _ogreHoleLabel = null;
+            _ogreMightStacks = _ogreMightTurns = 0;
             ClearStageGimmick();
             foreach (var c in _crystalFuse.Keys.ToList())
                 ForgetCrystal(c);
@@ -2539,6 +2568,7 @@ namespace LoopRogue
                 return; // 1층 멧돼지 기둥 제한 턴 - 즉사
             if (TickGolemCrystals())
                 return; // 3층 골렘 수정 폭발 - 즉사
+            TickOgreMight(); // 2층 대지의 기세 남은 턴
             if (TickStageGimmick())
                 return; // 4~9층 보스 기믹 실패 - 즉사
 

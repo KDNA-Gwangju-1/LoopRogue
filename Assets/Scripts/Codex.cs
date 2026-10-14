@@ -98,7 +98,9 @@ namespace LoopRogue
             AddBoss(list, 2, new Color(0.48f, 0.6f, 0.33f),
                 Loc.T("몽둥이로 자기 주변 3x3을 내려찍는다. 예고가 뜨면 한 칸 더 떨어지자.") + (BossBrain.OgreCracksEnabled ? " " +
                 Loc.T("체력이 절반 아래로 떨어지면 강타가 바닥에 균열을 남긴다. 오우거가 밟으면 빠져서 2턴 기절하고, 내가 밟으면 1턴 묶인다. 균열 너머에 서서 오우거를 걸어오게 하자.") : "")
-                + (BossBrain.OgreHolesEnabled ? " " + Loc.F("체력이 절반 아래로 떨어지면 강타마다 던전이 흔들려 바닥에 구멍이 뚫린다. 구멍에 붙어 그쪽으로 움직이면 한 턴에 메울 수 있다. 구멍이 {0}개가 되면 바닥이 무너져 즉사한다.", RoomController.OgreHoleCollapseCount) : ""));
+                + (BossBrain.OgreHolesEnabled ? " " + Loc.F("체력이 절반 아래로 떨어지면 강타마다 던전이 흔들려 바닥에 구멍이 뚫린다. 구멍에 붙어 그쪽으로 움직이면 한 턴에 메울 수 있다. 구멍이 {0}개가 되면 바닥이 무너져 즉사한다.", RoomController.OgreHoleCollapseCount) + " " +
+                  Loc.F("구멍을 메울 때마다 대지의 기세가 쌓여 {0}턴 동안 오우거에게 주는 피해가 {1:0}%씩 오른다(최대 {2}단계).",
+                      RoomController.OgreMightTurns, RoomController.OgreMightPerStack * 100f, RoomController.OgreMightMaxStacks) : ""));
             AddBoss(list, 3, new Color(0.5f, 0.5f, 0.55f),
                 Loc.T("땅을 쳐서 자기 가로줄과 세로줄 전체를 가른다. 골렘과 같은 줄에 서지 말고 대각선 쪽에 붙자.") + " " +
                 Loc.F("체력이 80·60·40·20%가 될 때마다 수정이 1·2·3·4개 솟고 천장에서 바위가 떨어진다. 수정은 {0}턴 뒤 폭발해 수정에서 보이는 칸을 전부 날려 버린다(즉사) - 붙어서 깨거나 바위 뒤에 숨자. 폭발을 받아 낸 바위는 깨진다. 40%부터는 십자 베기도 바위를 남긴다.", RoomController.GolemCrystalFuseTurns));
