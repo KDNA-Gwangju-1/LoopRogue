@@ -62,8 +62,8 @@ namespace LoopRogue
         private bool _lit;
         private int _stepParity; // 8장 걷기 - 한 칸마다 앞 4장(왼발)·뒤 4장(오른발)을 번갈아
 
-        /// <summary>8장짜리 세트는 프레임당 시간을 줄여 한 바퀴 시간을 4장 때와 같게(10-13 4→8프레임 작업). 예전부터 8장이던
-        /// 슬라임·거미 대기는 그 속도 그대로 둔다(_smooth = false).</summary>
+        /// <summary>8장짜리 세트는 프레임당 시간을 줄여 한 바퀴 시간을 4장 때와 같게(10-13 4→8프레임 작업). 슬라임·거미도
+        /// 10-14에 새로 그려 다른 몹과 같은 규칙(예전 외부 그림의 8장 대기만 예외였음).</summary>
         private bool _smooth = true;
 
         private float FrameTime(float baseSeconds, int length) =>
@@ -79,7 +79,7 @@ namespace LoopRogue
         public void Setup(string setName, SpriteRenderer renderer, Color debrisColor)
         {
             _set = Load(setName);
-            _smooth = setName != "Slime" && setName != "Spider";
+            _smooth = true;
             _renderer = renderer;
             _actor = GetComponent<GridActor>();
             DebrisColor = debrisColor;

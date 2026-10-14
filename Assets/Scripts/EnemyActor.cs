@@ -473,6 +473,7 @@ namespace LoopRogue
         private const string SlimeSpriteSet = "Slime";
         private const string SpiderSpriteSet = "Spider";
         private const string ArcherSpriteSet = "SkeletonArcher";
+        private const float BasicEnemySpriteScale = 1.3f; // 슬라임·거미·해골 궁수도 48x48 캔버스(10-14 새로 그림, 새 몹 4종과 같은 크기)
         private const string ShieldSpriteSet = "ShieldSoldier";
         private const float ShieldSpriteScale = 1.35f;
         private const string BomberSpriteSet = "Bomber";
@@ -513,11 +514,11 @@ namespace LoopRogue
             }
             else if (Kind == EnemyKind.Ranged)
             {
-                // 해골궁수 도트 그림(대기 4방향만 - 쏠 땐 플레이어 쪽을 바라봄) - 그림 파일이 없으면 예전 초록 사각형.
+                // 해골 궁수 도트 그림(대기·걷기·활 쏘기 4방향) - 그림 파일이 없으면 예전 초록 사각형.
                 var archer = SpriteAnimator.FirstFrame(ArcherSpriteSet);
                 if (archer != null)
                 {
-                    var spriteRenderer = VisualUtil.CreateSpriteVisual(gameObject, archer, GridConstants.CellSize, sortingOrder: 0);
+                    var spriteRenderer = VisualUtil.CreateSpriteVisual(gameObject, archer, GridConstants.CellSize * BasicEnemySpriteScale, sortingOrder: 0);
                     gameObject.AddComponent<SpriteAnimator>().Setup(ArcherSpriteSet, spriteRenderer, new Color(0.85f, 0.85f, 0.8f));
                     return;
                 }
@@ -545,11 +546,11 @@ namespace LoopRogue
             }
             else if (Kind == EnemyKind.Spider)
             {
-                // 거미 도트 그림(대기 4방향만 - 공격 모션은 없어서 대기 그대로) - 그림 파일이 없으면 예전 보라 사각형.
+                // 거미 도트 그림(대기·걷기·물기 4방향, 거미줄 쏠 때도 물기 모션) - 그림 파일이 없으면 예전 보라 사각형.
                 var spider = SpriteAnimator.FirstFrame(SpiderSpriteSet);
                 if (spider != null)
                 {
-                    var spriteRenderer = VisualUtil.CreateSpriteVisual(gameObject, spider, GridConstants.CellSize, sortingOrder: 0);
+                    var spriteRenderer = VisualUtil.CreateSpriteVisual(gameObject, spider, GridConstants.CellSize * BasicEnemySpriteScale, sortingOrder: 0);
                     gameObject.AddComponent<SpriteAnimator>().Setup(SpiderSpriteSet, spriteRenderer, new Color(0.6f, 0.3f, 0.85f));
                     return;
                 }
@@ -585,11 +586,11 @@ namespace LoopRogue
             }
             else
             {
-                // 기본 근접 몹 = 슬라임(사용자가 만든 도트 그림) - 그림 파일이 없으면 예전 빨간 사각형.
+                // 기본 근접 몹 = 슬라임(대기·깡충 걷기·박치기 4방향) - 그림 파일이 없으면 예전 빨간 사각형.
                 var slime = SpriteAnimator.FirstFrame(SlimeSpriteSet);
                 if (slime != null)
                 {
-                    var spriteRenderer = VisualUtil.CreateSpriteVisual(gameObject, slime, GridConstants.CellSize, sortingOrder: 0);
+                    var spriteRenderer = VisualUtil.CreateSpriteVisual(gameObject, slime, GridConstants.CellSize * BasicEnemySpriteScale, sortingOrder: 0);
                     gameObject.AddComponent<SpriteAnimator>().Setup(SlimeSpriteSet, spriteRenderer, new Color(0.45f, 0.8f, 0.3f));
                     return;
                 }
