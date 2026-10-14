@@ -836,6 +836,51 @@ namespace LoopRogue
 
         public void ShowMessage(string message) => _loopManager.ShowMessage(message);
 
+        /// <summary>상하좌우 걸음 수 지도(벽만 막힘, 몹은 무시) - starts에서 각 칸까지. 못 가는 칸은 -1.</summary>
+        private static int[,] WalkSteps(GridMap map, IEnumerable<Vector2Int> starts)
+        {
+            var dist = new int[map.Width, map.Height];
+            for (var x = 0; x < map.Width; x++)
+            for (var y = 0; y < map.Height; y++)
+                dist[x, y] = -1;
+            var queue = new Queue<Vector2Int>();
+            foreach (var s in starts)
+                if (map.IsInBounds(s) && dist[s.x, s.y] < 0)
+                {
+                    dist[s.x, s.y] = 0;
+                    queue.Enqueue(s);
+                }
+            var dirs = new[] { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+            while (queue.Count > 0)
+            {
+                var c = queue.Dequeue();
+                foreach (var d in dirs)
+                {
+                    var n = c + d;
+                    if (!map.IsInBounds(n) || dist[n.x, n.y] >= 0 || map.IsWall(n))
+                        continue;
+                    dist[n.x, n.y] = dist[c.x, c.y] + 1;
+                    queue.Enqueue(n);
+                }
+            }
+            return dist;
+        }
+
+        /// <summary>보스 몸에 상하좌우로 붙은 칸들(흡수 자리).</summary>
+        private List<Vector2Int> AdjacentCells(EnemyActor boss)
+        {
+            var list = new List<Vector2Int>();
+            var r = boss.FootprintRadius + 1;
+            for (var dx = -r; dx <= r; dx++)
+            for (var dy = -r; dy <= r; dy++)
+            {
+                var p = boss.GridPos + new Vector2Int(dx, dy);
+                if (Map.IsInBounds(p) && !Map.IsWall(p) && GridMap.FootprintDistance(boss, p) == 1)
+                    list.Add(p);
+            }
+            return list;
+        }
+
         /// <summary>보스 소환 - 보스 주변 빈 칸에 졸개를 (살아있는 졸개 포함 최대 maxAlive마리까지) 만든다.</summary>
         public void SpawnMinions(EnemyActor boss, int maxAlive)
         {
@@ -848,12 +893,24 @@ namespace LoopRogue
             var cells = new List<Vector2Int>();
             if (SpawnMinionsFar)
             {
+                // 4층 흡수 단계 - 졸개가 킹에게 붙기까지 걸음 수와 플레이어가 졸개에게 붙기까지 걸음 수가 같은 칸(10-14 사용자).
+                // 멀면 못 잡고 가까우면 거저 잡는다 - 걸음이 같으면 바로 쫓아가야 막는 경주가 된다. 같은 칸이 없으면 차이가 가장 작은 칸들.
+                var toKing = WalkSteps(Map, AdjacentCells(boss));
+                var toPlayer = WalkSteps(Map, new[] { _player.GridPos });
+                var scored = new List<(Vector2Int P, int Diff)>();
                 for (var x = 0; x < Map.Width; x++)
                 for (var y = 0; y < Map.Height; y++)
                 {
                     var p = new Vector2Int(x, y);
-                    if (Map.IsWalkable(p) && GridMap.FootprintChebyshev(boss, p) >= 4 && ExitPosition != p)
-                        cells.Add(p);
+                    if (!Map.IsWalkable(p) || GridMap.FootprintChebyshev(boss, p) < 4 || ExitPosition == p
+                        || toKing[x, y] < 0 || toPlayer[x, y] < 2)
+                        continue;
+                    scored.Add((p, Mathf.Abs((toPlayer[x, y] - 1) - toKing[x, y])));
+                }
+                if (scored.Count > 0)
+                {
+                    var best = scored.Min(s => s.Diff);
+                    cells.AddRange(scored.Where(s => s.Diff <= best + (toSpawn > 1 ? 1 : 0)).Select(s => s.P)); // 여러 마리면 한 칸 차이까지(한데 뭉치지 않게)
                 }
             }
             var ring = boss.FootprintRadius + 1;
