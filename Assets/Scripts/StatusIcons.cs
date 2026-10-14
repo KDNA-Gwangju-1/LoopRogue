@@ -31,6 +31,7 @@ namespace LoopRogue
             icons.Add("status_shield", () => player.Stats != null && player.Stats.BlockNextHit, 0f, 1.25f);
             icons.Add("status_reflect", () => player.ReflectTurns > 0, 0f, 1.4f);
             icons.Add("status_immune", () => player.WebImmuneTurns > 0, -0.42f, 1.2f, sortingOrder: 0);
+            icons.Add("status_might", () => RoomController.OgreMightActive, -0.44f, 1.25f, sortingOrder: 0); // 2층 대지의 기세(발밑 고리)
         }
 
         public static void AttachToEnemy(EnemyActor enemy)

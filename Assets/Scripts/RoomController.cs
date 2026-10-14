@@ -1800,6 +1800,8 @@ namespace LoopRogue
         private int _ogreMightStacks, _ogreMightTurns;
         /// <summary>오우거가 받는 피해 배율(BossBrain.ArmorMultiplier).</summary>
         public float OgreMightMultiplier => 1f + _ogreMightStacks * OgreMightPerStack;
+        /// <summary>플레이어 발밑 호박색 고리(StatusIcons "status_might").</summary>
+        public static bool OgreMightActive { get; private set; }
 
         /// <summary>몹 턴이 끝날 때마다 - 대지의 기세 남은 턴을 줄인다.</summary>
         private void TickOgreMight()
@@ -1891,14 +1893,15 @@ namespace LoopRogue
             RemoveWallObject(p); // 구멍 목록에서도 빠지고 바닥 타일이 다시 깔린다
             ShowMessage(Loc.F("<color=#FFD070>대지의 기세 {0}단계!</color> 오우거에게 주는 피해 +{1:0}% ({2}턴)",
                 _ogreMightStacks, (OgreMightMultiplier - 1f) * 100f, OgreMightTurns));
-            if (HitFeedback.Enabled) // 플레이어 몸에서 금빛 흙가루가 튄다
-                DeathBurst.Spawn(_player.transform.position, new Color(1f, 0.82f, 0.4f, 0.95f), 12, GridConstants.CellSize * 1.2f, GridConstants.CellSize * 0.1f);
+            if (HitFeedback.Enabled) // 발밑이 갈라지며 흙덩이가 몸으로 빨려 들고 금빛 기운이 솟는다(Effects/earth_might, 플레이어 그림과 같은 1.25칸)
+                Fx.Play("earth_might", _player.transform.position, 1.25f, fps: 14f, sortingOrder: 8);
             if (HitFeedback.Enabled)
                 SfxPlayer.Play(Sfx.ChestRattle);
         }
 
         private void UpdateOgreHoleLabel()
         {
+            OgreMightActive = _ogreMightStacks > 0;
             if (DamagePopup.Suppressed)
                 return;
             if (_ogreHoles.Count == 0 && _ogreMightStacks == 0)
@@ -2283,6 +2286,7 @@ namespace LoopRogue
             _ogreHoles.Clear();
             _ogreHoleLabel = null;
             _ogreMightStacks = _ogreMightTurns = 0;
+            OgreMightActive = false;
             ClearStageGimmick();
             foreach (var c in _crystalFuse.Keys.ToList())
                 ForgetCrystal(c);
@@ -2371,6 +2375,8 @@ namespace LoopRogue
                 ClearTelegraph();
                 foreach (var c in _golemCrystals.ToList())
                     RemoveWallObject(c); // 3층 골렘이 죽으면 남은 수정은 터지지 않고 부서진다(10-14 사용자)
+                _ogreMightStacks = 0; // 2층 대지의 기세도 끝
+                OgreMightActive = false;
             }
 
             if (_enemies.Count > 0 || _roomCleared)
