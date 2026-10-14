@@ -41,7 +41,7 @@ namespace LoopRogue
             public float Life, MaxLife;
         }
 
-        public static void Play(ItemSlot slot, IList<(ItemGrade Grade, bool Equipped)> results, Action onDone)
+        public static void Play(ItemSlot slot, IList<(ItemGrade Grade, bool Equipped, int Exp)> results, Action onDone)
         {
             if (_instance == null)
                 _instance = Create();
@@ -87,7 +87,7 @@ namespace LoopRogue
             return r;
         }
 
-        private IEnumerator Run(ItemSlot slot, IList<(ItemGrade Grade, bool Equipped)> results, Action onDone)
+        private IEnumerator Run(ItemSlot slot, IList<(ItemGrade Grade, bool Equipped, int Exp)> results, Action onDone)
         {
             _playing = true;
             _hint.gameObject.SetActive(false);
@@ -219,7 +219,7 @@ namespace LoopRogue
             onDone();
         }
 
-        private IEnumerator RevealSingle(ItemSlot slot, (ItemGrade Grade, bool Equipped) result, Vector2 chestPos)
+        private IEnumerator RevealSingle(ItemSlot slot, (ItemGrade Grade, bool Equipped, int Exp) result, Vector2 chestPos)
         {
             var color = EquipmentData.Grades[result.Grade].Color;
             var rays = _rays != null ? MakeImage(_shakeRoot, "Rays", _rays, chestPos + new Vector2(0f, 150f)) : null;
@@ -234,7 +234,9 @@ namespace LoopRogue
             name.fontStyle = FontStyle.Bold;
             name.text = EquipmentData.DisplayName(slot, result.Grade);
             var sub = MakeText(_shakeRoot, "Sub", 18, result.Equipped ? new Color(0.5f, 1f, 0.55f) : new Color(0.65f, 0.65f, 0.7f), new Vector2(0f, -168f), 700f);
-            sub.text = result.Equipped ? Loc.T("장착!") : Loc.T("이미 더 좋은 장비가 있음");
+            sub.text = result.Equipped ? Loc.T("장착!")
+                : result.Exp > 0 ? Loc.F("이미 더 좋은 장비가 있음 → 강화 경험치 +{0}", result.Exp)
+                : Loc.T("이미 더 좋은 장비가 있음 (강화 MAX)");
             name.color = new Color(color.r, color.g, color.b, 0f);
             sub.color = new Color(sub.color.r, sub.color.g, sub.color.b, 0f);
             var subColor = new Color(sub.color.r, sub.color.g, sub.color.b, 1f);
@@ -257,7 +259,7 @@ namespace LoopRogue
                 StartCoroutine(Twinkle(chestPos + new Vector2(0f, 150f), color, result.Grade >= ItemGrade.Legendary ? 0.05f : 0.12f));
         }
 
-        private IEnumerator RevealMulti(ItemSlot slot, IList<(ItemGrade Grade, bool Equipped)> results, (ItemGrade Grade, bool Equipped) best, Vector2 chestPos)
+        private IEnumerator RevealMulti(ItemSlot slot, IList<(ItemGrade Grade, bool Equipped, int Exp)> results, (ItemGrade Grade, bool Equipped, int Exp) best, Vector2 chestPos)
         {
             var bestIndex = -1;
             for (var i = 0; i < results.Count; i++)
@@ -299,7 +301,7 @@ namespace LoopRogue
             yield return Wait(_skipAll ? 0.05f : 0.25f);
         }
 
-        private RectTransform MakeCard(Color color, (ItemGrade Grade, bool Equipped) res, Sprite icon, ItemSlot slot, float w, float h)
+        private RectTransform MakeCard(Color color, (ItemGrade Grade, bool Equipped, int Exp) res, Sprite icon, ItemSlot slot, float w, float h)
         {
             var go = new GameObject("Card", typeof(RectTransform));
             go.transform.SetParent(_shakeRoot, false);
@@ -326,6 +328,11 @@ namespace LoopRogue
             {
                 var eq = MakeText(rect, "Equipped", 13, new Color(0.5f, 1f, 0.55f), new Vector2(0f, 54f), w - 10f);
                 eq.text = Loc.T("장착!");
+            }
+            else if (res.Exp > 0)
+            {
+                var xp = MakeText(rect, "Exp", 13, new Color(1f, 0.85f, 0.45f), new Vector2(0f, 54f), w - 10f);
+                xp.text = Loc.F("강화 +{0}", res.Exp);
             }
             return rect;
         }

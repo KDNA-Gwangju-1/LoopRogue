@@ -310,7 +310,11 @@ namespace LoopRogue
             var name = EquipmentData.DisplayName(r.Slot, r.Grade);
             var color = EquipmentData.Grades[r.Grade].Color;
 
-            var message = r.Equipped ? Loc.F("{0} 획득! 장착했습니다.", name) : Loc.F("{0}... 이미 더 좋은 장비가 있어 버려짐.", name);
+            var message = r.Equipped ? Loc.F("{0} 획득! 장착했습니다.", name)
+                : r.EnhanceExp > 0 ? Loc.F("{0}... 이미 더 좋은 장비가 있어 강화 경험치 +{1}", name, r.EnhanceExp)
+                : Loc.F("{0}... 이미 더 좋은 장비가 있음(강화 MAX)", name);
+            if (r.EnhanceLevelsGained > 0)
+                message += "  " + EnhanceLevelMessage(slot);
             var newTier = EquipmentEffects.TierOf(r.Grade);
             if (r.Equipped && newTier > 0)
                 message += Loc.F("  새 효과: {0} ({1})", EquipmentEffects.Name(slot, newTier), EquipmentEffects.Description(slot, newTier));
@@ -318,7 +322,7 @@ namespace LoopRogue
                 message += Loc.F("  {0} 상점 Lv{1} 달성!", EquipmentData.Templates[slot].BaseName, GachaSystem.GetShopLevel(slot));
 
             RefreshGachaDisplay(); // 가격·뽑기권은 바로, 장비 요약·결과 줄은 연출이 끝난 뒤(미리 안 들키게)
-            GachaReveal.Play(slot, new[] { (r.Grade, r.Equipped) }, () =>
+            GachaReveal.Play(slot, new[] { (r.Grade, r.Equipped, r.EnhanceExp) }, () =>
             {
                 ShowResult(message, color);
                 RefreshEquipmentDisplay();
@@ -347,25 +351,33 @@ namespace LoopRogue
             var best = results[0];
             var anyEquipped = false;
             var leveledUp = false;
+            var expTotal = 0;
+            var enhanceUp = 0;
             foreach (var r in results)
             {
                 if (r.Grade > best.Grade)
                     best = r;
                 anyEquipped |= r.Equipped;
                 leveledUp |= r.ShopLeveledUp;
+                expTotal += r.EnhanceExp;
+                enhanceUp += r.EnhanceLevelsGained;
             }
 
             var name = EquipmentData.DisplayName(slot, best.Grade);
             var message = anyEquipped
                 ? Loc.F("10연차 최고: {0} - 장착했습니다!", name)
                 : Loc.F("10연차 최고: {0}... 이미 더 좋은 장비가 있음.", name);
+            if (expTotal > 0)
+                message += Loc.F("  강화 경험치 +{0}", expTotal);
+            if (enhanceUp > 0)
+                message += "  " + EnhanceLevelMessage(slot);
             if (leveledUp)
                 message += Loc.F("  {0} 상점 Lv{1} 달성!", EquipmentData.Templates[slot].BaseName, GachaSystem.GetShopLevel(slot));
 
             RefreshGachaDisplay();
-            var reveal = new List<(ItemGrade, bool)>();
+            var reveal = new List<(ItemGrade, bool, int)>();
             foreach (var r in results)
-                reveal.Add((r.Grade, r.Equipped));
+                reveal.Add((r.Grade, r.Equipped, r.EnhanceExp));
             GachaReveal.Play(slot, reveal, () =>
             {
                 ShowResult(message, EquipmentData.Grades[best.Grade].Color);
@@ -510,14 +522,19 @@ namespace LoopRogue
             if (!grade.HasValue)
                 return Loc.F("{0}: (미장착)", slot);
 
-            var atk = EquipmentData.AttackBonus(slot, grade.Value);
-            var hp = EquipmentData.HealthBonus(slot, grade.Value);
+            var atk = EquipmentData.AttackBonus(slot, grade.Value) * EquipmentEnhance.Multiplier(slot);
+            var hp = EquipmentData.HealthBonus(slot, grade.Value) * EquipmentEnhance.Multiplier(slot);
             var tier = EquipmentEffects.TierOf(grade.Value);
             var effects = tier > 0 ? Loc.F("  <color=#FFD966>효과 {0}/{1}</color>", tier, EquipmentEffects.MaxTier) : ""; // 효과 설명은 게임 중 Tab 상태창
             if (slot == ItemSlot.Accessory && EquipmentEffects.HasMemorySet)
                 effects += Loc.F("  <color=#7FE0D8>세트 「{0}」</color>", EquipmentEffects.MemorySetName);
-            return Loc.F("{0}: {1} (공격력+{2:0.#} 체력+{3:0.#}){4}", slot, EquipmentData.DisplayName(slot, grade.Value), atk, hp, effects);
+            var enhance = Loc.F("  <color=#FFD27A>강화 +{0} ({1})</color>", EquipmentEnhance.GetLevel(slot), EquipmentEnhance.ProgressText(slot));
+            return Loc.F("{0}: {1} (공격력+{2:0.#} 체력+{3:0.#}){4}", slot, EquipmentData.DisplayName(slot, grade.Value) + EquipmentEnhance.Suffix(slot), atk, hp, effects + enhance);
         }
+
+        private static string EnhanceLevelMessage(ItemSlot slot) =>
+            Loc.F("<color=#FFD27A>{0} 강화 +{1} 달성! (장비 스탯 +{2:0}%)</color>", EquipmentData.Templates[slot].BaseName,
+                EquipmentEnhance.GetLevel(slot), EquipmentEnhance.GetLevel(slot) * EquipmentEnhance.StatPerLevel * 100f);
 
         private void ShowResult(string message, Color color)
         {

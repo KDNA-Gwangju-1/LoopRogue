@@ -530,6 +530,7 @@ namespace LoopRogue
             {
                 yield return ($"LoopRogue_Equip_{slot}", false);
                 yield return ($"LoopRogue_GachaPulls_{slot}", false);
+                yield return ($"LoopRogue_EquipEnhanceExp_{slot}", false);
             }
             foreach (var k in new[] { "AttackPower", "MaxHealth", "CurrentHealth", "CriticalChance", "PermAttack", "PermHealth", "PermCritical",
                          "DamageReduction", "LifeSteal", "RoomShield", "KillHeal", "ExpBonus", "GoldBonus" })

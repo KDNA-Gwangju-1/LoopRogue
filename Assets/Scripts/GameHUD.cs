@@ -543,7 +543,7 @@ namespace LoopRogue
                 }
 
                 var hex = ColorUtility.ToHtmlStringRGB(EquipmentData.Grades[grade.Value].Color);
-                sb.AppendLine($"<color=#{hex}>{EquipmentData.DisplayName(slot, grade.Value)}</color>");
+                sb.AppendLine($"<color=#{hex}>{EquipmentData.DisplayName(slot, grade.Value)}{EquipmentEnhance.Suffix(slot)}</color>"); // + 강화 단계
                 var tier = EquipmentEffects.TierOf(grade.Value);
                 for (var t = 1; t <= tier; t++)
                     sb.AppendLine($"   <size=12>{EquipmentEffects.Name(slot, t)}: {EquipmentEffects.Description(slot, t)}</size>");

@@ -10,6 +10,8 @@ namespace LoopRogue
         public ItemGrade Grade;
         public bool Equipped; // 기존 장비보다 안 좋아서 버려졌으면 false.
         public bool ShopLeveledUp; // 이번 뽑기로 그 슬롯 상점 레벨이 올랐으면 true.
+        public int EnhanceExp;     // 장착 안 된 결과가 바뀐 강화 경험치(EquipmentEnhance) - 최대 강화면 0
+        public int EnhanceLevelsGained; // 이번 뽑기로 오른 강화 단계 수
     }
 
     /// <summary>골드를 써서 장비를 뽑는다 - 슬롯을 직접 골라서 뽑고(검 뽑기면 검만 나옴), 등급은 그
@@ -184,6 +186,9 @@ namespace LoopRogue
             var equipped = EquipmentWallet.TryEquipIfBetter(slot, grade);
             if (equipped)
                 Achievements.Check(); // '영원' 장비 업적
+            int exp = 0, levels = 0;
+            if (!equipped)
+                levels = EquipmentEnhance.AddExp(slot, grade, out exp); // 버려지던 결과는 강화 경험치로
 
             return new GachaResult
             {
@@ -191,6 +196,8 @@ namespace LoopRogue
                 Grade = grade,
                 Equipped = equipped,
                 ShopLeveledUp = GetShopLevel(slot) > levelBefore,
+                EnhanceExp = exp,
+                EnhanceLevelsGained = levels,
             };
         }
 
