@@ -57,7 +57,8 @@ namespace LoopRogue
             ReloadAll();
         }
 
-        private static void ReloadAll()
+        /// <summary>PlayerPrefs를 직접 바꾼 뒤 각 저장 클래스가 다시 읽게 한다(보스 러시가 층마다 기준 스펙을 써넣을 때도).</summary>
+        public static void ReloadAll()
         {
             GoldWallet.Reload();
             EquipmentWallet.Reload();

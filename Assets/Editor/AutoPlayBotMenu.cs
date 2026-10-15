@@ -207,7 +207,8 @@ namespace LoopRogue.EditorTools
             EditorApplication.isPlaying = true;
         }
 
-        // ---- 보스 러시 - 1~9층 기믹 보스만 차례로. 10층 입장 기준 상태(봇 중간값)에 공격력 ×1.5·체력 ×2를 얹어 9층 보스도 넉넉히 잡게.
+        // ---- 보스 러시 - 1~9층 기믹 보스만 차례로. 시작 저장은 10층 입장 기준 상태(봇 중간값)지만, 보스방마다 BossRush.ApplyStageSpec이
+        // 그 층 기준 스펙으로 바꿔 끼운다(10-15) - 아래 배율은 첫 방에 들어가기 전 잠깐만 쓰인다.
         // 테스트 맵처럼 시작 전에 저장을 백업했다가 Play를 멈추면 되돌린다.
         private const float BossRushAttackBoost = 1.5f;
         private const float BossRushHealthBoost = 2f;
@@ -257,7 +258,7 @@ namespace LoopRogue.EditorTools
             UnityEngine.PlayerPrefs.SetInt(LoopRogue.TutorialStage.DoneKey, 1);
             UnityEngine.PlayerPrefs.Save();
             EditorPrefs.SetBool(LoopRogue.BossRush.PrefKey, true);
-            UnityEngine.Debug.Log($"[보스 러시] 10층 입장 기준 상태(공격력 ×{BossRushAttackBoost}, 체력 ×{BossRushHealthBoost})로 1~9층 보스 연속 - Play를 멈추면 저장 되돌림");
+            UnityEngine.Debug.Log("[보스 러시] 1~9층 보스 연속 - 보스방마다 그 층 기준 스펙(봇 중간값)으로. Play를 멈추면 저장 되돌림");
             EditorSceneManagerOpenMain();
             EditorApplication.isPlaying = true;
         }

@@ -351,6 +351,28 @@ namespace LoopRogue
             Stats.OnRevived = MoveToSafeTile;
         }
 
+        /// <summary>에디터 보스 러시 - 저장(RunProgress)을 바꿔 끼운 뒤 지금 플레이어의 스탯·레벨을 그 값으로 다시 맞추고 체력을 채운다.
+        /// Stats/Levels 객체는 HUD가 붙들고 있어서 새로 만들지 않고 값만 덮어쓴다(Initialize의 저장 복원과 같은 계산).</summary>
+        public void ReloadStatsFromSave()
+        {
+            RunProgress.EnsureLoaded();
+            if (!RunProgress.HasSavedRun)
+                return;
+            Stats.BaseMaxHealth = Mathf.Max(1f, RunProgress.MaxHealth - RunProgress.PermanentHealthAtSave);
+            Stats.BaseAttack = Mathf.Max(1f, RunProgress.AttackPower - RunProgress.PermanentAttackAtSave);
+            Stats.FixedMaxHealth = RunProgress.CurrentPermanentHealth();
+            Stats.FixedAttack = RunProgress.CurrentPermanentAttack();
+            Stats.CriticalChanceRate = RunProgress.CriticalChanceRate + (RunProgress.CurrentPermanentCritical() - RunProgress.PermanentCriticalAtSave);
+            Stats.DamageReductionRate = RunProgress.DamageReductionRate;
+            Stats.LifeStealRate = RunProgress.LifeStealRate;
+            Stats.RoomShieldCardRate = RunProgress.RoomShieldCardRate;
+            Stats.KillHealRate = RunProgress.KillHealRate;
+            Stats.ExpBonusRate = RunProgress.ExpBonusRate;
+            Stats.GoldBonusRate = RunProgress.GoldBonusRate;
+            Stats.FullHeal();
+            Levels.RestoreProgress(RunProgress.Level, RunProgress.Exp, RunProgress.ExpToNext);
+        }
+
         /// <summary>두 번째 숨으로 부활하면 몹에게서 먼 안전한 칸으로 옮긴다 - 제자리면 같은 몹 턴에 남은 몹들이
         /// 계속 때려서 부활하자마자 다시 죽었다(사용자 결정: 안전지역으로 이동).</summary>
         private void MoveToSafeTile()

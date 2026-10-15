@@ -403,6 +403,8 @@ namespace LoopRogue
             _thornsKills.Clear();
             _challengeEnemies.Clear();
             _roomCleared = false;
+            if (def.BossStage > 0)
+                BossRush.ApplyStageSpec(def.BossStage, _player); // 보스 러시 - 그 층 기준 스펙으로(보호막 계산 전에)
             _player.OnRoomEntered(); // 갑옷 효과(보호막/불굴/응급 처치) 방마다 다시 채움
             IsInputLocked = false;
             if (def.BossStage > 0 && !_loadCleared)
