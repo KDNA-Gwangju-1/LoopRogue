@@ -1100,3 +1100,5 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
   강화 경험치 +{0}	  Enhance EXP +{0}
 <color=#FFD27A>{0} 강화 +{1} 달성! (장비 스탯 +{2:0}%)</color>	<color=#FFD27A>{0} Enhance +{1}! (gear stats +{2:0}%)</color>
   <color=#FFD27A>강화 +{0} ({1})</color>	  <color=#FFD27A>Enh +{0} ({1})</color>
+3연 파동	Triple Shockwave
+<color=#FFB060>오우거가 땅을 연달아 내려친다!</color> 안쪽부터 1·2·3 순서로 퍼진다	<color=#FFB060>The Ogre pounds the ground again and again!</color> It spreads outward in order 1, 2, 3

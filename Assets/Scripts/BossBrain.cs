@@ -15,6 +15,7 @@ namespace LoopRogue
         Diagonal, // X자 - 플레이어 자리 기준 대각선 4줄(저격처럼 조준)
         MirrorShards, // 거울 파편(10층 거울 가면 기사 본모습 전용) - 4번의 공격 칸을 한꺼번에 예고(칸마다 몇 번째인지 숫자)하고 보스 턴마다 하나씩 터뜨림
         RingInverse, // 역파동(5층 전용) - 파동과 반대로 거리 2·4·6…(짝수)을 친다. 바로 옆과 홀수 거리가 안전
+        TripleWave,  // 3연 파동(2층) - 보스 몸에서 거리 1→2→3 고리를 보스 턴마다 하나씩(숫자 예고). 1타가 지나간 안쪽이 2·3타 동안 딜 자리. 구멍은 1타에만
     }
 
     /// <summary>스테이지 보스의 예고 공격 - 몇 턴마다 공격할 칸을 빨갛게 예고하고(그 턴은 안 움직임), 다음 턴에
@@ -188,6 +189,7 @@ namespace LoopRogue
             BossPatternType.Ring => 5,
             BossPatternType.Snipe => 6,
             BossPatternType.Diagonal => 7,
+            BossPatternType.TripleWave => 2,
             _ => 0,
         };
 
@@ -195,7 +197,7 @@ namespace LoopRogue
         public static List<BossPatternType> StagePatterns(int stage) => stage switch
         {
             1 => new List<BossPatternType> { BossPatternType.Charge }, // 1/2 서로 바꿈(사용자 요청) - 돌진이 봇 테스트에서 가장 쉬운 패턴이라 입문용
-            2 => new List<BossPatternType> { BossPatternType.Slam },
+            2 => new List<BossPatternType> { BossPatternType.Slam, BossPatternType.TripleWave }, // 10-15 사용자 - 3연 파동을 번갈아
             3 => new List<BossPatternType> { BossPatternType.Cross },
             4 => new List<BossPatternType> { BossPatternType.Summon, BossPatternType.Slam },
             5 => new List<BossPatternType> { BossPatternType.Ring, BossPatternType.RingInverse }, // 10-14 사용자 "패턴을 여러 개로, 범위도 크게" - 번갈아
@@ -222,6 +224,7 @@ namespace LoopRogue
             BossPatternType.Snipe => Loc.T("저격"),
             BossPatternType.SnipeFollowUp => Loc.T("저격(2발)"),
             BossPatternType.MirrorShards => Loc.T("거울 파편"),
+            BossPatternType.TripleWave => Loc.T("3연 파동"),
             _ => Loc.T("X자 베기"),
         };
 
@@ -357,6 +360,18 @@ namespace LoopRogue
                 return true;
             }
 
+            if (type == BossPatternType.TripleWave)
+            {
+                BuildTripleWaves(room.Map);
+                if (_mirrorWaves.Count == 0)
+                    return false;
+                _pending = type;
+                _mirrorWaveNumber = 1;
+                room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber);
+                room.ShowMessage(Loc.T("<color=#FFB060>오우거가 땅을 연달아 내려친다!</color> 안쪽부터 1·2·3 순서로 퍼진다"));
+                return true;
+            }
+
             if (type == BossPatternType.Summon)
             {
                 room.SpawnMinions(_boss, MaxMinions);
@@ -422,7 +437,7 @@ namespace LoopRogue
             _pending = null;
             _cancelled = false;
             room.ClearTelegraph();
-            if (type == BossPatternType.MirrorShards && _mirrorWaves.Count > 0)
+            if ((type == BossPatternType.MirrorShards || type == BossPatternType.TripleWave) && _mirrorWaves.Count > 0)
             {
                 _pendingTiles.Clear();
                 _pendingTiles.UnionWith(_mirrorWaves[0]); // 이번에 터질 웨이브
@@ -455,6 +470,8 @@ namespace LoopRogue
                 room.AddOgreCracks(_pendingTiles, OgreCracksPerSlam);
             if (type == BossPatternType.Slam && IsOgre && _holePhase)
                 room.OpenOgreHoles(_boss, UnityEngine.Random.Range(OgreHolesMin, OgreHolesMax + 1)); // 붕괴 즉사면 몹 턴 루프가 사망 처리
+            if (type == BossPatternType.TripleWave && IsOgre && _holePhase && _mirrorWaveNumber == 1)
+                room.OpenOgreHoles(_boss, UnityEngine.Random.Range(OgreHolesMin, OgreHolesMax + 1)); // 3연 파동은 1타에만 구멍(10-15 사용자)
 
             PatternResolveCount++;
             HitFeedback.OnBossPatternResolved(player, _pendingTiles.Contains(player.GridPos), type, _pendingTiles);
@@ -512,12 +529,12 @@ namespace LoopRogue
             // 저격은 2연속 - 1발(X자)이 끝나면 곧바로 그 순간 플레이어 자리 기준 마름모를 예고한다.
             // "상하좌우로 움직여 1발을 피하고 → 대기해서 2발을 피하는" 패턴.
             // 거울 파편 - 남은 웨이브가 있으면 다음 보스 턴에 또 터진다(남은 숫자를 다시 보여줌).
-            if (type == BossPatternType.MirrorShards)
+            if (type == BossPatternType.MirrorShards || type == BossPatternType.TripleWave)
             {
                 if (_mirrorWaves.Count > 0 && !player.Stats.IsDead)
                 {
                     _mirrorWaveNumber++;
-                    _pending = BossPatternType.MirrorShards;
+                    _pending = type;
                     room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber);
                 }
                 else
@@ -693,8 +710,28 @@ namespace LoopRogue
                 _jarHits.Add(p); // 9층 - 줄이 영혼 항아리에서 멈췄다 - 발동 때 깨진다
         }
 
-        private readonly List<HashSet<Vector2Int>> _mirrorWaves = new List<HashSet<Vector2Int>>();
+        private readonly List<HashSet<Vector2Int>> _mirrorWaves = new List<HashSet<Vector2Int>>(); // 거울 파편·3연 파동의 남은 웨이브
         private int _mirrorWaveNumber;
+
+        /// <summary>3연 파동 - 보스 몸 가장자리에서 거리 1, 2, 3 고리를 웨이브 1·2·3으로(안쪽부터 바깥으로 퍼짐).</summary>
+        private void BuildTripleWaves(GridMap map)
+        {
+            _mirrorWaves.Clear();
+            var origin = _boss.GridPos;
+            var body = _boss.FootprintRadius;
+            for (var r = 1; r <= 3; r++)
+            {
+                _pendingTiles.Clear();
+                var reach = r + body;
+                for (var dx = -reach; dx <= reach; dx++)
+                for (var dy = -reach; dy <= reach; dy++)
+                    if (Mathf.Max(Mathf.Abs(dx), Mathf.Abs(dy)) == reach)
+                        AddTile(map, origin + new Vector2Int(dx, dy));
+                if (_pendingTiles.Count > 0)
+                    _mirrorWaves.Add(new HashSet<Vector2Int>(_pendingTiles));
+            }
+            _pendingTiles.Clear();
+        }
 
         /// <summary>거울 파편 웨이브 4개 - 먼저 플레이어가 한 칸씩 움직여 갈 안전한 길(p1~p4)을 뽑고, 웨이브 k는 범위 칸을 무작위로 덮되
         /// p_k는 비우고 직전 자리(p_k-1)는 꼭 덮는다. 그래서 제자리면 맞고, 숫자를 읽어 길을 짜면 항상 다 피할 수 있다(직진만으론 안 됨).</summary>
