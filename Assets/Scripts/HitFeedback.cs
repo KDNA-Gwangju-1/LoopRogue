@@ -12,6 +12,8 @@ namespace LoopRogue
 
         private static readonly Color PlayerHurtTint = new Color(1f, 0.35f, 0.35f);
         private const float BumpDistance = 0.28f; // 칸 크기 대비 비율
+        private const float BossBumpDistance = 0.55f;
+        private const float BossBumpDuration = 0.3f;
 
         public static bool Enabled => !DamagePopup.Suppressed;
 
@@ -84,18 +86,21 @@ namespace LoopRogue
             if (!Enabled)
                 return;
 
+            var boss = attacker != null && attacker.IsBoss; // 보스 일반 공격은 더 크게 - 크게 들이받고, 큰 불꽃, 센 흔들림(10-15 사용자 "잘 보이게")
             if (attacker != null && attacker.IsAdjacentTo(player.GridPos))
             {
                 // 3x3 보스는 가운데 칸에서 재면 (2,1) 같은 비스듬한 값이 나와서, 몸 밖으로 나간 축 쪽으로만 들이받는다
                 var d = player.GridPos - attacker.GridPos;
                 var r = attacker.FootprintRadius;
                 var dir = new Vector2Int(Mathf.Abs(d.x) > r ? System.Math.Sign(d.x) : 0, Mathf.Abs(d.y) > r ? System.Math.Sign(d.y) : 0);
-                ActorJuice.Get(attacker).Bump(dir, BumpDistance);
+                ActorJuice.Get(attacker).Bump(dir, boss ? BossBumpDistance : BumpDistance, boss ? BossBumpDuration : 0f);
             }
             ActorJuice.Get(player).Flash(PlayerHurtTint);
-            Fx.Play("hit_spark", player.transform.position, 0.7f, tint: new Color(1f, 0.45f, 0.4f));
-            CameraShake.Shake(attacker != null && attacker.IsBoss ? 0.14f : 0.08f, 0.12f);
+            Fx.Play("hit_spark", player.transform.position, boss ? 1.5f : 0.7f, tint: new Color(1f, 0.45f, 0.4f));
+            CameraShake.Shake(boss ? 0.24f : 0.08f, boss ? 0.2f : 0.12f);
             SfxPlayer.Play(Sfx.Hurt);
+            if (boss)
+                SfxPlayer.Play(Sfx.Slam);
         }
 
         /// <summary>폭발병이 불을 붙였을 때 - 치익.</summary>

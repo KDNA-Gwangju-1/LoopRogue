@@ -226,6 +226,10 @@ namespace LoopRogue
         };
 
         /// <summary>이번 턴 보스 행동. 예고/발동/소환을 했으면 true, 일반 행동을 해야 하면 false.</summary>
+        /// <summary>다음 보스 턴이 예고 패턴이 아닌 일반 턴(이동·근접 공격)인지 - 보스 준비 동작 표시용(RoomController.UpdateBossWindup).
+        /// 체력 조건으로 기믹이 시작되는 턴은 미리 알 수 없어서 빼고 본다.</summary>
+        public bool NextTurnIsNormal => !_pending.HasValue && _stunTurns == 0 && _normalTurns < _normalTurnsThisCycle;
+
         /// <summary>섬광탄 - 예고해둔 공격(저격 후속 포함)을 없던 일로.</summary>
         public void CancelPending(RoomController room)
         {

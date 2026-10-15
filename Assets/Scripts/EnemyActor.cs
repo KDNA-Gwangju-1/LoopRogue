@@ -289,6 +289,7 @@ namespace LoopRogue
             if (anim == null)
                 anim = gameObject.AddComponent<SpriteAnimator>();
             anim.Setup(setName, renderer, BossDebrisColor(stage));
+            anim.AttackDurationScale = 2f; // 보스 공격 모션은 2배 길게 - 일반 공격이 잘 보이게
             anim.Face(Facing);
             ApplyBossTint(renderer);
             return true;
@@ -617,6 +618,11 @@ namespace LoopRogue
 
         /// <summary>pos가 몸에 상하좌우로 붙은 칸인지(3x3 보스면 몸 둘레 칸, 대각선 모서리는 아님).</summary>
         public bool IsAdjacentTo(Vector2Int pos) => GridMap.FootprintDistance(this, pos) == 1;
+
+        /// <summary>보스가 다음 턴에 붙어 있는 대상을 일반 공격할 수 있는 상태인지 - 준비 동작 표시용. TakeMeleeTurn의 "안 때리는" 조건과 맞춘다.</summary>
+        public bool BossMeleeReadyNextTurn(RoomController room) =>
+            IsBoss && !Stats.IsDead && _brain != null && _brain.NextTurnIsNormal && StunTurns == 0 && !InSmoke
+            && !(room != null && room.BossInvulnerable);
 
         /// <param name="claimedSlots">이번 턴에 이미 다른 근접 몹이 예약한 "플레이어 옆 칸" - 한 칸에 두 마리가
         /// 몰리지 않게 RoomController가 한 턴 동안 공유해서 넘겨준다.</param>

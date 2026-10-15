@@ -2349,6 +2349,7 @@ namespace LoopRogue
 
         private void ClearRoom()
         {
+            ClearBossWindup();
             _knightPending = false;
             _boarPillars.Clear();
             _boarTurnsLeft = 0;
@@ -2412,6 +2413,8 @@ namespace LoopRogue
         /// 보스가 죽으면 남은 졸개도 같이 사라진다.</summary>
         public bool NotifyEnemyDefeated(EnemyActor enemy)
         {
+            if (enemy != null && enemy.IsBoss)
+                ClearBossWindup();
             var stageMultiplier = StageScaling.RewardMultiplier(_stage);
             var goldBonus = GoldBonus;
             // 반복 보상 감소는 일반 몹/방 클리어에만(보스 처치는 항상 100%).
@@ -2588,6 +2591,7 @@ namespace LoopRogue
         {
             if (Puzzle != null && !Puzzle.IsRunning)
                 return; // 퍼즐이 방금 실패했다(실패 창이 떠 있는 동안 몹이 때리지 않게)
+            ClearBossWindup(); // 몹 턴 동안엔 끄고(광폭화 색이 바뀌어도 덮어쓰지 않게) 끝나면 다시 판단
             // 스냅샷을 떠서 순회한다 - 턴 도중 죽거나 소환돼서 리스트가 바뀌어도 이번 순회엔 영향 없게.
             // 플레이어에게 가까운 몹부터 움직여서 가까운 몹이 가까운 옆 칸을 먼저 예약하게 한다(포위 AI).
             var playerPos = ActiveDecoy != null ? ActiveDecoy.GridPos : _player.GridPos; // 미끼가 있으면 미끼 기준으로 포위
@@ -2650,8 +2654,52 @@ namespace LoopRogue
             if (TickStageGimmick())
                 return; // 4~9층 보스 기믹 실패 - 즉사
 
+            UpdateBossWindup();
             EndOfEnemyTurns();
             Puzzle?.TurnEnd();
+        }
+
+        // ---- 보스 준비 동작(10-15 사용자 "일반 공격이 잘 보이게, 준비 동작 같은 것") ----
+        // 다음 보스 턴이 일반 턴(예고 패턴 아님)이면 보스가 붉게 숨쉬고, 몸에 붙는 칸(근접 공격이 닿는 칸)이 옅게 깔린다.
+        // 그 칸에 서 있으면 다음 턴에 맞는다는 뜻 - 예고 패턴과 헷갈리지 않게 깜빡이지 않는 옅은 사각형. 위험 칸(봇·DangerTiles)에는 안 넣는다.
+        private static readonly Color MeleeReachColor = new Color(1f, 0.35f, 0.2f, 0.16f);
+        private readonly List<GameObject> _windupTiles = new List<GameObject>();
+        private EnemyActor _windupBoss;
+
+        private void UpdateBossWindup()
+        {
+            ClearBossWindup();
+            if (!HitFeedback.Enabled || _player == null)
+                return;
+            var boss = _enemies.FirstOrDefault(e => e != null && e.IsBoss && e.BossMeleeReadyNextTurn(this));
+            if (boss == null)
+                return;
+            _windupBoss = boss;
+            ActorJuice.Get(boss).SetWindup(true);
+            var reach = boss.FootprintRadius + 1;
+            for (var dx = -reach; dx <= reach; dx++)
+            for (var dy = -reach; dy <= reach; dy++)
+            {
+                var c = boss.GridPos + new Vector2Int(dx, dy);
+                if (!Map.IsInBounds(c) || Map.IsWall(c) || !boss.IsAdjacentTo(c))
+                    continue;
+                var go = new GameObject("BossReach");
+                go.transform.SetParent(transform, false);
+                VisualUtil.CreateSquareVisual(go, MeleeReachColor, GridConstants.CellSize * 0.9f, sortingOrder: -6);
+                go.transform.position = new Vector3(c.x * GridConstants.CellSize, c.y * GridConstants.CellSize, 0f);
+                _windupTiles.Add(go);
+            }
+        }
+
+        private void ClearBossWindup()
+        {
+            if (_windupBoss != null)
+                ActorJuice.Get(_windupBoss).SetWindup(false);
+            _windupBoss = null;
+            foreach (var go in _windupTiles)
+                if (go != null)
+                    Destroy(go);
+            _windupTiles.Clear();
         }
 
         /// <summary>몹 턴이 다 끝난 뒤 - 던져둔 폭탄이 터지고, 미끼 남은 턴이 준다.</summary>

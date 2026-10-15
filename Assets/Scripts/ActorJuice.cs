@@ -75,6 +75,39 @@ namespace LoopRogue
             _flashRoutine = null;
         }
 
+        // ---- 준비 동작(보스가 다음 턴에 일반 공격을 할 수 있는 상태) - 붉게 숨쉬듯 깜빡이며 살짝 부풀었다 줄었다 ----
+        private static readonly Color WindupTint = new Color(1f, 0.45f, 0.35f);
+        private const float WindupPulseSpeed = 7f;
+        private bool _windup;
+        private Color _windupBase;
+
+        public void SetWindup(bool on)
+        {
+            if (_renderer == null || on == _windup)
+                return;
+            _windup = on;
+            if (on)
+                _windupBase = _flashing ? _baseColor : _renderer.color;
+            else
+            {
+                if (!_flashing)
+                    _renderer.color = _windupBase;
+                if (_squishRoutine == null)
+                    transform.localScale = _baseScale;
+            }
+        }
+
+        private void LateUpdate()
+        {
+            if (!_windup || _renderer == null)
+                return;
+            var pulse = (Mathf.Sin(Time.time * WindupPulseSpeed) + 1f) * 0.5f;
+            if (!_flashing)
+                _renderer.color = Color.Lerp(_windupBase, WindupTint, pulse * 0.6f);
+            if (_squishRoutine == null)
+                transform.localScale = _baseScale * (1f + 0.04f * pulse);
+        }
+
         public void Squish(float amount)
         {
             if (_squishRoutine != null)
@@ -113,22 +146,23 @@ namespace LoopRogue
             _spinRoutine = null;
         }
 
-        public void Bump(Vector2Int direction, float distanceInCells)
+        /// <param name="duration">들이받았다 돌아오는 시간 - 없으면 BumpDuration(보스 일반 공격은 길게).</param>
+        public void Bump(Vector2Int direction, float distanceInCells, float duration = 0f)
         {
             if (_actor == null)
                 return;
 
             if (_bumpRoutine != null)
                 StopCoroutine(_bumpRoutine);
-            _bumpRoutine = StartCoroutine(BumpRoutine(direction, distanceInCells * GridConstants.CellSize));
+            _bumpRoutine = StartCoroutine(BumpRoutine(direction, distanceInCells * GridConstants.CellSize, duration > 0f ? duration : BumpDuration));
         }
 
-        private IEnumerator BumpRoutine(Vector2Int direction, float distance)
+        private IEnumerator BumpRoutine(Vector2Int direction, float distance, float duration)
         {
             var dir = new Vector3(direction.x, direction.y, 0f).normalized;
-            for (var t = 0f; t < BumpDuration; t += Time.deltaTime)
+            for (var t = 0f; t < duration; t += Time.deltaTime)
             {
-                var k = Mathf.Sin(t / BumpDuration * Mathf.PI);
+                var k = Mathf.Sin(t / duration * Mathf.PI);
                 transform.position = _actor.GridWorldPosition + dir * (distance * k);
                 yield return null;
             }

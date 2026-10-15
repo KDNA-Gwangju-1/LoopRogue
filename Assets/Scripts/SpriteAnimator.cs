@@ -48,6 +48,9 @@ namespace LoopRogue
 
         public void Face(Vector2Int direction) => _dir = DirIndex(direction, _dir);
 
+        /// <summary>공격 모션 길이 배율 - 보스는 2배로 느리게(10-15 사용자 "보스 일반 공격이 잘 안 보인다").</summary>
+        public float AttackDurationScale = 1f;
+
         private FrameSet _set;
         private SpriteRenderer _renderer;
         private GridActor _actor;
@@ -102,7 +105,7 @@ namespace LoopRogue
                 _dir = DirIndex(direction, _dir);
             _attackStart = Time.time;
             var length = Frames(_set.Attack).Length;
-            _attackUntil = Time.time + FrameTime(AttackFrameSeconds, length) * length;
+            _attackUntil = Time.time + FrameTime(AttackFrameSeconds * AttackDurationScale, length) * length;
         }
 
         private void LateUpdate()
@@ -144,7 +147,7 @@ namespace LoopRogue
                 var attack = Frames(_set.Attack);
                 if (attack.Length > 0)
                 {
-                    var i = Mathf.Min(attack.Length - 1, (int)((Time.time - _attackStart) / FrameTime(AttackFrameSeconds, attack.Length)));
+                    var i = Mathf.Min(attack.Length - 1, (int)((Time.time - _attackStart) / FrameTime(AttackFrameSeconds * AttackDurationScale, attack.Length)));
                     _renderer.sprite = attack[i];
                     return;
                 }
