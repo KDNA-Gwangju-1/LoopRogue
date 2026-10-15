@@ -140,23 +140,23 @@ namespace LoopRogue
         }
 
         /// <summary>3층 골렘 - 물결(한 번에 여러 물결을 지났으면 합쳐서): 바위가 하나씩 떨어지고, 수정이 하나씩 솟는다.</summary>
-        public void StartGolemWave(EnemyActor golem, int crystals, int rubble, bool firstWave, bool crossRubbleStarts)
+        /// <param name="crystals">수정마다 (폭발까지 턴, 물결 번호)</param>
+        /// <param name="rubbleWaves">바위마다 물결 번호 - 수정이 터지면 같은 물결 바위만 깨진다</param>
+        public void StartGolemWave(EnemyActor golem, IReadOnlyList<(int Fuse, int Wave)> crystals, IReadOnlyList<int> rubbleWaves, bool firstWave)
         {
             var c = new GimmickCutscene
             {
-                Line = Loc.F("<color=#7FE0D8>골렘이 땅을 울리자 수정 {0}개가 솟고 천장에서 바위가 떨어졌다!</color>", crystals),
+                Line = Loc.F("<color=#7FE0D8>골렘이 땅을 울리자 수정 {0}개가 솟고 천장에서 바위가 떨어졌다!</color>", crystals.Count),
                 StepDelay = 0.22f,
             };
-            for (var i = 0; i < rubble; i++)
-                c.Steps.Add(WallStep(() => DropGolemRubbleAround(golem, 1) > 0, "rubble_fall"));
-            for (var i = 0; i < crystals; i++)
-                c.Steps.Add(WallStep(() => SpawnGolemCrystals(golem, _golemCrystals.Count + 1) > 0, "crystal_rise"));
+            foreach (var wave in rubbleWaves)
+                c.Steps.Add(WallStep(() => DropGolemRubbleAround(golem, 1, wave) > 0, "rubble_fall"));
+            foreach (var crystal in crystals)
+                c.Steps.Add(WallStep(() => SpawnGolemCrystals(golem, _golemCrystals.Count + 1, crystal.Fuse, crystal.Wave) > 0, "crystal_rise"));
             c.Finish = () =>
             {
-                if (firstWave)
-                    ShowMessage(Loc.F("수정은 {0}턴 뒤 방 전체를 날려 버린다 - <color=#FF6060>붙어서 깨거나, 바위 뒤에 숨자</color> (바위는 폭발에 깨진다)", GolemCrystalFuseTurns));
-                if (crossRubbleStarts)
-                    ShowMessage(Loc.T("<color=#7FE0D8>골렘의 몸이 갈라지며 돌이 쏟아진다!</color> 이제 십자 베기가 돌무더기를 남긴다"));
+                if (firstWave && crystals.Count > 0)
+                    ShowMessage(Loc.F("수정은 {0}턴 뒤 방 전체를 날려 버린다 - <color=#FF6060>붙어서 깨거나, 바위 뒤에 숨자</color> (바위는 폭발에 깨진다)", crystals[0].Fuse));
             };
             PlayGimmickCutscene(c);
         }

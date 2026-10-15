@@ -101,10 +101,8 @@ namespace LoopRogue
         // ---- 3층 돌 골렘 기믹(사용자 구상 10-13) ----
         // 10-14 사용자 설계: 체력 80/60/40/20%마다 수정 1/2/3/4개가 솟고(RoomController.SpawnGolemCrystals - 수정마다 12턴 뒤 방 전체 폭발 즉사,
         // 붙어서 깨거나 바위 뒤에 숨는다) 바위가 (수정 수 + 1)개 떨어진다. 바위는 폭발에 맞으면 깨진다(한 번 숨겨 주면 사라짐).
-        // 3번째 물결(40%)부터는 십자 베기가 지나간 줄에도 바위 GolemRubblePerCross개.
+        // 십자 베기가 지나간 줄에 바위를 남기던 것(40%부터 3개)은 10-15 사용자 요청으로 뺐다 - 바위는 물결 때만.
         private static readonly float[] GolemWaveHealth = { 0.8f, 0.6f, 0.4f, 0.2f };
-        public const int GolemRubblePerCross = 3;
-        private const int GolemCrossRubbleWave = 3;
         private int _golemPhase; // 지나간 물결 수(0~4)
         private bool _collectCrystals;
         private readonly List<Vector2Int> _resonating = new List<Vector2Int>();
@@ -257,17 +255,18 @@ namespace LoopRogue
             if (IsGolem && _golemPhase < GolemWaveHealth.Length && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * GolemWaveHealth[_golemPhase])
             {
                 // 지난 물결을 모두 합쳐 컷신 한 번(바위가 하나씩 떨어지고 수정이 하나씩 솟는다 - RoomController.StartGolemWave)
-                int crystals = 0, rubble = 0;
+                var rubbleWaves = new List<int>();          // 바위마다 물결 번호 - 같은 물결 수정이 터지면 깨진다
+                var crystals = new List<(int Fuse, int Wave)>(); // 수정마다 폭발까지 턴(그 수정이 나온 물결 기준) + 물결 번호
                 var first = _golemPhase == 0;
-                var crossStarts = false;
                 while (_golemPhase < GolemWaveHealth.Length && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * GolemWaveHealth[_golemPhase])
                 {
                     _golemPhase++;
-                    crystals += _golemPhase;
-                    rubble += _golemPhase + 1; // 폭발을 막아 줄 바위(안전지대) - 폭발에 맞으면 깨진다
-                    crossStarts |= _golemPhase == GolemCrossRubbleWave;
+                    for (var i = 0; i < _golemPhase; i++)
+                        crystals.Add((RoomController.GolemCrystalFuseTurns(_golemPhase), _golemPhase));
+                    for (var i = 0; i < _golemPhase + 1; i++)
+                        rubbleWaves.Add(_golemPhase); // 폭발을 막아 줄 바위(안전지대)
                 }
-                room.StartGolemWave(_boss, crystals, rubble, first, crossStarts);
+                room.StartGolemWave(_boss, crystals, rubbleWaves, first);
                 return true;
             }
 
@@ -496,11 +495,6 @@ namespace LoopRogue
                     room.AddLava(_pendingTiles);
                 else if (_stage == 9 && type == BossPatternType.Cross)
                     room.BreakLichJars(_jarHits);
-            }
-            if (type == BossPatternType.Cross && IsGolem)
-            {
-                if (_golemPhase >= GolemCrossRubbleWave)
-                    room.DropGolemRubble(_pendingTiles, GolemRubblePerCross);
             }
             _pendingTiles.Clear();
             if (_cancelled)

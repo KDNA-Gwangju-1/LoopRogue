@@ -103,7 +103,7 @@ namespace LoopRogue
                       RoomController.OgreMightTurns, RoomController.OgreMightPerStack * 100f, RoomController.OgreMightMaxStacks) : ""));
             AddBoss(list, 3, new Color(0.5f, 0.5f, 0.55f),
                 Loc.T("땅을 쳐서 자기 가로줄과 세로줄 전체를 가른다. 골렘과 같은 줄에 서지 말고 대각선 쪽에 붙자.") + " " +
-                Loc.F("체력이 80·60·40·20%가 될 때마다 수정이 1·2·3·4개 솟고 천장에서 바위가 떨어진다. 수정은 {0}턴 뒤 폭발해 수정에서 보이는 칸을 전부 날려 버린다(즉사) - 붙어서 깨거나 바위 뒤에 숨자. 폭발을 받아 낸 바위는 깨진다. 40%부터는 십자 베기도 바위를 남긴다.", RoomController.GolemCrystalFuseTurns));
+                Loc.F("체력이 80·60·40·20%가 될 때마다 수정이 1·2·3·4개 솟고 천장에서 바위가 떨어진다. 수정은 {0}턴 뒤 폭발해 수정에서 보이는 칸을 전부 날려 버린다(즉사) - 붙어서 깨거나 바위 뒤에 숨자. 수정이 터지면 같은 때 떨어진 바위가 깨진다.", RoomController.GolemCrystalFuseText));
             AddBoss(list, 4, new Color(0.84f, 0.23f, 0.3f),
                 Loc.T("예고 없이 붉은 슬라임 졸개를 부르고(최대 2마리), 번갈아 주변 3x3을 짓누른다. 졸개부터 정리하자.") + " " +
                 Loc.F("체력이 절반 아래로 떨어지면 멀리서 졸개를 불러 킹에게 기어가게 한다. 킹에게 붙은 졸개는 흡수돼 킹을 회복시키고, {0}번 흡수되면 즉사한다. 졸개를 먼저 잡거나 짓누르기에 휘말리게 하면 터지며 킹이 다친다.", RoomController.SlimeAbsorbLimit));

@@ -1420,11 +1420,18 @@ namespace LoopRogue
         public bool IsGolemCrystal(Vector2Int p) => _golemCrystals.Contains(p);
         public int GolemCrystalCount => _golemCrystals.Count;
         private readonly HashSet<Vector2Int> _golemRubble = new HashSet<Vector2Int>(); // 폭발에 깨지는 바위(10-14)
+        // 바위·수정이 어느 물결(StartGolemWave 한 번 = 한 물결, 합쳐진 물결도 하나)에 나왔는지 - 수정이 터지면 같은 물결 바위만 깨진다(10-15 사용자).
+        // 전부 깨지게 했더니 앞 물결 수정이 터지면서 방금 떨어진 다음 물결 바위까지 사라져 숨을 곳이 없어졌다.
+        private readonly Dictionary<Vector2Int, int> _rubbleWave = new Dictionary<Vector2Int, int>();
+        private readonly Dictionary<Vector2Int, int> _crystalWave = new Dictionary<Vector2Int, int>(); // 값 = 물결 번호(1~4)
 
         // ---- 3층 골렘 수정 폭탄(10-14 사용자 컨셉): 수정이 솟으면 GolemCrystalFuseTurns턴 뒤 폭발 - 수정에서 직선으로 보이는 칸은 전부 즉사,
         // 벽·바위(돌무더기)·다른 수정에 가려진 칸만 안전. 붙어서 수정 쪽으로 움직이면 한 번에 깨진다(PlayerActor.TryAct). 터지기
         // CrystalWarnTurns턴 전부터 맞는 칸을 빨갛게 예고. 수정 위에 남은 턴.
-        public const int GolemCrystalFuseTurns = 16; // 12 → 16(10-14, 봇 3층 보스방 사망 20/목표 4)
+        // 12 → 16(10-14, 봇 3층 보스방 사망 20/목표 4) → 20 → 물결마다 20·30·40·50(10-15 사용자)
+        private static readonly int[] GolemCrystalFuseByWave = { 20, 30, 40, 50 };
+        public static int GolemCrystalFuseTurns(int wave) => GolemCrystalFuseByWave[Mathf.Clamp(wave, 1, GolemCrystalFuseByWave.Length) - 1];
+        public static string GolemCrystalFuseText => string.Join("·", GolemCrystalFuseByWave);
         private const int CrystalWarnTurns = 2;
         private static readonly Color CrystalBlastColor = new Color(0.4f, 0.95f, 1f, 0.4f);
         private readonly Dictionary<Vector2Int, int> _crystalFuse = new Dictionary<Vector2Int, int>();
@@ -1491,46 +1498,47 @@ namespace LoopRogue
         {
             if (_crystalFuse.Count == 0)
                 return false;
-            var killed = false;
             foreach (var c in _crystalFuse.Keys.ToList())
+                _crystalFuse[c]--;
+            var exploding = _crystalFuse.Where(kv => kv.Value <= 0).Select(kv => kv.Key).ToList();
+
+            // 이번 턴에 터지는 수정은 동시에 - 범위를 지금 지형(바위·다른 수정 포함)으로 전부 먼저 재고 나서 치운다.
+            // 터진 수정과 같은 물결에 떨어진 바위는 전부 깨진다(가려져 있어도) - 이번 폭발은 막아 주지만 다음 물결엔 그 물결 바위를 찾아야 한다.
+            // 다른 물결 바위는 남는다(10-15 사용자 - 처음엔 방 전체 바위를 깼더니 앞 물결 수정이 다음 물결 바위까지 없앴다).
+            var killed = exploding.Any(c => CrystalBlastTiles(c).Contains(_player.GridPos));
+            var waves = new HashSet<int>(exploding.Select(c => _crystalWave.TryGetValue(c, out var w) ? w : 0));
+            foreach (var c in exploding)
             {
-                if (!_crystalFuse.ContainsKey(c))
-                    continue; // 앞 수정 폭발로 같이 사라졌다
-                var left = --_crystalFuse[c];
-                if (left > 0)
-                {
-                    UpdateCrystalLabel(c);
-                    if (left <= CrystalWarnTurns)
-                        ShowCrystalTelegraph(c);
-                    continue;
-                }
-                // 폭발 - 범위는 지금 지형으로 다시 계산(그 사이 바위가 떨어졌을 수 있다)
-                var blast = CrystalBlastTiles(c);
-                var pos = new Vector3(c.x * GridConstants.CellSize, c.y * GridConstants.CellSize, 0f);
-                // 폭발을 받아 낸 바위(수정에서 보이는 바위)는 깨진다 - 이번 폭발은 막아 주지만 다음엔 새 바위를 찾아야 한다
-                var hitRubble = _golemRubble.Where(r => LineClear(c, r)).ToList();
                 RemoveWallObject(c);
-                foreach (var r in hitRubble)
-                {
-                    GolemRubbleBreakCount++;
-                    RemoveWallObject(r);
-                }
                 if (HitFeedback.Enabled)
                 {
+                    var pos = new Vector3(c.x * GridConstants.CellSize, c.y * GridConstants.CellSize, 0f);
                     HitFeedback.OnExplosion(pos);
                     CameraShake.Shake(0.45f, 0.8f);
                     if (!DamagePopup.Suppressed)
                         DeathBurst.Spawn(pos, new Color(0.55f, 1f, 1f, 0.95f), 30, GridConstants.CellSize * 4f, GridConstants.CellSize * 0.2f);
                 }
-                if (!killed && blast.Contains(_player.GridPos))
+            }
+            if (exploding.Count > 0)
+                foreach (var r in _golemRubble.ToList())
                 {
-                    killed = true;
-                    GolemBlastKillCount++;
-                    ShowMessage(Loc.T("<color=#FF4040>수정이 폭발해 방 전체를 휩쓸었다!</color>"));
+                    if (!waves.Contains(_rubbleWave.TryGetValue(r, out var rw) ? rw : 0))
+                        continue;
+                    GolemRubbleBreakCount++;
+                    RemoveWallObject(r);
                 }
+
+            // 남은 수정 - 숫자, 2턴 전부터 예고(바위가 방금 사라졌으면 넓어진 범위로)
+            foreach (var kv in _crystalFuse.ToList())
+            {
+                UpdateCrystalLabel(kv.Key);
+                if (kv.Value <= CrystalWarnTurns)
+                    ShowCrystalTelegraph(kv.Key);
             }
             if (!killed)
                 return false;
+            GolemBlastKillCount++;
+            ShowMessage(Loc.T("<color=#FF4040>수정이 폭발해 방 전체를 휩쓸었다!</color>"));
             KillPlayerInstantly();
             ClearAllTelegraphs();
             _loopManager.OnPlayerDied();
@@ -1597,7 +1605,7 @@ namespace LoopRogue
         }
 
         /// <summary>골렘 둘레 아무 데나 바위 count개(수정이 솟을 때 - 폭발을 막아 줄 안전지대). 길을 끊는 칸·플레이어 2칸 안은 빼고.</summary>
-        public int DropGolemRubbleAround(EnemyActor golem, int count)
+        public int DropGolemRubbleAround(EnemyActor golem, int count, int wave = 0)
         {
             var cells = new List<Vector2Int>();
             for (var x = 0; x < Map.Width; x++)
@@ -1608,11 +1616,11 @@ namespace LoopRogue
                     && Mathf.Max(Mathf.Abs(p.x - _player.GridPos.x), Mathf.Abs(p.y - _player.GridPos.y)) >= 2)
                     cells.Add(p);
             }
-            return DropGolemRubble(cells, count);
+            return DropGolemRubble(cells, count, wave);
         }
 
         /// <summary>공명 수정을 targetCount개가 되도록 세운다(벽 칸) - 골렘 몸에서 3칸, 플레이어에게서 2칸 이상, 수정끼리 3칸 이상 떨어진 빈 칸. 새로 세운 개수.</summary>
-        public int SpawnGolemCrystals(EnemyActor golem, int targetCount)
+        public int SpawnGolemCrystals(EnemyActor golem, int targetCount, int fuseTurns, int wave = 0)
         {
             var need = targetCount - _golemCrystals.Count;
             if (need <= 0)
@@ -1644,7 +1652,8 @@ namespace LoopRogue
                 _roomObjects.Add(go);
                 _wallObjects[p] = go;
                 _golemCrystals.Add(p);
-                _crystalFuse[p] = GolemCrystalFuseTurns;
+                _crystalFuse[p] = fuseTurns;
+                _crystalWave[p] = wave;
                 UpdateCrystalLabel(p);
                 placed++;
                 if (!DamagePopup.Suppressed)
@@ -1673,7 +1682,7 @@ namespace LoopRogue
         }
 
         /// <summary>골렘 십자 베기가 지나간 칸 중 count칸(빈 칸, 출구·수정 아닌 곳)에 돌무더기(벽)를 떨어뜨린다 - 다음 십자를 막는 엄폐물.</summary>
-        public int DropGolemRubble(IEnumerable<Vector2Int> tiles, int count)
+        public int DropGolemRubble(IEnumerable<Vector2Int> tiles, int count, int wave = 0)
         {
             var cells = tiles.Where(p => Map.IsWalkable(p) && p != _player.GridPos && ExitPosition != p && !_golemCrystals.Contains(p))
                 .OrderBy(_ => Rng.Next()).ToList();
@@ -1694,6 +1703,7 @@ namespace LoopRogue
                 _roomObjects.Add(go);
                 _wallObjects[p] = go;
                 _golemRubble.Add(p);
+                _rubbleWave[p] = wave;
                 if (!DamagePopup.Suppressed)
                     DeathBurst.Spawn(go.transform.position, new Color(0.55f, 0.53f, 0.6f, 0.95f), 10, GridConstants.CellSize * 1.2f, GridConstants.CellSize * 0.13f);
             }
@@ -2351,6 +2361,8 @@ namespace LoopRogue
             foreach (var c in _crystalFuse.Keys.ToList())
                 ForgetCrystal(c);
             _golemRubble.Clear();
+            _rubbleWave.Clear();
+            _crystalWave.Clear();
             _cracks.Clear();
             _ogreFallImmune = 0;
             _golemCrystals.Clear();
