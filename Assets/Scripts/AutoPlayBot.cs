@@ -1573,8 +1573,8 @@ namespace LoopRogue
             adjacentFlank.Clear();
             foreach (var e in _room.Enemies)
             {
-                if (e == null || !ReferenceEquals(map.GetActorAt(e.GridPos), e))
-                    continue;
+                if (e == null || !ReferenceEquals(map.GetActorAt(e.GridPos), e) || e.IsBladeProof)
+                    continue; // 분신·거울상 옆은 공격 목표 자리가 아니다
                 if (e.FootprintRadius > 0)
                 {
                     // 3x3 보스 - 몸 둘레에 상하좌우로 붙는 칸 전부(몸 안 칸은 목표가 아님)
@@ -1603,8 +1603,8 @@ namespace LoopRogue
             var targetFront = false;
             foreach (var d in Directions)
             {
-                if (!(map.GetActorAt(start + d) is EnemyActor e) || e.Stats.IsDead)
-                    continue;
+                if (!(map.GetActorAt(start + d) is EnemyActor e) || e.Stats.IsDead || e.IsBladeProof)
+                    continue; // 칼이 안 통하는 분신·거울상은 때려 봐야 턴만 버린다
                 // 우선순위: 방패 정면이 아닌 몹 > 치유사(살려두면 다른 몹을 고친다) > 체력 낮은 몹
                 var front = e.IsShieldFront(start);
                 bool better;
@@ -2027,6 +2027,27 @@ namespace LoopRogue
                     if (!step.HasValue)
                         return false;
                     _lastDecision = "분신 대각선으로";
+                    dir = step;
+                    return true;
+                }
+                case BossBrain.MirrorStage:
+                {
+                    // 10층 거울상 - 거울상 몸에 붙어 서서 진짜의 예고 공격(플레이어 조준 패턴)이 거울상을 덮게 한다. 진짜가 옆에 있으면 평소처럼 때린다.
+                    var fakes = _room.MirrorFakes.Where(f => f != null && !f.Stats.IsDead).ToList();
+                    if (fakes.Count == 0)
+                        return false;
+                    bool NextToFake(Vector2Int c) => fakes.Any(f => f.IsAdjacentTo(c));
+                    if (NextToFake(start))
+                    {
+                        if (_room.Enemies.Any(e => e != null && e.IsBoss && !e.Stats.IsDead && e.IsAdjacentTo(start)))
+                            return false;
+                        _lastDecision = "거울상 옆 대기";
+                        return true;
+                    }
+                    var step = FirstStepTo(NextToFake, passable);
+                    if (!step.HasValue)
+                        return false;
+                    _lastDecision = "거울상 옆으로";
                     dir = step;
                     return true;
                 }

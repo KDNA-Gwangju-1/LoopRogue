@@ -147,7 +147,7 @@ namespace LoopRogue
                 _vulnerableUntil = Mathf.Max(_vulnerableUntil, Time.time + ItemInfo.WeaknessSeconds);
         }
 
-        public float DamageTakenMultiplier => IsShadowClone ? 0f : (IsVulnerable ? ItemInfo.WeaknessDamageMultiplier : 1f)
+        public float DamageTakenMultiplier => IsBladeProof ? 0f : (IsVulnerable ? ItemInfo.WeaknessDamageMultiplier : 1f)
                                              * (_brain != null ? _brain.ArmorMultiplier(_turnRoom) : 1f); // 1층 멧돼지 기둥 - 단단함
 
         /// <summary>섬광탄 - 보스가 예고해둔 공격을 취소한다.</summary>
@@ -164,10 +164,32 @@ namespace LoopRogue
 
         /// <summary>보스는 3x3 칸을 차지한다(사용자 결정) - GridPos가 가운데 칸. 어느 칸을 때려도 맞고, 몸 전체가 들어갈 자리로만 움직인다.</summary>
         public const int BossFootprintRadius = 1;
-        public override int FootprintRadius => IsBoss ? BossFootprintRadius : 0;
+        public override int FootprintRadius => IsBoss || IsMirrorFake ? BossFootprintRadius : 0;
         public bool IsMinion { get; private set; } // 보스가 소환한 졸개 - 골드/경험치 없음, 보스가 죽으면 같이 사라짐
         /// <summary>7층 그림자 분신 - 칼이 안 통하고(받는 피해 0), 암살자의 X자 베기에만 사라진다(RoomController.OnDiagonalTiles).</summary>
         public bool IsShadowClone { get; private set; }
+
+        /// <summary>10층 거울 가면 기사의 가짜(거울상) - 진짜와 똑같은 3x3 몸·그림인데 좌우만 뒤집혀 있다. 칼이 안 통하고, 진짜의 예고 공격에
+        /// 맞으면 깨진다(RoomController.OnMirrorPatternTiles). 10-15 사용자 "진짜 찾기".</summary>
+        public bool IsMirrorFake { get; private set; }
+        private EnemyActor _mirrorOf;
+
+        /// <summary>칼(일반 공격·스킬·폭탄)이 안 통하는 몹 - 7층 그림자 분신, 10층 거울상.</summary>
+        public bool IsBladeProof => IsShadowClone || IsMirrorFake;
+
+        public void MarkAsMirrorFake(EnemyActor original)
+        {
+            IsMirrorFake = true;
+            _mirrorOf = original;
+            var source = original.GetComponent<SpriteRenderer>();
+            if (source == null)
+                return;
+            if (TryGetComponent<SpriteAnimator>(out var ownAnim))
+                Destroy(ownAnim); // 일반 몹 그림 대신 진짜 그림을 베낀다(MirrorImage)
+            var renderer = VisualUtil.CreateSpriteVisual(gameObject, source.sprite, original.transform.localScale.x, sortingOrder: 0);
+            renderer.flipX = true;
+            gameObject.AddComponent<MirrorImage>().Setup(this, original, renderer);
+        }
 
         public void MarkAsShadowClone()
         {
@@ -192,7 +214,7 @@ namespace LoopRogue
         /// <summary>표시 이름 - 오류방에선 깨진 글자(몹마다 늘 같은 모양).</summary>
         public string DisplayName => GlitchRoom.IsActive && !IsBoss ? GlitchRoom.Corrupt(PlainName, GetInstanceID()) : PlainName;
 
-        private string PlainName => IsBoss ? BossDisplayName : IsMinion ? Loc.T("졸개") : IsMimic ? Loc.T("미믹") : IsKnight ? MemoryKnight.Name : IsSplitChild ? Loc.T("분열 조각") : (IsElite ? Loc.T("정예 ") : "") + Kind switch
+        private string PlainName => IsMirrorFake && _mirrorOf != null ? _mirrorOf.PlainName : IsBoss ? BossDisplayName : IsMinion ? Loc.T("졸개") : IsMimic ? Loc.T("미믹") : IsKnight ? MemoryKnight.Name : IsSplitChild ? Loc.T("분열 조각") : (IsElite ? Loc.T("정예 ") : "") + Kind switch
         {
             EnemyKind.Ranged => Loc.T("궁수"),
             EnemyKind.Shield => Loc.T("방패병"),
@@ -1203,6 +1225,13 @@ namespace LoopRogue
         {
             if (IsAdjacentTo(_tp))
             {
+                if (IsMirrorFake)
+                {
+                    // 10층 거울상 - 때리는 시늉만(들이받는 동작), 피해는 없다(10-15 사용자: 거울상 옆이 제일 아픈 자리가 되던 문제)
+                    if (HitFeedback.Enabled)
+                        ActorJuice.Get(this).Bump(_tp - GridPos, 0.4f, 0.3f);
+                    return;
+                }
                 if (IsBoss && _turnRoom != null && _turnRoom.BossInvulnerable)
                     return; // 6·7·9층 무적 단계 - 따라다니며 패턴만 쓰고, 붙어서 때리지는 않는다(10-14 사용자)
                 // 5층 버섯 군주는 10-14에 일반 공격을 뺐다가(파동·역파동만) 봇 보스방 사망 0.0 - 붙어서 공짜로 때리는 시간만 남아서 10-15에 되살림(사용자)
@@ -1505,6 +1534,60 @@ namespace LoopRogue
             go.transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg);
             renderer.color = color;
             Destroy(go, lifetime);
+        }
+
+        /// <summary>10층 거울상 - 진짜 보스의 지금 그림(변신·걷기·공격 프레임)·색·크기를 매 프레임 그대로 베끼고 좌우만 뒤집는다.
+        /// 한 칸 움직이면 진짜처럼 미끄러지듯 걷는다(순간이동하면 가짜라는 티가 나서). 진짜가 죽거나 사라지면 마지막 모습 그대로.</summary>
+        [DefaultExecutionOrder(100)] // SpriteAnimator(진짜 그림 갱신)보다 뒤에
+        private sealed class MirrorImage : MonoBehaviour
+        {
+            private const float StepSeconds = 0.18f;
+            private EnemyActor _self;
+            private EnemyActor _original;
+            private SpriteRenderer _renderer;
+            private SpriteRenderer _source;
+            private Vector2Int _lastPos;
+            private Vector3 _stepFrom;
+            private float _stepStart = -1f;
+
+            public void Setup(EnemyActor self, EnemyActor original, SpriteRenderer renderer)
+            {
+                _self = self;
+                _original = original;
+                _renderer = renderer;
+                _source = original.GetComponent<SpriteRenderer>();
+                _lastPos = self.GridPos;
+            }
+
+            private void LateUpdate()
+            {
+                if (_renderer == null || _self == null)
+                    return;
+                if (_original != null && _source != null)
+                {
+                    _renderer.sprite = _source.sprite;
+                    _renderer.color = _source.color;
+                    _renderer.flipX = !_source.flipX;
+                    transform.localScale = _original.transform.localScale;
+                }
+                if (_self.GridPos != _lastPos)
+                {
+                    var delta = _self.GridPos - _lastPos;
+                    if (Mathf.Abs(delta.x) + Mathf.Abs(delta.y) == 1)
+                    {
+                        _stepFrom = new Vector3(_lastPos.x * GridConstants.CellSize, _lastPos.y * GridConstants.CellSize, 0f);
+                        _stepStart = Time.time;
+                    }
+                    _lastPos = _self.GridPos;
+                }
+                if (_stepStart >= 0f)
+                {
+                    var t = Mathf.Clamp01((Time.time - _stepStart) / StepSeconds);
+                    transform.position = Vector3.Lerp(_stepFrom, _self.GridWorldPosition, t);
+                    if (t >= 1f)
+                        _stepStart = -1f;
+                }
+            }
         }
     }
 }

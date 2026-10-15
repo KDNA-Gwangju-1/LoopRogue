@@ -1108,3 +1108,10 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 <color=#FFA040>보스가 포위 폭발을 준비한다!</color> 걸어서는 못 빠져나간다 - 대시로 피하자	<color=#FFA040>The boss prepares an Encircling Blast!</color> You can't walk out of it - dodge with a dash
 3연 파동	Triple Shockwave
 <color=#FFB060>오우거가 땅을 연달아 내려친다!</color> 안쪽부터 1·2·3 순서로 퍼진다	<color=#FFB060>The Ogre pounds the ground again and again!</color> It spreads outward in order 1, 2, 3
+<color=#C8D8FF>거울 가면 기사가 거울 속 자신을 불러냈다!</color> 좌우가 뒤집힌 가짜에겐 칼이 안 통한다	<color=#C8D8FF>The Mirror-Masked Knight summoned its reflections!</color> Blades pass through the mirrored fakes
+진짜는 좌우가 제대로다 - 기사의 예고 공격에 가짜를 맞혀 깨뜨리자. <color=#FF6060>{0}턴 안에 다 못 깨면 끝장이다</color>	The real one is not mirrored - lure the knight's telegraphed attacks onto the fakes to shatter them. <color=#FF6060>Fail to shatter them all within {0} turns and you die</color>
+<color=#C8D8FF>기사의 공격이 거울상을 깨뜨렸다!</color> 남은 가짜 {0}	<color=#C8D8FF>The knight's attack shattered a reflection!</color> Fakes left: {0}
+<color=#C8D8FF>거울상이 모두 깨졌다!</color> 거울 가면 기사가 비틀거린다	<color=#C8D8FF>All reflections shattered!</color> The Mirror-Masked Knight staggers
+<color=#FF4040>거울 속 기사들이 한꺼번에 베어 들었다!</color>	<color=#FF4040>The knights in the mirror cut in all at once!</color>
+거울상 {0} · {1}턴	Reflections {0} · {1} turns
+체력이 75% 아래로 떨어지면 좌우가 뒤집힌 거울상 2개를 불러내고 진짜와 자리를 섞는다. 거울상에겐 칼이 안 통하고, 진짜의 예고 공격에 맞으면 깨진다. {0}턴 안에 다 못 깨면 즉사.	Below 75% health it summons 2 left-right mirrored reflections and swaps places with one. Blades pass through reflections; they shatter when hit by the real one's telegraphed attacks. Fail to shatter them all within {0} turns and you die instantly.

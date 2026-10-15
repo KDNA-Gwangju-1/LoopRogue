@@ -32,6 +32,10 @@ namespace LoopRogue
         private const int LavaFallStunTurns = 3;
         private const int JarCount = 3;
         private const int GimmickBreakStunTurns = 3;   // 촛불·분신·항아리를 다 없애면 보스 기절
+        // 10층 거울 가면 기사 "진짜 찾기"(10-15 사용자): 체력 75%에 좌우가 뒤집힌 거울상 MirrorFakeCount개 - 칼이 안 통하고 진짜의 예고 공격에
+        // 맞아야 깨진다. 진짜는 그동안에도 맞는다. MirrorFakeTurnLimit턴 안에 다 못 깨면 즉사.
+        private const int MirrorFakeCount = 2;
+        public const int MirrorFakeTurnLimit = 60;
 
         /// <summary>봇 통계용 - 층별 기믹 즉사 횟수(인덱스 = 층).</summary>
         public static readonly int[] GimmickKills = new int[11];
@@ -50,6 +54,8 @@ namespace LoopRogue
         private readonly List<EnemyActor> _clones = new List<EnemyActor>();
         private readonly HashSet<Vector2Int> _lava = new HashSet<Vector2Int>();
         private readonly HashSet<Vector2Int> _jars = new HashSet<Vector2Int>();
+        private readonly List<EnemyActor> _mirrorFakes = new List<EnemyActor>();
+        private readonly Dictionary<EnemyActor, TextMesh> _mirrorFakeLabels = new Dictionary<EnemyActor, TextMesh>();
 
         public int GimmickStage => _gimmickStage;
         public int Infection => _infection;
@@ -58,6 +64,9 @@ namespace LoopRogue
         public IReadOnlyList<EnemyActor> Clones => _clones;
         public IReadOnlyCollection<Vector2Int> LavaCracks => _lava;
         public IReadOnlyCollection<Vector2Int> LichJars => _jars;
+        public IReadOnlyList<EnemyActor> MirrorFakes => _mirrorFakes;
+        /// <summary>10층 거울상이 남아 있는 동안 - 보스 준비 동작 표시를 끈다(진짜만 숨쉬면 바로 들킨다).</summary>
+        public bool MirrorFakesActive => _gimmickStage == BossBrain.MirrorStage && _mirrorFakes.Count > 0;
         public bool IsLichJar(Vector2Int p) => _jars.Contains(p);
 
         /// <summary>6·7·9층 - 촛불·분신·항아리가 남아 있는 동안 보스는 무적(BossBrain.ArmorMultiplier).</summary>
@@ -140,6 +149,14 @@ namespace LoopRogue
                     for (var i = 0; i < JarCount; i++)
                         c.Steps.Add(WallStep(() => SpawnJars(boss, _jars.Count + 1) > 0, "soul_summon"));
                     after = Loc.F("리치와 같은 줄, 항아리 뒤에 서서 십자 마법이 항아리를 깨게 하자 - <color=#FF6060>{0}턴 안에 다 못 깨면 끝장이다</color>", GimmickTurnLimit);
+                    break;
+                case BossBrain.MirrorStage:
+                    _gimmickTurnsLeft = MirrorFakeTurnLimit;
+                    c.Line = Loc.T("<color=#C8D8FF>거울 가면 기사가 거울 속 자신을 불러냈다!</color> 좌우가 뒤집힌 가짜에겐 칼이 안 통한다");
+                    for (var i = 0; i < MirrorFakeCount; i++)
+                        c.Steps.Add(EnemyStep(() => SpawnMirrorFakes(boss, 1) > 0, "morph"));
+                    c.Steps.Add(() => ShuffleMirror(boss)); // 마지막에 진짜와 가짜 하나가 자리를 바꾼다 - 눈으로 따라가면 안 된다
+                    after = Loc.F("진짜는 좌우가 제대로다 - 기사의 예고 공격에 가짜를 맞혀 깨뜨리자. <color=#FF6060>{0}턴 안에 다 못 깨면 끝장이다</color>", MirrorFakeTurnLimit);
                     break;
             }
             c.Finish = () =>
@@ -252,6 +269,30 @@ namespace LoopRogue
                 ? Loc.F("<color=#B090D0>암살자의 칼날이 분신을 베었다!</color> 남은 분신 {0}", _clones.Count)
                 : Loc.T("<color=#B090D0>분신이 모두 사라졌다!</color> 그림자 암살자가 비틀거린다"));
             if (_clones.Count == 0)
+                OnGimmickBroken();
+            UpdateGimmickLabel();
+        }
+
+        /// <summary>10층 - 진짜의 예고 공격(어느 패턴이든)이 거울상 몸에 한 칸이라도 걸리면 그 거울상이 깨진다.</summary>
+        public void OnMirrorPatternTiles(IEnumerable<Vector2Int> tiles)
+        {
+            if (_gimmickStage != BossBrain.MirrorStage || _mirrorFakes.Count == 0)
+                return;
+            var set = new HashSet<Vector2Int>(tiles);
+            var hit = _mirrorFakes.Where(f => f != null && GridMap.Cells(f.GridPos, f.FootprintRadius).Any(set.Contains)).ToList();
+            foreach (var f in hit)
+            {
+                _mirrorFakes.Remove(f);
+                if (HitFeedback.Enabled)
+                    Fx.Play("crystal_shatter", f.transform.position, 3.2f, fps: 14f, sortingOrder: 6);
+                DespawnEnemy(f, new Color(0.8f, 0.88f, 1f));
+            }
+            if (hit.Count == 0)
+                return;
+            ShowMessage(_mirrorFakes.Count > 0
+                ? Loc.F("<color=#C8D8FF>기사의 공격이 거울상을 깨뜨렸다!</color> 남은 가짜 {0}", _mirrorFakes.Count)
+                : Loc.T("<color=#C8D8FF>거울상이 모두 깨졌다!</color> 거울 가면 기사가 비틀거린다"));
+            if (_mirrorFakes.Count == 0)
                 OnGimmickBroken();
             UpdateGimmickLabel();
         }
@@ -396,7 +437,9 @@ namespace LoopRogue
                 case 6:
                 case 7:
                 case 9:
-                    if (!BossInvulnerable)
+                case BossBrain.MirrorStage:
+                    _mirrorFakes.RemoveAll(f => f == null || f.Stats.IsDead);
+                    if (_gimmickStage == BossBrain.MirrorStage ? _mirrorFakes.Count == 0 : !BossInvulnerable)
                         break; // 이미 다 없앴다
                     if (--_gimmickTurnsLeft <= 0)
                     {
@@ -404,6 +447,7 @@ namespace LoopRogue
                         {
                             6 => Loc.T("<color=#FF4040>망령 궁수의 화살비가 쏟아졌다!</color>"),
                             7 => Loc.T("<color=#FF4040>그림자들이 한꺼번에 덮쳤다!</color>"),
+                            BossBrain.MirrorStage => Loc.T("<color=#FF4040>거울 속 기사들이 한꺼번에 베어 들었다!</color>"),
                             _ => Loc.T("<color=#FF4040>리치가 죽음의 주문을 완성했다!</color>"),
                         });
                         dead = true;
@@ -502,6 +546,20 @@ namespace LoopRogue
                 case 9:
                     text = _jars.Count > 0 ? Loc.F("항아리 {0} · {1}턴", _jars.Count, _gimmickTurnsLeft) : null;
                     danger = _gimmickTurnsLeft <= 20;
+                    break;
+                case BossBrain.MirrorStage:
+                    text = _mirrorFakes.Count > 0 ? Loc.F("거울상 {0} · {1}턴", _mirrorFakes.Count, _gimmickTurnsLeft) : null;
+                    danger = _gimmickTurnsLeft <= 20;
+                    // 같은 글자를 거울상 머리 위에도 - 진짜 위에만 뜨면 바로 들킨다
+                    foreach (var f in _mirrorFakes)
+                    {
+                        if (f == null || text == null)
+                            continue;
+                        if (!_mirrorFakeLabels.TryGetValue(f, out var fl) || fl == null)
+                            _mirrorFakeLabels[f] = fl = CreateBossLabel(f, "GimmickLabel");
+                        fl.text = text;
+                        fl.color = danger ? new Color(1f, 0.3f, 0.3f) : Color.white;
+                    }
                     break;
             }
             if (text == null)
@@ -605,6 +663,71 @@ namespace LoopRogue
             return _jars.Count - before;
         }
 
+        /// <summary>10층 거울상 count개 - 진짜와 같은 3x3 몸, 플레이어에게서 3칸·진짜와 다른 거울상에게서 몇 칸 떨어진 자리(무작위). 만든 개수.</summary>
+        private int SpawnMirrorFakes(EnemyActor boss, int count)
+        {
+            var made = 0;
+            for (var n = 0; n < count; n++)
+            {
+                var go = new GameObject("MirrorFake");
+                go.transform.SetParent(transform, false);
+                var fake = go.AddComponent<EnemyActor>();
+                fake.Initialize(boss.Stats.MaxHealth, 0f, isBoss: false, kind: EnemyKind.Melee); // 공격은 시늉만(EnemyActor.TakeMeleeTurn)
+                fake.MarkAsMinion();          // 보상 없음, 진짜가 죽으면 같이 사라짐
+                fake.MarkAsMirrorFake(boss);  // 3x3 몸 + 진짜 그림을 좌우 뒤집어 베낌 + 칼이 안 통함
+                fake.Stats.CurrentHealth = boss.Stats.CurrentHealth; // 체력바를 봐도 같게
+                bool Fits(Vector2Int c, int fromBoss, int fromFake) =>
+                    Map.CanOccupy(fake, c) && GridMap.FootprintChebyshev(boss, c) >= fromBoss
+                    && GridMap.Cells(c, 1).All(p => p != ExitPosition && Mathf.Max(Mathf.Abs(p.x - _player.GridPos.x), Mathf.Abs(p.y - _player.GridPos.y)) >= 3)
+                    && _mirrorFakes.All(f => Mathf.Max(Mathf.Abs(f.GridPos.x - c.x), Mathf.Abs(f.GridPos.y - c.y)) >= fromFake);
+                var cells = new List<Vector2Int>();
+                for (var x = 0; x < Map.Width; x++)
+                for (var y = 0; y < Map.Height; y++)
+                    cells.Add(new Vector2Int(x, y));
+                var shuffled = cells.OrderBy(_ => Rng.Next()).ToList();
+                Vector2Int? spot = shuffled.Where(c => Fits(c, 3, 4)).Select(c => (Vector2Int?)c).FirstOrDefault()
+                                   ?? shuffled.Where(c => Fits(c, 2, 3)).Select(c => (Vector2Int?)c).FirstOrDefault(); // 좁은 방이면 조금 가깝게
+                if (!spot.HasValue)
+                {
+                    Destroy(go);
+                    continue;
+                }
+                Map.PlaceActor(fake, spot.Value);
+                fake.SyncTransform();
+                HitFeedback.OnSummon(fake.transform.position);
+                _enemies.Add(fake);
+                _mirrorFakes.Add(fake);
+                made++;
+            }
+            return made;
+        }
+
+        /// <summary>10층 컷신 끝 - 진짜와 거울상 하나가 자리를 바꾼다(번쩍이는 사이에). 바꿨으면 true.</summary>
+        private bool ShuffleMirror(EnemyActor boss)
+        {
+            var fakes = _mirrorFakes.Where(f => f != null && !f.Stats.IsDead).ToList();
+            if (boss == null || boss.Stats.IsDead || fakes.Count == 0)
+                return false;
+            var other = fakes[Rng.Next(fakes.Count)];
+            var a = boss.GridPos;
+            var b = other.GridPos;
+            Map.RemoveActor(boss);
+            Map.RemoveActor(other);
+            Map.PlaceActor(boss, b);
+            Map.PlaceActor(other, a);
+            boss.SyncTransform();
+            other.SyncTransform();
+            if (boss.TryGetComponent<SpriteAnimator>(out var anim))
+                anim.SnapToGrid();
+            if (HitFeedback.Enabled)
+            {
+                ActorJuice.Get(boss).Flash(Color.white);
+                ActorJuice.Get(other).Flash(Color.white);
+                SfxPlayer.Play(Sfx.ChestOpen);
+            }
+            return true;
+        }
+
         /// <summary>분신 count개 - 만든 개수.</summary>
         private int SpawnClones(EnemyActor boss, int count = CloneCount)
         {
@@ -666,6 +789,8 @@ namespace LoopRogue
             _mushrooms.Clear();
             _candles.Clear();
             _clones.Clear();
+            _mirrorFakes.Clear();
+            _mirrorFakeLabels.Clear();
             _lava.Clear();
             _jars.Clear();
             if (_gimmickLabel != null)

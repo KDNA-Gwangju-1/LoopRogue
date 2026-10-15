@@ -126,6 +126,9 @@ namespace LoopRogue
 
         // ---- 4~9층 기믹(10-14 사용자) - 체력 StageGimmickHealthRatio 이하에서 한 번 시작(RoomController.BeginStageGimmick)
         public const float StageGimmickHealthRatio = 0.5f;
+        /// <summary>10층 거울 가면 기사 "진짜 찾기" - 체력 75% 아래에서 한 번(10-15 사용자).</summary>
+        public const float MirrorFakeHealthRatio = 0.75f;
+        private static float StageGimmickRatio(int stage) => stage == MirrorStage ? MirrorFakeHealthRatio : StageGimmickHealthRatio;
         private bool _stageGimmickStarted;
         // 7층 그림자 암살자 - 체력 90·80·…·10%마다 분신 3개(무적) 물결(10-15 사용자). 한 대에 여러 칸을 지나면 물결 하나로 합친다.
         private static readonly float[] CloneWaveHealth = { 0.9f, 0.8f, 0.7f, 0.6f, 0.5f, 0.4f, 0.3f, 0.2f, 0.1f };
@@ -309,7 +312,7 @@ namespace LoopRogue
                 return true;
             }
 
-            if (!_stageGimmickStarted && _stage >= 4 && _stage <= 9 && _stage != 7 && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * StageGimmickHealthRatio)
+            if (!_stageGimmickStarted && _stage >= 4 && _stage <= MirrorStage && _stage != 7 && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * StageGimmickRatio(_stage))
             {
                 _stageGimmickStarted = true;
                 room.BeginStageGimmick(_stage, _boss); // 컷신 - 소품·분신이 하나씩
@@ -325,6 +328,7 @@ namespace LoopRogue
             2 => OgreHoleHealthRatio,
             3 => GolemWaveHealth[0],
             7 => CloneWaveHealth[0],
+            MirrorStage => MirrorFakeHealthRatio,
             >= 4 and <= 9 => StageGimmickHealthRatio,
             _ => 1f,
         };
@@ -569,6 +573,8 @@ namespace LoopRogue
                     room.AddLava(_pendingTiles);
                 else if (_stage == 9 && type == BossPatternType.Cross)
                     room.BreakLichJars(_jarHits);
+                else if (_stage == MirrorStage)
+                    room.OnMirrorPatternTiles(_pendingTiles); // 10층 - 진짜의 예고 공격에 걸린 거울상이 깨진다(패턴 종류 상관없이)
             }
             _pendingTiles.Clear();
             if (_cancelled)

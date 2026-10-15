@@ -2672,8 +2672,8 @@ namespace LoopRogue
         private void UpdateBossWindup()
         {
             ClearBossWindup();
-            if (!HitFeedback.Enabled || _player == null)
-                return;
+            if (!HitFeedback.Enabled || _player == null || MirrorFakesActive)
+                return; // 10층 거울상이 있는 동안은 끈다 - 진짜만 숨쉬면 바로 들킨다
             var boss = _enemies.FirstOrDefault(e => e != null && e.IsBoss && e.BossMeleeReadyNextTurn(this));
             if (boss == null)
                 return;
@@ -2802,8 +2802,8 @@ namespace LoopRogue
         /// <summary>갑옷 "가시"(신화 이상) - 근접으로 플레이어를 때린 몹에게 받은 피해의 일부를 돌려준다.</summary>
         public void ApplyThorns(EnemyActor attacker, float dealt)
         {
-            if (attacker == null || dealt <= 0f || attacker.Stats.IsDead || !EquipmentEffects.Has(ItemSlot.Armor, 2))
-                return;
+            if (attacker == null || dealt <= 0f || attacker.Stats.IsDead || !EquipmentEffects.Has(ItemSlot.Armor, 2) || attacker.IsBladeProof)
+                return; // 7층 분신·10층 거울상은 가시에도 안 다친다(체력이 줄면 가짜라는 티가 났다)
             var damage = dealt * EquipmentEffects.ThornsRate;
             attacker.Stats.TakeDamage(damage);
             DamagePopup.Spawn(attacker.transform.position, damage, new Color(0.75f, 0.85f, 0.6f));
