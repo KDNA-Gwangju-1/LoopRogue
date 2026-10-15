@@ -1036,14 +1036,15 @@ namespace LoopRogue
                 DeathBurst.Spawn(enemy.transform.position, new Color(0.7f, 0.3f, 1f), count: 18, speed: 4f, size: 0.18f);
         }
 
-        public void ShowTelegraph(IEnumerable<Vector2Int> tiles)
+        /// <param name="color">예고 칸 색 - 없으면 기본 빨강(포위 폭발처럼 "대시로 피하라"는 패턴은 주황).</param>
+        public void ShowTelegraph(IEnumerable<Vector2Int> tiles, Color? color = null)
         {
             ClearTelegraph();
             HitFeedback.OnTelegraph();
             foreach (var t in tiles)
             {
                 _bossDangerTiles.Add(t);
-                _telegraphObjects.Add(SpawnTelegraphTile(t, TelegraphColor, -5));
+                _telegraphObjects.Add(SpawnTelegraphTile(t, color ?? TelegraphColor, -5));
             }
             RebuildDangerTiles();
         }

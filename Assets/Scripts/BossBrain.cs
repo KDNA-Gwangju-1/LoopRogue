@@ -16,6 +16,7 @@ namespace LoopRogue
         MirrorShards, // 거울 파편(10층 거울 가면 기사 본모습 전용) - 4번의 공격 칸을 한꺼번에 예고(칸마다 몇 번째인지 숫자)하고 보스 턴마다 하나씩 터뜨림
         RingInverse, // 역파동(5층 전용) - 파동과 반대로 거리 2·4·6…(짝수)을 친다. 바로 옆과 홀수 거리가 안전
         TripleWave,  // 3연 파동(2층) - 보스 몸에서 거리 1→2→3 고리를 보스 턴마다 하나씩(숫자 예고). 1타가 지나간 안쪽이 2·3타 동안 딜 자리. 구멍은 1타에만
+        Encircle,    // 포위 폭발(6층) - 플레이어 중심 반경 EncircleRadius(5x5)를 전부. 한 칸 걸어서는 못 빠져나가고 대시로만 피한다
     }
 
     /// <summary>스테이지 보스의 예고 공격 - 몇 턴마다 공격할 칸을 빨갛게 예고하고(그 턴은 안 움직임), 다음 턴에
@@ -125,6 +126,10 @@ namespace LoopRogue
         // ---- 4~9층 기믹(10-14 사용자) - 체력 StageGimmickHealthRatio 이하에서 한 번 시작(RoomController.BeginStageGimmick)
         public const float StageGimmickHealthRatio = 0.5f;
         private bool _stageGimmickStarted;
+        /// <summary>포위 폭발 반경(체비쇼프) - 대시(3칸)면 바깥에 내려선다. 대시가 준비돼 있고 대시로 빠져나갈 길이 있을 때만 쓴다(CanDashEscape).</summary>
+        public const int EncircleRadius = 2;
+        private int _turnsSinceEncircle = int.MaxValue / 2; // 포위 폭발이 터진 뒤 지난 보스 턴(TakePatternTurn마다 +1)
+        private static readonly Color DashTelegraphColor = new Color(1f, 0.6f, 0.1f, 0.45f);
         private bool _collectJars;                                     // 9층 - 십자 마법 줄 끝에 닿은 항아리를 모은다(AddRay)
         private readonly List<Vector2Int> _jarHits = new List<Vector2Int>();
 
@@ -189,6 +194,7 @@ namespace LoopRogue
             BossPatternType.Ring => 5,
             BossPatternType.Snipe => 6,
             BossPatternType.Diagonal => 7,
+            BossPatternType.Encircle => 6,
             BossPatternType.TripleWave => 2,
             _ => 0,
         };
@@ -201,7 +207,7 @@ namespace LoopRogue
             3 => new List<BossPatternType> { BossPatternType.Cross },
             4 => new List<BossPatternType> { BossPatternType.Summon, BossPatternType.Slam },
             5 => new List<BossPatternType> { BossPatternType.Ring, BossPatternType.RingInverse }, // 10-14 사용자 "패턴을 여러 개로, 범위도 크게" - 번갈아
-            6 => new List<BossPatternType> { BossPatternType.Snipe },
+            6 => new List<BossPatternType> { BossPatternType.Snipe, BossPatternType.Encircle }, // 10-15 사용자 - 대시로만 피하는 패턴을 번갈아
             7 => new List<BossPatternType> { BossPatternType.Diagonal },
             8 => new List<BossPatternType> { BossPatternType.Charge, BossPatternType.Slam },
             9 => new List<BossPatternType> { BossPatternType.Cross, BossPatternType.Snipe },
@@ -224,6 +230,7 @@ namespace LoopRogue
             BossPatternType.Snipe => Loc.T("저격"),
             BossPatternType.SnipeFollowUp => Loc.T("저격(2발)"),
             BossPatternType.MirrorShards => Loc.T("거울 파편"),
+            BossPatternType.Encircle => Loc.T("포위 폭발"),
             BossPatternType.TripleWave => Loc.T("3연 파동"),
             _ => Loc.T("X자 베기"),
         };
@@ -306,6 +313,7 @@ namespace LoopRogue
         public bool TakePatternTurn(PlayerActor player, RoomController room)
         {
             _room = room;
+            _turnsSinceEncircle++;
             if (_pending.HasValue)
             {
                 Resolve(player, room);
@@ -379,15 +387,36 @@ namespace LoopRogue
                 return true;
             }
 
+            if (type == BossPatternType.Encircle && (!CanDashEscape(player, room.Map) || room.Candles.Count > 0))
+                type = BossPatternType.Snipe; // 대시가 안 돌았거나 대시로 빠져나갈 길이 없으면 피할 방법이 없다 - 저격으로 대신.
+                                              // 촛불이 켜져 있는 동안도 저격만(촛불은 저격으로만 꺼진다 - 10-15 사용자, 봇 100판에서 제한 시간 즉사 판당 16회)
+
             ComputeTiles(type, player, room.Map);
             if (_pendingTiles.Count == 0)
                 return false; // 쓸 칸이 없으면(구석 등) 그냥 일반 행동
 
             _pending = type;
-            room.ShowTelegraph(_pendingTiles);
+            room.ShowTelegraph(_pendingTiles, type == BossPatternType.Encircle ? DashTelegraphColor : (Color?)null);
             if (TryMorph(type, out var message))
                 room.ShowMessage(message);
+            if (type == BossPatternType.Encircle)
+                room.ShowMessage(Loc.T("<color=#FFA040>보스가 포위 폭발을 준비한다!</color> 걸어서는 못 빠져나간다 - 대시로 피하자"));
             return true;
+        }
+
+        /// <summary>포위 폭발을 대시로 피할 수 있는지 - 대시가 준비돼 있고(묶이지 않음), 상하좌우 중 한 방향이라도 대시 착지 칸이 범위 밖.</summary>
+        private bool CanDashEscape(PlayerActor player, GridMap map)
+        {
+            // 직전 포위 폭발에서 이만큼(대시 쿨타임 + 1) 보스 턴이 지나야 다시 쓴다 - 대시로 피하고 나서 쿨이 돌기 전에 또 오지 않게(10-15 사용자)
+            if (_turnsSinceEncircle <= PlayerActor.DashCooldownMax)
+                return false;
+            if (player.DashCooldown > 0 || player.RootedTurns > 0)
+                return false;
+            foreach (var d in Directions)
+                if (player.PreviewDash(d, out var landing, out _)
+                    && Mathf.Max(Mathf.Abs(landing.x - player.GridPos.x), Mathf.Abs(landing.y - player.GridPos.y)) > EncircleRadius)
+                    return true;
+            return false;
         }
 
         /// <summary>다음 패턴 - 1~9층은 목록 순서대로, 10층은 무작위(같은 패턴 연속은 안 나옴).</summary>
@@ -473,6 +502,8 @@ namespace LoopRogue
             if (type == BossPatternType.TripleWave && IsOgre && _holePhase && _mirrorWaveNumber == 1)
                 room.OpenOgreHoles(_boss, UnityEngine.Random.Range(OgreHolesMin, OgreHolesMax + 1)); // 3연 파동은 1타에만 구멍(10-15 사용자)
 
+            if (type == BossPatternType.Encircle)
+                _turnsSinceEncircle = 0;
             PatternResolveCount++;
             HitFeedback.OnBossPatternResolved(player, _pendingTiles.Contains(player.GridPos), type, _pendingTiles);
             if (_pendingTiles.Contains(player.GridPos))
@@ -630,6 +661,9 @@ namespace LoopRogue
                     AddTile(map, player.GridPos);
                     foreach (var d in new[] { new Vector2Int(1, 1), new Vector2Int(1, -1), new Vector2Int(-1, 1), new Vector2Int(-1, -1) })
                         AddRay(map, player.GridPos, d);
+                    break;
+                case BossPatternType.Encircle:
+                    AddSquare(map, player.GridPos, EncircleRadius);
                     break;
                 case BossPatternType.Charge:
                 {

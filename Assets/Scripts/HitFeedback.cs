@@ -160,6 +160,7 @@ namespace LoopRogue
                 BossPatternType.Snipe => "boss_snipe",
                 BossPatternType.SnipeFollowUp => "boss_snipe",
                 BossPatternType.Diagonal => "boss_diag",
+                BossPatternType.Encircle => "boss_slam",
                 BossPatternType.TripleWave => "boss_slam",
                 BossPatternType.MirrorShards => "morph",         // 거울 조각이 칸마다 터진다
                 _ => null,

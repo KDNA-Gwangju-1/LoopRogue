@@ -871,6 +871,10 @@ namespace LoopRogue
             return landing != GridPos || hit != null;
         }
 
+        /// <summary>대시를 쓰면 걸리는 쿨타임(장비·유물 감소 포함) - 6층 포위 폭발 간격도 이걸 기준으로 한다(BossBrain).</summary>
+        public static int DashCooldownMax => Mathf.Max(1, DashCooldownTurns - EquipmentEffects.SkillCooldownReduction // 반지 "민첩"
+            - (Relics.Has(RelicType.Gale) ? Relics.GaleDashCooldownReduction : 0)); // 유물 "질풍"
+
         /// <summary>Q 대시 - 한 턴에 최대 3칸 이동, 가는 길에 몹이 있으면 그 앞까지 가서 한 대. 쓸 수 없으면 false(턴 소모 없음).</summary>
         private bool TryDash(Vector2Int dir)
         {
@@ -878,8 +882,7 @@ namespace LoopRogue
                 return false;
 
             BeginAction();
-            DashCooldown = Mathf.Max(1, DashCooldownTurns - EquipmentEffects.SkillCooldownReduction // 반지 "민첩"
-                - (Relics.Has(RelicType.Gale) ? Relics.GaleDashCooldownReduction : 0)); // 유물 "질풍"
+            DashCooldown = DashCooldownMax;
             var from = transform.position;
             LastSkill = AttackStyle.Dash;
             if (landing != GridPos)

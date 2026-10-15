@@ -15,6 +15,7 @@ namespace LoopRogue
     public partial class RoomController
     {
         public const int GimmickTurnLimit = 120;
+        public const int CandleTurnLimit = 100;        // 6층 촛불 - 120 → 60(10-15 "너무 쉽다") → 100(봇 100판 bot_20261015_122831: 저격·포위 폭발 번갈아 + 60턴에 6층 제한 시간 즉사 판당 35회)
         public const int SlimeAbsorbLimit = 3;
         private const int SlimeAbsorbTurns = 2;        // 킹에게 붙어서 이만큼 버티면 흡수
         private const float SlimeAbsorbHeal = 0.1f;    // 흡수 한 번에 킹 최대 체력 ×
@@ -97,7 +98,7 @@ namespace LoopRogue
                     after = Loc.F("파동 뒤에 피는 빛버섯을 밟으면 해독 - <color=#FF6060>감염 {0}이면 끝장이다</color>", InfectionLimit);
                     break;
                 case 6:
-                    _gimmickTurnsLeft = GimmickTurnLimit;
+                    _gimmickTurnsLeft = CandleTurnLimit;
                     c.Line = Loc.T("<color=#A0E0FF>망령 궁수가 모습을 감추고 영혼 촛불이 켜졌다!</color> 촛불이 켜져 있는 동안 궁수는 무적");
                     for (var i = 0; i < CandleCount; i++)
                         c.Steps.Add(PropStep(_candles, () =>
@@ -106,7 +107,7 @@ namespace LoopRogue
                             SpawnFloorProps(_candles, before + 1, "Spirit_Candle", new Color(0.7f, 0.9f, 1f), boss, 3);
                             return _candles.Count > before;
                         }, "candle_light"));
-                    after = Loc.F("촛불 옆에 서서 저격이 촛불을 덮게 하자 - <color=#FF6060>{0}턴 안에 다 못 끄면 끝장이다</color>", GimmickTurnLimit);
+                    after = Loc.F("촛불 옆에 서서 저격이 촛불을 덮게 하자 - <color=#FF6060>{0}턴 안에 다 못 끄면 끝장이다</color>", CandleTurnLimit);
                     break;
                 case 7:
                     _gimmickTurnsLeft = GimmickTurnLimit;
