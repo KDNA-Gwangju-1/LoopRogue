@@ -16,6 +16,7 @@ namespace LoopRogue
     {
         public const int GimmickTurnLimit = 120;
         public const int CandleTurnLimit = 100;        // 6층 촛불 - 120 → 60(10-15 "너무 쉽다") → 100(봇 100판 bot_20261015_122831: 저격·포위 폭발 번갈아 + 60턴에 6층 제한 시간 즉사 판당 35회)
+        public const int CloneTurnLimit = 30;          // 7층 분신 물결마다(10-15 사용자 - 120에서)
         public const int SlimeAbsorbLimit = 3;
         private const int SlimeAbsorbTurns = 2;        // 킹에게 붙어서 이만큼 버티면 흡수
         private const float SlimeAbsorbHeal = 0.1f;    // 흡수 한 번에 킹 최대 체력 ×
@@ -24,7 +25,7 @@ namespace LoopRogue
         private const int InfectionEveryTurns = 12;
         private const int MaxMushrooms = 3;
         private const int CandleCount = 4;
-        private const int CloneCount = 3;
+        private const int CloneCount = 4;              // 3 → 4(10-15 사용자 - 분신 동안 X자만 넣은 뒤 7층 보스방 사망 2.4~3.2, 목표 8)
         public const int LavaEruptCount = 8;
         private const int LavaPerSlam = 2;
         private const float LavaFallDamage = 0.15f;
@@ -73,7 +74,10 @@ namespace LoopRogue
         // ------------------------------------------------------------------ 시작
         public void BeginStageGimmick(int stage, EnemyActor boss)
         {
-            ClearStageGimmick();
+            // 7층은 체력 10%마다 분신 물결이 다시 온다(BossBrain.CloneWaveHealth) - 두 번째부터는 지우지 않고 분신만 더한다
+            var cloneAgain = stage == 7 && _gimmickStage == 7 && _gimmickBoss == boss;
+            if (!cloneAgain)
+                ClearStageGimmick();
             _gimmickStage = stage;
             _gimmickBoss = boss;
             var c = new GimmickCutscene();
@@ -110,11 +114,14 @@ namespace LoopRogue
                     after = Loc.F("촛불 옆에 서서 저격이 촛불을 덮게 하자 - <color=#FF6060>{0}턴 안에 다 못 끄면 끝장이다</color>", CandleTurnLimit);
                     break;
                 case 7:
-                    _gimmickTurnsLeft = GimmickTurnLimit;
-                    c.Line = Loc.T("<color=#B090D0>그림자 암살자가 분신을 만들었다!</color> 분신에겐 칼이 안 통하고, 분신이 있는 동안 암살자는 무적");
+                    _gimmickTurnsLeft = CloneTurnLimit;
+                    c.Line = cloneAgain
+                        ? Loc.T("<color=#B090D0>그림자 암살자가 다시 분신을 만들었다!</color> 분신이 있는 동안 암살자는 무적")
+                        : Loc.T("<color=#B090D0>그림자 암살자가 분신을 만들었다!</color> 분신에겐 칼이 안 통하고, 분신이 있는 동안 암살자는 무적");
                     for (var i = 0; i < CloneCount; i++)
                         c.Steps.Add(EnemyStep(() => SpawnClones(boss, 1) > 0, "shadow_split"));
-                    after = Loc.F("분신과 대각선 줄에 서서 X자 베기가 분신을 베게 하자 - <color=#FF6060>{0}턴 안에 다 못 지우면 끝장이다</color>", GimmickTurnLimit);
+                    after = cloneAgain ? null
+                        : Loc.F("분신과 대각선 줄에 서서 X자 베기가 분신을 베게 하자 - <color=#FF6060>{0}턴 안에 다 못 지우면 끝장이다</color>", CloneTurnLimit);
                     break;
                 case 8:
                     c.Line = Loc.T("<color=#FF9040>미노타우로스의 도끼가 바닥을 갈라 용암이 솟는다!</color>");

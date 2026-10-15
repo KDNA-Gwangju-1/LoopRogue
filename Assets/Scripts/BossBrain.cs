@@ -17,6 +17,7 @@ namespace LoopRogue
         RingInverse, // 역파동(5층 전용) - 파동과 반대로 거리 2·4·6…(짝수)을 친다. 바로 옆과 홀수 거리가 안전
         TripleWave,  // 3연 파동(2층) - 보스 몸에서 거리 1→2→3 고리를 보스 턴마다 하나씩(숫자 예고). 1타가 지나간 안쪽이 2·3타 동안 딜 자리. 구멍은 1타에만
         Encircle,    // 포위 폭발(6층) - 플레이어 중심 반경 EncircleRadius(5x5)를 전부. 한 칸 걸어서는 못 빠져나가고 대시로만 피한다
+        Zigzag,      // 지그재그 베기(7층) - 플레이어 자리를 지나는 지그재그 줄을 ZigzagSpacing칸 간격으로 방 전체에. 상하좌우 한 칸 움직이면 피함
     }
 
     /// <summary>스테이지 보스의 예고 공격 - 몇 턴마다 공격할 칸을 빨갛게 예고하고(그 턴은 안 움직임), 다음 턴에
@@ -126,10 +127,15 @@ namespace LoopRogue
         // ---- 4~9층 기믹(10-14 사용자) - 체력 StageGimmickHealthRatio 이하에서 한 번 시작(RoomController.BeginStageGimmick)
         public const float StageGimmickHealthRatio = 0.5f;
         private bool _stageGimmickStarted;
+        // 7층 그림자 암살자 - 체력 90·80·…·10%마다 분신 3개(무적) 물결(10-15 사용자). 한 대에 여러 칸을 지나면 물결 하나로 합친다.
+        private static readonly float[] CloneWaveHealth = { 0.9f, 0.8f, 0.7f, 0.6f, 0.5f, 0.4f, 0.3f, 0.2f, 0.1f };
+        private int _cloneWave;
         /// <summary>포위 폭발 반경(체비쇼프) - 대시(3칸)면 바깥에 내려선다. 대시가 준비돼 있고 대시로 빠져나갈 길이 있을 때만 쓴다(CanDashEscape).</summary>
         public const int EncircleRadius = 2;
         private int _turnsSinceEncircle = int.MaxValue / 2; // 포위 폭발이 터진 뒤 지난 보스 턴(TakePatternTurn마다 +1)
         private static readonly Color DashTelegraphColor = new Color(1f, 0.6f, 0.1f, 0.45f);
+        /// <summary>지그재그 베기 - 지그재그 줄 사이 간격(줄 하나는 한 칸 두께).</summary>
+        public const int ZigzagSpacing = 3;
         private bool _collectJars;                                     // 9층 - 십자 마법 줄 끝에 닿은 항아리를 모은다(AddRay)
         private readonly List<Vector2Int> _jarHits = new List<Vector2Int>();
 
@@ -194,6 +200,7 @@ namespace LoopRogue
             BossPatternType.Ring => 5,
             BossPatternType.Snipe => 6,
             BossPatternType.Diagonal => 7,
+            BossPatternType.Zigzag => 7,
             BossPatternType.Encircle => 6,
             BossPatternType.TripleWave => 2,
             _ => 0,
@@ -208,7 +215,7 @@ namespace LoopRogue
             4 => new List<BossPatternType> { BossPatternType.Summon, BossPatternType.Slam },
             5 => new List<BossPatternType> { BossPatternType.Ring, BossPatternType.RingInverse }, // 10-14 사용자 "패턴을 여러 개로, 범위도 크게" - 번갈아
             6 => new List<BossPatternType> { BossPatternType.Snipe, BossPatternType.Encircle }, // 10-15 사용자 - 대시로만 피하는 패턴을 번갈아
-            7 => new List<BossPatternType> { BossPatternType.Diagonal },
+            7 => new List<BossPatternType> { BossPatternType.Diagonal, BossPatternType.Zigzag }, // 10-15 사용자 - 지그재그를 번갈아
             8 => new List<BossPatternType> { BossPatternType.Charge, BossPatternType.Slam },
             9 => new List<BossPatternType> { BossPatternType.Cross, BossPatternType.Snipe },
             _ => new List<BossPatternType>
@@ -230,6 +237,7 @@ namespace LoopRogue
             BossPatternType.Snipe => Loc.T("저격"),
             BossPatternType.SnipeFollowUp => Loc.T("저격(2발)"),
             BossPatternType.MirrorShards => Loc.T("거울 파편"),
+            BossPatternType.Zigzag => Loc.T("지그재그 베기"),
             BossPatternType.Encircle => Loc.T("포위 폭발"),
             BossPatternType.TripleWave => Loc.T("3연 파동"),
             _ => Loc.T("X자 베기"),
@@ -291,7 +299,17 @@ namespace LoopRogue
                 return true;
             }
 
-            if (!_stageGimmickStarted && _stage >= 4 && _stage <= 9 && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * StageGimmickHealthRatio)
+            if (_stage == 7 && _cloneWave < CloneWaveHealth.Length && !room.BossInvulnerable
+                && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * CloneWaveHealth[_cloneWave])
+            {
+                while (_cloneWave < CloneWaveHealth.Length && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * CloneWaveHealth[_cloneWave])
+                    _cloneWave++;
+                _stageGimmickStarted = true;
+                room.BeginStageGimmick(_stage, _boss); // 컷신 - 분신이 하나씩(두 번째 물결부터는 짧은 안내)
+                return true;
+            }
+
+            if (!_stageGimmickStarted && _stage >= 4 && _stage <= 9 && _stage != 7 && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * StageGimmickHealthRatio)
             {
                 _stageGimmickStarted = true;
                 room.BeginStageGimmick(_stage, _boss); // 컷신 - 소품·분신이 하나씩
@@ -306,6 +324,7 @@ namespace LoopRogue
             1 => BoarPillarHealthRatio,
             2 => OgreHoleHealthRatio,
             3 => GolemWaveHealth[0],
+            7 => CloneWaveHealth[0],
             >= 4 and <= 9 => StageGimmickHealthRatio,
             _ => 1f,
         };
@@ -386,6 +405,9 @@ namespace LoopRogue
                 room.ShowMessage(TryMorph(type, out var morph) ? $"{morph} ({PatternName(type)})" : Loc.F("보스의 {0}!", PatternName(type)));
                 return true;
             }
+
+            if (type == BossPatternType.Zigzag && room.Clones.Count > 0)
+                type = BossPatternType.Diagonal; // 7층 분신이 있는 동안은 X자만 - 분신은 X자로만 지워진다(10-15 사용자, 30턴 안에 X자가 모자라지 않게)
 
             if (type == BossPatternType.Encircle && (!CanDashEscape(player, room.Map) || room.Candles.Count > 0))
                 type = BossPatternType.Snipe; // 대시가 안 돌았거나 대시로 빠져나갈 길이 없으면 피할 방법이 없다 - 저격으로 대신.
@@ -665,6 +687,24 @@ namespace LoopRogue
                 case BossPatternType.Encircle:
                     AddSquare(map, player.GridPos, EncircleRadius);
                     break;
+                case BossPatternType.Zigzag:
+                {
+                    // 플레이어 자리를 지나는 지그재그 줄(한 칸씩 위아래로 꺾임 0,1,0,-1…)을 ZigzagSpacing칸 간격으로 방 전체에.
+                    // 가로/세로는 매번 무작위. 플레이어 자리는 항상 맞고, 상하좌우 어느 쪽으로든 한 칸 움직이면 피한다(X자와 같은 규칙).
+                    var horizontal = Rng.Next(2) == 0;
+                    var p0 = player.GridPos;
+                    for (var x = 0; x < map.Width; x++)
+                    for (var y = 0; y < map.Height; y++)
+                    {
+                        var along = horizontal ? x - p0.x : y - p0.y;
+                        var across = horizontal ? y - p0.y : x - p0.x;
+                        var phase = (along % 4 + 4) % 4;
+                        var bend = phase == 1 ? 1 : phase == 3 ? -1 : 0;
+                        if (((across - bend) % ZigzagSpacing + ZigzagSpacing) % ZigzagSpacing == 0)
+                            AddTile(map, new Vector2Int(x, y));
+                    }
+                    break;
+                }
                 case BossPatternType.Charge:
                 {
                     var diff = player.GridPos - origin;

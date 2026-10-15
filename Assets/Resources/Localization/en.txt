@@ -1100,6 +1100,10 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
   강화 경험치 +{0}	  Enhance EXP +{0}
 <color=#FFD27A>{0} 강화 +{1} 달성! (장비 스탯 +{2:0}%)</color>	<color=#FFD27A>{0} Enhance +{1}! (gear stats +{2:0}%)</color>
   <color=#FFD27A>강화 +{0} ({1})</color>	  <color=#FFD27A>Enh +{0} ({1})</color>
+지그재그 베기	Zigzag Slash
+<color=#B090D0>그림자 암살자가 다시 분신을 만들었다!</color> 분신이 있는 동안 암살자는 무적	<color=#B090D0>The Shadow Assassin made clones again!</color> It is invulnerable while they remain
+체력이 10% 줄 때마다 칼이 안 통하는 그림자 분신 3개를 만들고 무적이 된다. 분신과 대각선 줄에 서면 X자 베기가 분신을 벤다. {0}턴 안에 다 못 지우면 즉사. 지그재그 베기도 섞어 쓴다.	Every time it loses 10% health it creates 3 shadow clones that blades pass through and becomes invulnerable. Stand on a diagonal line with a clone and its X Slash will cut it. Fail to clear them within {0} turns and you die instantly. It also mixes in a Zigzag Slash.
+체력이 10% 줄 때마다 칼이 안 통하는 그림자 분신 4개를 만들고 무적이 된다. 분신과 대각선 줄에 서면 X자 베기가 분신을 벤다. {0}턴 안에 다 못 지우면 즉사. 지그재그 베기도 섞어 쓴다.	Every time it loses 10% health it creates 4 shadow clones that blades pass through and becomes invulnerable. Stand on a diagonal line with a clone and its X Slash will cut it. Fail to clear them within {0} turns and you die instantly. It also mixes in a Zigzag Slash.
 포위 폭발	Encircling Blast
 <color=#FFA040>보스가 포위 폭발을 준비한다!</color> 걸어서는 못 빠져나간다 - 대시로 피하자	<color=#FFA040>The boss prepares an Encircling Blast!</color> You can't walk out of it - dodge with a dash
 3연 파동	Triple Shockwave

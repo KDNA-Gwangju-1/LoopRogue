@@ -115,7 +115,7 @@ namespace LoopRogue
                 Loc.F("체력이 절반 아래로 떨어지면 영혼 촛불을 켜고 무적이 된다. 촛불 옆에 서서 저격이 촛불 칸을 덮게 하면 꺼진다. {0}턴 안에 다 못 끄면 즉사.", RoomController.CandleTurnLimit));
             AddBoss(list, 7, new Color(0.23f, 0.19f, 0.32f),
                 Loc.T("쌍단검으로 플레이어 자리를 기준으로 대각선 4줄을 벤다. 상하좌우로 비켜서 대각선에서 벗어나자.") + " " +
-                Loc.F("체력이 절반 아래로 떨어지면 칼이 안 통하는 그림자 분신을 만들고 무적이 된다. 분신과 대각선 줄에 서면 X자 베기가 분신을 벤다. {0}턴 안에 다 못 지우면 즉사.", RoomController.GimmickTurnLimit));
+                Loc.F("체력이 10% 줄 때마다 칼이 안 통하는 그림자 분신 4개를 만들고 무적이 된다. 분신과 대각선 줄에 서면 X자 베기가 분신을 벤다. {0}턴 안에 다 못 지우면 즉사. 지그재그 베기도 섞어 쓴다.", RoomController.CloneTurnLimit));
             AddBoss(list, 8, new Color(0.56f, 0.28f, 0.18f),
                 Loc.T("돌진과 도끼 내려찍기(주변 3x3)를 번갈아 쓴다. 돌진 뒤 비틀거릴 때가 기회.") + " " +
                 Loc.F("체력이 절반 아래로 떨어지면 도끼 내려찍기가 용암 균열을 남긴다. 균열 뒤에 서서 돌진을 유도하면 빠져서 크게 다치고 기절한다. 균열이 {0}개 쌓이면 분출해 즉사.", RoomController.LavaEruptCount));
