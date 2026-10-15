@@ -1205,8 +1205,7 @@ namespace LoopRogue
             {
                 if (IsBoss && _turnRoom != null && _turnRoom.BossInvulnerable)
                     return; // 6·7·9층 무적 단계 - 따라다니며 패턴만 쓰고, 붙어서 때리지는 않는다(10-14 사용자)
-                if (IsBoss && _bossStage == 5)
-                    return; // 5층 버섯 군주 - 방 전체 파동·역파동이 공격 전부, 붙어서 때리지는 않는다(10-14 사용자)
+                // 5층 버섯 군주는 10-14에 일반 공격을 뺐다가(파동·역파동만) 봇 보스방 사망 0.0 - 붙어서 공짜로 때리는 시간만 남아서 10-15에 되살림(사용자)
                 HitTarget(player);
                 return;
             }
