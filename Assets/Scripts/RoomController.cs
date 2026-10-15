@@ -2312,8 +2312,11 @@ namespace LoopRogue
             if (!_tiledRoom || _floorRoot == null)
                 return;
             CreateTile(_floorRoot, cell, DungeonTiles.Floor(_tileRng), -10, _floorTint);
-            if (_wallObjects.TryGetValue(cell + Vector2Int.up, out var above) && above != null)
-                above.GetComponent<SpriteRenderer>().sprite = DungeonTiles.Wall(true, _tileRng);
+            // 바로 위가 방 벽이면 벽돌 앞면으로 - 진짜 벽(이름 "Wall")만. 예전엔 위 칸이 구멍·바위·수정·용암·항아리·숨겨진 벽이어도
+            // 그림을 벽으로 덮어써서, 오우거 구멍을 메우면 그 위 구멍이 벽처럼 보였다(10-15 사용자 제보).
+            if (_wallObjects.TryGetValue(cell + Vector2Int.up, out var above) && above != null && above.name == "Wall"
+                && above.TryGetComponent<SpriteRenderer>(out var aboveRenderer))
+                aboveRenderer.sprite = DungeonTiles.Wall(true, _tileRng);
         }
 
         /// <summary>방마다 크기가 달라서(보스방은 더 큼) 매 방 로드 시 카메라를 방 중앙으로 다시
