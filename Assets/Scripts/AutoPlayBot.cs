@@ -1415,7 +1415,10 @@ namespace LoopRogue
 
             // 1층 멧돼지 기둥 단계엔 대시로 뛰어들지 않는다(기둥 뒤에서 돌진을 기다리는 중 - TryBoarLure)
             var luringBoar = (_room.Stage == 1 && _room.BoarPillarCount > 0) || (_room.GimmickStage >= 6 && _room.GimmickStage <= 9 && (_room.BossInvulnerable || _room.LavaCracks.Count > 0));
-            if (!luringBoar && _player.DashCooldown == 0 && !Directions.Any(d => map.GetActorAt(start + d) is EnemyActor))
+            // 6층 보스방은 대시를 아껴 둔다 - 포위 폭발(5x5)은 대시로만 피한다(10-15). 공격에 써 버리면 보스가 포위 폭발 대신 저격을 써서
+            // 봇 측정에서 새 패턴을 거의 안 만나게 된다(사람도 대시를 아껴 두는 게 정석).
+            var reserveDashForEncircle = _room.Stage == 6 && _room.Enemies.Any(e => e != null && e.IsBoss && !e.Stats.IsDead);
+            if (!luringBoar && !reserveDashForEncircle && _player.DashCooldown == 0 && !Directions.Any(d => map.GetActorAt(start + d) is EnemyActor))
             {
                 foreach (var d in Directions)
                 {
@@ -2005,12 +2008,21 @@ namespace LoopRogue
                     var clones = _room.Clones.Where(c => c != null).Select(c => c.GridPos).ToList();
                     if (clones.Count == 0)
                         return false;
-                    bool OnDiagonal(Vector2Int c) => clones.Any(k => Mathf.Abs(k.x - c.x) == Mathf.Abs(k.y - c.y) && Mathf.Abs(k.x - c.x) >= 2);
-                    if (OnDiagonal(start))
+                    // 10-15: 분신 물결이 체력 10%마다·30턴 제한이 되고 X자가 지그재그와 번갈아 나와서, 한 번의 X자로 분신을 되도록 많이 베는 자리를 찾는다.
+                    // 대각선 줄에 걸리는 분신 수가 가장 많은 칸(가까운 6걸음 안)으로 가서 기다린다. X자 줄은 벽에서 끊기니 벽 너머는 안 센다.
+                    int ClonesOnDiagonals(Vector2Int c) => clones.Count(k => Mathf.Abs(k.x - c.x) == Mathf.Abs(k.y - c.y)
+                                                                              && Mathf.Abs(k.x - c.x) >= 2 && DiagonalClear(map, c, k));
+                    var best = 0;
+                    foreach (var c in CellsWithin(start, 6, passable))
+                        best = Mathf.Max(best, ClonesOnDiagonals(c));
+                    if (best == 0)
+                        return false;
+                    if (ClonesOnDiagonals(start) >= best)
                     {
                         _lastDecision = "분신 대각선 대기";
                         return true;
                     }
+                    bool OnDiagonal(Vector2Int c) => ClonesOnDiagonals(c) >= best;
                     var step = FirstStepTo(OnDiagonal, passable);
                     if (!step.HasValue)
                         return false;
@@ -2059,6 +2071,39 @@ namespace LoopRogue
                 }
             }
             return null;
+        }
+
+        /// <summary>start에서 maxSteps걸음 안에 갈 수 있는 칸(start 포함) - BFS.</summary>
+        private static List<Vector2Int> CellsWithin(Vector2Int start, int maxSteps, Func<Vector2Int, bool> passable)
+        {
+            var dist = new Dictionary<Vector2Int, int> { [start] = 0 };
+            var queue = new Queue<Vector2Int>();
+            queue.Enqueue(start);
+            while (queue.Count > 0)
+            {
+                var c = queue.Dequeue();
+                if (dist[c] >= maxSteps)
+                    continue;
+                foreach (var d in Directions)
+                {
+                    var n = c + d;
+                    if (dist.ContainsKey(n) || !passable(n))
+                        continue;
+                    dist[n] = dist[c] + 1;
+                    queue.Enqueue(n);
+                }
+            }
+            return dist.Keys.ToList();
+        }
+
+        /// <summary>a에서 b까지 대각선 사이 칸(양 끝 제외)에 벽이 없는지 - X자 베기 줄이 닿는지.</summary>
+        private static bool DiagonalClear(GridMap map, Vector2Int a, Vector2Int b)
+        {
+            var step = new Vector2Int(Math.Sign(b.x - a.x), Math.Sign(b.y - a.y));
+            for (var p = a + step; p != b; p += step)
+                if (map.IsWall(p))
+                    return false;
+            return true;
         }
 
         /// <summary>궁수 여러 마리가 동시에 쏠 수 있는 칸을 지날 때 한 칸당 추가 비용(쏠 수 있는 궁수 수만큼 곱함).
