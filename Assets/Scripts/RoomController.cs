@@ -2486,7 +2486,7 @@ namespace LoopRogue
                 _roomCleared = true; // 보스 러시 - 스테이지 클리어 대신 다음 보스로(마지막이면 끝)
                 if (BossRush.IsLast(_current))
                 {
-                    ShowMessage(Loc.T("<color=#FFD24A>보스 러시 완료!</color> 1~9층 보스를 모두 쓰러뜨렸다"));
+                    ShowMessage(Loc.F("<color=#FFD24A>보스 러시 완료!</color> {0}~{1}층 보스를 모두 쓰러뜨렸다", BossRush.FirstStage, BossRush.LastStage));
                     return;
                 }
                 _player.Stats.FullHeal();

@@ -213,11 +213,11 @@ namespace LoopRogue
             return rooms;
         }
 
-        /// <summary>보스 러시(BossRush) - 1~9층 보스방을 차례로(크기·체력·공격력·패턴은 그 층 보스방 그대로).</summary>
+        /// <summary>보스 러시(BossRush) - 시작 층부터 10층까지 보스방을 차례로(크기·체력·공격력·패턴은 그 층 보스방 그대로).</summary>
         private static List<RoomDefinition> BuildBossRushRooms()
         {
             var rooms = new List<RoomDefinition>();
-            for (var s = 1; s <= BossRush.LastStage; s++)
+            for (var s = BossRush.FirstStage; s <= BossRush.LastStage; s++)
             {
                 var size = Mathf.Min(12 + (s - 1) / 2, 18);
                 var (hp, atk) = BossStats(s);

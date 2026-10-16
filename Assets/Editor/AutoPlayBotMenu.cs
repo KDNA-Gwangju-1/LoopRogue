@@ -207,14 +207,26 @@ namespace LoopRogue.EditorTools
             EditorApplication.isPlaying = true;
         }
 
-        // ---- 보스 러시 - 1~9층 기믹 보스만 차례로. 시작 저장은 10층 입장 기준 상태(봇 중간값)지만, 보스방마다 BossRush.ApplyStageSpec이
+        // ---- 보스 러시(보스 기믹 체험) - 시작 층부터 10층까지 기믹 보스만 차례로(10-16 사용자 "모든 층 보스 기믹만 체험").
+        // 보스는 그 층 기믹 체력으로 나와 들어가자마자 기믹 컷신. 시작 저장은 10층 입장 기준 상태(봇 중간값)지만, 보스방마다 BossRush.ApplyStageSpec이
         // 그 층 기준 스펙으로 바꿔 끼운다(10-15) - 아래 배율은 첫 방에 들어가기 전 잠깐만 쓰인다.
         // 테스트 맵처럼 시작 전에 저장을 백업했다가 Play를 멈추면 되돌린다.
         private const float BossRushAttackBoost = 1.5f;
         private const float BossRushHealthBoost = 2f;
 
-        [MenuItem("LoopRogue/보스 러시 1~9층 (끝나면 저장 되돌림)")]
-        private static void StartBossRush()
+        private const string RushMenu = "LoopRogue/보스 기믹 체험 (N층부터 10층까지, 끝나면 저장 되돌림)/";
+        [MenuItem(RushMenu + "1층부터")] private static void Rush1() => StartBossRush(1);
+        [MenuItem(RushMenu + "2층부터")] private static void Rush2() => StartBossRush(2);
+        [MenuItem(RushMenu + "3층부터")] private static void Rush3() => StartBossRush(3);
+        [MenuItem(RushMenu + "4층부터")] private static void Rush4() => StartBossRush(4);
+        [MenuItem(RushMenu + "5층부터")] private static void Rush5() => StartBossRush(5);
+        [MenuItem(RushMenu + "6층부터")] private static void Rush6() => StartBossRush(6);
+        [MenuItem(RushMenu + "7층부터")] private static void Rush7() => StartBossRush(7);
+        [MenuItem(RushMenu + "8층부터")] private static void Rush8() => StartBossRush(8);
+        [MenuItem(RushMenu + "9층부터")] private static void Rush9() => StartBossRush(9);
+        [MenuItem(RushMenu + "10층만")] private static void Rush10() => StartBossRush(10);
+
+        private static void StartBossRush(int firstStage)
         {
             if (EditorApplication.isPlaying)
                 return;
@@ -258,7 +270,8 @@ namespace LoopRogue.EditorTools
             UnityEngine.PlayerPrefs.SetInt(LoopRogue.TutorialStage.DoneKey, 1);
             UnityEngine.PlayerPrefs.Save();
             EditorPrefs.SetBool(LoopRogue.BossRush.PrefKey, true);
-            UnityEngine.Debug.Log("[보스 러시] 1~9층 보스 연속 - 보스방마다 그 층 기준 스펙(봇 중간값)으로. Play를 멈추면 저장 되돌림");
+            EditorPrefs.SetInt(LoopRogue.BossRush.FirstStagePrefKey, firstStage);
+            UnityEngine.Debug.Log($"[보스 기믹 체험] {firstStage}~{LoopRogue.BossRush.LastStage}층 보스 연속(기믹 체력으로 시작) - 보스방마다 그 층 기준 스펙(봇 중간값)으로. Play를 멈추면 저장 되돌림");
             EditorSceneManagerOpenMain();
             EditorApplication.isPlaying = true;
         }
