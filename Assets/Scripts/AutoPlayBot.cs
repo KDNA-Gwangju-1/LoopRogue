@@ -2022,6 +2022,18 @@ namespace LoopRogue
                 }
                 case 5:
                 {
+                    // 10-16: 안개 감염이 곧이면(2턴 이하) 맑은 공기(빛버섯 먹은 자리 둘레 3x3)로 들어간다
+                    var airs = _room.CleanAirCenters;
+                    if (airs.Count > 0 && _room.InfectionClock <= 2 && !_room.InCleanAir(start))
+                    {
+                        var toAir = FirstStepTo(c => _room.InCleanAir(c), passable);
+                        if (toAir.HasValue)
+                        {
+                            _lastDecision = "맑은 공기로";
+                            dir = toAir;
+                            return true;
+                        }
+                    }
                     if (_room.Infection == 0 || _room.Mushrooms.Count == 0)
                         return false;
                     var shrooms = _room.Mushrooms;

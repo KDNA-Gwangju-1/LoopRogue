@@ -1039,15 +1039,15 @@ namespace LoopRogue
         }
 
         /// <param name="color">예고 칸 색 - 없으면 기본 빨강(포위 폭발처럼 "대시로 피하라"는 패턴은 주황).</param>
-        public void ShowTelegraph(IEnumerable<Vector2Int> tiles, Color? color = null)
+        /// <param name="display">보이는 칸이 실제 칸과 다를 때(5층 환각 - 거꾸로 보임). 없으면 tiles 그대로 보인다. 위험 판정은 늘 tiles.</param>
+        public void ShowTelegraph(IEnumerable<Vector2Int> tiles, Color? color = null, IEnumerable<Vector2Int> display = null)
         {
             ClearTelegraph();
             HitFeedback.OnTelegraph();
             foreach (var t in tiles)
-            {
                 _bossDangerTiles.Add(t);
+            foreach (var t in display ?? tiles)
                 _telegraphObjects.Add(SpawnTelegraphTile(t, color ?? TelegraphColor, -5));
-            }
             RebuildDangerTiles();
         }
 

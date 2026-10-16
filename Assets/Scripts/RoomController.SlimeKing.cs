@@ -237,8 +237,11 @@ namespace LoopRogue
             if (set.Contains(player.GridPos))
             {
                 BossBrain.PatternHitCount++;
-                var dealt = player.Stats.TakeIncomingDamage(turret.Stats.AttackPower);
-                DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.4f, 0.55f), isCritical: true);
+                if (!player.ReflectInto(_gimmickBoss, this)) // 반사 부적 - 파동도 막고 킹에게 되돌린다(포탑은 무적)
+                {
+                    var dealt = player.Stats.TakeIncomingDamage(turret.Stats.AttackPower);
+                    DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.4f, 0.55f), isCritical: true);
+                }
             }
             BossBrain.PatternResolveCount++;
             var washed = _slimePuddles.Keys.Where(set.Contains).ToList();

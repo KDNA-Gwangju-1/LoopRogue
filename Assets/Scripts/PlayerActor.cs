@@ -108,6 +108,31 @@ namespace LoopRogue
         private static readonly System.Random ItemRng = new System.Random();
 
         /// <summary>보스 예고 공격에 맞는 순간 BossBrain이 부른다 - 반사 부적이 켜져 있으면 써버리고 true.</summary>
+        /// <summary>반사 부적(10-16 사용자) - 켜져 있으면 이번 보스 공격(예고 공격·평타·4층 포탑 파동)을 막고, 내 평타 한 대만큼(치명타는 따로 굴림)
+        /// target에게 되돌린다. 무적이면 0(받는 피해 배율). 한 번 막으면 꺼진다(5턴이 지나도 꺼짐). 막았으면 true - 호출부는 피해를 주지 않는다.</summary>
+        public bool ReflectInto(EnemyActor target, RoomController room)
+        {
+            if (!TryConsumeReflect())
+                return false;
+            if (target == null || target.Stats.IsDead)
+                return true;
+            var damage = Stats.RollAttackDamage(out var isCritical) * target.DamageTakenMultiplier;
+            target.Stats.TakeDamage(damage);
+            DamagePopup.Spawn(target.transform.position, damage, new Color(0.6f, 0.9f, 1f), isCritical);
+            if (HitFeedback.Enabled)
+            {
+                Fx.Play("hit_spark", target.transform.position, 1.5f, tint: new Color(0.6f, 0.9f, 1f));
+                ActorJuice.Get(target).Flash(new Color(0.6f, 0.9f, 1f));
+            }
+            room?.ShowMessage(isCritical ? Loc.T("반사 부적! 보스의 공격을 치명타로 되돌렸다") : Loc.T("반사 부적! 보스의 공격을 되돌렸다"));
+            room?.HandleBossDamagedByItem(target); // 그걸로 죽었으면 처치 처리
+            return true;
+        }
+
+        /// <summary>5층 환각(감염 1부터, 예고가 거꾸로 보임) / 혼란(감염 2부터, 방향키 반대) - HUD 표시용.</summary>
+        public bool IsHallucinating => _room != null && _room.PlayerHallucinating;
+        public bool IsConfused => _room != null && _room.PlayerConfused;
+
         public bool TryConsumeReflect()
         {
             if (ReflectTurns <= 0)
@@ -217,7 +242,7 @@ namespace LoopRogue
                 }
                 case ItemType.Reflect:
                     ReflectTurns = ItemInfo.ReflectTurns;
-                    _room.ShowMessage(Loc.F("반사 부적! {0}턴 안에 맞는 보스 공격을 되돌린다", ItemInfo.ReflectTurns));
+                    _room.ShowMessage(Loc.F("반사 부적! {0}턴 안에 맞는 보스 공격 한 번을 막고 되돌린다", ItemInfo.ReflectTurns));
                     break;
                 case ItemType.Weakness:
                     foreach (var e in _room.EnemiesWithin(GridPos, ItemInfo.WeaknessRadius))
@@ -565,6 +590,8 @@ namespace LoopRogue
                 direction = Vector2Int.right;
             if (direction.HasValue && GlitchRoom.Active == GlitchRoom.Rule.ReverseControls)
                 direction = -direction.Value; // 오류방 - 방향이 뒤집혔다
+            if (direction.HasValue && IsConfused)
+                direction = -direction.Value; // 5층 혼란 - 감염 2부터 방향키가 뒤집힌다(10-16 사용자)
 
             if (InventoryUI.LastCloseFrame == Time.frameCount || RoomMapView.LastConfirmFrame == Time.frameCount)
                 return; // 인벤토리를 닫은 키·시작 방을 확정한 스페이스가 이동/대기로 또 읽히지 않게

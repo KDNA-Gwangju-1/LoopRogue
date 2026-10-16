@@ -1551,6 +1551,8 @@ namespace LoopRogue
 
         private void HitPlayer(PlayerActor player, bool melee, float rate)
         {
+            if (IsBoss && player.ReflectInto(this, _turnRoom))
+                return; // 반사 부적 - 보스 평타도 막고 되돌린다(10-16 사용자)
             var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower * rate);
             if (melee)
                 _turnRoom?.ApplyThorns(this, dealt); // 갑옷 "가시"

@@ -469,7 +469,7 @@ namespace LoopRogue
                 return false; // 쓸 칸이 없으면(구석 등) 그냥 일반 행동
 
             _pending = type;
-            room.ShowTelegraph(_pendingTiles, type == BossPatternType.Encircle ? DashTelegraphColor : (Color?)null);
+            room.ShowTelegraph(_pendingTiles, type == BossPatternType.Encircle ? DashTelegraphColor : (Color?)null, HallucinatedTiles(type, room));
             if (type == BossPatternType.Jump && HitFeedback.Enabled)
             {
                 // 점프 준비 - 움츠린다(점프 그림이 있으면 그 그림으로 예고 턴 내내, 없으면 한 번 찌그러지기)
@@ -705,14 +705,8 @@ namespace LoopRogue
             if (playerHit)
             {
                 PatternHitCount++;
-                if (player.TryConsumeReflect())
+                if (player.ReflectInto(_boss, room)) // 반사 부적 - 안 맞고 평타 한 대만큼 되돌린다
                 {
-                    // 반사 부적 - 플레이어는 안 맞고 보스가 최대 체력의 일정 비율을 맞는다.
-                    var reflected = _boss.Stats.MaxHealth * ItemInfo.ReflectBossDamageRate;
-                    _boss.Stats.TakeDamage(reflected);
-                    DamagePopup.Spawn(_boss.transform.position, reflected, new Color(0.6f, 0.9f, 1f), isCritical: true);
-                    room.ShowMessage(Loc.T("반사 부적! 보스의 공격을 되돌렸다"));
-                    room.HandleBossDamagedByItem(_boss);
                     if (_boss.Stats.IsDead)
                     {
                         // 반사로 보스가 죽었다 - 저격 2발·남은 거울 파편을 다시 깔지 않는다(클리어한 방에 예고가 남던 문제).
@@ -777,6 +771,21 @@ namespace LoopRogue
                     room.ShowTelegraph(_pendingTiles);
                 }
             }
+        }
+
+        /// <summary>5층 환각 중 - 파동(홀수)·역파동(짝수) 예고를 반대 고리로 보여 줄 칸. 해당 없으면 null(그대로 보임).
+        /// 5층 고리는 방 끝까지라 둘이 정확히 반대 - "환각 중엔 빨간 칸이 안전".</summary>
+        private List<Vector2Int> HallucinatedTiles(BossPatternType type, RoomController room)
+        {
+            if (_stage != 5 || !room.PlayerHallucinating || (type != BossPatternType.Ring && type != BossPatternType.RingInverse))
+                return null;
+            var real = new HashSet<Vector2Int>(_pendingTiles);
+            _pendingTiles.Clear();
+            AddRings(room.Map, _boss.GridPos, _boss.FootprintRadius, 99, odd: type != BossPatternType.Ring);
+            var shown = new List<Vector2Int>(_pendingTiles);
+            _pendingTiles.Clear();
+            _pendingTiles.UnionWith(real);
+            return shown;
         }
 
         /// <summary>보스 몸 가장자리에서 거리 1~maxR 중 홀수(odd) 또는 짝수 거리 고리 칸.</summary>

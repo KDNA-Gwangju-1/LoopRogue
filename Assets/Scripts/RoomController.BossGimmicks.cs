@@ -18,7 +18,7 @@ namespace LoopRogue
         public const int CandleTurnLimit = 100;        // 6층 촛불 - 120 → 60(10-15 "너무 쉽다") → 100(봇 100판 bot_20261015_122831: 저격·포위 폭발 번갈아 + 60턴에 6층 제한 시간 즉사 판당 35회)
         public const int CloneTurnLimit = 30;          // 7층 분신 물결마다(10-15 사용자 - 120에서)
         public const int InfectionLimit = 3;
-        private const int InfectionEveryTurns = 12;
+        public const int InfectionEveryTurns = 12;
         private const int MaxMushrooms = 3;
         private const int CandleCount = 4;
         private const int CloneCount = 4;              // 3 → 4(10-15 사용자 - 분신 동안 X자만 넣은 뒤 7층 보스방 사망 2.4~3.2, 목표 8)
@@ -97,9 +97,11 @@ namespace LoopRogue
                     break;
                 case 5:
                     _infectionClock = InfectionEveryTurns;
-                    c.Line = Loc.T("<color=#C080FF>버섯 군주가 포자를 흩뿌린다!</color> 파동에 맞거나 시간이 지나면 감염된다");
+                    c.Line = Loc.T("<color=#C080FF>버섯 군주가 포자를 흩뿌린다!</color> 독안개가 방을 뒤덮는다 - 파동에 맞거나 안개를 마시면 감염된다");
+                    c.Steps.Add(() => { SpawnSporeFog(); return !DamagePopup.Suppressed; }); // 독안개가 천천히 덮는다(10-16 사용자)
+                    c.StepDelays.Add(0.9f);
                     c.Steps.Add(PropStep(_mushrooms, SpawnMushroomAnywhere, "mushroom_sprout"));
-                    after = Loc.F("파동 뒤에 피는 빛버섯을 밟으면 해독 - <color=#FF6060>감염 {0}이면 끝장이다</color>", InfectionLimit);
+                    after = Loc.F("안개 속 포자가 {0}턴마다 몸에 스며든다 - 파동 뒤에 피는 빛버섯을 밟으면 해독. <color=#FF6060>감염 {1}이면 끝장이다</color>", InfectionEveryTurns, InfectionLimit);
                     break;
                 case 6:
                     _gimmickTurnsLeft = CandleTurnLimit;
@@ -370,18 +372,30 @@ namespace LoopRogue
             switch (_gimmickStage)
             {
                 case 5:
+                    TickCleanAir();
                     if (_mushrooms.ContainsKey(_player.GridPos))
                     {
                         RemoveFloorProp(_mushrooms, _player.GridPos, new Color(0.6f, 1f, 0.75f));
-                        if (_infection > 0)
-                            ShowMessage(Loc.T("<color=#80FFB0>빛버섯을 먹었다!</color> 감염이 씻겨 나갔다"));
+                        ShowMessage(_infection > 0
+                            ? Loc.F("<color=#80FFB0>빛버섯을 먹었다!</color> 감염이 씻겨 나가고 둘레 공기가 맑아졌다({0}턴)", CleanAirTurns)
+                            : Loc.F("<color=#80FFB0>빛버섯을 먹었다!</color> 둘레 공기가 맑아졌다({0}턴)", CleanAirTurns));
                         _infection = 0;
+                        AddCleanAir(_player.GridPos); // 둘레 3x3 안전지대(10-16 사용자)
                     }
+                    var breathed = false;
                     if (--_infectionClock <= 0)
                     {
                         _infectionClock = InfectionEveryTurns;
-                        dead = AddInfection(Loc.T("공기 중의 포자에 감염됐다!"));
+                        if (InCleanAir(_player.GridPos))
+                            ShowMessage(Loc.T("<color=#80FFB0>맑은 공기 속이라 포자를 피했다</color>"));
+                        else
+                        {
+                            breathed = true;
+                            dead = AddInfection(Loc.T("독안개 속 포자를 들이마셨다!"));
+                        }
                     }
+                    UpdateSporeFog(breathed); // 감염되는 턴이 가까울수록 짙어지고, 감염되는 순간 번쩍
+                    UpdateHallucination();    // 감염 중이면 화면 가장자리가 일렁인다
                     break;
                 case 8:
                     dead = TickCrusher();
@@ -427,6 +441,10 @@ namespace LoopRogue
         private bool AddInfection(string reason)
         {
             _infection++;
+            if (_gimmickStage == 5 && _infection == HallucinationInfection)
+                ShowMessage(Loc.T("<color=#D9A0FF>환각 포자가 눈을 흐린다!</color> 예고 고리가 거꾸로 보인다(빨간 칸이 안전) - 빛버섯으로 해독"));
+            if (_gimmickStage == 5 && _infection == ConfusionInfection)
+                ShowMessage(Loc.T("<color=#D9A0FF>포자가 머릿속까지 번졌다!</color> 이제 방향키도 뒤집힌다 - 빛버섯을 서두르자"));
             ShowMessage($"<color=#C080FF>{reason}</color> " + Loc.F("감염 {0}/{1}", _infection, InfectionLimit));
             if (HitFeedback.Enabled && _player != null)
                 ActorJuice.Get(_player).Flash(new Color(0.75f, 0.45f, 1f));
@@ -747,6 +765,7 @@ namespace LoopRogue
             ClearMirrorPhases();
             ClearSlimeKing();
             ClearCrusher();
+            ClearSporeFog();
             _lava.Clear();
             _jars.Clear();
             if (_gimmickLabel != null)
