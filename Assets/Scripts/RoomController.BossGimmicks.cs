@@ -5,11 +5,11 @@ using UnityEngine;
 namespace LoopRogue
 {
     /// <summary>4~9층 보스 기믹(10-14 사용자 설계) - 체력 50% 이하에서 시작(BossBrain.BeginStageGimmick 호출), 못 막으면 즉사(보호막·부활 무시).
-    /// 4 슬라임 킹: 졸개가 킹에게 기어가 붙어 있으면 흡수(킹 회복) - 3번 흡수되면 즉사. 졸개를 먼저 잡거나 킹의 짓누르기에 휘말리게 하면 터지며 킹이 다친다.
+    /// 4 슬라임 킹: 2x2로 작아지며 분열 - 벽 포탑이 점액 파동을 쏘고 킹은 점프로 점액을 남긴다. 점액이 쌓이면 즉사(RoomController.SlimeKing, 10-16 사용자).
     /// 5 버섯 군주: 파동에 맞거나 12턴마다 감염 +1 - 감염 3이면 즉사. 파동 뒤 피는 빛버섯을 밟으면 해독.
     /// 6 망령 궁수: 영혼 촛불 4개가 켜져 있는 동안 무적 - 저격(1·2발)이 촛불 칸을 덮으면 꺼진다. 120턴 안에 다 못 끄면 즉사.
     /// 7 그림자 암살자: 칼이 안 통하는 그림자 분신 3개가 있는 동안 무적 - X자 베기가 분신을 베면 사라진다. 120턴 안에 다 못 지우면 즉사.
-    /// 8 미노타우로스: 도끼 내려찍기가 용암 균열(벽)을 남긴다 - 돌진이 균열에 막히면 빠져서 큰 피해·3턴 기절. 균열이 8개 쌓이면 분출 즉사.
+    /// 8 미노타우로스: 사방 벽이 조여 온다 - 도끼 충격파가 벽에 닿으면 물러난다. 닫히는 줄에 있거나 방이 너무 좁아지면 즉사(RoomController.Minotaur, 10-16 사용자).
     /// 9 리치: 영혼 항아리 3개(벽)가 있는 동안 무적 - 십자 마법 줄이 항아리에 닿으면 깨진다. 120턴 안에 다 못 깨면 즉사.
     /// 남은 상황은 보스 머리 위 글자(CreateBossLabel). 봇은 AutoPlayBot.TryStageGimmick이 같은 규칙으로 대응한다.</summary>
     public partial class RoomController
@@ -17,10 +17,6 @@ namespace LoopRogue
         public const int GimmickTurnLimit = 120;
         public const int CandleTurnLimit = 100;        // 6층 촛불 - 120 → 60(10-15 "너무 쉽다") → 100(봇 100판 bot_20261015_122831: 저격·포위 폭발 번갈아 + 60턴에 6층 제한 시간 즉사 판당 35회)
         public const int CloneTurnLimit = 30;          // 7층 분신 물결마다(10-15 사용자 - 120에서)
-        public const int SlimeAbsorbLimit = 3;
-        private const int SlimeAbsorbTurns = 2;        // 킹에게 붙어서 이만큼 버티면 흡수
-        private const float SlimeAbsorbHeal = 0.1f;    // 흡수 한 번에 킹 최대 체력 ×
-        private const float SlimeSlamBurstDamage = 0.08f;
         public const int InfectionLimit = 3;
         private const int InfectionEveryTurns = 12;
         private const int MaxMushrooms = 3;
@@ -45,8 +41,6 @@ namespace LoopRogue
         private int _gimmickTurnsLeft;
         private TextMesh _gimmickLabel;
 
-        private int _absorbed;
-        private readonly Dictionary<EnemyActor, int> _absorbTimer = new Dictionary<EnemyActor, int>();
         private int _infection;
         private int _infectionClock;
         private readonly Dictionary<Vector2Int, GameObject> _mushrooms = new Dictionary<Vector2Int, GameObject>();
@@ -69,16 +63,20 @@ namespace LoopRogue
         public bool MirrorFakesActive => _gimmickStage == BossBrain.MirrorStage && _mirrorFakes.Count > 0;
         public bool IsLichJar(Vector2Int p) => _jars.Contains(p);
 
-        /// <summary>6·7·9층 - 촛불·분신·항아리가 남아 있는 동안 보스는 무적(BossBrain.ArmorMultiplier).</summary>
+        /// <summary>폭탄에 안 부서지는 기믹 벽 - 8층 용암 균열, 9층 영혼 항아리, 10층 빛 단계 거울·조력자(10-16 사용자).
+        /// 예전엔 폭탄이 벽·그림만 지우고 기믹 목록엔 남아서 항아리가 안 보이는데 리치가 계속 무적인 일이 생겼다.</summary>
+        private bool IsUnbreakableGimmickWall(Vector2Int p) => _lava.Contains(p) || _jars.Contains(p) || _lightWalls.Contains(p) || _crushWalls.ContainsKey(p);
+
+        /// <summary>6·7·9층 - 촛불·분신·항아리가 남아 있는 동안 보스는 무적(BossBrain.ArmorMultiplier). 10층 - 빛 단계·발악 동안.</summary>
         public bool BossInvulnerable =>
-            (_gimmickStage == 6 && _candles.Count > 0) || (_gimmickStage == 7 && _clones.Count > 0) || (_gimmickStage == 9 && _jars.Count > 0);
+            (_gimmickStage == 6 && _candles.Count > 0) || (_gimmickStage == 7 && _clones.Count > 0) || (_gimmickStage == 9 && _jars.Count > 0)
+            || (MirrorPhase == 3 && _lightActive) || MirrorLastStand;
 
-        /// <summary>4층 흡수 단계 - 졸개는 플레이어 대신 킹에게 기어간다(EnemyActor.TakeTurn).</summary>
-        public Vector2Int? MinionTarget(EnemyActor minion) =>
-            _gimmickStage == 4 && minion.IsMinion && _gimmickBoss != null && !_gimmickBoss.Stats.IsDead ? _gimmickBoss.GridPos : (Vector2Int?)null;
+        /// <summary>졸개가 플레이어 대신 갈 곳 - 예전 4층 흡수 기믹용(10-16에 분열 기믹으로 바뀌어 지금은 없음).</summary>
+        public Vector2Int? MinionTarget(EnemyActor minion) => null;
 
-        /// <summary>4층 흡수 단계면 졸개를 킹에게서 멀리 소환(SpawnMinions) - 바로 옆에 나오면 기어갈 틈도 없이 흡수된다.</summary>
-        private bool SpawnMinionsFar => _gimmickStage == 4;
+        /// <summary>졸개를 보스에게서 멀리 소환할지 - 예전 4층 흡수 기믹용(지금은 없음).</summary>
+        private bool SpawnMinionsFar => false;
 
         // ------------------------------------------------------------------ 시작
         public void BeginStageGimmick(int stage, EnemyActor boss)
@@ -94,15 +92,8 @@ namespace LoopRogue
             switch (stage)
             {
                 case 4:
-                    c.Line = Loc.T("<color=#FF7070>슬라임 킹이 졸개를 불러들인다!</color> 졸개가 킹에게 붙어 있으면 흡수된다");
-                    for (var i = 0; i < BossBrain.MaxMinions; i++)
-                        c.Steps.Add(EnemyStep(() =>
-                        {
-                            var alive = _enemies.Count(e => e != null && e.IsMinion && !e.Stats.IsDead);
-                            SpawnMinions(boss, alive + 1); // 소환 이펙트는 SpawnMinions가(HitFeedback.OnSummon)
-                            return _enemies.Count(e => e != null && e.IsMinion && !e.Stats.IsDead) > alive;
-                        }, null));
-                    after = Loc.F("졸개를 먼저 잡거나 킹의 짓누르기에 휘말리게 하자 - <color=#FF6060>{0}번 흡수되면 끝장이다</color>", SlimeAbsorbLimit);
+                    BeginSlimeSplit(boss, c);
+                    after = Loc.F("킹이 내려앉은 자리엔 점액이 남는다(밟으면 한 턴 묶임) - 벽 조각의 파동이 점액을 씻어 낸다. <color=#FF6060>점액이 {0}칸 쌓이면 끝장이다</color>", SlimePuddleLimit);
                     break;
                 case 5:
                     _infectionClock = InfectionEveryTurns;
@@ -133,15 +124,8 @@ namespace LoopRogue
                         : Loc.F("분신과 대각선 줄에 서서 X자 베기가 분신을 베게 하자 - <color=#FF6060>{0}턴 안에 다 못 지우면 끝장이다</color>", CloneTurnLimit);
                     break;
                 case 8:
-                    c.Line = Loc.T("<color=#FF9040>미노타우로스의 도끼가 바닥을 갈라 용암이 솟는다!</color>");
-                    for (var i = 0; i < LavaPerSlam; i++)
-                        c.Steps.Add(WallStep(() =>
-                        {
-                            var before = _lava.Count;
-                            AddLava(System.Array.Empty<Vector2Int>(), 1);
-                            return _lava.Count > before;
-                        }, "lava_burst"));
-                    after = Loc.F("균열 뒤에 서서 돌진을 균열에 빠뜨리자 - <color=#FF6060>균열이 {0}개 쌓이면 용암이 분출한다</color>", LavaEruptCount);
+                    BeginCrusher(c);
+                    after = Loc.F("다가오는 벽을 등지고 서서 도끼 충격파가 벽을 부수게 하자 - <color=#FF6060>닫히는 줄에 서 있거나 방이 {0}칸보다 좁아지면 끝장이다</color>", CrushMinRoom);
                     break;
                 case 9:
                     _gimmickTurnsLeft = GimmickTurnLimit;
@@ -190,21 +174,6 @@ namespace LoopRogue
         }
 
         // ------------------------------------------------------------------ 보스 패턴 발동 때(BossBrain.Resolve)
-        /// <summary>4층 짓누르기 - 범위 안 졸개는 터지며 킹이 다친다.</summary>
-        public void OnSlimeSlam(IEnumerable<Vector2Int> tiles)
-        {
-            if (_gimmickStage != 4 || _gimmickBoss == null)
-                return;
-            var set = new HashSet<Vector2Int>(tiles);
-            var burst = _enemies.Where(e => e != null && e.IsMinion && !e.Stats.IsDead && set.Contains(e.GridPos)).ToList();
-            foreach (var m in burst)
-                DespawnEnemy(m, new Color(1f, 0.4f, 0.4f));
-            if (burst.Count == 0)
-                return;
-            ShowMessage(Loc.F("<color=#FF7070>짓누르기에 졸개 {0}마리가 터졌다!</color> 킹이 산성에 다친다", burst.Count));
-            DamageGimmickBoss(_gimmickBoss.Stats.MaxHealth * SlimeSlamBurstDamage * burst.Count, new Color(0.6f, 1f, 0.4f));
-        }
-
         /// <summary>5층 파동 - 맞았으면 감염 +1, 파동이 지나간 자리 근처에 빛버섯 하나. 감염으로 죽었으면 true(사망 처리는 몹 턴 루프).</summary>
         public bool OnSporeRing(IEnumerable<Vector2Int> tiles, bool playerHit)
         {
@@ -273,12 +242,19 @@ namespace LoopRogue
             UpdateGimmickLabel();
         }
 
-        /// <summary>10층 - 진짜의 예고 공격(어느 패턴이든)이 거울상 몸에 한 칸이라도 걸리면 그 거울상이 깨진다.</summary>
+        /// <summary>10층 - 진짜의 예고 공격(어느 패턴이든)이 거울상 몸에 한 칸이라도 걸리면 그 거울상이 깨진다. 2단계면 거울 속 나에게 금이 간다.</summary>
         public void OnMirrorPatternTiles(IEnumerable<Vector2Int> tiles)
         {
-            if (_gimmickStage != BossBrain.MirrorStage || _mirrorFakes.Count == 0)
+            if (_gimmickStage != BossBrain.MirrorStage)
                 return;
             var set = new HashSet<Vector2Int>(tiles);
+            if (MirrorPhase == 2)
+            {
+                HitReflection(set);
+                return;
+            }
+            if (_mirrorFakes.Count == 0)
+                return;
             var hit = _mirrorFakes.Where(f => f != null && GridMap.Cells(f.GridPos, f.FootprintRadius).Any(set.Contains)).ToList();
             foreach (var f in hit)
             {
@@ -393,33 +369,6 @@ namespace LoopRogue
             var dead = false;
             switch (_gimmickStage)
             {
-                case 4:
-                    foreach (var m in _enemies.Where(e => e != null && e.IsMinion && !e.Stats.IsDead).ToList())
-                    {
-                        if (GridMap.FootprintDistance(_gimmickBoss, m.GridPos) != 1)
-                        {
-                            _absorbTimer.Remove(m);
-                            continue;
-                        }
-                        _absorbTimer.TryGetValue(m, out var t);
-                        if (++t < SlimeAbsorbTurns)
-                        {
-                            _absorbTimer[m] = t;
-                            continue;
-                        }
-                        _absorbTimer.Remove(m);
-                        DespawnEnemy(m, new Color(1f, 0.3f, 0.3f));
-                        _absorbed++;
-                        _gimmickBoss.Stats.Heal(_gimmickBoss.Stats.MaxHealth * SlimeAbsorbHeal);
-                        ShowMessage(Loc.F("<color=#FF7070>슬라임 킹이 졸개를 흡수했다!</color> 흡수 {0}/{1}", _absorbed, SlimeAbsorbLimit));
-                        if (_absorbed >= SlimeAbsorbLimit)
-                        {
-                            ShowMessage(Loc.T("<color=#FF4040>슬라임 킹이 거대해져 모든 것을 삼켰다!</color>"));
-                            dead = true;
-                            break;
-                        }
-                    }
-                    break;
                 case 5:
                     if (_mushrooms.ContainsKey(_player.GridPos))
                     {
@@ -434,12 +383,18 @@ namespace LoopRogue
                         dead = AddInfection(Loc.T("공기 중의 포자에 감염됐다!"));
                     }
                     break;
+                case 8:
+                    dead = TickCrusher();
+                    break;
+                case BossBrain.MirrorStage:
+                    dead = TickMirrorPhase(out var finished);
+                    if (finished)
+                        return true; // 발악을 버텨 기사가 쓰러졌다 - 처치 처리(방 전환)는 끝났다
+                    break;
                 case 6:
                 case 7:
                 case 9:
-                case BossBrain.MirrorStage:
-                    _mirrorFakes.RemoveAll(f => f == null || f.Stats.IsDead);
-                    if (_gimmickStage == BossBrain.MirrorStage ? _mirrorFakes.Count == 0 : !BossInvulnerable)
+                    if (!BossInvulnerable)
                         break; // 이미 다 없앴다
                     if (--_gimmickTurnsLeft <= 0)
                     {
@@ -447,7 +402,6 @@ namespace LoopRogue
                         {
                             6 => Loc.T("<color=#FF4040>망령 궁수의 화살비가 쏟아졌다!</color>"),
                             7 => Loc.T("<color=#FF4040>그림자들이 한꺼번에 덮쳤다!</color>"),
-                            BossBrain.MirrorStage => Loc.T("<color=#FF4040>거울 속 기사들이 한꺼번에 베어 들었다!</color>"),
                             _ => Loc.T("<color=#FF4040>리치가 죽음의 주문을 완성했다!</color>"),
                         });
                         dead = true;
@@ -524,8 +478,8 @@ namespace LoopRogue
             switch (_gimmickStage)
             {
                 case 4:
-                    text = Loc.F("흡수 {0}/{1}", _absorbed, SlimeAbsorbLimit);
-                    danger = _absorbed >= SlimeAbsorbLimit - 1;
+                    text = Loc.F("점액 {0}/{1}", _slimePuddles.Count, SlimePuddleLimit);
+                    danger = _slimePuddles.Count >= SlimePuddleLimit - 4;
                     break;
                 case 5:
                     text = Loc.F("감염 {0}/{1} · {2}턴", _infection, InfectionLimit, _infectionClock);
@@ -540,12 +494,14 @@ namespace LoopRogue
                     danger = _gimmickTurnsLeft <= 20;
                     break;
                 case 8:
-                    text = Loc.F("균열 {0}/{1}", _lava.Count, LavaEruptCount);
-                    danger = _lava.Count >= LavaEruptCount - 2;
+                    text = CrushActive ? CrushLabelText(out danger) : null;
                     break;
                 case 9:
                     text = _jars.Count > 0 ? Loc.F("항아리 {0} · {1}턴", _jars.Count, _gimmickTurnsLeft) : null;
                     danger = _gimmickTurnsLeft <= 20;
+                    break;
+                case BossBrain.MirrorStage when MirrorPhase >= 2:
+                    text = MirrorLabelText(out danger);
                     break;
                 case BossBrain.MirrorStage:
                     text = _mirrorFakes.Count > 0 ? Loc.F("거울상 {0} · {1}턴", _mirrorFakes.Count, _gimmickTurnsLeft) : null;
@@ -759,7 +715,7 @@ namespace LoopRogue
             return made;
         }
 
-        /// <summary>보상 없이 몹 하나를 치운다(흡수·터짐·분신 베임) - 방이 비었는지는 보지 않는다(보스가 살아 있을 때만 쓴다).</summary>
+        /// <summary>보상 없이 몹 하나를 치운다(터짐·분신 베임) - 방이 비었는지는 보지 않는다(보스가 살아 있을 때만 쓴다).</summary>
         private void DespawnEnemy(EnemyActor e, Color burst)
         {
             if (e == null)
@@ -769,7 +725,6 @@ namespace LoopRogue
             e.Stats.TakeDamage(e.Stats.CurrentHealth + 1f);
             Map.RemoveActor(e);
             _enemies.Remove(e);
-            _absorbTimer.Remove(e);
             Destroy(e.gameObject);
         }
 
@@ -779,8 +734,6 @@ namespace LoopRogue
             _gimmickStage = 0;
             _gimmickBoss = null;
             _gimmickTurnsLeft = 0;
-            _absorbed = 0;
-            _absorbTimer.Clear();
             _infection = 0;
             _infectionClock = 0;
             foreach (var go in _mushrooms.Values.Concat(_candles.Values))
@@ -791,6 +744,9 @@ namespace LoopRogue
             _clones.Clear();
             _mirrorFakes.Clear();
             _mirrorFakeLabels.Clear();
+            ClearMirrorPhases();
+            ClearSlimeKing();
+            ClearCrusher();
             _lava.Clear();
             _jars.Clear();
             if (_gimmickLabel != null)

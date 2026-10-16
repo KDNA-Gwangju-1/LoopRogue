@@ -66,10 +66,13 @@ namespace LoopRogue
         /// <summary>실제로 깎인 체력 - 거울 가면 기사가 "거울 깨기" 누적 피해를 세는 데 쓴다.</summary>
         public System.Action<float> OnDamaged;
 
+        /// <summary>체력이 이 아래로는 안 깎인다(이미 아래면 그대로) - 10층 거울 가면 기사가 기믹 단계를 건너뛰고 쓰러지지 않게(RoomController.SetMirrorFloor).</summary>
+        public float HealthFloor;
+
         public void TakeDamage(float amount)
         {
             var before = CurrentHealth;
-            CurrentHealth = Mathf.Max(0f, CurrentHealth - amount);
+            CurrentHealth = Mathf.Max(Mathf.Min(HealthFloor, before), CurrentHealth - amount);
             if (before > CurrentHealth)
                 OnDamaged?.Invoke(before - CurrentHealth);
         }

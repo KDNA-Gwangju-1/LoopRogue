@@ -24,6 +24,49 @@ namespace LoopRogue
             public Sprite[][] Attack = new Sprite[4][];
             public Sprite[][] Walk = new Sprite[4][];
             public Sprite[][] Lit = new Sprite[4][]; // 폭발병 심지에 불붙은 대기(lit_)
+            public Sprite[][] Jump = new Sprite[4][]; // 4층 슬라임 킹 점프 짓누르기(jump_ 0 움츠림·1 깊이 움츠림·2 도약·3 공중·4 낙하·5 착지)
+        }
+
+        // ---- 점프(jump_ 그림이 있는 세트만) ----
+        private bool _crouch;
+        private float _jumpStart = -1f, _jumpUntil = -1f, _jumpFlight;
+        private const float JumpLandHold = 0.14f;
+
+        // ---- 한 번 재생하는 연출 클립(Resources/Sprites/{세트}/{이름}_south_{번호}, 4층 슬라임 킹 분열 split 등) - 마지막 장에서 hold초 멈춘다 ----
+        private Sprite[] _clip;
+        private float _clipStart, _clipSeconds, _clipUntil = -1f;
+
+        /// <summary>클립을 seconds초에 걸쳐 한 번 재생하고 마지막 장을 hold초 보여 준다. 그림이 없으면 false.</summary>
+        public bool PlayClip(string name, float seconds, float hold = 0.2f)
+        {
+            if (_set == null || DamagePopup.Suppressed)
+                return false;
+            var frames = LoadSequence($"Sprites/{_setName}/{name}_south_");
+            if (frames.Length == 0)
+                return false;
+            _clip = frames;
+            _clipStart = Time.time;
+            _clipSeconds = seconds;
+            _clipUntil = Time.time + seconds + hold;
+            return true;
+        }
+
+        /// <summary>점프 그림이 있는지 - 없으면 호출부가 예전처럼 늘이고 누르는 효과만.</summary>
+        public bool HasJump => _set != null && Frames(_set.Jump).Length >= 6;
+
+        /// <summary>점프 예고 턴 - 움츠린 그림으로 기다린다(false면 대기로).</summary>
+        public void SetJumpCrouch(bool crouch) => _crouch = crouch && HasJump;
+
+        /// <summary>뛰어올라 날아가는 동안(flight초) 도약·공중·낙하, 내려앉으면 착지 그림을 잠깐.</summary>
+        public void PlayJump(float flight)
+        {
+            _crouch = false;
+            if (!HasJump)
+                return;
+            _jumpStart = Time.time;
+            _jumpFlight = flight;
+            _jumpUntil = Time.time + flight + JumpLandHold;
+            _attackUntil = -1f; // 공격 모션보다 점프가 먼저
         }
 
         private const float LitFrameSeconds = 0.08f;
@@ -79,8 +122,11 @@ namespace LoopRogue
             return set.Idle[0] != null && set.Idle[0].Length > 0 ? set.Idle[0][0] : null;
         }
 
+        private string _setName;
+
         public void Setup(string setName, SpriteRenderer renderer, Color debrisColor)
         {
+            _setName = setName;
             _set = Load(setName);
             _smooth = true;
             _renderer = renderer;
@@ -126,7 +172,7 @@ namespace LoopRogue
                 // 옆 칸으로 한 걸음일 때만 걸어서(밀려나기·순간이동은 그대로 툭)
                 if (Frames(_set.Walk).Length > 0 && Mathf.Abs(delta.x) + Mathf.Abs(delta.y) == 1)
                 {
-                    _stepFrom = new Vector3(_lastPos.x * GridConstants.CellSize, _lastPos.y * GridConstants.CellSize, 0f);
+                    _stepFrom = new Vector3(_lastPos.x * GridConstants.CellSize, _lastPos.y * GridConstants.CellSize, 0f) + _actor.FootprintVisualOffset;
                     _stepStart = Time.time;
                     _stepParity ^= 1;
                 }
@@ -140,6 +186,27 @@ namespace LoopRogue
                 transform.position = Vector3.Lerp(_stepFrom, _actor.GridWorldPosition, t);
                 if (!stepping)
                     _stepStart = -1f;
+            }
+
+            if (_clip != null && Time.time < _clipUntil)
+            {
+                var k = Mathf.Min(_clip.Length - 1, (int)((Time.time - _clipStart) / Mathf.Max(0.01f, _clipSeconds) * _clip.Length));
+                _renderer.sprite = _clip[k];
+                return;
+            }
+            if (Time.time < _jumpUntil)
+            {
+                var jump = Frames(_set.Jump);
+                var t = Time.time - _jumpStart;
+                _renderer.sprite = t >= _jumpFlight ? jump[5] : jump[2 + Mathf.Min(2, (int)(t / _jumpFlight * 3f))];
+                return;
+            }
+            if (_crouch)
+            {
+                var jump = Frames(_set.Jump);
+                _time += Time.deltaTime;
+                _renderer.sprite = _time % 0.6f < 0.12f ? jump[0] : jump[1]; // 깊이 움츠린 채 가끔 들썩
+                return;
             }
 
             if (Time.time < _attackUntil)
@@ -203,6 +270,7 @@ namespace LoopRogue
                 set.Attack[d] = LoadSequence($"Sprites/{setName}/attack_{DirNames[d]}_");
                 set.Walk[d] = LoadSequence($"Sprites/{setName}/walk_{DirNames[d]}_");
                 set.Lit[d] = LoadSequence($"Sprites/{setName}/lit_{DirNames[d]}_");
+                set.Jump[d] = LoadSequence($"Sprites/{setName}/jump_{DirNames[d]}_");
             }
             Cache[setName] = set;
             return set;

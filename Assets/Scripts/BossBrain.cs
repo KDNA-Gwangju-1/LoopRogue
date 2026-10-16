@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace LoopRogue
@@ -18,6 +19,10 @@ namespace LoopRogue
         TripleWave,  // 3연 파동(2층) - 보스 몸에서 거리 1→2→3 고리를 보스 턴마다 하나씩(숫자 예고). 1타가 지나간 안쪽이 2·3타 동안 딜 자리. 구멍은 1타에만
         Encircle,    // 포위 폭발(6층) - 플레이어 중심 반경 EncircleRadius(5x5)를 전부. 한 칸 걸어서는 못 빠져나가고 대시로만 피한다
         Zigzag,      // 지그재그 베기(7층) - 플레이어 자리를 지나는 지그재그 줄을 ZigzagSpacing칸 간격으로 방 전체에. 상하좌우 한 칸 움직이면 피함
+        AxeWave,     // 도끼 충격파(8층, 10-16 사용자) - 플레이어 쪽으로 몸 폭(3칸) 띠가 벽까지 갈라짐. 보스는 안 움직인다. 옆으로 비키면 피함
+        Checker,     // 체스판 마법(9층, 10-16) - 방 전체 체스판: 1타 한쪽 색, 2타 반대 색(숫자 예고). 매번 한 칸 움직이면 피함
+        SoulOrbs,    // 영혼 구체(9층, 10-16) - 플레이어 주변 3곳에 3x3 폭발, 하나는 내 자리를 덮는다. 한 칸 걸어 피할 틈은 늘 남긴다
+        Jump,        // 점프 짓누르기(4층 슬라임 킹, 10-16 사용자 - 소환 대신) - 내 자리를 덮는 몸 크기 칸을 예고하고 다음 턴 거기로 내려앉는다. 분열 뒤엔 점액을 남김
     }
 
     /// <summary>스테이지 보스의 예고 공격 - 몇 턴마다 공격할 칸을 빨갛게 예고하고(그 턴은 안 움직임), 다음 턴에
@@ -128,6 +133,10 @@ namespace LoopRogue
         public const float StageGimmickHealthRatio = 0.5f;
         /// <summary>10층 거울 가면 기사 "진짜 찾기" - 체력 75% 아래에서 한 번(10-15 사용자).</summary>
         public const float MirrorFakeHealthRatio = 0.75f;
+        /// <summary>10층 기믹 4단계가 시작되는 체력(10-16 사용자) - 거울상 / 내 거울상 / 빛 / 발악(0% = 체력 하한 1에 닿았을 때).
+        /// 단계가 끝나야 다음 단계가 시작되고, 진행 중엔 다음 단계 체력 아래로 안 깎인다(RoomController.SetMirrorFloor).</summary>
+        public static readonly float[] MirrorPhaseHealth = { MirrorFakeHealthRatio, 0.5f, 0.25f, 0f };
+        private int _mirrorPhase; // 10층 - 시작한 기믹 단계 수
         private static float StageGimmickRatio(int stage) => stage == MirrorStage ? MirrorFakeHealthRatio : StageGimmickHealthRatio;
         private bool _stageGimmickStarted;
         // 7층 그림자 암살자 - 체력 90·80·…·10%마다 분신 3개(무적) 물결(10-15 사용자). 한 대에 여러 칸을 지나면 물결 하나로 합친다.
@@ -206,6 +215,10 @@ namespace LoopRogue
             BossPatternType.Zigzag => 7,
             BossPatternType.Encircle => 6,
             BossPatternType.TripleWave => 2,
+            BossPatternType.AxeWave => 8,
+            BossPatternType.Checker => 9,
+            BossPatternType.SoulOrbs => 9,
+            BossPatternType.Jump => 4,
             _ => 0,
         };
 
@@ -215,16 +228,17 @@ namespace LoopRogue
             1 => new List<BossPatternType> { BossPatternType.Charge }, // 1/2 서로 바꿈(사용자 요청) - 돌진이 봇 테스트에서 가장 쉬운 패턴이라 입문용
             2 => new List<BossPatternType> { BossPatternType.Slam, BossPatternType.TripleWave }, // 10-15 사용자 - 3연 파동을 번갈아
             3 => new List<BossPatternType> { BossPatternType.Cross },
-            4 => new List<BossPatternType> { BossPatternType.Summon, BossPatternType.Slam },
+            4 => new List<BossPatternType> { BossPatternType.Jump, BossPatternType.Slam }, // 10-16 사용자 - 소환 대신 점프 짓누르기
             5 => new List<BossPatternType> { BossPatternType.Ring, BossPatternType.RingInverse }, // 10-14 사용자 "패턴을 여러 개로, 범위도 크게" - 번갈아
             6 => new List<BossPatternType> { BossPatternType.Snipe, BossPatternType.Encircle }, // 10-15 사용자 - 대시로만 피하는 패턴을 번갈아
             7 => new List<BossPatternType> { BossPatternType.Diagonal, BossPatternType.Zigzag }, // 10-15 사용자 - 지그재그를 번갈아
-            8 => new List<BossPatternType> { BossPatternType.Charge, BossPatternType.Slam },
-            9 => new List<BossPatternType> { BossPatternType.Cross, BossPatternType.Snipe },
+            8 => new List<BossPatternType> { BossPatternType.Charge, BossPatternType.AxeWave }, // 10-16 사용자 - 강타 대신 도끼 충격파(용암 균열도 이게 남김)
+            9 => new List<BossPatternType> { BossPatternType.Cross, BossPatternType.Checker, BossPatternType.Cross, BossPatternType.SoulOrbs }, // 10-16 - 저격 대신 체스판·영혼 구체, 항아리 때문에 십자는 2번에 1번
             _ => new List<BossPatternType>
             {
                 BossPatternType.Slam, BossPatternType.Charge, BossPatternType.Cross, BossPatternType.Summon,
                 BossPatternType.Ring, BossPatternType.Snipe, BossPatternType.Diagonal,
+                BossPatternType.AxeWave, BossPatternType.Checker, BossPatternType.SoulOrbs, // 8층 미노타우로스·9층 리치로도 변신(10-16 사용자)
                 BossPatternType.MirrorShards, // 자기 패턴 - 쓸 땐 변신을 풀고 본모습으로
             },
         };
@@ -243,6 +257,10 @@ namespace LoopRogue
             BossPatternType.Zigzag => Loc.T("지그재그 베기"),
             BossPatternType.Encircle => Loc.T("포위 폭발"),
             BossPatternType.TripleWave => Loc.T("3연 파동"),
+            BossPatternType.AxeWave => Loc.T("도끼 충격파"),
+            BossPatternType.Checker => Loc.T("체스판 마법"),
+            BossPatternType.SoulOrbs => Loc.T("영혼 구체"),
+            BossPatternType.Jump => Loc.T("점프 짓누르기"),
             _ => Loc.T("X자 베기"),
         };
 
@@ -256,6 +274,9 @@ namespace LoopRogue
         {
             _cancelled = true; // Resolve 도중(반사 → 거울 깨기)이면 후속 패턴을 걸지 않게
             _pending = null;
+            _jumpTarget = null;
+            if (_boss.TryGetComponent<SpriteAnimator>(out var cancelAnim))
+                cancelAnim.SetJumpCrouch(false); // 섬광탄으로 점프가 취소되면 움츠림도 푼다
             _pendingTiles.Clear();
             _mirrorWaves.Clear();
             room.ClearTelegraph();
@@ -312,7 +333,17 @@ namespace LoopRogue
                 return true;
             }
 
-            if (!_stageGimmickStarted && _stage >= 4 && _stage <= MirrorStage && _stage != 7 && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * StageGimmickRatio(_stage))
+            if (_stage == MirrorStage && _mirrorPhase < MirrorPhaseHealth.Length && !room.MirrorPhaseActive
+                && _boss.Stats.CurrentHealth <= Mathf.Max(1f, _boss.Stats.MaxHealth * MirrorPhaseHealth[_mirrorPhase]))
+            {
+                _mirrorPhase++;
+                _stageGimmickStarted = true;
+                _stunTurns = 0;
+                room.BeginMirrorPhase(_mirrorPhase, _boss); // 컷신 - 단계마다 다른 기믹
+                return true;
+            }
+
+            if (!_stageGimmickStarted && _stage >= 4 && _stage < MirrorStage && _stage != 7 && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * StageGimmickRatio(_stage))
             {
                 _stageGimmickStarted = true;
                 room.BeginStageGimmick(_stage, _boss); // 컷신 - 소품·분신이 하나씩
@@ -337,6 +368,8 @@ namespace LoopRogue
         {
             _room = room;
             _turnsSinceEncircle++;
+            if (room.MirrorLastStand)
+                return TakeLastStandTurn(player, room);
             if (_pending.HasValue)
             {
                 Resolve(player, room);
@@ -403,6 +436,20 @@ namespace LoopRogue
                 return true;
             }
 
+            if (type == BossPatternType.Checker)
+            {
+                BuildCheckerWaves(room.Map);
+                if (_mirrorWaves.Count == 0)
+                    return false;
+                _pending = type;
+                _mirrorWaveNumber = 1;
+                room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber);
+                room.ShowMessage(TryMorph(type, out var checkerMorph)
+                    ? $"{checkerMorph} ({PatternName(type)})"
+                    : Loc.T("<color=#C090FF>리치가 바닥에 체스판 마법진을 그린다!</color> 1·2 순서로 터진다"));
+                return true;
+            }
+
             if (type == BossPatternType.Summon)
             {
                 room.SpawnMinions(_boss, MaxMinions);
@@ -423,10 +470,58 @@ namespace LoopRogue
 
             _pending = type;
             room.ShowTelegraph(_pendingTiles, type == BossPatternType.Encircle ? DashTelegraphColor : (Color?)null);
+            if (type == BossPatternType.Jump && HitFeedback.Enabled)
+            {
+                // 점프 준비 - 움츠린다(점프 그림이 있으면 그 그림으로 예고 턴 내내, 없으면 한 번 찌그러지기)
+                if (_boss.TryGetComponent<SpriteAnimator>(out var crouchAnim) && crouchAnim.HasJump)
+                    crouchAnim.SetJumpCrouch(true);
+                else
+                    ActorJuice.Get(_boss).Squish(0.35f);
+            }
             if (TryMorph(type, out var message))
                 room.ShowMessage(message);
             if (type == BossPatternType.Encircle)
                 room.ShowMessage(Loc.T("<color=#FFA040>보스가 포위 폭발을 준비한다!</color> 걸어서는 못 빠져나간다 - 대시로 피하자"));
+            return true;
+        }
+
+        /// <summary>10층 발악 - 이동·근접 공격 없이 예고 → 발동만 쉬지 않고 반복(소환은 빼고). 맞으면 즉사(Resolve). 항상 true.</summary>
+        private bool TakeLastStandTurn(PlayerActor player, RoomController room)
+        {
+            _stunTurns = 0;
+            if (_pending.HasValue)
+            {
+                Resolve(player, room);
+                _stunTurns = 0; // 돌진 뒤 비틀거림도 없다
+                return true;
+            }
+            for (var tries = 0; tries < 4; tries++)
+            {
+                var type = NextPattern();
+                if (type == BossPatternType.Summon)
+                    continue;
+                if (type == BossPatternType.MirrorShards || type == BossPatternType.Checker)
+                {
+                    if (type == BossPatternType.Checker)
+                        BuildCheckerWaves(room.Map);
+                    else
+                        BuildMirrorWaves(player, room.Map);
+                    if (_mirrorWaves.Count == 0)
+                        continue;
+                    _pending = type;
+                    _mirrorWaveNumber = 1;
+                    room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber);
+                    TryMorph(type, out _);
+                    return true;
+                }
+                ComputeTiles(type, player, room.Map);
+                if (_pendingTiles.Count == 0)
+                    continue;
+                _pending = type;
+                room.ShowTelegraph(_pendingTiles);
+                TryMorph(type, out _);
+                return true;
+            }
             return true;
         }
 
@@ -448,6 +543,8 @@ namespace LoopRogue
         /// <summary>다음 패턴 - 1~9층은 목록 순서대로, 10층은 무작위(같은 패턴 연속은 안 나옴).</summary>
         private BossPatternType NextPattern()
         {
+            if (_stage >= MirrorStage && _room != null && _room.MirrorPhase == 2 && _room.MirrorPhaseActive)
+                return NextReflectionPattern();
             if (_stage < MirrorStage || _patterns.Count < 2)
             {
                 var next = _patterns[_patternIndex];
@@ -463,6 +560,38 @@ namespace LoopRogue
         }
 
         private BossPatternType? _lastRandom;
+
+        // ---- 10층 2단계(내 거울상) 동안 - 3번 중 2번은 거울 속 나를 맞히기 쉬운 패턴, 1번은 어려운 패턴(10-16 사용자) ----
+        // 쉬운 패턴: 내 주변이나 방 전체를 덮어서 가운데 줄 가까이 서면 거울 속 나도 걸리는 것. 체스판은 방 폭이 짝수일 때만
+        // (홀수면 거울 속 나와 내가 늘 같은 색이라 내가 피하면 거울 속 나도 피한다).
+        private static readonly BossPatternType[] ReflectionEasyPatterns =
+            { BossPatternType.MirrorShards, BossPatternType.SoulOrbs, BossPatternType.Cross, BossPatternType.Checker };
+        private readonly List<bool> _reflectionBag = new List<bool>(); // true = 쉬운 패턴 차례
+
+        private BossPatternType NextReflectionPattern()
+        {
+            if (_reflectionBag.Count == 0)
+            {
+                _reflectionBag.AddRange(new[] { true, true, false });
+                for (var i = _reflectionBag.Count - 1; i > 0; i--)
+                {
+                    var j = Rng.Next(i + 1);
+                    (_reflectionBag[i], _reflectionBag[j]) = (_reflectionBag[j], _reflectionBag[i]);
+                }
+            }
+            var easy = _reflectionBag[0];
+            _reflectionBag.RemoveAt(0);
+            var evenWidth = _room.Map.Width % 2 == 0;
+            bool IsEasy(BossPatternType t) => System.Array.IndexOf(ReflectionEasyPatterns, t) >= 0 && (t != BossPatternType.Checker || evenWidth);
+            var pool = _patterns.Where(t => IsEasy(t) == easy).Distinct().ToList();
+            if (pool.Count == 0)
+                pool = _patterns.Distinct().ToList();
+            if (pool.Count > 1 && _lastRandom.HasValue)
+                pool.Remove(_lastRandom.Value);
+            var pick = pool[Rng.Next(pool.Count)];
+            _lastRandom = pick;
+            return pick;
+        }
 
         /// <summary>10층 거울 가면 기사 - 쓰는 패턴의 원래 주인(1~7층 보스)으로 변신하고, 다음 변신까지 그 모습으로 싸운다.</summary>
         private bool TryMorph(BossPatternType type, out string message)
@@ -492,7 +621,7 @@ namespace LoopRogue
             _pending = null;
             _cancelled = false;
             room.ClearTelegraph();
-            if ((type == BossPatternType.MirrorShards || type == BossPatternType.TripleWave) && _mirrorWaves.Count > 0)
+            if (IsWavePattern(type) && _mirrorWaves.Count > 0)
             {
                 _pendingTiles.Clear();
                 _pendingTiles.UnionWith(_mirrorWaves[0]); // 이번에 터질 웨이브
@@ -521,6 +650,38 @@ namespace LoopRogue
                     room.ShowMessage(Loc.T("<color=#FFB060>멧돼지가 마지막 기둥에 박았다!</color> 크게 비틀거린다")); // "모두 무너졌다"는 RoomController가
             }
 
+            // 맞았는지는 점프로 밀려나기 전에 정한다
+            var playerHit = _pendingTiles.Contains(player.GridPos);
+            if (type == BossPatternType.Jump && _jumpTarget.HasValue)
+            {
+                // 내려앉는다(10-16 사용자: 맞아도 슬라임은 뛰고 나는 한 칸 밀려난다). 내가 예고 칸 안이면 칸 밖으로 밀어내고,
+                // 밀 데가 없으면 제자리에서 뛰었다 내려온다.
+                var target = _jumpTarget.Value;
+                _jumpTarget = null;
+                if (_boss.TryGetComponent<SpriteAnimator>(out var jumpAnim))
+                    jumpAnim.SetJumpCrouch(false);
+                if (GridMap.FootprintDistance(target, _boss.FootprintMin, _boss.FootprintMax, player.GridPos) == 0)
+                    PushOutOfLanding(player, room, target);
+                var from = _boss.transform.position;
+                var landed = room.Map.CanOccupy(_boss, target);
+                if (landed)
+                {
+                    room.Map.MoveActor(_boss, target);
+                    jumpAnim?.SnapToGrid();
+                    _boss.SyncTransform();
+                }
+                if (HitFeedback.Enabled)
+                {
+                    var drawn = jumpAnim != null && jumpAnim.HasJump;
+                    if (drawn)
+                        jumpAnim.PlayJump(0.32f);
+                    ActorJuice.Get(_boss).Hop(from, landed ? 1.6f : 1.1f, 0.32f, drawn ? 0.05f : 0.18f, drawn ? 0.15f : 0.45f); // 포물선으로 날아가 내려찍기
+                    CameraShake.Shake(0.25f, 0.45f);
+                }
+                if (landed && room.GimmickStage == 4)
+                    room.AddSlimePuddles(GridMap.CellsOf(_boss).ToList()); // 즉사면 몹 턴 루프가 사망 처리
+            }
+
             if (type == BossPatternType.Slam && IsOgre && _crackPhase)
                 room.AddOgreCracks(_pendingTiles, OgreCracksPerSlam);
             if (type == BossPatternType.Slam && IsOgre && _holePhase)
@@ -531,8 +692,17 @@ namespace LoopRogue
             if (type == BossPatternType.Encircle)
                 _turnsSinceEncircle = 0;
             PatternResolveCount++;
-            HitFeedback.OnBossPatternResolved(player, _pendingTiles.Contains(player.GridPos), type, _pendingTiles);
-            if (_pendingTiles.Contains(player.GridPos))
+            HitFeedback.OnBossPatternResolved(player, playerHit, type, _pendingTiles);
+            if (playerHit && room.MirrorLastStand)
+            {
+                // 10층 발악 - 맞으면 즉사(보호막·부활·반사 무시). 사망 처리는 몹 턴 루프가.
+                PatternHitCount++;
+                room.LastStandHit();
+                _pendingTiles.Clear();
+                _mirrorWaves.Clear();
+                return;
+            }
+            if (playerHit)
             {
                 PatternHitCount++;
                 if (player.TryConsumeReflect())
@@ -554,23 +724,21 @@ namespace LoopRogue
                 else
                 {
                     var ironWall = EquipmentEffects.Has(ItemSlot.Armor, 5) ? 1f - EquipmentEffects.BossPatternReduction : 1f; // 갑옷 "철벽"
-                    var waveRate = type == BossPatternType.MirrorShards ? MirrorWaveDamageRate : 1f; // 거울 파편은 4번이라 한 번은 약하게
+                    var waveRate = type == BossPatternType.MirrorShards || type == BossPatternType.Checker ? MirrorWaveDamageRate : 1f; // 거울 파편·체스판은 여러 번이라 한 번은 약하게
                     var dealt = player.Stats.TakeIncomingDamage(_boss.Stats.AttackPower * PatternDamageMultiplier * ironWall * waveRate);
                     DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.2f, 0.2f), isCritical: true);
                 }
             }
             if (_stageGimmickStarted && room.GimmickStage == _stage)
             {
-                if (_stage == 4 && type == BossPatternType.Slam)
-                    room.OnSlimeSlam(_pendingTiles);
-                else if (_stage == 5 && (type == BossPatternType.Ring || type == BossPatternType.RingInverse))
+                if (_stage == 5 && (type == BossPatternType.Ring || type == BossPatternType.RingInverse))
                     room.OnSporeRing(_pendingTiles, _pendingTiles.Contains(player.GridPos)); // 감염으로 죽으면 몹 턴 루프가 사망 처리
                 else if (_stage == 6 && (type == BossPatternType.Snipe || type == BossPatternType.SnipeFollowUp))
                     room.OnSnipeTiles(_pendingTiles);
                 else if (_stage == 7 && type == BossPatternType.Diagonal)
                     room.OnDiagonalTiles(_pendingTiles);
-                else if (_stage == 8 && type == BossPatternType.Slam)
-                    room.AddLava(_pendingTiles);
+                else if (_stage == 8 && type == BossPatternType.AxeWave)
+                    room.OnAxeWave(_pendingTiles, _axeDir); // 조여 온 벽에 닿으면 그쪽 벽이 물러난다
                 else if (_stage == 9 && type == BossPatternType.Cross)
                     room.BreakLichJars(_jarHits);
                 else if (_stage == MirrorStage)
@@ -588,7 +756,7 @@ namespace LoopRogue
             // 저격은 2연속 - 1발(X자)이 끝나면 곧바로 그 순간 플레이어 자리 기준 마름모를 예고한다.
             // "상하좌우로 움직여 1발을 피하고 → 대기해서 2발을 피하는" 패턴.
             // 거울 파편 - 남은 웨이브가 있으면 다음 보스 턴에 또 터진다(남은 숫자를 다시 보여줌).
-            if (type == BossPatternType.MirrorShards || type == BossPatternType.TripleWave)
+            if (IsWavePattern(type))
             {
                 if (_mirrorWaves.Count > 0 && !player.Stats.IsDead)
                 {
@@ -635,8 +803,49 @@ namespace LoopRogue
             switch (type)
             {
                 case BossPatternType.Slam:
-                    AddSquare(map, origin, 1 + body); // 몸 둘레 한 줄
+                    // 몸 둘레 한 줄 - 몸에서 체비쇼프 1칸(2x2 슬라임 킹도 맞게 몸 범위로 잰다)
+                    for (var dx = _boss.FootprintMin - 1; dx <= _boss.FootprintMax + 1; dx++)
+                    for (var dy = _boss.FootprintMin - 1; dy <= _boss.FootprintMax + 1; dy++)
+                        AddTile(map, origin + new Vector2Int(dx, dy));
                     break;
+                case BossPatternType.Jump:
+                {
+                    // 내 자리를 덮는 몸 크기 칸 - 몸이 들어갈 수 있고(나는 비킬 테니 내 칸은 빈 셈 친다), 상하좌우 한 칸으로 빠져나갈 틈이 있는 곳 중 무작위
+                    _jumpTarget = null;
+                    var p0 = player.GridPos;
+                    var options = new List<Vector2Int>();
+                    for (var ox = _boss.FootprintMin; ox <= _boss.FootprintMax; ox++)
+                    for (var oy = _boss.FootprintMin; oy <= _boss.FootprintMax; oy++)
+                    {
+                        var c = p0 - new Vector2Int(ox, oy); // c를 몸 기준점으로 두면 p0가 몸 안
+                        var fits = true;
+                        for (var dx = _boss.FootprintMin; dx <= _boss.FootprintMax && fits; dx++)
+                        for (var dy = _boss.FootprintMin; dy <= _boss.FootprintMax && fits; dy++)
+                        {
+                            var t = c + new Vector2Int(dx, dy);
+                            fits = map.IsInBounds(t) && !map.IsWall(t) && (t == p0 || !(map.GetActorAt(t) is GridActor a) || a == _boss);
+                        }
+                        if (!fits)
+                            continue;
+                        var escape = false;
+                        foreach (var d in Directions)
+                        {
+                            var n = p0 + d;
+                            if (map.IsWalkable(n) && GridMap.FootprintDistance(c, _boss.FootprintMin, _boss.FootprintMax, n) > 0)
+                                escape = true;
+                        }
+                        if (escape)
+                            options.Add(c);
+                    }
+                    if (options.Count == 0)
+                        break;
+                    var land = options[Rng.Next(options.Count)];
+                    _jumpTarget = land;
+                    for (var dx = _boss.FootprintMin; dx <= _boss.FootprintMax; dx++)
+                    for (var dy = _boss.FootprintMin; dy <= _boss.FootprintMax; dy++)
+                        _pendingTiles.Add(land + new Vector2Int(dx, dy)); // 지금 몸과 겹치는 칸도 예고(AddTile은 몸 칸을 뺀다)
+                    break;
+                }
                 case BossPatternType.Snipe:
                     // 3x3이면 한 턴에 한 칸만 움직이는 플레이어가 절대 못 빠져나가서, 플레이어 자리 + 대각선만 친다.
                     AddTile(map, player.GridPos);
@@ -672,6 +881,25 @@ namespace LoopRogue
                         for (var k = -body; k <= body; k++)
                             AddRay(map, origin + side * k, d);
                     }
+                    if (_stage == 9)
+                    {
+                        // 9층 리치 - 십자에 X자를 겹친다(10-16 사용자): 몸 네 모서리에서 대각선 4줄이 벽까지. 대각선 끝 항아리도 깨진다.
+                        foreach (var d in new[] { new Vector2Int(1, 1), new Vector2Int(1, -1), new Vector2Int(-1, 1), new Vector2Int(-1, -1) })
+                        {
+                            // AddRay는 몸 안에서 시작하면 몸 반지름만큼 건너뛰어서(가로·세로용) 모서리 바로 옆 칸부터 직접 센다
+                            var first = origin + d * (body + 1);
+                            if (!map.IsInBounds(first))
+                                continue;
+                            if (map.IsWall(first))
+                            {
+                                if (_room != null && _room.IsLichJar(first) && !_jarHits.Contains(first))
+                                    _jarHits.Add(first);
+                                continue;
+                            }
+                            _pendingTiles.Add(first);
+                            AddRay(map, first, d);
+                        }
+                    }
                     _collectJars = false;
                     _collectCrystals = false;
                     foreach (var c in _resonating) // 터질 수정 주변 3x3도 함께 예고(나도 맞는다)
@@ -693,6 +921,48 @@ namespace LoopRogue
                 case BossPatternType.Encircle:
                     AddSquare(map, player.GridPos, EncircleRadius);
                     break;
+                case BossPatternType.AxeWave:
+                {
+                    // 도끼 충격파 - 플레이어 쪽 주축으로 몸 폭만큼의 띠가 벽까지(십자 베기의 한 방향만). 띠 밖으로 비키면 피한다.
+                    var diff = player.GridPos - origin;
+                    var d = Mathf.Abs(diff.x) >= Mathf.Abs(diff.y)
+                        ? new Vector2Int(System.Math.Sign(diff.x), 0)
+                        : new Vector2Int(0, System.Math.Sign(diff.y));
+                    if (d == Vector2Int.zero)
+                        d = Vector2Int.left;
+                    _axeDir = d;
+                    var side = new Vector2Int(d.y, d.x);
+                    for (var k = -body; k <= body; k++)
+                        AddRay(map, origin + side * k, d);
+                    break;
+                }
+                case BossPatternType.SoulOrbs:
+                {
+                    // 영혼 구체 3개(3x3) - 하나는 내 자리를 덮고(중심은 내 자리 또는 바로 옆), 둘은 4칸 안 아무 데나.
+                    // 상하좌우 한 칸 중 안전한 칸이 하나도 없으면 다시 굴린다(걸어서 피할 틈은 늘 남긴다).
+                    var p0 = player.GridPos;
+                    for (var tries = 0; tries < 30; tries++)
+                    {
+                        _pendingTiles.Clear();
+                        var centers = new List<Vector2Int> { p0 + new Vector2Int(Rng.Next(-1, 2), Rng.Next(-1, 2)) };
+                        for (var i = 0; i < 2; i++)
+                            centers.Add(p0 + new Vector2Int(Rng.Next(-4, 5), Rng.Next(-4, 5)));
+                        foreach (var c in centers)
+                            AddSquare(map, c, 1);
+                        var escape = false;
+                        foreach (var dd in Directions)
+                        {
+                            var n = p0 + dd;
+                            if (map.IsInBounds(n) && !map.IsWall(n) && !GridMap.Occupies(_boss, n) && !_pendingTiles.Contains(n))
+                                escape = true;
+                        }
+                        if (escape && _pendingTiles.Contains(p0))
+                            return;
+                    }
+                    _pendingTiles.Clear();
+                    AddTile(map, p0); // 좁은 구석 - 내 자리만
+                    break;
+                }
                 case BossPatternType.Zigzag:
                 {
                     // 플레이어 자리를 지나는 지그재그 줄(한 칸씩 위아래로 꺾임 0,1,0,-1…)을 ZigzagSpacing칸 간격으로 방 전체에.
@@ -793,6 +1063,27 @@ namespace LoopRogue
         private readonly List<HashSet<Vector2Int>> _mirrorWaves = new List<HashSet<Vector2Int>>(); // 거울 파편·3연 파동의 남은 웨이브
         private int _mirrorWaveNumber;
 
+        private static bool IsWavePattern(BossPatternType type) =>
+            type == BossPatternType.MirrorShards || type == BossPatternType.TripleWave || type == BossPatternType.Checker;
+
+        /// <summary>체스판 마법 - 방 전체를 체스판으로, 웨이브 1은 한쪽 색 칸, 웨이브 2는 반대 색 칸(어느 색이 먼저인지는 무작위).</summary>
+        private void BuildCheckerWaves(GridMap map)
+        {
+            _mirrorWaves.Clear();
+            var first = Rng.Next(2);
+            for (var w = 0; w < 2; w++)
+            {
+                _pendingTiles.Clear();
+                for (var x = 0; x < map.Width; x++)
+                for (var y = 0; y < map.Height; y++)
+                    if ((x + y + first + w) % 2 == 0)
+                        AddTile(map, new Vector2Int(x, y));
+                if (_pendingTiles.Count > 0)
+                    _mirrorWaves.Add(new HashSet<Vector2Int>(_pendingTiles));
+            }
+            _pendingTiles.Clear();
+        }
+
         /// <summary>3연 파동 - 보스 몸 가장자리에서 거리 1, 2, 3 고리를 웨이브 1·2·3으로(안쪽부터 바깥으로 퍼짐).</summary>
         private void BuildTripleWaves(GridMap map)
         {
@@ -852,6 +1143,38 @@ namespace LoopRogue
                 prev = cur;
                 cur = next;
             }
+        }
+
+        private Vector2Int? _jumpTarget; // 점프 짓누르기 - 내려앉을 몸 기준점
+        private Vector2Int _axeDir;      // 도끼 충격파가 뻗은 방향
+
+        /// <summary>점프에 깔린 플레이어를 내려앉는 칸 밖으로 민다 - 칸 가운데에서 먼 쪽 방향을 먼저, 그 줄로 최대 3칸 안의 첫 빈 칸(보통 한 칸).
+        /// 밀 데가 없으면 그대로(보스가 제자리에서 뛴다).</summary>
+        private void PushOutOfLanding(PlayerActor player, RoomController room, Vector2Int land)
+        {
+            var map = room.Map;
+            var min = _boss.FootprintMin;
+            var max = _boss.FootprintMax;
+            var center = new Vector2(land.x + (min + max) * 0.5f, land.y + (min + max) * 0.5f);
+            var p = player.GridPos;
+            var away = new Vector2(p.x - center.x, p.y - center.y);
+            var order = Directions.OrderByDescending(d => d.x * away.x + d.y * away.y).ToList();
+            foreach (var d in order)
+                for (var k = 1; k <= 3; k++)
+                {
+                    var c = p + d * k;
+                    if (!map.IsInBounds(c) || map.IsWall(c))
+                        break;
+                    if (GridMap.FootprintDistance(land, min, max, c) == 0)
+                        continue; // 아직 칸 안
+                    if (!map.IsWalkable(c))
+                        break;
+                    map.MoveActor(player, c);
+                    if (HitFeedback.Enabled)
+                        ActorJuice.Get(player).Flash(new Color(1f, 0.45f, 0.55f));
+                    room.CheckSlimePuddle(); // 밀려난 칸이 점액이면 묶인다
+                    return;
+                }
         }
 
         private void AddTile(GridMap map, Vector2Int p)

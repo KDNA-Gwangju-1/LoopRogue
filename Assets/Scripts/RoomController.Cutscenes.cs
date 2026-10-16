@@ -17,6 +17,7 @@ namespace LoopRogue
             public Action Relocate;
             public readonly List<Func<bool>> Steps = new List<Func<bool>>(); // 하나씩 등장 - 뭔가 나왔으면 true(그때만 쉬어 간다)
             public float StepDelay = 0.32f;
+            public readonly List<float> StepDelays = new List<float>(); // 단계별 기다림(없거나 짧으면 StepDelay) - 연출 클립을 다 보여 줄 때
             public Action Finish;               // 다 나온 뒤(안내 문구·타이머 시작)
             public GridActor Focus;             // 컷신 동안 카메라가 비출 대상 - 없으면 살아 있는 보스
         }
@@ -57,15 +58,15 @@ namespace LoopRogue
             }
             else
                 c.Relocate?.Invoke();
-            foreach (var step in c.Steps)
+            for (var i = 0; i < c.Steps.Count; i++)
             {
                 if (_player == null || _player.Stats.IsDead)
                     break;
-                if (!step())
+                if (!c.Steps[i]())
                     continue;
                 CameraShake.Shake(0.15f, 0.3f);
                 SfxPlayer.Play(Sfx.Slam);
-                yield return new WaitForSeconds(c.StepDelay);
+                yield return new WaitForSeconds(i < c.StepDelays.Count && c.StepDelays[i] > 0f ? c.StepDelays[i] : c.StepDelay);
             }
             c.Finish?.Invoke();
             yield return new WaitForSeconds(0.35f);

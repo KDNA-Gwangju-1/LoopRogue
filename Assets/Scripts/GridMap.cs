@@ -49,29 +49,45 @@ namespace LoopRogue
                 yield return new Vector2Int(center.x + dx, center.y + dy);
         }
 
-        public static IEnumerable<Vector2Int> CellsOf(GridActor actor) => Cells(actor.GridPos, actor.FootprintRadius);
+        /// <summary>center 기준 x·y 둘 다 min~max 오프셋의 칸들(2x2 같은 짝수 몸도).</summary>
+        public static IEnumerable<Vector2Int> Cells(Vector2Int center, int min, int max)
+        {
+            for (var dx = min; dx <= max; dx++)
+            for (var dy = min; dy <= max; dy++)
+                yield return new Vector2Int(center.x + dx, center.y + dy);
+        }
+
+        public static IEnumerable<Vector2Int> CellsOf(GridActor actor) => Cells(actor.GridPos, actor.FootprintMin, actor.FootprintMax);
 
         /// <summary>그 액터가 p 칸을 차지하고 있는지.</summary>
         public static bool Occupies(GridActor actor, Vector2Int p) =>
-            Mathf.Abs(p.x - actor.GridPos.x) <= actor.FootprintRadius && Mathf.Abs(p.y - actor.GridPos.y) <= actor.FootprintRadius;
+            p.x - actor.GridPos.x >= actor.FootprintMin && p.x - actor.GridPos.x <= actor.FootprintMax
+            && p.y - actor.GridPos.y >= actor.FootprintMin && p.y - actor.GridPos.y <= actor.FootprintMax;
+
+        /// <summary>한 축에서 몸(center+min~center+max) 바깥으로 몇 칸 떨어졌는지(몸 안이면 0).</summary>
+        private static int AxisGap(int v, int center, int min, int max) =>
+            v < center + min ? center + min - v : v > center + max ? v - (center + max) : 0;
+
+        /// <summary>몸 범위 min~max(가운데 center)에서 p까지 상하좌우 걸음 수 - 2x2 같은 짝수 몸용.</summary>
+        public static int FootprintDistance(Vector2Int center, int min, int max, Vector2Int p) =>
+            AxisGap(p.x, center.x, min, max) + AxisGap(p.y, center.y, min, max);
 
         /// <summary>반경 r 몸(가운데 center)에서 p까지 상하좌우 걸음 수 - 몸에 붙은 칸이면 1, 몸 안이면 0.</summary>
         public static int FootprintDistance(Vector2Int center, int r, Vector2Int p) =>
             Mathf.Max(0, Mathf.Abs(p.x - center.x) - r) + Mathf.Max(0, Mathf.Abs(p.y - center.y) - r);
 
-        public static int FootprintDistance(GridActor actor, Vector2Int p) => FootprintDistance(actor.GridPos, actor.FootprintRadius, p);
+        public static int FootprintDistance(GridActor actor, Vector2Int p) => FootprintDistance(actor.GridPos, actor.FootprintMin, actor.FootprintMax, p);
 
         /// <summary>몸 가장자리 기준 체비쇼프 거리(대각선도 1) - 반경 효과(연막·약점 표식 등)용.</summary>
         public static int FootprintChebyshev(GridActor actor, Vector2Int p) =>
-            Mathf.Max(Mathf.Max(0, Mathf.Abs(p.x - actor.GridPos.x) - actor.FootprintRadius),
-                      Mathf.Max(0, Mathf.Abs(p.y - actor.GridPos.y) - actor.FootprintRadius));
+            Mathf.Max(AxisGap(p.x, actor.GridPos.x, actor.FootprintMin, actor.FootprintMax),
+                      AxisGap(p.y, actor.GridPos.y, actor.FootprintMin, actor.FootprintMax));
 
         /// <summary>actor가 center로 가면 차지할 칸이 전부 방 안·벽 아님·(자기 말고) 빈 칸인지.</summary>
         public bool CanOccupy(GridActor actor, Vector2Int center)
         {
-            var r = actor.FootprintRadius;
-            for (var dx = -r; dx <= r; dx++)
-            for (var dy = -r; dy <= r; dy++)
+            for (var dx = actor.FootprintMin; dx <= actor.FootprintMax; dx++)
+            for (var dy = actor.FootprintMin; dy <= actor.FootprintMax; dy++)
             {
                 var p = new Vector2Int(center.x + dx, center.y + dy);
                 if (!IsInBounds(p) || _walls.Contains(p))
@@ -104,7 +120,7 @@ namespace LoopRogue
 
         private void Claim(GridActor actor)
         {
-            if (actor.FootprintRadius == 0)
+            if (!actor.IsLarge)
             {
                 _occupancy[actor.GridPos] = actor;
                 return;
@@ -115,7 +131,7 @@ namespace LoopRogue
 
         private void Release(GridActor actor)
         {
-            if (actor.FootprintRadius == 0)
+            if (!actor.IsLarge)
             {
                 if (_occupancy.TryGetValue(actor.GridPos, out var occupant) && occupant == actor)
                     _occupancy.Remove(actor.GridPos);

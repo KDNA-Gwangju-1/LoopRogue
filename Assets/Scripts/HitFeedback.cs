@@ -91,8 +91,8 @@ namespace LoopRogue
             {
                 // 3x3 보스는 가운데 칸에서 재면 (2,1) 같은 비스듬한 값이 나와서, 몸 밖으로 나간 축 쪽으로만 들이받는다
                 var d = player.GridPos - attacker.GridPos;
-                var r = attacker.FootprintRadius;
-                var dir = new Vector2Int(Mathf.Abs(d.x) > r ? System.Math.Sign(d.x) : 0, Mathf.Abs(d.y) > r ? System.Math.Sign(d.y) : 0);
+                var dir = new Vector2Int(d.x > attacker.FootprintMax ? 1 : d.x < attacker.FootprintMin ? -1 : 0,
+                                         d.y > attacker.FootprintMax ? 1 : d.y < attacker.FootprintMin ? -1 : 0);
                 ActorJuice.Get(attacker).Bump(dir, boss ? BossBumpDistance : BumpDistance, boss ? BossBumpDuration : 0f);
             }
             ActorJuice.Get(player).Flash(PlayerHurtTint);
@@ -164,6 +164,10 @@ namespace LoopRogue
                 BossPatternType.Encircle => "boss_slam",
                 BossPatternType.TripleWave => "boss_slam",
                 BossPatternType.MirrorShards => "morph",         // 거울 조각이 칸마다 터진다
+                BossPatternType.AxeWave => "boss_slam",
+                BossPatternType.Checker => "boss_ring",
+                BossPatternType.SoulOrbs => "boss_ring",
+                BossPatternType.Jump => "boss_slam",
                 _ => null,
             };
             if (name != null)

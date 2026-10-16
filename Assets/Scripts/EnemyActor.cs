@@ -126,6 +126,8 @@ namespace LoopRogue
         /// <summary>남은 기절 턴(섬광탄/연막탄/덫) - 그동안 아무 행동도 안 한다.</summary>
         public int StunTurns { get; private set; }
         public void Stun(int turns) => StunTurns = Mathf.Max(StunTurns, turns);
+        /// <summary>10층 발악 시작 - 남은 기절을 없앤다(발악은 바로 시작).</summary>
+        public void ClearStun() => StunTurns = 0;
         /// <summary>섬광탄·덫 같은 몹 기절 + 보스 패턴 기절(돌진 뒤 비틀거림, 기둥·용암 충돌) - 머리 위 기절 별 표시용.</summary>
         public bool IsStunned => StunTurns > 0 || (_brain != null && _brain.IsStunned);
 
@@ -165,6 +167,42 @@ namespace LoopRogue
         /// <summary>보스는 3x3 칸을 차지한다(사용자 결정) - GridPos가 가운데 칸. 어느 칸을 때려도 맞고, 몸 전체가 들어갈 자리로만 움직인다.</summary>
         public const int BossFootprintRadius = 1;
         public override int FootprintRadius => IsBoss || IsMirrorFake ? BossFootprintRadius : 0;
+        /// <summary>4층 슬라임 킹이 분열한 뒤 - 2x2(GridPos가 왼쪽 아래 칸).</summary>
+        private bool _slimeSmall;
+        public override int FootprintMin => _slimeSmall ? 0 : -FootprintRadius;
+        public override int FootprintMax => _slimeSmall ? 1 : FootprintRadius;
+        public bool IsSlimeSmall => _slimeSmall;
+
+        /// <summary>4층 분열 - 3x3 몸 안의 2x2(왼쪽 아래)로 줄어든다. 그림도 작게.</summary>
+        public void ShrinkToSlimeHalf()
+        {
+            if (_slimeSmall || Map == null)
+                return;
+            Map.RemoveActor(this);
+            _slimeSmall = true;
+            Map.PlaceActor(this, GridPos + new Vector2Int(-1, -1) + new Vector2Int(UnityEngine.Random.Range(0, 2), UnityEngine.Random.Range(0, 2)));
+            if (TryGetComponent<SpriteAnimator>(out var anim))
+                anim.SnapToGrid();
+            ApplyBossSprite(_bossStage);
+            ActorJuice.Get(this).RebaseScale();
+            SyncTransform();
+        }
+
+        /// <summary>4층 분열체(벽 포탑) - 칼이 안 통하고 움직이며 점액 파동만 쏜다(RoomController.SlimeTurretTurn).</summary>
+        public bool IsSlimeTurret { get; private set; }
+        public void MarkAsSlimeTurret(EnemyActor king)
+        {
+            IsSlimeTurret = true;
+            _slimeSmall = true; // 2x2(10-16 사용자) - 칸에 놓기 전에 정해야 2x2로 점유한다
+            var first = SpriteAnimator.FirstFrame("Boss4");
+            if (first == null)
+                return;
+            var ownAnim = GetComponent<SpriteAnimator>();
+            if (ownAnim != null)
+                Destroy(ownAnim);
+            var renderer = VisualUtil.CreateSpriteVisual(gameObject, first, GridConstants.CellSize * BossSpriteScale(4) * 2.1f / BossBodyCells, sortingOrder: 0);
+            gameObject.AddComponent<SpriteAnimator>().Setup("Boss4", renderer, BossDebrisColor(4));
+        }
         public bool IsMinion { get; private set; } // 보스가 소환한 졸개 - 골드/경험치 없음, 보스가 죽으면 같이 사라짐
         /// <summary>7층 그림자 분신 - 칼이 안 통하고(받는 피해 0), 암살자의 X자 베기에만 사라진다(RoomController.OnDiagonalTiles).</summary>
         public bool IsShadowClone { get; private set; }
@@ -175,7 +213,7 @@ namespace LoopRogue
         private EnemyActor _mirrorOf;
 
         /// <summary>칼(일반 공격·스킬·폭탄)이 안 통하는 몹 - 7층 그림자 분신, 10층 거울상.</summary>
-        public bool IsBladeProof => IsShadowClone || IsMirrorFake;
+        public bool IsBladeProof => IsShadowClone || IsMirrorFake || IsSlimeTurret;
 
         public void MarkAsMirrorFake(EnemyActor original)
         {
@@ -296,7 +334,10 @@ namespace LoopRogue
             _bossStage = stage;
             ApplyBossSprite(stage);
             if (stage >= BossBrain.MirrorStage)
+            {
                 Stats.OnDamaged += OnMirrorKnightDamaged;
+                Stats.HealthFloor = 1f; // 발악(0% 기믹)을 버텨야 쓰러진다
+            }
         }
 
         /// <summary>보스 도트 그림(4방향 대기·걷기·공격)으로 - 그림이 없으면 예전 검붉은 사각형 그대로.</summary>
@@ -306,7 +347,7 @@ namespace LoopRogue
             var first = SpriteAnimator.FirstFrame(setName);
             if (first == null)
                 return false;
-            var renderer = VisualUtil.CreateSpriteVisual(gameObject, first, GridConstants.CellSize * BossSpriteScale(stage), sortingOrder: 0);
+            var renderer = VisualUtil.CreateSpriteVisual(gameObject, first, GridConstants.CellSize * BossSpriteScale(stage) * (_slimeSmall ? 2.3f / BossBodyCells : 1f), sortingOrder: 0);
             var anim = GetComponent<SpriteAnimator>();
             if (anim == null)
                 anim = gameObject.AddComponent<SpriteAnimator>();
@@ -668,6 +709,12 @@ namespace LoopRogue
                 StunTurns--; // 기절(섬광탄/덫) - 아무것도 안 함
                 if (MirrorShardsActive)
                     _brain.TakePatternTurn(player, room); // 단, 이미 깔린 거울 파편은 기절해도 순서대로 계속 터진다
+                return;
+            }
+
+            if (IsSlimeTurret)
+            {
+                room.SlimeTurretTurn(this, player); // 4층 벽 포탑 - 미끄러지며 점액 파동만
                 return;
             }
 
@@ -1238,7 +1285,7 @@ namespace LoopRogue
                 HitTarget(player);
                 return;
             }
-            if (FootprintRadius > 0)
+            if (IsLarge)
             {
                 MoveBigBodyToward(_tp);
                 return;
@@ -1313,7 +1360,6 @@ namespace LoopRogue
         /// 길이 없으면(기둥 사이 등) 몸이 들어가는 쪽으로 그리디하게 한 칸.</summary>
         private void MoveBigBodyToward(Vector2Int target)
         {
-            var r = FootprintRadius;
             var first = FirstStepBuffer;
             var queue = QueueBuffer;
             first.Clear();
@@ -1330,7 +1376,7 @@ namespace LoopRogue
             while (queue.Count > 0)
             {
                 var cur = queue.Dequeue();
-                if (GridMap.FootprintDistance(cur, r, target) == 1)
+                if (GridMap.FootprintDistance(cur, FootprintMin, FootprintMax, target) == 1)
                 {
                     Map.MoveActor(this, first[cur]);
                     return;

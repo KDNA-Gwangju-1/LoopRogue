@@ -37,6 +37,9 @@ namespace LoopRogue
             return juice;
         }
 
+        /// <summary>몸 크기가 바뀌었을 때(4층 슬라임 킹 분열) - 지금 크기를 새 기준으로.</summary>
+        public void RebaseScale() => _baseScale = transform.localScale;
+
         /// <summary>번쩍이는 중이면 원래 색을, 아니면 지금 색을 돌려준다(처치 파편 색용).</summary>
         public static Color BaseColorOf(GridActor actor, SpriteRenderer renderer)
         {
@@ -125,6 +128,39 @@ namespace LoopRogue
             }
             transform.localScale = _baseScale;
             _squishRoutine = null;
+        }
+
+        private Coroutine _hopRoutine;
+
+        /// <summary>점프 짓누르기(4층 슬라임 킹) - 예고 칸을 향해 포물선으로 뛰어올라 내려찍는다. 시작·착지에 찌그러짐.
+        /// 격자 위치는 이미 바뀐 뒤라 from(뛰기 전 그림 자리) → 지금 격자 자리로 그림만 날아간다.</summary>
+        /// <param name="stretch">공중에서 위아래로 늘이는 정도 - 점프 그림이 있으면 그림이 늘어나 있으니 약하게.</param>
+        public void Hop(Vector3 from, float heightInCells, float duration, float stretch = 0.18f, float landSquish = 0.45f)
+        {
+            if (_actor == null)
+                return;
+            if (_hopRoutine != null)
+                StopCoroutine(_hopRoutine);
+            _hopRoutine = StartCoroutine(HopRoutine(from, heightInCells * GridConstants.CellSize, duration, stretch, landSquish));
+        }
+
+        private IEnumerator HopRoutine(Vector3 from, float height, float duration, float stretchAmount, float landSquish)
+        {
+            for (var t = 0f; t < duration; t += Time.deltaTime)
+            {
+                var k = t / duration;
+                var to = _actor.GridWorldPosition;
+                transform.position = Vector3.Lerp(from, to, k) + Vector3.up * (height * 4f * k * (1f - k));
+                // 뛰는 동안 위아래로 늘어났다가 떨어질 때 원래대로
+                var stretch = Mathf.Sin(k * Mathf.PI) * stretchAmount;
+                transform.localScale = new Vector3(_baseScale.x * (1f - stretch * 0.5f), _baseScale.y * (1f + stretch), _baseScale.z);
+                yield return null;
+            }
+            transform.position = _actor.GridWorldPosition;
+            transform.localScale = _baseScale;
+            _hopRoutine = null;
+            if (landSquish > 0f)
+                Squish(landSquish); // 착지 - 납작하게
         }
 
         /// <summary>한 바퀴 빙글(회전 베기).</summary>

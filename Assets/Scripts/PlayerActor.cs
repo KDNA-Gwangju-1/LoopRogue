@@ -488,6 +488,66 @@ namespace LoopRogue
             }
         }
 
+        // ---- 10층 발악(RoomController.MirrorLastStand) - 사람은 시간이 턴을 넘긴다: 누른 행동을 모아 두었다가
+        // LastStandTurnSeconds마다 마지막으로 고른 걸 한 번 실행(없으면 대기). 봇은 원래대로 턴마다 바로 움직인다.
+        private float _realtimeClock;
+        private Vector2Int? _queuedMove;
+        private bool _queuedDash;
+        private bool _queuedWait;
+
+        private bool HandleRealtimeTurn(Vector2Int? direction)
+        {
+            if (_room == null || !_room.MirrorLastStand || GameHUD.AutoPlayActive)
+            {
+                _realtimeClock = 0f;
+                _queuedMove = null;
+                _queuedDash = false;
+                _queuedWait = false;
+                return false;
+            }
+            if (GameInput.Down(Key.Q))
+            {
+                if (RootedTurns > 0)
+                    _room.ShowMessage(Loc.T("거미줄에 묶여 대시할 수 없다!"));
+                else if (DashCooldown > 0)
+                    _room.ShowMessage(Loc.F("대시는 {0}턴 뒤에 쓸 수 있다", DashCooldown));
+                else
+                    IsAimingDash = !IsAimingDash;
+            }
+            if (direction.HasValue)
+            {
+                _queuedMove = direction;
+                _queuedDash = IsAimingDash;
+                _queuedWait = false;
+                IsAimingDash = false;
+            }
+            else if (GameInput.Down(Key.Space))
+            {
+                _queuedMove = null;
+                _queuedDash = false;
+                _queuedWait = true;
+            }
+
+            _realtimeClock += Time.deltaTime;
+            if (_realtimeClock < RoomController.LastStandTurnSeconds)
+                return true;
+            _realtimeClock = 0f;
+            var move = _queuedMove;
+            var dash = _queuedDash;
+            _queuedMove = null;
+            _queuedDash = false;
+            _queuedWait = false;
+            if (move.HasValue && dash && TryDash(move.Value))
+                return true;
+            if (move.HasValue && Map.IsWalkable(GridPos + move.Value))
+            {
+                TryAct(move.Value);
+                return true;
+            }
+            Wait(); // 아무것도 안 골랐거나 못 가는 쪽이면 제자리 - 시간은 기다려 주지 않는다
+            return true;
+        }
+
         private void Update()
         {
             if (!CanAct)
@@ -508,6 +568,9 @@ namespace LoopRogue
 
             if (InventoryUI.LastCloseFrame == Time.frameCount || RoomMapView.LastConfirmFrame == Time.frameCount)
                 return; // 인벤토리를 닫은 키·시작 방을 확정한 스페이스가 이동/대기로 또 읽히지 않게
+
+            if (HandleRealtimeTurn(direction))
+                return; // 10층 발악 - 이동·대시·대기만, 시간이 턴을 넘긴다
 
             // 퍼즐·미니게임 방 - G로 포기, 몹과 싸우는 퍼즐이 아니면 스킬·아이템 금지
             var puzzle = _room.Puzzle;
@@ -646,6 +709,14 @@ namespace LoopRogue
                 return;
             }
 
+            if (_room.IsLightMirror(targetPos))
+            {
+                _room.RotateLightMirror(targetPos); // 10층 빛 단계 거울 - 붙어서 그쪽으로 움직이면 /·\가 바뀐다
+                PlayAttackFlash(direction);
+                EndTurn();
+                return;
+            }
+
             if (_room.IsOgreHole(targetPos))
             {
                 _room.FillOgreHole(targetPos); // 2층 오우거 바닥 구멍 - 붙어서 그쪽으로 움직이면 한 턴 써서 메운다
@@ -696,6 +767,7 @@ namespace LoopRogue
                 if (_room.TryUseExit(targetPos))
                     return; // 다음 방으로 넘어감 - 새 방 몹은 이번 턴에 안 움직인다
                 _room.CheckPlayerCrack(); // 2층 오우거 균열 - 밟으면 묶인다
+                _room.CheckSlimePuddle(); // 4층 슬라임 킹 점액 - 밟으면 한 턴 묶인다
                 _room.Puzzle?.PlayerMoved(targetPos); // 룬·보물 찾기처럼 밟은 칸에 반응하는 퍼즐
             }
             else

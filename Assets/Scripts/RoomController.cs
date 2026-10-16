@@ -872,7 +872,7 @@ namespace LoopRogue
         private List<Vector2Int> AdjacentCells(EnemyActor boss)
         {
             var list = new List<Vector2Int>();
-            var r = boss.FootprintRadius + 1;
+            var r = boss.FootprintReach + 1;
             for (var dx = -r; dx <= r; dx++)
             for (var dy = -r; dy <= r; dy++)
             {
@@ -915,7 +915,7 @@ namespace LoopRogue
                     cells.AddRange(scored.Where(s => s.Diff <= best + (toSpawn > 1 ? 1 : 0)).Select(s => s.P)); // 여러 마리면 한 칸 차이까지(한데 뭉치지 않게)
                 }
             }
-            var ring = boss.FootprintRadius + 1;
+            var ring = boss.FootprintReach + 1;
             for (var dx = -ring; dx <= ring && cells.Count == 0; dx++)
             for (var dy = -ring; dy <= ring; dy++)
             {
@@ -2679,7 +2679,7 @@ namespace LoopRogue
                 return;
             _windupBoss = boss;
             ActorJuice.Get(boss).SetWindup(true);
-            var reach = boss.FootprintRadius + 1;
+            var reach = boss.FootprintReach + 1;
             for (var dx = -reach; dx <= reach; dx++)
             for (var dy = -reach; dy <= reach; dy++)
             {
@@ -2885,8 +2885,8 @@ namespace LoopRogue
 
             foreach (var t in area)
             {
-                if (Map.IsWall(t))
-                    RemoveWallObject(t); // 멧돼지 기둥도 폭탄으로 부서진다
+                if (Map.IsWall(t) && !IsUnbreakableGimmickWall(t))
+                    RemoveWallObject(t); // 멧돼지 기둥도 폭탄으로 부서진다(용암 균열·영혼 항아리·빛 거울·조력자는 안 부서짐)
             }
 
             var damage = _player.Stats.AttackPower * ItemInfo.BombDamageRate;
