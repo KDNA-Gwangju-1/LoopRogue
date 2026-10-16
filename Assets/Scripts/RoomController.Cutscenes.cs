@@ -81,8 +81,10 @@ namespace LoopRogue
             var before = new HashSet<Vector2Int>(_wallObjects.Keys);
             if (!spawn())
                 return false;
-            foreach (var p in _wallObjects.Keys.Where(k => !before.Contains(k)).ToList())
+            var added = _wallObjects.Keys.Where(k => !before.Contains(k)).ToList();
+            foreach (var p in added)
                 Appear(_wallObjects[p], fx, hide: true);
+            FocusOn(added.Select(p => _wallObjects[p])); // 새로 나온 자리를 비춘다
             return true;
         };
 
@@ -92,8 +94,10 @@ namespace LoopRogue
             var before = new HashSet<Vector2Int>(into.Keys);
             if (!spawn())
                 return false;
-            foreach (var p in into.Keys.Where(k => !before.Contains(k)).ToList())
+            var added = into.Keys.Where(k => !before.Contains(k)).ToList();
+            foreach (var p in added)
                 Appear(into[p], fx, hide: true);
+            FocusOn(added.Select(p => into[p]));
             return true;
         };
 
@@ -103,11 +107,27 @@ namespace LoopRogue
             var before = new HashSet<EnemyActor>(_enemies);
             if (!spawn())
                 return false;
+            var added = _enemies.Where(x => x != null && !before.Contains(x)).ToList();
             if (fx != null)
-                foreach (var e in _enemies.Where(x => x != null && !before.Contains(x)).ToList())
+                foreach (var e in added)
                     Appear(e.gameObject, fx, hide: false);
+            FocusOn(added.Select(e => e.gameObject));
             return true;
         };
+
+        /// <summary>컷신에서 하나씩 나타날 때 카메라가 그 자리를 비춘다(여럿이면 가운데) - 봇 실행 중엔 아무것도 안 한다.</summary>
+        private static void FocusOn(IEnumerable<GameObject> objects)
+        {
+            if (DamagePopup.Suppressed)
+                return;
+            var list = objects.Where(o => o != null).ToList();
+            if (list.Count == 0)
+                return;
+            var sum = Vector3.zero;
+            foreach (var o in list)
+                sum += o.transform.position;
+            CameraShake.FocusPoint(sum / list.Count);
+        }
 
         private void Appear(GameObject go, string fx, bool hide)
         {
@@ -148,7 +168,7 @@ namespace LoopRogue
             var c = new GimmickCutscene
             {
                 Line = Loc.F("<color=#7FE0D8>골렘이 땅을 울리자 수정 {0}개가 솟고 천장에서 바위가 떨어졌다!</color>", crystals.Count),
-                StepDelay = 0.22f,
+                StepDelay = 0.34f, // 0.22 → 0.34(10-16 사용자 "생길 때마다 그 자리를 비추게" - 카메라가 따라갈 틈)
             };
             foreach (var wave in rubbleWaves)
                 c.Steps.Add(WallStep(() => DropGolemRubbleAround(golem, 1, wave) > 0, "rubble_fall"));

@@ -17,6 +17,7 @@ namespace LoopRogue
 
         private GridActor _follow;
         private GridActor _focus; // 잠깐 다른 대상을 비춤(보스 기믹 컷신) - 없으면 _follow
+        private Vector3? _focusPoint; // 잠깐 한 지점을 비춤(컷신에서 소품이 솟는 자리) - _focus보다 먼저
         private Rect _bounds;
         private Vector3 _base;
         private Camera _camera;
@@ -58,7 +59,18 @@ namespace LoopRogue
         {
             var shake = Get(Camera.main);
             if (shake != null)
+            {
                 shake._focus = target;
+                shake._focusPoint = null;
+            }
+        }
+
+        /// <summary>컷신 동안 한 지점(월드 좌표)을 비춘다 - 수정·바위·촛불처럼 액터가 아닌 소품이 나타나는 자리(10-16 사용자). Focus(null)이면 풀린다.</summary>
+        public static void FocusPoint(Vector3 point)
+        {
+            var shake = Get(Camera.main);
+            if (shake != null)
+                shake._focusPoint = point;
         }
 
         private static CameraShake Get(Camera cam)
@@ -78,7 +90,7 @@ namespace LoopRogue
         /// <summary>따라갈 목표 위치 - 대상 칸 위치를 방 경계 안으로(방이 화면보다 좁은 축은 가운데로).</summary>
         private Vector3 Goal()
         {
-            var target = (_focus != null ? _focus : _follow).GridWorldPosition;
+            var target = _focusPoint ?? (_focus != null ? _focus : _follow).GridWorldPosition;
             var halfHeight = _camera != null ? _camera.orthographicSize : 0f;
             var halfWidth = _camera != null ? halfHeight * _camera.aspect : 0f;
             var x = ClampAxis(target.x, _bounds.xMin, _bounds.xMax, halfWidth);
