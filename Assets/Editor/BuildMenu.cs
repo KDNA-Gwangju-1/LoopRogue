@@ -5,11 +5,11 @@ using UnityEngine;
 
 namespace LoopRogue.EditorTools
 {
-    /// <summary>윈도우 64비트 빌드 - 빌드 설정에 켜진 씬(타이틀·로비·메인) 그대로 프로젝트 바깥 폴더(OutputDir)에 LoopRogue.exe로.
+    /// <summary>윈도우 64비트 빌드 - 빌드 설정에 켜진 씬(타이틀·로비·메인) 그대로 사용자 폴더 아래 LoopRogue_Build(OutputDir)에 LoopRogue.exe로.
     /// 에디터 메뉴로도, 에디터를 끈 상태의 배치 모드(-executeMethod LoopRogue.EditorTools.BuildMenu.BuildWindows)로도 쓴다.</summary>
     public static class BuildMenu
     {
-        public const string OutputDir = "C:/Users/KGA1/LoopRogue_Build";
+        public static readonly string OutputDir = System.Environment.GetFolderPath(System.Environment.SpecialFolder.UserProfile).Replace('\\', '/') + "/LoopRogue_Build";
 
         [MenuItem("LoopRogue/윈도우 빌드 (LoopRogue_Build 폴더)")]
         public static void BuildWindows()

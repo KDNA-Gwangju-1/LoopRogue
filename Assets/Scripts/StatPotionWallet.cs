@@ -11,7 +11,8 @@ namespace LoopRogue
 
     /// <summary>골드로 직접 사는 영구 스탯 영약 - 가챠(EquipmentWallet)와 달리 랜덤이 아니라 확정
     /// 구매다. "방어력은 밸런스 부담이 크니 만들지 말고, 대신 골드로 스탯을 직접 사는 영약을 팔자"
-    /// 요청으로 추가. 살 때마다 다음 구매 가격이 올라가서 무한정 싸게 스택하는 걸 막는다.
+    /// 요청으로 추가. 로비에서 살 때마다 다음 구매 가격이 올라가서 무한정 싸게 스택하는 걸 막는다
+    /// (던전 상인·영약의 샘 등 던전에서 얻은 영약은 로비 가격을 안 올린다 - 10-18 요청).
     ///
     /// 치명타 영약은 "처음부터 팔지 말고 일정 스테이지 이상부터"라는 요청으로 CriticalUnlockStage
     /// 미만이면 구매 자체를 막는다(영약이 올리는 건 확률 - 100%를 넘긴
@@ -31,6 +32,12 @@ namespace LoopRogue
         private const string HealthCountKey = "LoopRogue_Potion_HealthCount";
         private const string CriticalCountKey = "LoopRogue_Potion_CriticalCount";
 
+        // 로비 가격용 - 로비에서 직접 산 개수만 센다(던전 상인·영약의 샘·방 보상으로 얻은 건 가격을 안 올린다).
+        // 이 키가 없던 예전 저장은 그때까지의 전체 개수로 시작해서 가격이 갑자기 내려가지 않게 한다.
+        private const string AttackBoughtKey = "LoopRogue_Potion_AttackBought";
+        private const string HealthBoughtKey = "LoopRogue_Potion_HealthBought";
+        private const string CriticalBoughtKey = "LoopRogue_Potion_CriticalBought";
+
         private static bool _loaded;
 
         /// <summary>저장 초기화(SaveReset) 직후 메모리에 들고 있던 값을 버리고 PlayerPrefs에서 다시 읽는다.</summary>
@@ -42,6 +49,9 @@ namespace LoopRogue
         private static int _attackCount;
         private static int _healthCount;
         private static int _criticalCount;
+        private static int _attackBought;
+        private static int _healthBought;
+        private static int _criticalBought;
 
         public static void EnsureLoaded()
         {
@@ -51,6 +61,9 @@ namespace LoopRogue
             _attackCount = PlayerPrefs.GetInt(AttackCountKey, 0);
             _healthCount = PlayerPrefs.GetInt(HealthCountKey, 0);
             _criticalCount = PlayerPrefs.GetInt(CriticalCountKey, 0);
+            _attackBought = PlayerPrefs.GetInt(AttackBoughtKey, _attackCount);
+            _healthBought = PlayerPrefs.GetInt(HealthBoughtKey, _healthCount);
+            _criticalBought = PlayerPrefs.GetInt(CriticalBoughtKey, _criticalCount);
             _loaded = true;
         }
 
@@ -71,7 +84,19 @@ namespace LoopRogue
             };
         }
 
-        public static int GetNextCost(PotionType type) => BaseCost + GetCount(type) * CostIncreasePerPurchase;
+        /// <summary>로비에서 직접 산 개수 - 로비 가격은 이것만으로 오른다.</summary>
+        public static int GetBoughtCount(PotionType type)
+        {
+            EnsureLoaded();
+            return type switch
+            {
+                PotionType.Attack => _attackBought,
+                PotionType.Health => _healthBought,
+                _ => _criticalBought,
+            };
+        }
+
+        public static int GetNextCost(PotionType type) => BaseCost + GetBoughtCount(type) * CostIncreasePerPurchase;
 
         /// <summary>첫 구매 가격 - 던전 떠돌이 상인은 몇 개를 샀든 이 가격에 판다.</summary>
         public const int FirstCost = BaseCost;
@@ -90,7 +115,8 @@ namespace LoopRogue
             _ => Loc.F("치명타 확률 +{0:0.#}%p (영구)", CriticalChancePerPotion * 100f),
         };
 
-        /// <summary>골드 계산은 호출부(상인)가 이미 끝낸 영약 1개 추가 - 로비에서 산 것과 똑같이 센다(다음 로비 가격도 오른다).</summary>
+        /// <summary>골드 계산은 호출부(상인)가 이미 끝낸 영약 1개 추가 - 스탯은 로비에서 산 것과 똑같이 오르지만
+        /// 로비 가격은 안 오른다(로비 구매 횟수는 TryBuy가 따로 센다).</summary>
         public static void AddPotion(PotionType type)
         {
             EnsureLoaded();
@@ -143,6 +169,22 @@ namespace LoopRogue
                 return false;
 
             AddPotion(type);
+            switch (type)
+            {
+                case PotionType.Attack:
+                    _attackBought++;
+                    PlayerPrefs.SetInt(AttackBoughtKey, _attackBought);
+                    break;
+                case PotionType.Health:
+                    _healthBought++;
+                    PlayerPrefs.SetInt(HealthBoughtKey, _healthBought);
+                    break;
+                default:
+                    _criticalBought++;
+                    PlayerPrefs.SetInt(CriticalBoughtKey, _criticalBought);
+                    break;
+            }
+            PlayerPrefs.Save();
             return true;
         }
     }
