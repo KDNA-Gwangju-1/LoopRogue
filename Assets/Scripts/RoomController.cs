@@ -1809,8 +1809,8 @@ namespace LoopRogue
 
         // ---- 1층 멧돼지 기둥 제한 턴(10-14 사용자) - 기믹을 안 쓰고 버티기만 하면 끝나게: 기둥이 솟은 뒤 BoarPillarTurnLimit턴 안에
         // 기둥을 다 못 부수면 멧돼지가 광폭 돌진으로 즉사시킨다(보호막·불굴·부활 무시). 남은 턴은 멧돼지 머리 위 숫자.
-        public const int BoarPillarTurnLimit = 150; // 10-14 300 → 150(사용자)
-        private static readonly int[] BoarWarnAt = { 100, 50, 20, 10, 5, 3, 2, 1 };
+        public const int BoarPillarTurnLimit = 100; // 10-14 300 → 150 → 10-18 100(사용자)
+        private static readonly int[] BoarWarnAt = { 50, 20, 10, 5, 3, 2, 1 };
         private int _boarTurnsLeft;
         private TextMesh _boarTimerLabel;
         public int BoarTurnsLeft => _boarPillars.Count > 0 ? _boarTurnsLeft : 0;
