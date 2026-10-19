@@ -8,7 +8,7 @@ namespace LoopRogue
     /// 설문 링크는 exe 옆 survey_url.txt(에디터에선 프로젝트 폴더)가 있으면 그걸, 없으면 DefaultSurveyUrl - 파일만 바꾸면 다시 빌드 안 해도 된다.</summary>
     public static class Playtest
     {
-        public const string DefaultSurveyUrl = "";
+        public const string DefaultSurveyUrl = "https://forms.gle/7ZbNjvaSFmYUiCnk8";
         private const string UrlFileName = "survey_url.txt";
         private const string PlayTimeKey = "LoopRogue_PlayTimeSeconds";
         private const float SaveEverySeconds = 30f;
