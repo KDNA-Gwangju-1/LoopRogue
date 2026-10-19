@@ -2,7 +2,7 @@ using System.Collections.Generic;
 
 namespace LoopRogue
 {
-    /// <summary>방 이벤트로 얻는 이번 시도 동안의 효과(숫돌·피의 제단 = 주는 피해 증가, 시간의 모래시계 = 부활 1회).
+    /// <summary>방 이벤트로 얻는 이번 시도 동안의 효과(숫돌·피의 제단 = 주는 피해 증가, 모루 = 받는 피해 감소, 시간의 모래시계 = 부활 1회).
     /// 저주 계약(Curses)처럼 시도 단위 - 죽거나 로비로 나가거나 층을 넘기면 풀린다(LoopManager가 Reset).</summary>
     public static class RunBuffs
     {
@@ -10,15 +10,18 @@ namespace LoopRogue
         public const float BloodAltarDamage = 1.35f;
         public const float BloodAltarHealthCost = 0.25f; // 최대 체력 대비
         public const float ReviveHealth = 0.5f;
+        public const float AnvilDamageTaken = 0.85f; // 모루 - 받는 피해 ×(10-19)
 
         private static readonly List<string> Names = new List<string>();
 
         public static float DamageDealtMultiplier { get; private set; } = 1f;
         public static int ReviveCharges { get; private set; }
+        public static float DamageTakenMultiplier { get; private set; } = 1f;
 
         public static void Reset()
         {
             DamageDealtMultiplier = 1f;
+            DamageTakenMultiplier = 1f;
             ReviveCharges = 0;
             Names.Clear();
         }
@@ -26,6 +29,12 @@ namespace LoopRogue
         public static void AddDamage(float multiplier, string name)
         {
             DamageDealtMultiplier *= multiplier;
+            Names.Add(name);
+        }
+
+        public static void AddDefense(float multiplier, string name)
+        {
+            DamageTakenMultiplier *= multiplier;
             Names.Add(name);
         }
 

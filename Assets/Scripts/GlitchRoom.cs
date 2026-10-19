@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -104,30 +105,42 @@ namespace LoopRogue
     }
 
     /// <summary>오류방 연출 - 바닥·벽 일부를 깨진 색(보라·청록·초록)으로 물들이고, 몇 초마다 화면이 지직거리며(옅은 번쩍임 + 흔들림)
-    /// 물든 칸이 바뀐다. 오류를 바로잡으면(Restore) 원래 색으로. 봇 실행 중엔 아무것도 안 한다.</summary>
+    /// 물든 칸이 바뀐다. 10-19 사용자 "더 괴상하게" - 그림이 깨져 보이게:
+    /// · 자잘한 오류(0.35~0.9초마다): 몹·플레이어 그림이 빨강/청록으로 갈라져 옆으로 밀린 잔상(RGB 분리), 바닥 몇 칸이 다른 칸 그림으로 바뀌었다 돌아옴
+    /// · 큰 지직(1.8~3.6초마다): 번쩍임·흔들림·물든 칸 바꾸기 + 가로 줄 몇 개가 옆으로 어긋나는 화면 찢김 + 모든 몹이 한꺼번에 갈라짐
+    /// 보이는 것만 바뀌고 판정은 그대로. 오류를 바로잡으면(Restore) 원래대로. 봇 실행 중엔 아무것도 안 한다.</summary>
     public class GlitchVisual : MonoBehaviour
     {
         private static readonly Color[] GlitchColors =
         {
             new Color(1f, 0.25f, 0.9f), new Color(0.2f, 1f, 0.95f), new Color(0.4f, 1f, 0.3f), new Color(0.6f, 0.3f, 1f),
         };
+        private static readonly Color SplitRed = new Color(1f, 0.15f, 0.25f, 0.55f);
+        private static readonly Color SplitCyan = new Color(0.15f, 1f, 1f, 0.55f);
 
         private readonly List<SpriteRenderer> _tiles = new List<SpriteRenderer>();
         private readonly Dictionary<SpriteRenderer, Color> _original = new Dictionary<SpriteRenderer, Color>();
+        private readonly Dictionary<SpriteRenderer, Sprite> _originalSprite = new Dictionary<SpriteRenderer, Sprite>();
+        private readonly Dictionary<SpriteRenderer, Vector3> _originalPos = new Dictionary<SpriteRenderer, Vector3>();
         private readonly System.Random _rng = new System.Random();
-        private float _nextPulse;
+        private RoomController _room;
+        private float _nextPulse, _nextMinor;
         private bool _restored;
 
-        public void Init(IEnumerable<SpriteRenderer> tiles)
+        public void Init(IEnumerable<SpriteRenderer> tiles, RoomController room = null)
         {
+            _room = room;
             foreach (var t in tiles)
                 if (t != null)
                 {
                     _tiles.Add(t);
                     _original[t] = t.color;
+                    _originalSprite[t] = t.sprite;
+                    _originalPos[t] = t.transform.localPosition;
                 }
             Recolor(0.16f);
             _nextPulse = Time.time + 0.6f;
+            _nextMinor = Time.time + 0.3f;
         }
 
         private void Recolor(float fraction)
@@ -147,19 +160,143 @@ namespace LoopRogue
             if (_restored)
                 return;
             _restored = true;
+            StopAllCoroutines();
             foreach (var t in _tiles)
                 if (t != null)
+                {
                     t.color = _original[t];
+                    t.sprite = _originalSprite[t];
+                    t.transform.localPosition = _originalPos[t];
+                }
         }
 
         private void Update()
         {
-            if (_restored || DamagePopup.Suppressed || Time.time < _nextPulse)
+            if (_restored || DamagePopup.Suppressed)
+                return;
+            if (Time.time >= _nextMinor)
+            {
+                _nextMinor = Time.time + 0.35f + (float)_rng.NextDouble() * 0.55f;
+                if (_rng.Next(2) == 0)
+                    SplitActor(RandomActor(), 0.07f + (float)_rng.NextDouble() * 0.06f);
+                else
+                    StartCoroutine(SwapTiles(2 + _rng.Next(4), 0.2f + (float)_rng.NextDouble() * 0.3f));
+            }
+            if (Time.time < _nextPulse)
                 return;
             _nextPulse = Time.time + 1.8f + (float)_rng.NextDouble() * 1.8f;
             ScreenFlash.Play(GlitchColors[_rng.Next(GlitchColors.Length)], 0.16f, 0.14f);
             CameraShake.Shake(0.05f, 0.1f);
             Recolor(0.12f + (float)_rng.NextDouble() * 0.1f);
+            StartCoroutine(Tear(1 + _rng.Next(2), 0.08f + (float)_rng.NextDouble() * 0.08f));
+            foreach (var a in Actors())
+                SplitActor(a, 0.1f);
+        }
+
+        // ---- 몹·플레이어 그림 갈라짐(RGB 분리) - 그림을 베낀 빨강/청록 잔상을 양옆으로 잠깐 ----
+        private IEnumerable<GridActor> Actors()
+        {
+            if (_room == null)
+                yield break;
+            if (_room.Player != null)
+                yield return _room.Player;
+            foreach (var e in _room.Enemies)
+                if (e != null && !e.Stats.IsDead)
+                    yield return e;
+        }
+
+        private GridActor RandomActor()
+        {
+            var list = new List<GridActor>(Actors());
+            return list.Count > 0 ? list[_rng.Next(list.Count)] : null;
+        }
+
+        private void SplitActor(GridActor actor, float seconds)
+        {
+            if (actor == null || !actor.TryGetComponent<SpriteRenderer>(out var r) || r.sprite == null)
+                return;
+            var shift = GridConstants.CellSize * (0.06f + (float)_rng.NextDouble() * 0.08f);
+            var dy = _rng.Next(3) == 0 ? GridConstants.CellSize * 0.04f : 0f;
+            StartCoroutine(Ghost(r, new Vector3(-shift, dy, 0f), SplitRed, seconds));
+            StartCoroutine(Ghost(r, new Vector3(shift, -dy, 0f), SplitCyan, seconds));
+        }
+
+        private IEnumerator Ghost(SpriteRenderer source, Vector3 offset, Color color, float seconds)
+        {
+            var go = new GameObject("GlitchGhost");
+            go.transform.SetParent(transform, false); // 방이 바뀌어 연출이 사라지면 잔상도 같이
+            var r = go.AddComponent<SpriteRenderer>();
+            r.sprite = source.sprite;
+            r.flipX = source.flipX;
+            r.color = color;
+            r.sortingOrder = source.sortingOrder + 1;
+            RoomClip.Apply(r);
+            go.transform.position = source.transform.position + offset;
+            go.transform.localScale = source.transform.lossyScale;
+            for (var t = 0f; t < seconds && source != null; t += Time.deltaTime)
+            {
+                // 한두 번 더 덜컥 - 같은 자리에 머물지 않고 픽셀 단위로 튄다
+                if (_rng.Next(4) == 0)
+                    go.transform.position = source.transform.position + offset * (0.5f + (float)_rng.NextDouble());
+                yield return null;
+            }
+            Destroy(go);
+        }
+
+        // ---- 바닥 칸이 다른 칸 그림으로 잠깐 바뀐다 ----
+        private IEnumerator SwapTiles(int count, float seconds)
+        {
+            if (_tiles.Count < 2)
+                yield break;
+            var swapped = new List<SpriteRenderer>();
+            for (var i = 0; i < count; i++)
+            {
+                var t = _tiles[_rng.Next(_tiles.Count)];
+                var other = _tiles[_rng.Next(_tiles.Count)];
+                if (t == null || other == null || swapped.Contains(t))
+                    continue;
+                t.sprite = _originalSprite[other];
+                t.color = Color.Lerp(_original[other], GlitchColors[_rng.Next(GlitchColors.Length)], 0.3f);
+                swapped.Add(t);
+            }
+            yield return new WaitForSeconds(seconds);
+            foreach (var t in swapped)
+                if (t != null && !_restored)
+                {
+                    t.sprite = _originalSprite[t];
+                    t.color = _original[t];
+                }
+        }
+
+        // ---- 화면 찢김 - 가로 줄 몇 개(1~2칸 두께)의 칸이 옆으로 어긋났다 돌아온다 ----
+        private IEnumerator Tear(int bands, float seconds)
+        {
+            if (_tiles.Count == 0)
+                yield break;
+            float minY = float.MaxValue, maxY = float.MinValue;
+            foreach (var t in _tiles)
+                if (t != null)
+                {
+                    minY = Mathf.Min(minY, t.transform.position.y);
+                    maxY = Mathf.Max(maxY, t.transform.position.y);
+                }
+            var moved = new List<SpriteRenderer>();
+            for (var b = 0; b < bands; b++)
+            {
+                var y0 = Mathf.Lerp(minY, maxY, (float)_rng.NextDouble());
+                var thick = GridConstants.CellSize * (1 + _rng.Next(2));
+                var dx = GridConstants.CellSize * (0.15f + (float)_rng.NextDouble() * 0.25f) * (_rng.Next(2) == 0 ? -1f : 1f);
+                foreach (var t in _tiles)
+                    if (t != null && !moved.Contains(t) && t.transform.position.y >= y0 - thick * 0.5f && t.transform.position.y <= y0 + thick * 0.5f)
+                    {
+                        t.transform.localPosition = _originalPos[t] + new Vector3(dx, 0f, 0f);
+                        moved.Add(t);
+                    }
+            }
+            yield return new WaitForSeconds(seconds);
+            foreach (var t in moved)
+                if (t != null)
+                    t.transform.localPosition = _originalPos[t];
         }
     }
 }

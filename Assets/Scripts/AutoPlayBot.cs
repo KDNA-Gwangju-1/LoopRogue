@@ -22,7 +22,7 @@ namespace LoopRogue
     {
         public const string EnabledPrefKey = "LoopRogue_AutoPlayBot_Enabled";
 
-        private const int RunsPerSession = 100;
+        private const int RunsPerSession = 300;
 
         /// <summary>"층별 순수 난이도 측정" 모드(EditorPrefs ModePrefKey = StageTestMode) - 일반 모드가 남긴 기준 상태
         /// (BotLogs/reference_snapshots.tsv, 층마다 "그 층에 들어갈 때 전체 저장 상태"의 중앙값 판)를 불러와서 각 층만
@@ -85,7 +85,8 @@ namespace LoopRogue
         private readonly List<(int Run, int Stage, Dictionary<string, object> Prefs)> _entrySnapshots =
             new List<(int, int, Dictionary<string, object>)>();
         /// <summary>한 프레임에 턴을 몇 개 돌릴지를 개수 대신 시간으로 정한다 - 프레임 자체(에디터 화면 갱신 등)에 드는
-        /// 고정 비용을 최대한 많은 턴에 나눠 쓰려는 것. 너무 키우면 에디터가 멈춘 것처럼 보이니 50ms 정도로 둔다.</summary>
+        /// 고정 비용을 최대한 많은 턴에 나눠 쓰려는 것. 너무 키우면 에디터가 멈춘 것처럼 보이니 50ms 정도로 둔다.
+        /// (10-19에 200ms로 키워 봤더니 프레임 수는 줄었지만 프레임당 바깥 비용이 13 → 38ms로 늘어 300판이 오히려 10% 느렸다.)</summary>
         private const double FrameBudgetMs = 50.0;
 
         /// <summary>사망 시 로비 씬을 실제로 다녀오지 않고 제자리에서 쇼핑 후 방1부터 다시(LobbyTripInPlace).
@@ -167,6 +168,7 @@ namespace LoopRogue
             public int BoarCrashes;     // 1층 멧돼지가 기둥에 박은 횟수
             public int BoarDeadlineKills; // 1층 기둥 제한 턴 즉사
             public int OgreHoleFills, OgreCollapseKills; // 2층 구멍 메움 / 붕괴 즉사
+            public int DoomTransfers, DoomOrbHits; // 9층 죽음의 낙인을 리치에게 옮긴 횟수 / 쫓아오는 구체에 맞은 횟수
             public int[] GimmickKills = new int[11];      // 4~10층 기믹 즉사(인덱스 = 층)
             public int[] MirrorPhaseKills = new int[5];   // 10층 기믹 단계별 즉사(1 거울상 / 2 내 거울상 / 3 빛 / 4 발악)
             public int SmithsMet;    // 히든 NPC 대장장이를 만난 횟수
@@ -473,6 +475,8 @@ namespace LoopRogue
             BossBrain.BoarCrashCount = 0;
             RoomController.BoarDeadlineKillCount = 0;
             RoomController.OgreHoleFillCount = 0;
+            RoomController.DoomTransferCount = 0;
+            RoomController.DoomOrbHitCount = 0;
             RoomController.OgreCollapseKillCount = 0;
             System.Array.Clear(RoomController.GimmickKills, 0, RoomController.GimmickKills.Length);
             System.Array.Clear(RoomController.MirrorPhaseKills, 0, RoomController.MirrorPhaseKills.Length);
@@ -1010,6 +1014,8 @@ namespace LoopRogue
                     Ev("room_clear", ("cleared", _lastRoomName), ("room_turns", _roomTurns));
                 }
                 _lastRoomName = _room.RoomName;
+                _slimeBadLines.Clear();
+                _slimeWaitLine = null;
                 _clearedCurrentRoom = false;
                 _roomTurns = 0;
                 _turnsSinceProgress = 0;
@@ -1466,7 +1472,8 @@ namespace LoopRogue
                 return true;
             if (boss == null && near >= 4 && Use(ItemType.Weakness, null, "몹 4+"))
                 return true;
-            if (hpRate < 0.3f && near >= 2 && Use(ItemType.Smoke, null, "체력 낮음"))
+            // 보스 예고가 깔린 채 연막을 치면 보스가 예고만 띄우고 멈춰서 사방이 예고 칸이면 영영 못 움직였다(10-19 봇 120판 10층 2400턴 대기)
+            if (hpRate < 0.3f && near >= 2 && (boss == null || danger.Count == 0) && Use(ItemType.Smoke, null, "체력 낮음"))
                 return true;
 
             if (Inventory.Has(ItemType.Decoy) && (adjacent >= 3 || (hpRate < 0.35f && adjacent >= 2)))
@@ -1730,9 +1737,29 @@ namespace LoopRogue
                     return d;
                 }
             }
+            // 사방이 예고 칸인 채 BoxedWaitLimit턴째 그대로면 예고가 멈춘 것(연막 속 보스 등) - 예고 칸이라도 빠져나간다
+            _boxedWaits = _boxedTurn == _attemptTurns - 1 ? _boxedWaits + 1 : 1;
+            _boxedTurn = _attemptTurns;
+            if (_boxedWaits > BoxedWaitLimit)
+                foreach (var d in Directions)
+                    if (map.IsWalkable(start + d))
+                    {
+                        _boxedWaits = 0;
+                        _lastDecision = "예고 멈춤-빠져나감";
+                        return d;
+                    }
             _lastDecision = "대기";
             return null;
         }
+
+        private const int BoxedWaitLimit = 4;
+        private int _boxedWaits, _boxedTurn = -10;
+
+        // 4층 점액 줄 대기 - 기다려도 씻기지 않는 줄은 그 방에서 뺀다(TryStageGimmick)
+        private const int SlimeLineWaitLimit = 12;
+        private (Vector2Int, int)? _slimeWaitLine;
+        private int _slimeWaitTurns, _slimeWaitPuddles;
+        private readonly HashSet<(Vector2Int, int)> _slimeBadLines = new HashSet<(Vector2Int, int)>();
 
         private static readonly HashSet<Vector2Int> LureSpotsBuffer = new HashSet<Vector2Int>();
 
@@ -1856,8 +1883,6 @@ namespace LoopRogue
                 return LureBehind(map, danger, _room.BoarPillars, "기둥", out dir);
             if (_room.CrushActive)
                 return TryCrusherLure(map, danger, out dir); // 8층 조여 오는 벽 - 가장 많이 들어온 벽을 등지고 도끼 충격파를 그쪽으로
-            if (_room.GimmickStage == 9 && _room.LichJars.Count > 0)
-                return LureBehind(map, danger, _room.LichJars, "항아리", out dir); // 9층 - 리치가 따라와 같은 줄이 되면 십자 마법이 항아리를 깬다
             return false;
         }
 
@@ -1896,7 +1921,7 @@ namespace LoopRogue
             return true;
         }
 
-        /// <summary>보스 몸 폭 안 같은 줄에 있는 장애물 바로 뒤(1~2칸)에 서서 보스의 돌진·줄 공격이 장애물에 걸리게 한다(1층 기둥·8층 용암·9층 항아리).</summary>
+        /// <summary>보스 몸 폭 안 같은 줄에 있는 장애물 바로 뒤(1~2칸)에 서서 보스의 돌진·줄 공격이 장애물에 걸리게 한다(1층 기둥).</summary>
         // 유도하며 기다리는데 장애물 수가 오래 안 바뀌면(보스가 갇혀 못 오는 등) 잠깐 싸우러 간다
         private int _lureIdleTurns, _lureLastCount = -1, _lureBreakTurns;
         private const int LureIdleLimit = 30, LureBreakLength = 10;
@@ -2003,13 +2028,28 @@ namespace LoopRogue
                     var n = _room.SlimeTurretNormal;
                     var king = _room.Enemies.FirstOrDefault(e => e != null && e.IsBoss && !e.Stats.IsDead);
                     int LineKey(Vector2Int c) => n.x != 0 ? c.y : c.x; // 왼쪽·오른쪽 벽 포탑이면 가로줄(y), 위·아래면 세로줄(x)
-                    var counts = puddles.GroupBy(LineKey).ToDictionary(g => g.Key, g => g.Count());
+                    // 포탑이 못 오는 줄(출구 구석 등)에서 기다리면 파동이 그 줄을 영영 안 씻었다(10-19 봇 169판 4층 2600턴 대기) -
+                    // 한 줄에서 SlimeLineWaitLimit턴 기다려도 점액이 안 줄면 그 줄(같은 벽 포탑 기준)은 이 방에서 빼고, 남은 줄이 없으면 평소대로 싸운다.
+                    var counts = puddles.GroupBy(LineKey).Where(g => !_slimeBadLines.Contains((n, g.Key)))
+                        .ToDictionary(g => g.Key, g => g.Count());
                     if (counts.Count == 0)
                         return false;
                     var bestLine = counts.OrderByDescending(kv => kv.Value).First().Key;
                     bool Spot(Vector2Int c) => LineKey(c) == bestLine && (king == null || GridMap.FootprintDistance(king, c) > 1);
                     if (Spot(start))
                     {
+                        if (_slimeWaitLine != (n, bestLine) || puddles.Count < _slimeWaitPuddles)
+                        {
+                            _slimeWaitLine = (n, bestLine);
+                            _slimeWaitTurns = 0;
+                        }
+                        _slimeWaitPuddles = puddles.Count;
+                        if (++_slimeWaitTurns > SlimeLineWaitLimit)
+                        {
+                            _slimeBadLines.Add((n, bestLine));
+                            _slimeWaitLine = null;
+                            return false;
+                        }
                         _lastDecision = "점액 줄에서 파동 대기";
                         return true;
                     }
@@ -2017,6 +2057,55 @@ namespace LoopRogue
                     if (!step.HasValue)
                         return false;
                     _lastDecision = "점액 줄로";
+                    dir = step;
+                    return true;
+                }
+                case 9:
+                {
+                    // 9층 죽음의 낙인(10-19) - 리치 둘레 칸 중, 구체들이 그 칸으로 오다가 리치 몸을 먼저 지나가는(흡수되는) 칸에 서서 기다린다.
+                    // 구체 길은 게임과 같은 규칙(RoomController.DoomOrbNext)으로 미리 따라가 본다. 나에게 바로 오는 구체는 감점.
+                    if (!_room.DoomActive)
+                        return false;
+                    var orbs = _room.DoomOrbPositions.ToList();
+                    var lich = _room.Enemies.FirstOrDefault(e => e != null && e.IsBoss && !e.Stats.IsDead);
+                    if (orbs.Count == 0 || lich == null)
+                        return false;
+                    int Score(Vector2Int t)
+                    {
+                        var field = _room.DoomField(t);
+                        var score = 0;
+                        foreach (var o in orbs)
+                        {
+                            var p = o;
+                            for (var k = 0; k < 60 && p != t && !GridMap.Occupies(lich, p); k++)
+                            {
+                                var next = RoomController.DoomOrbNext(p, t, field);
+                                if (next == p)
+                                    break;
+                                p = next;
+                            }
+                            score += GridMap.Occupies(lich, p) ? 2 : p == t ? -1 : 0;
+                        }
+                        return score;
+                    }
+                    var spots = new Dictionary<Vector2Int, int>();
+                    foreach (var c in GridMap.Cells(lich.GridPos, lich.FootprintRadius + 1))
+                        if (GridMap.FootprintDistance(lich, c) == 1 && (c == start || passable(c)))
+                            spots[c] = Score(c);
+                    if (spots.Count == 0)
+                        return false;
+                    var best = spots.Values.Max();
+                    if (best <= 0)
+                        return false; // 어디서든 리치를 못 지나온다 - 평소대로(구체는 맞으며 버틴다)
+                    if (spots.TryGetValue(start, out var here) && here == best)
+                    {
+                        _lastDecision = "낙인-구체 유도 대기";
+                        return true;
+                    }
+                    var step = FirstStepTo(c => spots.TryGetValue(c, out var v) && v == best, passable);
+                    if (!step.HasValue)
+                        return false;
+                    _lastDecision = "낙인-구체 유도 자리로";
                     dir = step;
                     return true;
                 }
@@ -2406,7 +2495,9 @@ namespace LoopRogue
         {
             if (_room == null || _room.Map == null)
                 return;
-            _recentMaps.Enqueue(CaptureMap($"턴 {_attemptTurns + 1}"));
+            // 가장 오래된 장을 다시 써서 매 턴 배열/문자열을 새로 만들지 않는다(10-19 100판: 맵 기록이 131초)
+            var reuse = _recentMaps.Count > MapFramesBeforeDeath ? _recentMaps.Dequeue() : null;
+            _recentMaps.Enqueue(CaptureMap(null, reuse, _attemptTurns + 1));
             while (_recentMaps.Count > MapFramesBeforeDeath + 1)
                 _recentMaps.Dequeue();
         }
@@ -2429,18 +2520,20 @@ namespace LoopRogue
         /// <summary>맵 한 장을 문자열로 만들기 전의 가벼운 사본 - 칸 글자 배열 + 몹 목록 값만 복사해둔다.</summary>
         private sealed class MapFrame
         {
-            public string Title;
+            public string Title; // null이면 "턴 {Turn}"
+            public int Turn;
             public string RoomName;
             public Vector2Int PlayerPos;
             public float Hp, MaxHp;
             public int Width, Height;
             public char[] Cells;
-            public (char Kind, Vector2Int Pos, float Hp)[] Enemies;
+            public readonly List<(char Kind, Vector2Int Pos, float Hp)> Enemies = new List<(char, Vector2Int, float)>();
 
             public string Render()
             {
                 var sb = new StringBuilder();
-                sb.Append($"  [{Title}] {RoomName} | 플레이어 ({PlayerPos.x},{PlayerPos.y}) HP {Hp:0}/{MaxHp:0}\n");
+                var title = Title ?? "턴 " + Turn;
+                sb.Append($"  [{title}] {RoomName} | 플레이어 ({PlayerPos.x},{PlayerPos.y}) HP {Hp:0}/{MaxHp:0}\n");
                 for (var y = Height - 1; y >= 0; y--)
                 {
                     sb.Append("    ");
@@ -2453,20 +2546,20 @@ namespace LoopRogue
             }
         }
 
-        private MapFrame CaptureMap(string title)
+        private MapFrame CaptureMap(string title, MapFrame reuse = null, int turn = 0)
         {
             var map = _room.Map;
-            var frame = new MapFrame
-            {
-                Title = title,
-                RoomName = _room.RoomName,
-                PlayerPos = _player.GridPos,
-                Hp = _player.Stats.CurrentHealth,
-                MaxHp = _player.Stats.MaxHealth,
-                Width = map.Width,
-                Height = map.Height,
-                Cells = new char[map.Width * map.Height],
-            };
+            var frame = reuse ?? new MapFrame();
+            frame.Title = title;
+            frame.Turn = turn;
+            frame.RoomName = _room.RoomName;
+            frame.PlayerPos = _player.GridPos;
+            frame.Hp = _player.Stats.CurrentHealth;
+            frame.MaxHp = _player.Stats.MaxHealth;
+            frame.Width = map.Width;
+            frame.Height = map.Height;
+            if (frame.Cells == null || frame.Cells.Length != map.Width * map.Height)
+                frame.Cells = new char[map.Width * map.Height];
 
             for (var y = map.Height - 1; y >= 0; y--)
             {
@@ -2486,9 +2579,11 @@ namespace LoopRogue
                 }
             }
 
-            frame.Enemies = _room.Enemies.Where(e => e != null && !e.Stats.IsDead)
-                .Select(e => (EnemyChar(e), e.GridPos, e.Stats.CurrentHealth))
-                .ToArray();
+            frame.Enemies.Clear();
+            var enemies = _room.Enemies;
+            for (var i = 0; i < enemies.Count; i++)
+                if (enemies[i] is var e && e != null && !e.Stats.IsDead)
+                    frame.Enemies.Add((EnemyChar(e), e.GridPos, e.Stats.CurrentHealth));
             return frame;
         }
 
@@ -2575,6 +2670,8 @@ namespace LoopRogue
             r.BoarCrashes = BossBrain.BoarCrashCount;
             r.BoarDeadlineKills = RoomController.BoarDeadlineKillCount;
             r.OgreHoleFills = RoomController.OgreHoleFillCount;
+            r.DoomTransfers = RoomController.DoomTransferCount;
+            r.DoomOrbHits = RoomController.DoomOrbHitCount;
             r.OgreCollapseKills = RoomController.OgreCollapseKillCount;
             r.GimmickKills = (int[])RoomController.GimmickKills.Clone();
             r.MirrorPhaseKills = (int[])RoomController.MirrorPhaseKills.Clone();
@@ -2747,7 +2844,7 @@ namespace LoopRogue
                 Log($"히든 몹 기억하는 기사(판당): 등장 {_results.Average(r => r.Knights):0.00}회 / 처치 {_results.Average(r => r.KnightKills):0.00}회 / 간파 {_results.Average(r => r.KnightReads):0.0}회 / " +
                     $"강타 {_results.Average(r => r.KnightSlashes):0.0}회(적중 {(knightSlashes > 0 ? _results.Sum(r => r.KnightSlashHits) * 100f / knightSlashes : 0f):0}%) / 기억 재현 {_results.Average(r => r.KnightEchoes):0.0}회(적중 {(_results.Sum(r => r.KnightEchoes) > 0 ? _results.Sum(r => r.KnightEchoHits) * 100f / _results.Sum(r => r.KnightEchoes) : 0f):0}%) / 유물로 피함 {_results.Average(r => r.RelicReads):0.0}회 / " +
                     $"처치한 판 {_results.Count(r => r.KnightKills > 0)}/{_results.Count}");
-                Log($"2층 오우거 균열(판당): 오우거가 빠짐 {_results.Average(r => r.OgreFalls):0.0}회 / 봇이 빠짐 {_results.Average(r => r.PlayerCracks):0.0}회 | 3층 수정 깸 {_results.Average(r => r.GolemCrystalBreaks):0.0}회(폭발 즉사 {_results.Average(r => r.GolemBlastKills):0.0}회, 바위 깨짐 {_results.Average(r => r.GolemRubbleBreaks):0.0}개) | 1층 멧돼지 기둥 충돌 {_results.Average(r => r.BoarCrashes):0.0}회(제한 턴 즉사 {_results.Average(r => r.BoarDeadlineKills):0.0}회) | 2층 구멍 메움 {_results.Average(r => r.OgreHoleFills):0.0}회(붕괴 즉사 {_results.Average(r => r.OgreCollapseKills):0.0}회)");
+                Log($"2층 오우거 균열(판당): 오우거가 빠짐 {_results.Average(r => r.OgreFalls):0.0}회 / 봇이 빠짐 {_results.Average(r => r.PlayerCracks):0.0}회 | 3층 수정 깸 {_results.Average(r => r.GolemCrystalBreaks):0.0}회(폭발 즉사 {_results.Average(r => r.GolemBlastKills):0.0}회, 바위 깨짐 {_results.Average(r => r.GolemRubbleBreaks):0.0}개) | 1층 멧돼지 기둥 충돌 {_results.Average(r => r.BoarCrashes):0.0}회(제한 턴 즉사 {_results.Average(r => r.BoarDeadlineKills):0.0}회) | 2층 구멍 메움 {_results.Average(r => r.OgreHoleFills):0.0}회(붕괴 즉사 {_results.Average(r => r.OgreCollapseKills):0.0}회) | 9층 낙인 옮김 {_results.Average(r => r.DoomTransfers):0.0}회(구체에 맞음 {_results.Average(r => r.DoomOrbHits):0.0}회)");
                 Log("4~10층 기믹 즉사(판당): " + string.Join(" / ", Enumerable.Range(4, 7).Select(s => $"{s}층 {_results.Average(r => r.GimmickKills[s]):0.0}")) +
                     " | 10층 단계별: " + string.Join(" / ", new[] { "거울상", "내 거울상", "빛", "발악" }.Select((n, i) => $"{n} {_results.Average(r => r.MirrorPhaseKills[i + 1]):0.0}")));
                 var forged = _results.Where(r => r.SmithForged).ToList();

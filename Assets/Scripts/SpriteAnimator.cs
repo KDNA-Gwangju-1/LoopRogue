@@ -116,6 +116,9 @@ namespace LoopRogue
             _smooth && length >= 8 ? baseSeconds * 4f / length : baseSeconds;
 
         /// <summary>세트의 대기(남쪽) 첫 프레임 - 없으면 null(그림 파일이 아직 없으면 호출부가 예전 사각형으로).</summary>
+        /// <summary>그림 묶음을 미리 읽어 둔다(처음 쓸 때 한 프레임에 백 장 가까이 읽느라 멈추지 않게 - 10층 기사 변신).</summary>
+        public static void Preload(string setName) => Load(setName);
+
         public static Sprite FirstFrame(string setName)
         {
             var set = Load(setName);

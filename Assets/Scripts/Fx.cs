@@ -65,6 +65,7 @@ namespace LoopRogue
             renderer.sprite = frames[0];
             renderer.color = tint ?? Color.white;
             renderer.sortingOrder = sortingOrder;
+            RoomClip.Apply(renderer); // 맵 밖으로 삐져나간 부분은 안 그린다
 
             var spriteWidth = frames[0].rect.width / frames[0].pixelsPerUnit;
             var scale = sizeCells * GridConstants.CellSize / spriteWidth;

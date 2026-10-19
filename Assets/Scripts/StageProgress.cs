@@ -15,6 +15,8 @@ namespace LoopRogue
         private const string PuzzleRoomsKey = "LoopRogue_StagePuzzleRooms";
         private const string GlitchRoomKey = "LoopRogue_StageGlitchRoom";       // -1 = 아직 안 굴림, 0 = 이 층엔 없음, n = 방 번호
         private const string GlitchClearedKey = "LoopRogue_StageGlitchCleared";
+        private const string AltarRoomKey = "LoopRogue_StageAltarRoom";  // 불 꺼진 제단이 있는 방(10-19) - 0 = 아직 안 굴림
+        private const string AltarUsedKey = "LoopRogue_StageAltarUsed";
 
         /// <summary>반복 보상 감소 - 같은 스테이지를 다시 시도할수록 일반 몹/방 클리어 골드·경험치가 이 비율로 줄고
         /// (2번째 90%, 3번째 81%...), RepeatRewardFloor 밑으로는 안 내려간다. 어려운 스테이지에서 수십 번 죽으며
@@ -109,6 +111,39 @@ namespace LoopRogue
             PlayerPrefs.Save();
         }
 
+        private static int _altarRoom;
+        private static bool _altarUsed;
+
+        /// <summary>이 층의 "불 꺼진 제단" 방 번호(2 ~ roomCount-1) - 처음 물을 때 정해 저장, 다음 층으로 가면 다시 굴린다(층마다 반드시 하나).</summary>
+        public static int AltarRoom(int roomCount)
+        {
+            EnsureLoaded();
+            if (_altarRoom > 0)
+                return _altarRoom;
+            _altarRoom = GlitchRng.Next(2, Mathf.Max(3, roomCount));
+            PlayerPrefs.SetInt(AltarRoomKey, _altarRoom);
+            PlayerPrefs.Save();
+            return _altarRoom;
+        }
+
+        /// <summary>이 층의 제단에 이미 불을 붙였는지(벽화의 방은 층마다 한 번).</summary>
+        public static bool AltarUsed
+        {
+            get
+            {
+                EnsureLoaded();
+                return _altarUsed;
+            }
+        }
+
+        public static void MarkAltarUsed()
+        {
+            EnsureLoaded();
+            _altarUsed = true;
+            PlayerPrefs.SetInt(AltarUsedKey, 1);
+            PlayerPrefs.Save();
+        }
+
         private static bool _loaded;
 
         /// <summary>저장 초기화(SaveReset) 직후 메모리에 들고 있던 값을 버리고 PlayerPrefs에서 다시 읽는다.</summary>
@@ -138,6 +173,8 @@ namespace LoopRogue
             _roomsCleared = PlayerPrefs.GetInt(RoomsClearedKey, 0);
             _glitchRoom = PlayerPrefs.GetInt(GlitchRoomKey, -1);
             _glitchCleared = PlayerPrefs.GetInt(GlitchClearedKey, 0) == 1;
+            _altarRoom = PlayerPrefs.GetInt(AltarRoomKey, 0);
+            _altarUsed = PlayerPrefs.GetInt(AltarUsedKey, 0) == 1;
             _puzzleRooms.Clear();
             foreach (var part in PlayerPrefs.GetString(PuzzleRoomsKey, string.Empty).Split(','))
                 if (int.TryParse(part, out var room))
@@ -162,6 +199,10 @@ namespace LoopRogue
             _glitchCleared = false;
             PlayerPrefs.DeleteKey(GlitchRoomKey);
             PlayerPrefs.DeleteKey(GlitchClearedKey);
+            _altarRoom = 0;
+            _altarUsed = false;
+            PlayerPrefs.DeleteKey(AltarRoomKey);
+            PlayerPrefs.DeleteKey(AltarUsedKey);
             PlayerPrefs.Save();
         }
 

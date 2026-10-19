@@ -45,6 +45,7 @@ namespace LoopRogue
         public const int ChargeHornDashRange = 4;
         public const float ChargeHornDashDamage = 1.5f;
         public const float EarthHammerSplashRate = 0.2f;
+        public const int PulseCoreStunTurns = 2; // 파동의 핵 - 회전 베기 기절(10-19 사용자 1 → 2)
         public const float PiercingRate = 0.3f;
         public const float TyrantLandingRate = 0.3f;
         public const float ExecutionerThreshold = 0.15f;
@@ -73,7 +74,7 @@ namespace LoopRogue
             { RelicType.EarthHammer, (Loc.T("대지의 망치"), Loc.T("일반 공격 시 대상 상하좌우 몹에게도 20% 피해")) },
             { RelicType.CrossCrest, (Loc.T("십자 문장"), Loc.T("회전 베기가 상하좌우 2칸까지 닿음")) },
             { RelicType.PhantomBanner, (Loc.T("망령의 깃발"), Loc.T("방에 들어갈 때 옆에 허수아비가 생김")) },
-            { RelicType.PulseCore, (Loc.T("파동의 핵"), Loc.T("회전 베기에 맞은 몹 1턴 기절")) },
+            { RelicType.PulseCore, (Loc.T("파동의 핵"), Loc.F("회전 베기에 맞은 몹 {0}턴 기절", PulseCoreStunTurns)) },
             { RelicType.SniperEye, (Loc.T("저격수의 눈"), Loc.T("치명타 피해 +50%p")) },
             { RelicType.PiercingSeal, (Loc.T("관통의 인장"), Loc.T("일반 공격이 대상 뒤 1칸 몹에게도 30% 피해")) },
             { RelicType.TyrantPlate, (Loc.T("폭군의 갑주"), Loc.T("대시로 내려선 자리 주변 8칸 몹에게 30% 피해")) },

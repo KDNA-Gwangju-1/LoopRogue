@@ -229,7 +229,11 @@ namespace LoopRogue
             if (HitFeedback.Enabled)
             {
                 foreach (var t in tiles)
-                    Fx.Play("boss_ring", new Vector3(t.x * GridConstants.CellSize, t.y * GridConstants.CellSize, 0f), 1f, fps: 16f, sortingOrder: 4, tint: SlimeColor);
+                {
+                    var at = new Vector3(t.x * GridConstants.CellSize, t.y * GridConstants.CellSize, 0f);
+                    if (Fx.Play("slime_wave", at, 1.15f, fps: 16f, sortingOrder: 4) == null) // 포탑 전용 점액 물결(10-19) - 없으면 예전 포자를 점액색으로
+                        Fx.Play("boss_ring", at, 1f, fps: 16f, sortingOrder: 4, tint: SlimeColor);
+                }
                 SfxPlayer.Play(Sfx.Slam);
                 if (turret.TryGetComponent<SpriteAnimator>(out var shootAnim))
                     shootAnim.PlayAttack(_turretNormal);

@@ -71,12 +71,20 @@ namespace LoopRogue
         private IEnumerator FlashRoutine()
         {
             yield return new WaitForSeconds(FlashDuration);
-            // 번쩍이는 사이 다른 코드가 색을 바꿨으면(보스 광폭화 등) 그 색을 존중한다.
-            if (_renderer != null && _renderer.color == _flashColor)
-                _renderer.color = _baseColor;
+            // 번쩍이는 사이 다른 코드가 색을 바꿨으면(보스 광폭화 등) 그 색을 존중한다. 투명도는 빼고 비교·복원 -
+            // 연막 중엔 PlayerActor가 매 프레임 반투명을 다시 입혀서, 투명도까지 비교하면 번쩍임 색(빨강)이 그대로 남았다(10-19 사용자).
+            if (_renderer != null && SameRgb(_renderer.color, _flashColor))
+            {
+                var restored = _baseColor;
+                restored.a = _renderer.color.a;
+                _renderer.color = restored;
+            }
             _flashing = false;
             _flashRoutine = null;
         }
+
+        private static bool SameRgb(Color a, Color b) =>
+            Mathf.Approximately(a.r, b.r) && Mathf.Approximately(a.g, b.g) && Mathf.Approximately(a.b, b.b);
 
         // ---- 준비 동작(보스가 다음 턴에 일반 공격을 할 수 있는 상태) - 붉게 숨쉬듯 깜빡이며 살짝 부풀었다 줄었다 ----
         private static readonly Color WindupTint = new Color(1f, 0.45f, 0.35f);

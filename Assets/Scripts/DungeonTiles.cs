@@ -11,8 +11,13 @@ namespace LoopRogue
         private const float DecorChance = 0.1f;
         private const float TorchChance = 0.12f;
 
+        // 오류방(10-19) - 깨진 타일(Tiles/Glitch*)을 일반 타일과 섞어 깐다(같은 깨진 칸이 줄 맞춰 반복돼 보이지 않게). RoomController가 오류방을 깔 때만 켠다.
+        private const float GlitchFloorChance = 0.65f;
+        private const float GlitchWallChance = 0.7f;
+        public static bool Glitch;
+
         private static bool _loaded;
-        private static Sprite[] _floor, _decor, _wallTop, _wallFace;
+        private static Sprite[] _floor, _decor, _wallTop, _wallFace, _glitchFloor, _glitchTop, _glitchFace;
         private static Sprite _torch;
 
         public static bool Available
@@ -24,11 +29,21 @@ namespace LoopRogue
             }
         }
 
-        public static Sprite Floor(System.Random rng) =>
-            _decor.Length > 0 && rng.NextDouble() < DecorChance ? Pick(_decor, rng) : Pick(_floor, rng);
+        public static Sprite Floor(System.Random rng)
+        {
+            if (Glitch && _glitchFloor.Length > 0 && rng.NextDouble() < GlitchFloorChance)
+                return Pick(_glitchFloor, rng);
+            return _decor.Length > 0 && rng.NextDouble() < DecorChance ? Pick(_decor, rng) : Pick(_floor, rng);
+        }
 
         public static Sprite Wall(bool face, System.Random rng)
         {
+            if (Glitch && rng.NextDouble() < GlitchWallChance)
+            {
+                var set = face ? _glitchFace : _glitchTop;
+                if (set.Length > 0)
+                    return Pick(set, rng);
+            }
             if (!face)
                 return Pick(_wallTop, rng);
             return _torch != null && rng.NextDouble() < TorchChance ? _torch : Pick(_wallFace, rng);
@@ -46,6 +61,9 @@ namespace LoopRogue
             _wallTop = Sequence("Tiles/WallTop_");
             _wallFace = Sequence("Tiles/WallFace_");
             _torch = Resources.Load<Sprite>("Tiles/WallFace_Torch");
+            _glitchFloor = Sequence("Tiles/GlitchFloor_");
+            _glitchTop = Sequence("Tiles/GlitchWallTop_");
+            _glitchFace = Sequence("Tiles/GlitchWallFace_");
         }
 
         private static Sprite[] Sequence(string prefix)

@@ -337,6 +337,8 @@ namespace LoopRogue
             {
                 Stats.OnDamaged += OnMirrorKnightDamaged;
                 Stats.HealthFloor = 1f; // 발악(0% 기믹)을 버텨야 쓰러진다
+                if (isActiveAndEnabled)
+                    StartCoroutine(PreloadMirrorForms());
             }
         }
 
@@ -399,11 +401,82 @@ namespace LoopRogue
             if (stage == _morphStage)
                 return;
             _morphStage = stage;
-            ApplyBossSprite(stage);
-            ActorJuice.Get(this).Flash(Color.white); // 변신하는 순간 번쩍
-            HitFeedback.OnMorph(this);
+            SwapForm(stage);
             _mirrorDamage = 0f; // 새로 비춘 거울은 멀쩡하다
             RefreshMirrorCrack();
+        }
+
+        /// <summary>10층 기사가 비출 보스 그림(1~9층, 보스마다 96~125장)과 변신·패턴 이펙트를 한 프레임에 한 묶음씩 미리 읽는다.
+        /// 예전엔 처음 보는 모습으로 변신하는 순간 그 그림을 한꺼번에 읽느라 화면이 멈췄다(10-19 사용자 "변신할 때 렉").</summary>
+        private System.Collections.IEnumerator PreloadMirrorForms()
+        {
+            yield return null; // 방이 다 깔린 다음 프레임부터
+            for (var s = 1; s < BossBrain.MirrorStage; s++)
+            {
+                SpriteAnimator.Preload($"Boss{s}");
+                yield return null;
+            }
+            foreach (var fx in MirrorPreloadFx)
+            {
+                Fx.Frames(fx);
+                yield return null;
+            }
+        }
+
+        private static readonly string[] MirrorPreloadFx =
+        {
+            "knight_morph", "morph", "mirror_crack", "crystal_shatter", "boss_slam", "boss_charge", "boss_cross", "boss_ring",
+            "boss_snipe", "boss_diag", "slime_splash", "axe_wave", "lich_wave", "soul_orb",
+        };
+
+        // ---- 10층 변신 연출(10-19 사용자) - 거울 조각이 모여 거울판이 서는 사이 기사가 가로로 접혔다가 새 모습으로 펴진다(Effects/knight_morph).
+        // 봇·연출 꺼짐이면 바로 바꾼다. 판정·패턴은 그 자리에서 이미 바뀌고 그림만 0.2초쯤 늦게 따라온다.
+        // 10-19 사용자 "렉 걸리는 느낌" - 0.08 + 0.17×2(약 0.42초) → 0.03 + 0.08×2(약 0.19초), 그림도 20 → 40fps
+        private const float MorphFoldDelay = 0.03f; // 조각이 모여드는 사이
+        private const float MorphFoldHalf = 0.08f;  // 접히는 시간 = 펴지는 시간
+        private Coroutine _morphRoutine;
+
+        private void SwapForm(int stage)
+        {
+            if (_morphRoutine != null)
+            {
+                StopCoroutine(_morphRoutine);
+                _morphRoutine = null;
+            }
+            if (!HitFeedback.Enabled || !isActiveAndEnabled || GetComponent<SpriteAnimator>() == null)
+            {
+                ApplyBossSprite(stage);
+                ActorJuice.Get(this).RebaseScale();
+                ActorJuice.Get(this).Flash(Color.white); // 변신하는 순간 번쩍
+                HitFeedback.OnMorph(this);
+                return;
+            }
+            _morphRoutine = StartCoroutine(MirrorFold(stage));
+        }
+
+        private System.Collections.IEnumerator MirrorFold(int stage)
+        {
+            HitFeedback.OnMorph(this);
+            var juice = ActorJuice.Get(this);
+            juice.SetWindup(false);
+            var from = transform.localScale;
+            yield return new WaitForSeconds(MorphFoldDelay);
+            for (var t = 0f; t < MorphFoldHalf; t += Time.deltaTime)
+            {
+                transform.localScale = new Vector3(from.x * (1f - t / MorphFoldHalf), from.y, from.z);
+                yield return null;
+            }
+            ApplyBossSprite(stage);
+            var to = transform.localScale;
+            for (var t = 0f; t < MorphFoldHalf; t += Time.deltaTime)
+            {
+                transform.localScale = new Vector3(to.x * (t / MorphFoldHalf), to.y, to.z);
+                yield return null;
+            }
+            transform.localScale = to;
+            juice.RebaseScale();
+            juice.Flash(Color.white);
+            _morphRoutine = null;
         }
 
         // ---- 거울 깨기(10층) - 다른 보스를 비추는 동안 최대 체력의 MirrorBreakRatio만큼 맞으면 거울이 깨져 본모습 + 기절 ----
@@ -469,9 +542,7 @@ namespace LoopRogue
             if (_morphStage == 0)
                 return false;
             _morphStage = 0;
-            ApplyBossSprite(_bossStage);
-            ActorJuice.Get(this).Flash(Color.white);
-            HitFeedback.OnMorph(this);
+            SwapForm(_bossStage);
             _mirrorDamage = 0f;
             RefreshMirrorCrack();
             return true;
@@ -702,8 +773,9 @@ namespace LoopRogue
                 _spawnFreezeTurns--; // 갓 갈라진 분열 조각 - 한 턴 굳어 있음
                 return;
             }
-            if (InSmoke)
-                return; // 연막 속 - 플레이어가 공격하기 전까지 아무것도 안 함(약점 표식 턴은 위에서 그대로 줄어든다)
+            if ((InSmoke || (player != null && player.InSmoke)) && !(IsBoss && room != null && room.MirrorLastStand))
+                return; // 연막 속 - 플레이어가 공격하기 전까지 아무것도 안 함(약점 표식 턴은 위에서 그대로 줄어든다). 연막 뒤에 나온 몹도.
+                        // 10층 발악 중인 기사에겐 안 통한다(10-19 사용자 - 연막으로 발악을 공짜로 넘기던 구멍)
             if (StunTurns > 0)
             {
                 StunTurns--; // 기절(섬광탄/덫) - 아무것도 안 함

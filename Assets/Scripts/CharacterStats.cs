@@ -131,6 +131,7 @@ namespace LoopRogue
             if (Relics.Has(RelicType.IronSkin)) // 유물 "철의 피부" - 카드 피해 감소(상한 30%)와 별도로 곱한다
                 damage *= Relics.IronSkinDamageFactor;
             damage *= Curses.DamageTakenMultiplier; // 저주 계약(분노·무모) - 플레이어만 이 함수로 맞는다
+            damage *= RunBuffs.DamageTakenMultiplier; // 방 이벤트 "모루"
 
             var absorbed = Mathf.Min(Shield, damage);
             Shield -= absorbed;

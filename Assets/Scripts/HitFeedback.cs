@@ -144,30 +144,44 @@ namespace LoopRogue
         }
 
         /// <summary>보스 예고 공격이 발동하는 순간 - 피했어도 "쾅" 하는 느낌은 주고, 맞았으면 훨씬 크게.</summary>
-        public static void OnBossPatternResolved(PlayerActor player, bool hitPlayer, BossPatternType type, IEnumerable<Vector2Int> tiles)
+        /// <param name="orbCenters">영혼 구체 중심들 - 있으면 구체마다 3x3 크기 그림(soul_orb)을 한 번, 없거나 그림이 없으면 칸마다.</param>
+        /// <param name="stage">패턴 주인 층(10층 기사가 빌려 쓰면 변신한 보스의 층) - 같은 패턴도 보스마다 그림이 다르다.</param>
+        public static void OnBossPatternResolved(PlayerActor player, bool hitPlayer, BossPatternType type, IEnumerable<Vector2Int> tiles,
+            IReadOnlyList<Vector2Int> orbCenters = null, int stage = 0)
         {
             if (!Enabled)
                 return;
 
-            // 패턴마다 칸 위에 터지는 그림(강타 = 흙·돌, 돌진 = 먼지, 십자 = 얼음 균열, 파동 = 포자, 저격 = 빛줄기, X자 = 보라 베기)
+            // 9층 리치 영혼 구체(10-19) - 해골 구체가 자라나 터지며 원혼이 흩어진다
+            var orbsDrawn = false;
+            if (type == BossPatternType.SoulOrbs && orbCenters != null && orbCenters.Count > 0 && Fx.Frames("soul_orb").Length > 0)
+            {
+                foreach (var c in orbCenters)
+                    Fx.Play("soul_orb", new Vector3(c.x * GridConstants.CellSize, c.y * GridConstants.CellSize, 0f), 3f, fps: 14f, sortingOrder: 5);
+                orbsDrawn = true;
+            }
+
+            // 패턴마다 칸 위에 터지는 그림(강타 = 흙·돌, 돌진 = 먼지, 십자 = 얼음 균열, 파동 = 포자, 저격 = 빛줄기, X자 = 보라 베기).
+            // 10-19 보스끼리 같은 그림을 쓰던 것을 보스 전용으로(4층 점액, 6층 유령 화살, 8층 용암 균열·붉은 흙먼지, 9층 영혼 창) - 그림이 없으면 예전 것.
+            string Own(string own, string old) => Fx.Frames(own).Length > 0 ? own : old;
             var name = type switch
             {
-                BossPatternType.Slam => "boss_slam",
-                BossPatternType.Charge => "boss_charge",
-                BossPatternType.Cross => "boss_cross",
+                BossPatternType.Slam => stage == 4 ? Own("slime_splash", "boss_slam") : "boss_slam",
+                BossPatternType.Charge => stage == 8 ? Own("bull_charge", "boss_charge") : "boss_charge",
+                BossPatternType.Cross => stage == 9 ? Own("lich_cross", "boss_cross") : "boss_cross",
                 BossPatternType.Ring => "boss_ring",
                 BossPatternType.RingInverse => "boss_ring",
                 BossPatternType.Snipe => "boss_snipe",
                 BossPatternType.SnipeFollowUp => "boss_snipe",
                 BossPatternType.Diagonal => "boss_diag",
                 BossPatternType.Zigzag => "boss_diag",
-                BossPatternType.Encircle => "boss_slam",
+                BossPatternType.Encircle => Own("ghost_volley", "boss_slam"),
                 BossPatternType.TripleWave => "boss_slam",
                 BossPatternType.MirrorShards => "morph",         // 거울 조각이 칸마다 터진다
-                BossPatternType.AxeWave => "boss_slam",
-                BossPatternType.Checker => "boss_ring",
-                BossPatternType.SoulOrbs => "boss_ring",
-                BossPatternType.Jump => "boss_slam",
+                BossPatternType.AxeWave => Own("axe_wave", "boss_slam"),
+                BossPatternType.Checker => Fx.Frames("lich_wave").Length > 0 ? "lich_wave" : "boss_ring", // 리치 전용 영혼불(10-19)
+                BossPatternType.SoulOrbs => orbsDrawn ? null : "boss_ring",
+                BossPatternType.Jump => Own("slime_splash", "boss_slam"),
                 _ => null,
             };
             if (name != null)
@@ -293,12 +307,13 @@ namespace LoopRogue
             SfxPlayer.Play(Sfx.Crit);
         }
 
-        /// <summary>거울 가면 기사가 다른 보스로 변신 - 거울 조각이 터져 나간다.</summary>
+        /// <summary>거울 가면 기사가 다른 보스로 변신 - 거울 조각이 모여 거울판이 서고 깨져 흩어진다(knight_morph, 10-19). 없으면 예전 조각 터짐.</summary>
         public static void OnMorph(EnemyActor boss)
         {
             if (!Enabled)
                 return;
-            Fx.Play("morph", boss.transform.position, 3.2f, fps: 16f, sortingOrder: 8);
+            if (Fx.Play("knight_morph", boss.transform.position, 3.6f, fps: 40f, sortingOrder: 8) == null)
+                Fx.Play("morph", boss.transform.position, 3.2f, fps: 16f, sortingOrder: 8);
             CameraShake.Shake(0.08f, 0.15f);
         }
 

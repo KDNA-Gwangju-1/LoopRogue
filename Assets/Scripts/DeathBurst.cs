@@ -21,6 +21,7 @@ namespace LoopRogue
             {
                 var go = new GameObject("DeathBurst");
                 var renderer = VisualUtil.CreateSquareVisual(go, color, size, sortingOrder: 6);
+                RoomClip.Apply(renderer);
                 go.transform.position = center + new Vector3(0f, 0f, -0.5f);
                 go.transform.rotation = Quaternion.Euler(0f, 0f, Random.Range(0f, 90f));
 
@@ -35,6 +36,7 @@ namespace LoopRogue
             // 가운데 흰 번쩍임 - 크게 퍼지며 사라진다.
             var pop = new GameObject("DeathBurst");
             var popRenderer = VisualUtil.CreateSquareVisual(pop, Color.white, size * 4f, sortingOrder: 5);
+            RoomClip.Apply(popRenderer);
             pop.transform.position = center + new Vector3(0f, 0f, -0.4f);
             var popBurst = pop.AddComponent<DeathBurst>();
             popBurst._velocity = Vector3.zero;
@@ -51,6 +53,7 @@ namespace LoopRogue
                 ? VisualUtil.CreateSpriteVisual(go, sprite, size, sortingOrder: 0)
                 : VisualUtil.CreateSquareVisual(go, color, size, sortingOrder: 0);
             renderer.color = color;
+            RoomClip.Apply(renderer);
             go.transform.position = position + new Vector3(0f, 0f, 0.1f);
 
             var ghost = go.AddComponent<DeathBurst>();

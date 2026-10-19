@@ -124,7 +124,7 @@ namespace LoopRogue
 
         /// <summary>보스가 받는 피해 배율 - 멧돼지 기둥이 서 있으면 BoarArmorMultiplier(EnemyActor.DamageTakenMultiplier).</summary>
         public float ArmorMultiplier(RoomController room) =>
-            room != null && room.BossInvulnerable ? 0f // 6·7·9층 기믹 - 촛불·분신·항아리가 남아 있는 동안 무적
+            room != null && room.BossInvulnerable ? 0f // 6·7·9층 기믹 - 촛불·분신·죽음의 낙인이 남아 있는 동안 무적
             : IsBoar && _pillarPhase && room != null && room.BoarPillarCount > 0 ? BoarArmorMultiplier
             : IsOgre && room != null ? room.OgreMightMultiplier // 2층 - 구멍을 메워 쌓은 대지의 기세
             : 1f;
@@ -148,8 +148,10 @@ namespace LoopRogue
         private static readonly Color DashTelegraphColor = new Color(1f, 0.6f, 0.1f, 0.45f);
         /// <summary>지그재그 베기 - 지그재그 줄 사이 간격(줄 하나는 한 칸 두께).</summary>
         public const int ZigzagSpacing = 3;
-        private bool _collectJars;                                     // 9층 - 십자 마법 줄 끝에 닿은 항아리를 모은다(AddRay)
-        private readonly List<Vector2Int> _jarHits = new List<Vector2Int>();
+        // 9층 리치 죽음의 낙인 - 체력 50%·25%에 한 번씩(10-19 사용자, RoomController.LichDoom). 영혼 구체 중심은 터지는 그림(soul_orb)용.
+        private static readonly float[] DoomWaveHealth = { 0.5f, 0.25f };
+        private int _doomWave;
+        private readonly List<Vector2Int> _orbCenters = new List<Vector2Int>();
 
         private int _stunTurns;
         /// <summary>돌진 뒤 비틀거림·기둥/용암 충돌 등 패턴 쪽 기절 중인지(머리 위 기절 별 - StatusIcons).</summary>
@@ -233,10 +235,10 @@ namespace LoopRogue
             6 => new List<BossPatternType> { BossPatternType.Snipe, BossPatternType.Encircle }, // 10-15 사용자 - 대시로만 피하는 패턴을 번갈아
             7 => new List<BossPatternType> { BossPatternType.Diagonal, BossPatternType.Zigzag }, // 10-15 사용자 - 지그재그를 번갈아
             8 => new List<BossPatternType> { BossPatternType.Charge, BossPatternType.AxeWave }, // 10-16 사용자 - 강타 대신 도끼 충격파(용암 균열도 이게 남김)
-            9 => new List<BossPatternType> { BossPatternType.Cross, BossPatternType.Checker, BossPatternType.Cross, BossPatternType.SoulOrbs }, // 10-16 - 저격 대신 체스판·영혼 구체, 항아리 때문에 십자는 2번에 1번
+            9 => new List<BossPatternType> { BossPatternType.Cross, BossPatternType.Checker, BossPatternType.Cross, BossPatternType.SoulOrbs }, // 10-16 - 저격 대신 체스판·영혼 구체
             _ => new List<BossPatternType>
             {
-                BossPatternType.Slam, BossPatternType.Charge, BossPatternType.Cross, BossPatternType.Summon,
+                BossPatternType.Slam, BossPatternType.Charge, BossPatternType.Cross, BossPatternType.Summon, BossPatternType.Jump, // 슬라임 킹을 비추면 점프도(10-19 사용자)
                 BossPatternType.Ring, BossPatternType.Snipe, BossPatternType.Diagonal,
                 BossPatternType.AxeWave, BossPatternType.Checker, BossPatternType.SoulOrbs, // 8층 미노타우로스·9층 리치로도 변신(10-16 사용자)
                 BossPatternType.MirrorShards, // 자기 패턴 - 쓸 땐 변신을 풀고 본모습으로
@@ -343,7 +345,17 @@ namespace LoopRogue
                 return true;
             }
 
-            if (!_stageGimmickStarted && _stage >= 4 && _stage < MirrorStage && _stage != 7 && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * StageGimmickRatio(_stage))
+            if (_stage == 9 && _doomWave < DoomWaveHealth.Length && !room.DoomActive
+                && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * DoomWaveHealth[_doomWave])
+            {
+                while (_doomWave < DoomWaveHealth.Length && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * DoomWaveHealth[_doomWave])
+                    _doomWave++;
+                _stageGimmickStarted = true;
+                room.BeginStageGimmick(_stage, _boss); // 컷신 - 낙인
+                return true;
+            }
+
+            if (!_stageGimmickStarted && _stage >= 4 && _stage < MirrorStage && _stage != 7 && _stage != 9 && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * StageGimmickRatio(_stage))
             {
                 _stageGimmickStarted = true;
                 room.BeginStageGimmick(_stage, _boss); // 컷신 - 소품·분신이 하나씩
@@ -692,7 +704,8 @@ namespace LoopRogue
             if (type == BossPatternType.Encircle)
                 _turnsSinceEncircle = 0;
             PatternResolveCount++;
-            HitFeedback.OnBossPatternResolved(player, playerHit, type, _pendingTiles);
+            HitFeedback.OnBossPatternResolved(player, playerHit, type, _pendingTiles, type == BossPatternType.SoulOrbs ? _orbCenters : null,
+                _stage >= MirrorStage ? MorphStage(type) : _stage); // 10층은 변신한 보스의 그림
             if (playerHit && room.MirrorLastStand)
             {
                 // 10층 발악 - 맞으면 즉사(보호막·부활·반사 무시). 사망 처리는 몹 턴 루프가.
@@ -733,8 +746,6 @@ namespace LoopRogue
                     room.OnDiagonalTiles(_pendingTiles);
                 else if (_stage == 8 && type == BossPatternType.AxeWave)
                     room.OnAxeWave(_pendingTiles, _axeDir); // 조여 온 벽에 닿으면 그쪽 벽이 물러난다
-                else if (_stage == 9 && type == BossPatternType.Cross)
-                    room.BreakLichJars(_jarHits);
                 else if (_stage == MirrorStage)
                     room.OnMirrorPatternTiles(_pendingTiles); // 10층 - 진짜의 예고 공격에 걸린 거울상이 깨진다(패턴 종류 상관없이)
             }
@@ -805,7 +816,6 @@ namespace LoopRogue
         {
             _pendingTiles.Clear();
             _resonating.Clear();
-            _jarHits.Clear();
             var origin = _boss.GridPos;
             var body = _boss.FootprintRadius; // 3x3 보스면 1 - 보스 기준 범위는 몸 가장자리에서 잰다
 
@@ -883,7 +893,6 @@ namespace LoopRogue
                     // (봇 100판 2026-10-12: 십자 보스 3층 사망 0.0~0.2, 9층 1.3~1.7 - 보스 세기를 50% 올려도 그대로).
                     // 1칸 보스 때처럼 "몸에 붙은 칸은 전부 위험, 모서리 대각선으로 비키면 안전"이 되게.
                     _collectCrystals = false; // 3층 골렘 공명(줄 끝 수정이 터짐) - 10-14 삭제(사용자), 수정은 시간 안에 깨는 폭탄으로 바뀜
-                    _collectJars = _stage == 9; // 9층 리치 - 줄 끝 항아리가 깨진다
                     foreach (var d in Directions)
                     {
                         var side = new Vector2Int(d.y, d.x); // d에 수직
@@ -892,7 +901,7 @@ namespace LoopRogue
                     }
                     if (_stage == 9)
                     {
-                        // 9층 리치 - 십자에 X자를 겹친다(10-16 사용자): 몸 네 모서리에서 대각선 4줄이 벽까지. 대각선 끝 항아리도 깨진다.
+                        // 9층 리치 - 십자에 X자를 겹친다(10-16 사용자): 몸 네 모서리에서 대각선 4줄이 벽까지.
                         foreach (var d in new[] { new Vector2Int(1, 1), new Vector2Int(1, -1), new Vector2Int(-1, 1), new Vector2Int(-1, -1) })
                         {
                             // AddRay는 몸 안에서 시작하면 몸 반지름만큼 건너뛰어서(가로·세로용) 모서리 바로 옆 칸부터 직접 센다
@@ -900,16 +909,11 @@ namespace LoopRogue
                             if (!map.IsInBounds(first))
                                 continue;
                             if (map.IsWall(first))
-                            {
-                                if (_room != null && _room.IsLichJar(first) && !_jarHits.Contains(first))
-                                    _jarHits.Add(first);
                                 continue;
-                            }
                             _pendingTiles.Add(first);
                             AddRay(map, first, d);
                         }
                     }
-                    _collectJars = false;
                     _collectCrystals = false;
                     foreach (var c in _resonating) // 터질 수정 주변 3x3도 함께 예고(나도 맞는다)
                         for (var dx = -1; dx <= 1; dx++)
@@ -950,6 +954,7 @@ namespace LoopRogue
                     // 영혼 구체 3개(3x3) - 하나는 내 자리를 덮고(중심은 내 자리 또는 바로 옆), 둘은 4칸 안 아무 데나.
                     // 상하좌우 한 칸 중 안전한 칸이 하나도 없으면 다시 굴린다(걸어서 피할 틈은 늘 남긴다).
                     var p0 = player.GridPos;
+                    _orbCenters.Clear();
                     for (var tries = 0; tries < 30; tries++)
                     {
                         _pendingTiles.Clear();
@@ -966,7 +971,10 @@ namespace LoopRogue
                                 escape = true;
                         }
                         if (escape && _pendingTiles.Contains(p0))
+                        {
+                            _orbCenters.AddRange(centers);
                             return;
+                        }
                     }
                     _pendingTiles.Clear();
                     AddTile(map, p0); // 좁은 구석 - 내 자리만
@@ -1065,8 +1073,6 @@ namespace LoopRogue
                 _pendingTiles.Add(p);
             if (_collectCrystals && length < maxLength && _room != null && _room.IsGolemCrystal(p) && !_resonating.Contains(p))
                 _resonating.Add(p); // 줄이 공명 수정에서 멈췄다 - 발동 때 터진다
-            if (_collectJars && length < maxLength && _room != null && _room.IsLichJar(p) && !_jarHits.Contains(p))
-                _jarHits.Add(p); // 9층 - 줄이 영혼 항아리에서 멈췄다 - 발동 때 깨진다
         }
 
         private readonly List<HashSet<Vector2Int>> _mirrorWaves = new List<HashSet<Vector2Int>>(); // 거울 파편·3연 파동의 남은 웨이브

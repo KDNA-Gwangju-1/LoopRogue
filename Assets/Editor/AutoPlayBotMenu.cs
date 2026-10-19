@@ -130,6 +130,39 @@ namespace LoopRogue.EditorTools
             EditorApplication.delayCall += () => StartPuzzleTrial((PuzzleType)pending); // 저장 되돌리기(HookTestMapRestore) 뒤에
         };
 
+        // ---- 벽화의 방 체험(10-19) - N층 방 1을 몹 없이 + 불 꺼진 제단 + 횃불(퀵슬롯 1번). 제단 쪽으로 횃불을 쓰면 그 층 벽화의 방.
+        // 테스트 맵과 같은 저장 백업/되돌리기 - 층은 저장의 현재 층을 바꿔 정한다(Play를 멈추면 되돌아간다).
+        private const string MuralMenu = "LoopRogue/벽화의 방 체험 (끝나면 저장 되돌림)/";
+        [MenuItem(MuralMenu + "1층")] private static void Mural1() => StartMuralTrial(1);
+        [MenuItem(MuralMenu + "2층")] private static void Mural2() => StartMuralTrial(2);
+        [MenuItem(MuralMenu + "3층")] private static void Mural3() => StartMuralTrial(3);
+        [MenuItem(MuralMenu + "4층")] private static void Mural4() => StartMuralTrial(4);
+        [MenuItem(MuralMenu + "5층")] private static void Mural5() => StartMuralTrial(5);
+        [MenuItem(MuralMenu + "6층")] private static void Mural6() => StartMuralTrial(6);
+        [MenuItem(MuralMenu + "7층")] private static void Mural7() => StartMuralTrial(7);
+        [MenuItem(MuralMenu + "8층")] private static void Mural8() => StartMuralTrial(8);
+        [MenuItem(MuralMenu + "9층")] private static void Mural9() => StartMuralTrial(9);
+        [MenuItem(MuralMenu + "10층")] private static void Mural10() => StartMuralTrial(10);
+
+        private static void StartMuralTrial(int stage)
+        {
+            if (EditorApplication.isPlaying)
+            {
+                EditorUtility.DisplayDialog("벽화의 방 체험", "Play를 멈춘 뒤 다시 골라 주세요(멈추면 저장이 되돌아갑니다).", "확인");
+                return;
+            }
+            UnityEngine.PlayerPrefs.Save();
+            if (RunReg($"export \"{PrefsRegistryKey}\" \"{TestBackupPath}\" /y"))
+                EditorPrefs.SetBool(TestRestorePendingKey, true);
+            else if (!EditorUtility.DisplayDialog("저장 백업 실패", "지금 저장을 백업하지 못했습니다. 체험 중 바뀐 저장이 그대로 남습니다. 그래도 시작할까요?", "시작", "취소"))
+                return;
+            UnityEngine.PlayerPrefs.SetInt("LoopRogue_CurrentStage", stage);
+            UnityEngine.PlayerPrefs.SetInt(LoopRogue.TutorialStage.DoneKey, 1); // 튜토리얼로 새지 않게
+            UnityEngine.PlayerPrefs.Save();
+            EditorPrefs.SetBool(LoopRogue.MuralTrial.PrefKey, true);
+            EditorApplication.isPlaying = true;
+        }
+
         // ---- N층 보스방 앞까지 봇이 진행 → 사람에게 인계 ----
         // 새 저장으로 시작하므로(봇 공통) 시작 전에 지금 저장을 BotLogs/save_backup.reg로 백업한다 - "봇 전 저장 되돌리기"로 복구.
         private const string HandoffMenu = "LoopRogue/봇으로 N층 보스방 앞까지 (저장 백업 후 초기화)/";

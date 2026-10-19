@@ -18,9 +18,13 @@ namespace LoopRogue
         ElixirSpring,  // 영약의 샘 - 무작위 영약 1개(영구)
         Whetstone,     // 숫돌 - 이번 시도 동안 주는 피해 증가
         SecretChest,   // 숨겨진 보물상자 - 금 간 벽(방마다 10%, 층마다 한 번)을 폭탄으로 부수면 나온다(RoomController.TrySpawnSecretWall)
+        WishingWell,   // 소원의 우물(10-19) - 골드를 던지면 영약·아이템 2개·레벨업 카드·꽝 중 하나(던질지 고른다)
+        Anvil,         // 모루(10-19) - 이번 시도 동안 받는 피해 감소(숫돌의 방어판)
+        AdventurerRemains, // 모험가의 유해(10-19) - 뒤지면 아이템 2개 + 골드, 가끔 유해가 일어나 몹이 덤빈다
+        MuralChest,    // 벽화의 상자(10-19) - 횃불로 연 잊힌 벽화의 방에만(골드 + 영약 2개, 무작위로는 안 나옴)
     }
 
-    /// <summary>방 이벤트 칸 - 한 시도에 스테이지당 보물상자 1 + (확률로) 다른 이벤트 1, 방 3~9 중. 칸 하나를 차지하는 액터라
+    /// <summary>방 이벤트 칸 - 한 시도에 방 3~9를 두 방씩 묶어 묶음마다 하나(그중 하나는 보물상자 확정, LoopManager.RollRoomEvent). 칸 하나를 차지하는 액터라
     /// 몹은 못 지나가고, 플레이어가 그 칸으로 이동하면 발동하고 사라진다(피의 제단은 고르기 전까지 남는다).
     /// 그림은 Resources/Effects/event_{종류}(반복 재생) - 없거나 봇 중이면 색 마름모.</summary>
     public class RoomEventActor : GridActor
@@ -34,6 +38,11 @@ namespace LoopRogue
         public const float DiceHealRate = 0.5f;
         public const float DiceHealthLossRate = 0.25f;
         public const int DiceExtraEnemies = 2;
+        public const int WishCostRooms = 3;          // 소원의 우물 - 던지는 골드 = 방 클리어 골드 × 이만큼
+        public const int RemainsGoldMultiplier = 2;  // 모험가의 유해 - 골드 = 방 클리어 골드 × 이만큼
+        public const int MuralChestGoldMultiplier = 8; // 벽화의 상자 - 보물상자(×5)보다 넉넉히 + 영약 2개
+        public const float RemainsAmbushChance = 0.3f;
+        public const int RemainsAmbushEnemies = 3;
 
         private static readonly System.Random Rng = new System.Random();
 
@@ -43,6 +52,7 @@ namespace LoopRogue
             (RoomEventType.HealingSpring, 3), (RoomEventType.BlessingAltar, 3), (RoomEventType.CursedChest, 3),
             (RoomEventType.Mimic, 2), (RoomEventType.BloodAltar, 2), (RoomEventType.ChallengeFlag, 2),
             (RoomEventType.Hourglass, 1), (RoomEventType.FateDice, 3), (RoomEventType.ElixirSpring, 1), (RoomEventType.Whetstone, 2),
+            (RoomEventType.WishingWell, 2), (RoomEventType.Anvil, 2), (RoomEventType.AdventurerRemains, 3), // 10-19 새 이벤트
         };
 
         public static int TypeCount => System.Enum.GetValues(typeof(RoomEventType)).Length;
@@ -65,6 +75,10 @@ namespace LoopRogue
             RoomEventType.FateDice => Loc.T("운명의 주사위"),
             RoomEventType.ElixirSpring => Loc.T("영약의 샘"),
             RoomEventType.SecretChest => Loc.T("숨겨진 보물상자"),
+            RoomEventType.WishingWell => Loc.T("소원의 우물"),
+            RoomEventType.Anvil => Loc.T("모루"),
+            RoomEventType.AdventurerRemains => Loc.T("모험가의 유해"),
+            RoomEventType.MuralChest => Loc.T("벽화의 상자"),
             _ => Loc.T("숫돌"),
         };
 
@@ -74,7 +88,7 @@ namespace LoopRogue
             Stats = new CharacterStats(1f, 0f);
 
             // 도트 그림(제자리에서 반짝이는 반복) - 미믹은 보물상자 그림 그대로.
-            var look = type == RoomEventType.Mimic || type == RoomEventType.SecretChest ? RoomEventType.TreasureChest : type;
+            var look = type == RoomEventType.Mimic || type == RoomEventType.SecretChest || type == RoomEventType.MuralChest ? RoomEventType.TreasureChest : type;
             var fx = Fx.Play($"event_{look}", transform.position, 0.95f, fps: 6f, loop: true, sortingOrder: 0, parent: transform);
             if (fx != null)
                 return;
@@ -90,6 +104,9 @@ namespace LoopRogue
                 RoomEventType.Hourglass => new Color(0.95f, 0.85f, 0.5f),
                 RoomEventType.FateDice => new Color(0.95f, 0.95f, 0.95f),
                 RoomEventType.ElixirSpring => new Color(1f, 0.5f, 0.8f),
+                RoomEventType.WishingWell => new Color(0.3f, 0.55f, 0.95f),
+                RoomEventType.Anvil => new Color(0.4f, 0.42f, 0.5f),
+                RoomEventType.AdventurerRemains => new Color(0.85f, 0.8f, 0.65f),
                 _ => new Color(0.6f, 0.65f, 0.7f),
             };
             // 이벤트 도트 그림(보물상자 / 회복 샘 / 축복 제단 / 저주받은 상자) - 없으면 예전 색 마름모
@@ -173,6 +190,22 @@ namespace LoopRogue
                     return RollFateDice(player, room, roomClearGold);
                 case RoomEventType.ElixirSpring:
                     return DrinkElixir(player, roomClearGold);
+                case RoomEventType.WishingWell:
+                    return TriggerWishingWell(player, room, roomClearGold, out consumed);
+                case RoomEventType.Anvil:
+                    RunBuffs.AddDefense(RunBuffs.AnvilDamageTaken, "모루");
+                    return Loc.F("모루! 갑옷을 두드려 폈다 - 이번 시도 동안 받는 피해 -{0:0}%", (1f - RunBuffs.AnvilDamageTaken) * 100f);
+                case RoomEventType.AdventurerRemains:
+                    return SearchRemains(room, roomClearGold);
+                case RoomEventType.MuralChest:
+                {
+                    var gold = roomClearGold * MuralChestGoldMultiplier;
+                    GoldWallet.Add(gold);
+                    var first = DrinkElixir(player, roomClearGold);
+                    var second = DrinkElixir(player, roomClearGold);
+                    HitFeedback.OnBonusReward(player);
+                    return Loc.F("벽화의 상자! 골드 +{0}\n{1}\n{2}", gold, first, second);
+                }
                 default:
                     RunBuffs.AddDamage(RunBuffs.WhetstoneDamage, "숫돌"); // 이름은 한국어 열쇠(효과 줄에서 번역)
                     return Loc.F("숫돌! 이번 시도 동안 주는 피해 +{0:0}%", (RunBuffs.WhetstoneDamage - 1f) * 100f);
@@ -208,6 +241,73 @@ namespace LoopRogue
                     new NpcDialogUI.Choice(Loc.T("그냥 지나간다"), () => NpcDialogUI.Instance.Close()),
                 });
             return null;
+        }
+
+        /// <summary>소원의 우물 - 사람은 던질지 고르는 창, 봇은 골드가 있으면 던진다. 던지면 칸이 사라진다.</summary>
+        private string TriggerWishingWell(PlayerActor player, RoomController room, int roomClearGold, out bool consumed)
+        {
+            var cost = Mathf.Max(1, roomClearGold * WishCostRooms);
+            if (GameHUD.AutoPlayActive || NpcDialogUI.Instance == null)
+            {
+                consumed = true;
+                return GoldWallet.TrySpend(cost) ? MakeWish(player, roomClearGold, cost) : Loc.T("소원의 우물... 던질 동전이 없다(그냥 지나간다)");
+            }
+
+            consumed = false; // 고르기 전까지 칸은 그대로
+            var canPay = GoldWallet.Gold >= cost;
+            NpcDialogUI.Instance.Show(Loc.T("소원의 우물"),
+                Loc.F("맑은 물 밑에 동전이 반짝인다.\n<color=#FFD966>골드 {0}</color>를 던지면 무언가 돌아올지도 모른다.\n(영약 · 아이템 2개 · 레벨업 카드 · 꽝)", cost),
+                new[]
+                {
+                    new NpcDialogUI.Choice(canPay ? Loc.F("동전을 던진다 (골드 -{0})", cost) : Loc.T("동전을 던진다 (골드가 모자라다)"), () =>
+                    {
+                        NpcDialogUI.Instance.Close();
+                        if (!GoldWallet.TrySpend(cost))
+                            return;
+                        room.ShowMessage(MakeWish(player, roomClearGold, cost));
+                        room.ConsumeEvent(this);
+                    }, enabled: canPay),
+                    new NpcDialogUI.Choice(Loc.T("그냥 지나간다"), () => NpcDialogUI.Instance.Close()),
+                });
+            return null;
+        }
+
+        private static string MakeWish(PlayerActor player, int roomClearGold, int cost)
+        {
+            var roll = Rng.NextDouble();
+            if (roll < 0.25)
+                return Loc.T("소원의 우물! ") + DrinkElixir(player, roomClearGold);
+            if (roll < 0.5)
+            {
+                var items = new[] { Inventory.GiveRandomMissing(), Inventory.GiveRandomMissing() }.Where(i => i.HasValue).Select(i => ItemInfo.Name(i.Value)).ToList();
+                if (items.Count > 0)
+                    return Loc.F("소원의 우물! {0} 획득", string.Join(", ", items));
+                GoldWallet.Add(cost * 2);
+                return Loc.F("소원의 우물! 동전이 두 배로 돌아왔다 골드 +{0}", cost * 2);
+            }
+            if (roll < 0.7)
+            {
+                player.Levels.GrantBonusUpgrade();
+                return Loc.T("소원의 우물! 레벨업 카드를 한 장 더 고른다");
+            }
+            return Loc.T("소원의 우물... 동전이 조용히 가라앉았다(꽝)");
+        }
+
+        /// <summary>모험가의 유해 - 대개 배낭에서 아이템 2개 + 골드, RemainsAmbushChance 확률로 유해가 일어나며 몹이 덤빈다(보상 없음).</summary>
+        private static string SearchRemains(RoomController room, int roomClearGold)
+        {
+            if (Rng.NextDouble() < RemainsAmbushChance)
+            {
+                var spawned = room.SpawnEventEnemies(RemainsAmbushEnemies, 1f, 1f, elite: false);
+                if (spawned > 0)
+                    return Loc.F("모험가의 유해... 뼈가 덜그럭거리며 일어났다! 몹 {0}마리가 덤빈다", spawned);
+            }
+            var gold = roomClearGold * RemainsGoldMultiplier;
+            GoldWallet.Add(gold);
+            var items = new[] { Inventory.GiveRandomMissing(), Inventory.GiveRandomMissing() }.Where(i => i.HasValue).Select(i => ItemInfo.Name(i.Value)).ToList();
+            return items.Count > 0
+                ? Loc.F("모험가의 유해 - 낡은 배낭에서 {0}, 골드 +{1}", string.Join(", ", items), gold)
+                : Loc.F("모험가의 유해 - 낡은 배낭에서 골드 +{0}", gold);
         }
 
         private static string OfferBlood(PlayerActor player, float cost, string gain)

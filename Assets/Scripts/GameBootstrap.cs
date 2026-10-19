@@ -184,7 +184,6 @@ namespace LoopRogue
         private static List<RoomDefinition> BuildStageRooms(int stage)
         {
             var stagePower = stage - 1; // 0-based - 방 크기/몹 수 가산에 그대로 씀.
-            var stageMultiplier = StageScaling.EnemyMultiplier(stage);
             var rooms = new List<RoomDefinition>();
 
             for (var i = 1; i <= RoomsPerStage; i++)
@@ -193,9 +192,7 @@ namespace LoopRogue
                 // 될 만큼 거대해진다. 이 둘은 예전처럼 스테이지당 고정폭으로만 커진다.
                 // 방 크기 +4(사용자: "맵이 작아서 불합리한 느낌" - 카메라를 당기고 시야를 줄이면서 같이 키움), 최대 14 -> 18.
                 var size = Mathf.Min(10 + stagePower + (i - 1) / 2, MaxRoomSize);
-                var enemyCount = Mathf.Min(Mathf.RoundToInt((2 + stagePower + (i - 1) / 2) * EnemyCountMultiplier), MaxEnemiesPerRoom);
-                var hp = (8f + (i - 1) * 2f) * stageMultiplier * RoomEnemyHealthScale(stage);
-                var atk = (2f + (i - 1) * 0.4f) * stageMultiplier * RoomEnemyAttackScale(stage);
+                var (hp, atk, enemyCount) = RoomEnemyStats(stage, i);
 
                 var room = MakeRoom($"Stage {stage}-{i}", size, size, enemyCount, enemyHp: hp, enemyAtk: atk);
                 room.EnemyKinds = BuildEnemyKinds(stage, i, enemyCount);
@@ -211,6 +208,24 @@ namespace LoopRogue
             rooms.Add(bossRoom);
 
             return rooms;
+        }
+
+        /// <summary>일반 방 몹 기준 체력·공격력(종류 배율 곱하기 전)과 몹 수 - 방 번호 1~RoomsPerStage.</summary>
+        private static (float Hp, float Atk, int Count) RoomEnemyStats(int stage, int room)
+        {
+            var stagePower = stage - 1;
+            var stageMultiplier = StageScaling.EnemyMultiplier(stage);
+            var count = Mathf.Min(Mathf.RoundToInt((2 + stagePower + (room - 1) / 2) * EnemyCountMultiplier), MaxEnemiesPerRoom);
+            var hp = (8f + (room - 1) * 2f) * stageMultiplier * RoomEnemyHealthScale(stage);
+            var atk = (2f + (room - 1) * 0.4f) * stageMultiplier * RoomEnemyAttackScale(stage);
+            return (hp, atk, count);
+        }
+
+        /// <summary>그 층 마지막 일반 방 기본 몹(슬라임)의 체력·공격력 - 10층 기사의 소환 졸개(10-19 사용자 "10층 마지막 방 애들급").</summary>
+        public static (float Hp, float Atk) LastRoomEnemySpec(int stage)
+        {
+            var (hp, atk, _) = RoomEnemyStats(stage, RoomsPerStage);
+            return (hp, atk);
         }
 
         /// <summary>보스 러시(BossRush) - 시작 층부터 10층까지 보스방을 차례로(크기·체력·공격력·패턴은 그 층 보스방 그대로).</summary>

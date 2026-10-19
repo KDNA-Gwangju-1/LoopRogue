@@ -10,7 +10,7 @@ namespace LoopRogue
     /// 6 망령 궁수: 영혼 촛불 4개가 켜져 있는 동안 무적 - 저격(1·2발)이 촛불 칸을 덮으면 꺼진다. 120턴 안에 다 못 끄면 즉사.
     /// 7 그림자 암살자: 칼이 안 통하는 그림자 분신 3개가 있는 동안 무적 - X자 베기가 분신을 베면 사라진다. 120턴 안에 다 못 지우면 즉사.
     /// 8 미노타우로스: 사방 벽이 조여 온다 - 도끼 충격파가 벽에 닿으면 물러난다. 닫히는 줄에 있거나 방이 너무 좁아지면 즉사(RoomController.Minotaur, 10-16 사용자).
-    /// 9 리치: 영혼 항아리 3개(벽)가 있는 동안 무적 - 십자 마법 줄이 항아리에 닿으면 깨진다. 120턴 안에 다 못 깨면 즉사.
+    /// 9 리치: 체력 50%·25%에 죽음의 낙인 - 낙인이 있는 동안 무적, 쫓아오는 영혼 구체를 리치에게 흡수시켜 옮긴다(RoomController.LichDoom, 10-19 사용자).
     /// 남은 상황은 보스 머리 위 글자(CreateBossLabel). 봇은 AutoPlayBot.TryStageGimmick이 같은 규칙으로 대응한다.</summary>
     public partial class RoomController
     {
@@ -26,11 +26,10 @@ namespace LoopRogue
         private const int LavaPerSlam = 2;
         private const float LavaFallDamage = 0.15f;
         private const int LavaFallStunTurns = 3;
-        private const int JarCount = 3;
         private const int GimmickBreakStunTurns = 3;   // 촛불·분신·항아리를 다 없애면 보스 기절
         // 10층 거울 가면 기사 "진짜 찾기"(10-15 사용자): 체력 75%에 좌우가 뒤집힌 거울상 MirrorFakeCount개 - 칼이 안 통하고 진짜의 예고 공격에
         // 맞아야 깨진다. 진짜는 그동안에도 맞는다. MirrorFakeTurnLimit턴 안에 다 못 깨면 즉사.
-        private const int MirrorFakeCount = 2;
+        private const int MirrorFakeCount = 3; // 2 → 3(10-19 사용자 - 봇 300판 1단계 즉사 0.0회, 절차처럼 느껴짐)
         public const int MirrorFakeTurnLimit = 60;
 
         /// <summary>봇 통계용 - 층별 기믹 즉사 횟수(인덱스 = 층).</summary>
@@ -47,7 +46,6 @@ namespace LoopRogue
         private readonly Dictionary<Vector2Int, GameObject> _candles = new Dictionary<Vector2Int, GameObject>();
         private readonly List<EnemyActor> _clones = new List<EnemyActor>();
         private readonly HashSet<Vector2Int> _lava = new HashSet<Vector2Int>();
-        private readonly HashSet<Vector2Int> _jars = new HashSet<Vector2Int>();
         private readonly List<EnemyActor> _mirrorFakes = new List<EnemyActor>();
         private readonly Dictionary<EnemyActor, TextMesh> _mirrorFakeLabels = new Dictionary<EnemyActor, TextMesh>();
 
@@ -57,19 +55,17 @@ namespace LoopRogue
         public IReadOnlyCollection<Vector2Int> Candles => _candles.Keys;
         public IReadOnlyList<EnemyActor> Clones => _clones;
         public IReadOnlyCollection<Vector2Int> LavaCracks => _lava;
-        public IReadOnlyCollection<Vector2Int> LichJars => _jars;
         public IReadOnlyList<EnemyActor> MirrorFakes => _mirrorFakes;
         /// <summary>10층 거울상이 남아 있는 동안 - 보스 준비 동작 표시를 끈다(진짜만 숨쉬면 바로 들킨다).</summary>
         public bool MirrorFakesActive => _gimmickStage == BossBrain.MirrorStage && _mirrorFakes.Count > 0;
-        public bool IsLichJar(Vector2Int p) => _jars.Contains(p);
 
-        /// <summary>폭탄에 안 부서지는 기믹 벽 - 8층 용암 균열, 9층 영혼 항아리, 10층 빛 단계 거울·조력자(10-16 사용자).
-        /// 예전엔 폭탄이 벽·그림만 지우고 기믹 목록엔 남아서 항아리가 안 보이는데 리치가 계속 무적인 일이 생겼다.</summary>
-        private bool IsUnbreakableGimmickWall(Vector2Int p) => _lava.Contains(p) || _jars.Contains(p) || _lightWalls.Contains(p) || _crushWalls.ContainsKey(p);
+        /// <summary>폭탄에 안 부서지는 기믹 벽 - 8층 용암 균열, 10층 빛 단계 거울·조력자(10-16 사용자).
+        /// 예전엔 폭탄이 벽·그림만 지우고 기믹 목록엔 남아서 (예전 9층) 항아리가 안 보이는데 리치가 계속 무적인 일이 생겼다.</summary>
+        private bool IsUnbreakableGimmickWall(Vector2Int p) => _lava.Contains(p) || _lightWalls.Contains(p) || _crushWalls.ContainsKey(p);
 
-        /// <summary>6·7·9층 - 촛불·분신·항아리가 남아 있는 동안 보스는 무적(BossBrain.ArmorMultiplier). 10층 - 빛 단계·발악 동안.</summary>
+        /// <summary>6·7층 - 촛불·분신이 남아 있는 동안, 9층 - 죽음의 낙인이 있는 동안 보스는 무적(BossBrain.ArmorMultiplier). 10층 - 빛 단계·발악 동안.</summary>
         public bool BossInvulnerable =>
-            (_gimmickStage == 6 && _candles.Count > 0) || (_gimmickStage == 7 && _clones.Count > 0) || (_gimmickStage == 9 && _jars.Count > 0)
+            (_gimmickStage == 6 && _candles.Count > 0) || (_gimmickStage == 7 && _clones.Count > 0) || DoomActive
             || (MirrorPhase == 3 && _lightActive) || MirrorLastStand;
 
         /// <summary>졸개가 플레이어 대신 갈 곳 - 예전 4층 흡수 기믹용(10-16에 분열 기믹으로 바뀌어 지금은 없음).</summary>
@@ -130,11 +126,8 @@ namespace LoopRogue
                     after = Loc.F("다가오는 벽을 등지고 서서 도끼 충격파가 벽을 부수게 하자 - <color=#FF6060>닫히는 줄에 서 있거나 방이 {0}칸보다 좁아지면 끝장이다</color>", CrushMinRoom);
                     break;
                 case 9:
-                    _gimmickTurnsLeft = GimmickTurnLimit;
-                    c.Line = Loc.T("<color=#C090FF>리치가 영혼을 항아리에 숨겼다!</color> 항아리가 남아 있는 동안 리치는 무적");
-                    for (var i = 0; i < JarCount; i++)
-                        c.Steps.Add(WallStep(() => SpawnJars(boss, _jars.Count + 1) > 0, "soul_summon"));
-                    after = Loc.F("리치와 같은 줄, 항아리 뒤에 서서 십자 마법이 항아리를 깨게 하자 - <color=#FF6060>{0}턴 안에 다 못 깨면 끝장이다</color>", GimmickTurnLimit);
+                    BeginLichDoom(c);
+                    after = DoomAfterLine;
                     break;
                 case BossBrain.MirrorStage:
                     _gimmickTurnsLeft = MirrorFakeTurnLimit;
@@ -262,7 +255,16 @@ namespace LoopRogue
             {
                 _mirrorFakes.Remove(f);
                 if (HitFeedback.Enabled)
-                    Fx.Play("crystal_shatter", f.transform.position, 3.2f, fps: 14f, sortingOrder: 6);
+                {
+                    // 거울상이 그 모습 그대로 산산조각(10-19 사용자) - 그림이 없으면 예전 수정 깨짐
+                    if (f.TryGetComponent<SpriteRenderer>(out var fakeRenderer) && fakeRenderer.sprite != null)
+                    {
+                        SpriteShatter.Spawn(fakeRenderer, pieceCells: 0.32f, force: 5f);
+                        SfxPlayer.Play(Sfx.Crit);
+                    }
+                    else
+                        Fx.Play("crystal_shatter", f.transform.position, 3.2f, fps: 14f, sortingOrder: 6);
+                }
                 DespawnEnemy(f, new Color(0.8f, 0.88f, 1f));
             }
             if (hit.Count == 0)
@@ -335,26 +337,7 @@ namespace LoopRogue
             return true;
         }
 
-        /// <summary>9층 십자 마법 - 줄 끝에 닿은 항아리가 깨진다.</summary>
-        public void BreakLichJars(IEnumerable<Vector2Int> hits)
-        {
-            if (_gimmickStage != 9)
-                return;
-            var broken = hits.Where(_jars.Contains).Distinct().ToList();
-            foreach (var j in broken)
-            {
-                _jars.Remove(j);
-                RemoveWallObject(j);
-            }
-            if (broken.Count == 0)
-                return;
-            ShowMessage(_jars.Count > 0
-                ? Loc.F("<color=#C090FF>마법이 영혼 항아리를 깨뜨렸다!</color> 남은 항아리 {0}", _jars.Count)
-                : Loc.T("<color=#C090FF>항아리가 모두 깨졌다!</color> 리치의 영혼이 흔들린다"));
-            if (_jars.Count == 0)
-                OnGimmickBroken();
-            UpdateGimmickLabel();
-        }
+
 
         // ------------------------------------------------------------------ 몹 턴 끝(RunEnemyTurnsCore)
         /// <summary>턴마다 - 흡수·감염·제한 턴·빛버섯 줍기. 즉사했으면 사망 처리까지 하고 true.</summary>
@@ -405,9 +388,23 @@ namespace LoopRogue
                     if (finished)
                         return true; // 발악을 버텨 기사가 쓰러졌다 - 처치 처리(방 전환)는 끝났다
                     break;
+                case 9:
+                    if (!DoomActive)
+                        break; // 이미 옮겼다
+                    if (TickDoomOrbs())
+                        return true; // 구체에 맞아 죽었다 - 사망 처리까지 끝(기믹 즉사로 세지 않는다)
+                    if (!DoomActive)
+                        break; // 이번 턴에 옮겼다
+                    if (--_doomTurnsLeft <= 0)
+                    {
+                        ShowMessage(Loc.T("<color=#FF4040>죽음의 낙인이 타올랐다!</color>"));
+                        dead = true;
+                    }
+                    else if (System.Array.IndexOf(GimmickWarnAt, _doomTurnsLeft) >= 0)
+                        ShowMessage(Loc.F("<color=#FF6060>낙인이 뜨겁게 달아오른다...</color> {0}턴!", _doomTurnsLeft));
+                    break;
                 case 6:
                 case 7:
-                case 9:
                     if (!BossInvulnerable)
                         break; // 이미 다 없앴다
                     if (--_gimmickTurnsLeft <= 0)
@@ -415,8 +412,7 @@ namespace LoopRogue
                         ShowMessage(_gimmickStage switch
                         {
                             6 => Loc.T("<color=#FF4040>망령 궁수의 화살비가 쏟아졌다!</color>"),
-                            7 => Loc.T("<color=#FF4040>그림자들이 한꺼번에 덮쳤다!</color>"),
-                            _ => Loc.T("<color=#FF4040>리치가 죽음의 주문을 완성했다!</color>"),
+                            _ => Loc.T("<color=#FF4040>그림자들이 한꺼번에 덮쳤다!</color>"),
                         });
                         dead = true;
                     }
@@ -515,8 +511,8 @@ namespace LoopRogue
                     text = CrushActive ? CrushLabelText(out danger) : null;
                     break;
                 case 9:
-                    text = _jars.Count > 0 ? Loc.F("항아리 {0} · {1}턴", _jars.Count, _gimmickTurnsLeft) : null;
-                    danger = _gimmickTurnsLeft <= 20;
+                    text = DoomActive ? Loc.F("낙인 {0}턴 · 흡수 {1}/{2}", _doomTurnsLeft, _doomAbsorbed, DoomAbsorbNeeded) : null;
+                    danger = _doomTurnsLeft <= 10;
                     break;
                 case BossBrain.MirrorStage when MirrorPhase >= 2:
                     text = MirrorLabelText(out danger);
@@ -611,30 +607,6 @@ namespace LoopRogue
             _wallObjects[p] = go;
             if (!DamagePopup.Suppressed)
                 DeathBurst.Spawn(go.transform.position, fallback, 10, GridConstants.CellSize * 1.3f, GridConstants.CellSize * 0.12f);
-        }
-
-        /// <summary>항아리를 target개가 되도록 - 놓은 개수.</summary>
-        private int SpawnJars(EnemyActor boss, int target = JarCount)
-        {
-            var before = _jars.Count;
-            var cells = new List<Vector2Int>();
-            for (var x = 0; x < Map.Width; x++)
-            for (var y = 0; y < Map.Height; y++)
-            {
-                var p = new Vector2Int(x, y);
-                if (Map.IsWalkable(p) && ExitPosition != p && p != _player.GridPos && GridMap.FootprintChebyshev(boss, p) >= 3)
-                    cells.Add(p);
-            }
-            foreach (var p in cells.OrderBy(_ => Rng.Next()))
-            {
-                if (_jars.Count >= target)
-                    break;
-                if (_jars.Any(o => Mathf.Max(Mathf.Abs(o.x - p.x), Mathf.Abs(o.y - p.y)) < 3) || !WallKeepsConnected(p))
-                    continue;
-                AddWallProp(p, "Lich_Jar", new Color(0.6f, 0.35f, 0.85f), "LichJar");
-                _jars.Add(p);
-            }
-            return _jars.Count - before;
         }
 
         /// <summary>10층 거울상 count개 - 진짜와 같은 3x3 몸, 플레이어에게서 3칸·진짜와 다른 거울상에게서 몇 칸 떨어진 자리(무작위). 만든 개수.</summary>
@@ -767,7 +739,7 @@ namespace LoopRogue
             ClearCrusher();
             ClearSporeFog();
             _lava.Clear();
-            _jars.Clear();
+            ClearDoom();
             if (_gimmickLabel != null)
                 Destroy(_gimmickLabel.gameObject);
             _gimmickLabel = null;

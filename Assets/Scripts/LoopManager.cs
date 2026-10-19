@@ -67,7 +67,12 @@ namespace LoopRogue
             }
             else if (PuzzleTrial.Active)
                 _roomController.LoadPuzzle(_rooms[_roomIndex], PuzzleTrial.Type.Value); // 에디터 메뉴 "퍼즐·미니게임 체험" - 고르기 없이 바로
-            else if (!GameHUD.AutoPlayActive && !TestMap.Active && !TutorialStage.Active && !BossRush.Active)
+            else if (MuralTrial.Active)
+            {
+                MuralTrial.GiveTorch(); // 에디터 메뉴 "벽화의 방 체험" - 몹 없는 방 1 + 제단 + 횃불
+                _roomController.LoadClearedRoom(_rooms[_roomIndex]);
+            }
+            else if (!GameHUD.AutoPlayActive && !TestMap.Active && !TutorialStage.Active && !BossRush.Active && !MuralTrial.Active)
             {
                 _roomController.IsInputLocked = true;
                 _hud.ShowRoomSelect(stage, _rooms, 0, StartFromSelectedRoom);
@@ -309,9 +314,8 @@ namespace LoopRogue
             RunProgress.Save(_player.Levels, _player.Stats);
         }
 
-        /// <summary>시도마다 방 이벤트를 새로 뽑는다(사용자 결정): 보물상자(아이템)는 층마다 반드시 1개, 그 밖의 이벤트(회복 샘/축복 제단/
-        /// 저주받은 상자)는 OtherEventChance 확률로 1개 - 둘은 서로 다른 방(방 3~9 중).</summary>
-        private const float OtherEventChance = 0.75f;
+        /// <summary>시도마다 방 이벤트를 새로 뽑는다 - 방 3~9를 두 방씩 묶어(3·4 / 5·6 / 7·8 / 9) 묶음마다 이벤트 1개(묶음 안 방은 무작위).
+        /// 그중 한 묶음은 보물상자(아이템) 확정, 나머지는 무작위 종류(10-19 사용자 "두 방마다 1개, 종류는 랜덤" - 예전엔 보물상자 1 + 75%로 1개).</summary>
 
         private void RollRoomEvent()
         {
@@ -324,18 +328,15 @@ namespace LoopRogue
             if (last < FirstEventRoomIndex)
                 return;
 
-            var chestIndex = Rng.Next(FirstEventRoomIndex, last + 1);
-            _rooms[chestIndex].HasEvent = true;
-            _rooms[chestIndex].EventType = RoomEventType.TreasureChest;
-
-            if (Rng.NextDouble() >= OtherEventChance || last == FirstEventRoomIndex)
-                return;
-            int otherIndex;
-            do
-                otherIndex = Rng.Next(FirstEventRoomIndex, last + 1);
-            while (otherIndex == chestIndex);
-            _rooms[otherIndex].HasEvent = true;
-            _rooms[otherIndex].EventType = RoomEventActor.RollNonChestType();
+            var slots = new List<int>();
+            for (var first = FirstEventRoomIndex; first <= last; first += 2)
+                slots.Add(Mathf.Min(last, first + Rng.Next(2)));
+            var chestSlot = Rng.Next(slots.Count);
+            for (var i = 0; i < slots.Count; i++)
+            {
+                _rooms[slots[i]].HasEvent = true;
+                _rooms[slots[i]].EventType = i == chestSlot ? RoomEventType.TreasureChest : RoomEventActor.RollNonChestType();
+            }
         }
 
         public void ShowMessage(string message) => _hud.ShowMessage(message);

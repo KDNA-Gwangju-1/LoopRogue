@@ -370,9 +370,11 @@ namespace LoopRogue
             foreach (var wall in layout.Walls)
                 Map.AddWall(wall);
 
-            BuildFloor(layout, def.IsBossRoom);
-            _fitRoom = null; // 일반 방 - 플레이어 주변만 비추는 평소 카메라
             var glitch = !_loadCleared && GlitchRoom.ShouldGlitch(def, GameBootstrap.RoomsPerStage);
+            DungeonTiles.Glitch = glitch; // 오류방 - 깨진 바닥·벽 타일을 섞어 깐다(10-19)
+            try { BuildFloor(layout, def.IsBossRoom); }
+            finally { DungeonTiles.Glitch = false; }
+            _fitRoom = null; // 일반 방 - 플레이어 주변만 비추는 평소 카메라
             var glitchTiles = glitch && !DamagePopup.Suppressed
                 ? _roomObjects.Where(o => o != null).SelectMany(o => o.GetComponentsInChildren<SpriteRenderer>()).ToList() // 안개를 깔기 전 - 바닥·벽만
                 : null;
@@ -399,6 +401,7 @@ namespace LoopRogue
                 foreach (var (pos, type) in TestMap.Events)
                     SpawnEvent(pos, type);
             TrySpawnSecretWall(def, layout);
+            TrySpawnAltar(def, layout); // 횃불 → 벽화의 방(층마다 한 번)
 
             _thornsKills.Clear();
             _challengeEnemies.Clear();
@@ -429,6 +432,20 @@ namespace LoopRogue
                 boss.StartGimmickNow(this);
         }
 
+        /// <summary>몹 종류별 체력·공격력 배율(기준 몹 대비).</summary>
+        private static (float Hp, float Atk) KindRatios(EnemyKind kind) => kind switch
+        {
+            EnemyKind.Ranged => (RangedHealthRatio, RangedAttackRatio),
+            EnemyKind.Shield => (ShieldHealthRatio, ShieldAttackRatio),
+            EnemyKind.Spider => (SpiderHealthRatio, SpiderAttackRatio),
+            EnemyKind.Bomber => (BomberHealthRatio, BomberAttackRatio),
+            EnemyKind.Healer => (HealerHealthRatio, HealerAttackRatio),
+            EnemyKind.Charger => (ChargerHealthRatio, ChargerAttackRatio),
+            EnemyKind.Splitter => (SplitterHealthRatio, SplitterAttackRatio),
+            EnemyKind.Assassin => (AssassinHealthRatio, AssassinAttackRatio),
+            _ => (1f, 1f),
+        };
+
         private EnemyActor SpawnEnemy(Vector2Int pos, RoomDefinition def, EnemyKind kind, float healthScale = 1f, float attackScale = 1f)
         {
             if (def.IsBossRoom)
@@ -436,18 +453,7 @@ namespace LoopRogue
             var go = new GameObject(def.IsBossRoom ? "Boss" : kind == EnemyKind.Melee ? "Enemy" : kind.ToString());
             go.transform.SetParent(transform, false);
 
-            var (hpRatio, atkRatio) = kind switch
-            {
-                EnemyKind.Ranged => (RangedHealthRatio, RangedAttackRatio),
-                EnemyKind.Shield => (ShieldHealthRatio, ShieldAttackRatio),
-                EnemyKind.Spider => (SpiderHealthRatio, SpiderAttackRatio),
-                EnemyKind.Bomber => (BomberHealthRatio, BomberAttackRatio),
-                EnemyKind.Healer => (HealerHealthRatio, HealerAttackRatio),
-                EnemyKind.Charger => (ChargerHealthRatio, ChargerAttackRatio),
-                EnemyKind.Splitter => (SplitterHealthRatio, SplitterAttackRatio),
-                EnemyKind.Assassin => (AssassinHealthRatio, AssassinAttackRatio),
-                _ => (1f, 1f),
-            };
+            var (hpRatio, atkRatio) = KindRatios(kind);
             var enemy = go.AddComponent<EnemyActor>();
             enemy.Initialize(def.EnemyMaxHealth * hpRatio * healthScale, def.EnemyAttackPower * atkRatio * attackScale, def.IsBossRoom, kind);
             if (def.IsTutorialRoom)
@@ -924,13 +930,19 @@ namespace LoopRogue
                     cells.Add(p);
             }
 
+            // 10층 기사(슬라임 킹을 비출 때)의 졸개는 슬라임(기본 근접 몹)으로, 세기는 10층 마지막 방 몹과 같게(10-19 사용자).
+            var strong = _stage >= BossBrain.MirrorStage;
+            var lastRoom = strong ? GameBootstrap.LastRoomEnemySpec(_stage) : default;
             foreach (var pos in cells.OrderBy(_ => Rng.Next()).Take(toSpawn))
             {
                 var go = new GameObject("Minion");
                 go.transform.SetParent(transform, false);
                 var minion = go.AddComponent<EnemyActor>();
-                minion.Initialize(boss.Stats.MaxHealth * BossBrain.MinionHealthRatio,
-                    boss.Stats.AttackPower * BossBrain.MinionAttackRatio, isBoss: false);
+                if (strong)
+                    minion.Initialize(lastRoom.Hp, lastRoom.Atk, isBoss: false, EnemyKind.Melee);
+                else
+                    minion.Initialize(boss.Stats.MaxHealth * BossBrain.MinionHealthRatio,
+                        boss.Stats.AttackPower * BossBrain.MinionAttackRatio, isBoss: false);
                 minion.MarkAsMinion();
                 Map.PlaceActor(minion, pos);
                 HitFeedback.OnSummon(new Vector3(pos.x * GridConstants.CellSize, pos.y * GridConstants.CellSize, 0f));
@@ -987,7 +999,7 @@ namespace LoopRogue
                 var go = new GameObject("GlitchVisual");
                 go.transform.SetParent(transform, false);
                 _glitchVisual = go.AddComponent<GlitchVisual>();
-                _glitchVisual.Init(tiles);
+                _glitchVisual.Init(tiles, this);
                 _roomObjects.Add(go);
                 ScreenFlash.Play(new Color(0.7f, 0.3f, 1f), 0.4f, 0.4f);
                 CameraShake.Shake(0.2f, 0.3f);
@@ -1210,6 +1222,10 @@ namespace LoopRogue
 
         private void BuildFloor(RoomLayout layout, bool isBossRoom)
         {
+            var clip = RoomClip.Create(transform, layout.Width, layout.Height); // 이펙트가 맵 밖에 안 그려지게(10-19)
+            if (clip != null)
+                _roomObjects.Add(clip);
+            CreateBackdrop(layout);
             _tiledRoom = !GameHUD.AutoPlayActive && DungeonTiles.Available;
             if (_tiledRoom)
             {
@@ -1285,6 +1301,32 @@ namespace LoopRogue
                 var cell = new Vector2Int(x, y);
                 _roomObjects.Add(CreateTile(transform, cell, DungeonTiles.Wall(ShowsWallFace(cell), _tileRng), -8, border).gameObject);
             }
+        }
+
+        // ---- 방 바깥 배경(10-19 사용자 "양옆이 빈다") - Backgrounds/Dungeon(128x128 = 4x4칸, 던전 벽돌·기둥·쇠사슬·횃불)을
+        // 방 둘레로 넓게 반복해 깐다. 모든 층 같은 그림(사용자 결정), 방보다 어둡게 - 그림이 없으면 예전처럼 검은 화면.
+        private const int BackdropMargin = 30; // 방 둘레로 몇 칸까지 까는지(카메라가 방 끝에 있어도 화면 밖까지)
+        private const float BackdropBrightness = 0.75f;
+
+        private void CreateBackdrop(RoomLayout layout)
+        {
+            if (DamagePopup.Suppressed)
+                return;
+            var sprite = Resources.Load<Sprite>("Backgrounds/Dungeon");
+            if (sprite == null)
+                return;
+            var go = new GameObject("Backdrop");
+            go.transform.SetParent(transform, false);
+            go.transform.position = new Vector3((layout.Width - 1) * 0.5f * GridConstants.CellSize, (layout.Height - 1) * 0.5f * GridConstants.CellSize, 0f);
+            go.transform.localScale = Vector3.one * GridConstants.CellSize; // 그림 1유닛 = 1칸
+            var r = go.AddComponent<SpriteRenderer>();
+            r.sprite = sprite;
+            r.drawMode = SpriteDrawMode.Tiled;
+            r.tileMode = SpriteTileMode.Continuous;
+            r.size = new Vector2(layout.Width + BackdropMargin * 2, layout.Height + BackdropMargin * 2);
+            r.sortingOrder = -30; // 바닥(-10)·벽(-8) 아래
+            r.color = new Color(BackdropBrightness, BackdropBrightness, BackdropBrightness);
+            _roomObjects.Add(go);
         }
 
         /// <summary>바로 아래 칸이 방 안의 바닥이면 앞면이 보인다.</summary>

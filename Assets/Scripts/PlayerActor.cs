@@ -158,7 +158,16 @@ namespace LoopRogue
             else if (ItemInfo.NeedsDirection(type))
             {
                 target = GridPos + dir.Value;
-                if (!_room.CanPlaceAt(target))
+                if (type == ItemType.Torch && _room.IsAltar(target))
+                {
+                    // 불 꺼진 제단 쪽으로 횃불 - 벽화의 방으로(10-19). 몹이 남아 있으면 안 쓰고 안내만.
+                    if (!_room.AltarReady(out var why))
+                    {
+                        _room.ShowMessage(why);
+                        return false;
+                    }
+                }
+                else if (!_room.CanPlaceAt(target))
                     return false;
             }
             else if (type == ItemType.Cleanse && RootedTurns <= 0 && WebImmuneTurns > 0)
@@ -182,6 +191,11 @@ namespace LoopRogue
             switch (type)
             {
                 case ItemType.Torch:
+                    if (_room.IsAltar(target))
+                    {
+                        _room.LightAltar();
+                        break;
+                    }
                     _room.PlaceTorch(target);
                     _room.ShowMessage(Loc.T("횃불을 놓았다"));
                     break;
@@ -199,8 +213,12 @@ namespace LoopRogue
                     _room.ShowMessage(Loc.T("덫을 놓았다"));
                     break;
                 case ItemType.Smoke:
-                    foreach (var e in _room.EnemiesWithin(GridPos, ItemInfo.SmokeRadius))
+                    // 방 안 몹 전부(보스 포함, 10-19 사용자 - 멀리 있던 몹이 계속 때리는 게 이상했다). 나중에 나온 몹은 EnemyActor.TakeTurn이 막는다.
+                    // 연막 속에서도 턴은 그대로 흐른다(기믹 제한 턴·남은 턴은 몹 턴 끝 RoomController가 센다).
+                    foreach (var e in _room.Enemies)
                     {
+                        if (e == null || e.Stats.IsDead)
+                            continue;
                         e.SetInSmoke(true);
                         if (!_smokedEnemies.Contains(e))
                             _smokedEnemies.Add(e);
@@ -208,7 +226,7 @@ namespace LoopRogue
                     InSmoke = true;
                     if (HitFeedback.Enabled)
                         DeathBurst.Spawn(transform.position, new Color(0.62f, 0.64f, 0.7f), count: 30, speed: 4f, size: 0.4f);
-                    _room.ShowMessage(Loc.T("연막! 공격하기 전까지 주변 몹이 플레이어를 못 찾는다"));
+                    _room.ShowMessage(Loc.T("연막! 공격하기 전까지 몹들이 플레이어를 못 찾는다"));
                     break;
                 case ItemType.Cleanse:
                     RootedTurns = 0;
@@ -703,6 +721,12 @@ namespace LoopRogue
         /// <summary>F - 주변 8칸의 NPC와 대화(턴 소모 없음). 방향 고르기 중이면 취소하고 연다.</summary>
         private void TryTalk()
         {
+            if (_room.TryViewMural(GridPos))
+            {
+                IsAimingDash = false;
+                AimingItem = null;
+                return; // 벽화의 방 - 벽화 큰 그림(10-19)
+            }
             var npc = _room.FindNpcNear(GridPos);
             if (npc == null)
             {
@@ -1075,11 +1099,11 @@ namespace LoopRogue
                 if (StrikeEnemy(enemy, offset, SpinDamageRate, ignoreShield: true, isSkill: true, style: AttackStyle.Spin))
                     return true; // 방 전환 - 남은 대상은 이미 정리됐다
             }
-            if (Relics.Has(RelicType.PulseCore)) // 유물 "파동의 핵" - 맞고 살아남은 몹 1턴 기절
+            if (Relics.Has(RelicType.PulseCore)) // 유물 "파동의 핵" - 맞고 살아남은 몹 기절(10-19 사용자 1 → 2턴)
             {
                 foreach (var (enemy, _) in targets)
                     if (enemy != null && !enemy.Stats.IsDead)
-                        enemy.Stun(1);
+                        enemy.Stun(Relics.PulseCoreStunTurns);
             }
 
             EndTurn();

@@ -5,7 +5,7 @@ using UnityEngine;
 namespace LoopRogue
 {
     /// <summary>10층 거울 가면 기사 기믹 4단계(10-16 사용자) - 체력 75/50/25/0%(BossBrain.MirrorPhaseHealth)에서 하나씩, 못 막으면 즉사.
-    /// 1 거울상(75%): 좌우가 뒤집힌 가짜 2개 - 진짜의 예고 공격에 맞혀 깬다(RoomController.BossGimmicks).
+    /// 1 거울상(75%): 좌우가 뒤집힌 가짜 3개 - 진짜의 예고 공격에 맞혀 깬다(RoomController.BossGimmicks).
     /// 2 내 거울상(50%): 방 가운데 세로줄을 기준으로 좌우가 뒤집힌 내가 따라 움직인다 - 기사의 예고 공격에 ReflectionHits번 맞혀 깬다.
     /// 3 빛(25%): 의문의 조력자가 빛을 쏘고, 기사는 무적 - 거울에 붙어 밀면 /·\가 바뀐다. 빛이 거울 LightMirrorCount개를 모두 거쳐 기사에게 닿으면 무적이 풀린다.
     /// 4 발악(0%): 체력이 0이 돼도 쓰러지지 않고, LastStandTurnSeconds초마다 턴이 저절로 흐른다(사람만 - 봇은 턴 그대로) - 기사는 쉬지 않고
@@ -174,12 +174,17 @@ namespace LoopRogue
             if (!pos.HasValue || Map.IsWall(pos.Value) || !tiles.Contains(pos.Value))
                 return;
             _reflectionHitCount++;
+            var last = _reflectionHitCount >= ReflectionHits;
             if (HitFeedback.Enabled)
             {
-                Fx.Play("crystal_shatter", _reflection.transform.position, 1.6f, fps: 14f, sortingOrder: 6);
+                // 금이 갈 때는 조각 몇 개만 떨어져 나가고, 마지막엔 거울 속 내가 그 모습 그대로 산산조각(10-19 사용자)
+                if (_reflection.TryGetComponent<SpriteRenderer>(out var reflRenderer) && reflRenderer.sprite != null)
+                    SpriteShatter.Spawn(reflRenderer, pieceCells: 0.14f, fraction: last ? 1f : 0.15f, force: last ? 4.5f : 2.2f, silver: 0.25f);
+                else
+                    Fx.Play("crystal_shatter", _reflection.transform.position, 1.6f, fps: 14f, sortingOrder: 6);
                 SfxPlayer.Play(Sfx.Crit);
             }
-            if (_reflectionHitCount < ReflectionHits)
+            if (!last)
             {
                 ShowMessage(Loc.F("<color=#C8D8FF>기사의 공격이 거울 속 나에게 금을 냈다!</color> {0}/{1}", _reflectionHitCount, ReflectionHits));
                 UpdateGimmickLabel();
@@ -668,7 +673,14 @@ namespace LoopRogue
             ShowMessage(Loc.T("<color=#FFD24A>거울 가면이 산산조각 났다!</color> 거울 가면 기사가 쓰러진다"));
             if (HitFeedback.Enabled)
             {
-                Fx.Play("crystal_shatter", boss.transform.position, 3.2f, fps: 14f, sortingOrder: 6);
+                // 기사가 그 모습 그대로 산산조각(10-19) - 그림이 없으면 예전 수정 깨짐
+                if (boss.TryGetComponent<SpriteRenderer>(out var bossRenderer) && bossRenderer.sprite != null)
+                {
+                    SpriteShatter.Spawn(bossRenderer, pieceCells: 0.32f, force: 6f, silver: 0.3f);
+                    bossRenderer.enabled = false;
+                }
+                else
+                    Fx.Play("crystal_shatter", boss.transform.position, 3.2f, fps: 14f, sortingOrder: 6);
                 CameraShake.Shake(0.5f, 0.9f);
             }
             boss.Stats.TakeDamage(boss.Stats.CurrentHealth + 1f);
