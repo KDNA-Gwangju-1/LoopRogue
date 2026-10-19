@@ -39,6 +39,7 @@ namespace LoopRogue
 
         private void Awake()
         {
+            MusicPlayer.Play(MusicPlayer.Dungeon); // 타이틀은 일반 방과 같은 곡
             StageProgress.EnsureLoaded();
             BuildUI();
             gameObject.AddComponent<PauseMenu>().Setup(StartGame, showQuit: true);

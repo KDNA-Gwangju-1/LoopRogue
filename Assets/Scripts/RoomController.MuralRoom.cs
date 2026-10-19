@@ -103,6 +103,7 @@ namespace LoopRogue
         private void LoadMuralRoom()
         {
             ClearRoom();
+            MusicPlayer.Play(MusicPlayer.Mural);
             _altar = null;
             var layout = new RoomLayout { Width = MuralWidth, Height = MuralHeight, PlayerStart = new Vector2Int(MuralWidth / 2, 1) };
             Map = new GridMap(layout.Width, layout.Height);

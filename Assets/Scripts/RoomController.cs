@@ -175,6 +175,7 @@ namespace LoopRogue
         {
             _current = def;
             ClearRoom();
+            MusicPlayer.Play((int)type >= (int)PuzzleType.ShellGame ? MusicPlayer.MiniGame : MusicPlayer.Puzzle); // 퍼즐 5종 / 미니게임 5종
 
             var puzzle = PuzzleBase.Create(type);
             puzzle.Init(this, _player, _stage, Rng, type);
@@ -364,6 +365,10 @@ namespace LoopRogue
             ClearRoom();
             if (def.BossStage > 0)
                 _stage = def.BossStage; // 보스 러시 - 보스 그림·패턴·기믹이 이 층 것으로
+            if (def.IsBossRoom && !_loadCleared)
+                MusicPlayer.Play(MusicPlayer.Boss(_stage)); // 층별 보스 배경음악(파일이 없으면 조용히)
+            else
+                MusicPlayer.Play(MusicPlayer.Dungeon); // 일반 방(같은 곡이면 방을 옮겨도 끊기지 않는다)
 
             var layout = def.TutorialLayout ?? (def.IsTestRoom ? TestMap.Layout() : RoomLayoutGenerator.Generate(def, Rng));
             Map = new GridMap(layout.Width, layout.Height);
@@ -2558,7 +2563,10 @@ namespace LoopRogue
                 FinishGlitch();
 
             if (_current.IsBossRoom)
+            {
+                MusicPlayer.Stop(); // 보스를 잡으면 보스 음악을 서서히 끈다
                 _loopManager.OnBossDefeated();
+            }
             else
             {
                 SpawnExit();

@@ -229,6 +229,12 @@ namespace LoopRogue
         private void ShowView(LobbyView view)
         {
             _view = view;
+            MusicPlayer.Play(view switch // 로비·뽑기·도박장 배경음악(파일이 없으면 조용히, 연금술사는 로비 곡)
+            {
+                LobbyView.Gacha => MusicPlayer.Gacha,
+                LobbyView.Casino => MusicPlayer.Casino,
+                _ => MusicPlayer.Lobby,
+            });
             SetChanceOpen(false);
             foreach (var pair in _viewRoots)
                 pair.Value.SetActive(pair.Key == view);
