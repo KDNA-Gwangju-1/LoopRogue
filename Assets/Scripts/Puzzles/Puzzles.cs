@@ -597,7 +597,35 @@ namespace LoopRogue
                 return;
             }
             Room.ShowMessage(Loc.F("정답! 라운드 {0} / {1}", _round + 1, _rounds));
+            MovePlayerToCenter(); // 마지막 룬 위에 선 채로 다음 순서를 보면 그 룬이 밟힌 것처럼 헷갈렸다 - 가운데 빈 칸으로 옮긴다(10-20 사용자)
             StartRound();
+        }
+
+        /// <summary>방 가운데에서 가장 가까운, 룬이 아닌 빈 칸으로 플레이어를 옮긴다.</summary>
+        private void MovePlayerToCenter()
+        {
+            var center = new Vector2Int(Size / 2, Size / 2);
+            Vector2Int? best = null;
+            var bestDist = int.MaxValue;
+            for (var x = 0; x < Size; x++)
+            for (var y = 0; y < Size; y++)
+            {
+                var c = new Vector2Int(x, y);
+                if (_runes.Contains(c) || (!Map.IsWalkable(c) && c != Player.GridPos))
+                    continue;
+                var dist = Mathf.Abs(c.x - center.x) + Mathf.Abs(c.y - center.y);
+                if (dist < bestDist)
+                {
+                    bestDist = dist;
+                    best = c;
+                }
+            }
+            if (!best.HasValue || best.Value == Player.GridPos)
+                return;
+            Map.MoveActor(Player, best.Value);
+            if (Player.TryGetComponent<SpriteAnimator>(out var anim))
+                anim.SnapToGrid(); // 걸어가는 모션 대신 바로 그 자리에
+            Fx.Play("hit_spark", World(best.Value), 0.6f, fps: 18f);
         }
 
         /// <summary>맞게 밟은 룬을 잠깐 밝힌다(같은 룬을 다시 밟을 수 있어서 계속 켜두지 않는다).</summary>
