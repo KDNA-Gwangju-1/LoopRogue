@@ -35,20 +35,136 @@ namespace LoopRogue
         {
             if (!Active || !PendingItems.Remove(type))
                 return;
-            room.ShowMessage(PendingItems.Count > 0
-                ? Loc.F("좋아요! 남은 아이템: {0}", PendingList())
-                : Loc.T("<color=#8CE08C>아이템을 다 써 봤어요!</color> 몹을 정리하고 출구로"));
+            SfxPlayer.Play(Sfx.Appear); // 남은 할 일은 안내 상자가 바로 바꿔 보여 준다
         }
 
         /// <summary>출구를 밟았는데 아직 안 써 본 아이템이 있으면 막고 true.</summary>
         public static bool BlocksExit(RoomController room)
         {
+            if (Active && Tutorial.BlocksAct(Tutorial.Act.Exit, out var why))
+            {
+                room.ShowMessage(why); // 기본 조작 안내를 다 해 봐야 나간다
+                return true;
+            }
             if (!Active || PendingItems.Count == 0)
                 return false;
             room.ShowMessage(Loc.F("<color=#FFB060>아직 안 써 본 아이템이 있어요:</color> {0}", PendingList()));
             return true;
         }
-        private const float EnemyHealth = 6f;
+        // ---- 안내에 없는 행동 막기(10-20 사용자) - 방마다 배우는 것까지만: ①② 이동·공격·대기 ③ + 대시·회전 베기 ④ + 폭탄 ⑤~⑦ + 그 방 아이템 3개 ----
+
+        /// <summary>튜토리얼 스테이지의 지금 방 번호(1~7), 아니면 0 - 안내 상자(Tutorial)가 방 제목·할 일을 띄우는 데 쓴다.</summary>
+        public static int StepOf(RoomController room) => Step(room);
+
+        /// <summary>안내 상자 제목 - "튜토리얼 3/7  스킬".</summary>
+        public static string BoxTitle(int step) => Loc.F("<color=#FFD966>튜토리얼 {0}/{1}</color>  {2}", step, RoomCount, RoomName(step));
+
+        private static string RoomName(int step) => step switch
+        {
+            1 => Loc.T("첫걸음"),
+            2 => Loc.T("공격"),
+            3 => Loc.T("스킬"),
+            4 => Loc.T("위험 피하기"),
+            5 => Loc.T("아이템 ① 설치"),
+            6 => Loc.T("아이템 ② 전투 보조"),
+            _ => Loc.T("아이템 ③ 위기 대처"),
+        };
+
+        /// <summary>기본 조작 안내가 다 끝난 뒤 상자 본문 - 그 방에서 할 일. 아이템 방은 남은 아이템과 다음 아이템 설명.</summary>
+        public static string BoxBody(RoomController room)
+        {
+            var step = Step(room);
+            if (RoomItems.ContainsKey(step))
+            {
+                if (PendingItems.Count == 0)
+                    return Loc.T("<color=#8CE08C>아이템을 다 써 봤어요!</color> 몹을 정리하고 출구로 가세요.");
+                var next = PendingItems[0];
+                return Loc.F("남은 아이템: {0}  (숫자 키, 놓거나 던지는 건 그다음 방향키)\n<color=#FFD966>{1}</color> - {2}",
+                    PendingList(), ItemInfo.Name(next), ItemInfo.Description(next));
+            }
+            return step switch
+            {
+                1 => Loc.T("출구(문)까지 걸어가 보세요."),
+                2 => Loc.T("슬라임 쪽으로 이동 키를 누르면 공격해요. 몹을 다 잡으면 출구가 열려요."),
+                3 => Loc.T("대시와 회전 베기로 몹을 정리하고 출구로 가세요."),
+                4 => PendingItems.Count > 0
+                    ? Loc.T("빨간 칸은 다음 턴에 공격이 오는 곳 - 비켜서 피하세요.\n숫자 키로 <color=#FFD966>폭탄</color>을 고른 뒤 방향키로 던져 보세요.")
+                    : Loc.T("빨간 칸은 다음 턴에 공격이 오는 곳 - 비켜서 피하세요. 몹을 정리하고 출구로."),
+                _ => "",
+            };
+        }
+
+        private static int Step(RoomController room) =>
+            Active && room != null && room.CurrentDefinition != null && room.CurrentDefinition.IsTutorialRoom ? room.CurrentDefinition.TutorialStep : 0;
+
+        /// <summary>대시·회전 베기를 아직 안 배운 방(①②)이면 false - 기본 조작 안내 상자도 이걸 보고 대시·회전 베기 단계를 미룬다.</summary>
+        public static bool SkillsAllowed(RoomController room)
+        {
+            var step = Step(room);
+            return step == 0 || step >= 3;
+        }
+
+        /// <summary>행동 하나를 하려 한다 - 지금 안내(기본 조작 단계 → 방 안내)에 없는 행동이면 안내를 띄우고 true.
+        /// 1) 기본 조작 안내가 떠 있으면 그 행동만(Tutorial.BlocksAct) 2) 방마다 아직 안 배운 것(①② 스킬, 아이템은 그 방 것만).</summary>
+        public static bool Blocks(Tutorial.Act act, RoomController room, ItemType item = default)
+        {
+            if (!Active || room == null)
+                return false;
+            if (Tutorial.BlocksAct(act, out var why))
+            {
+                room.ShowMessage(why);
+                return true;
+            }
+            // ④~⑦ - 안내된 아이템(폭탄·그 방 3개)을 다 써 보기 전엔 공격·스킬로 몹을 먼저 잡지 않게(이동·대기는 된다 - 빨간 칸 피하기)
+            if (PendingItems.Count > 0 && (act == Tutorial.Act.Attack || act == Tutorial.Act.Dash || act == Tutorial.Act.Spin))
+            {
+                room.ShowMessage(Loc.F("<color=#FFB060>먼저 아이템을 써 봐요:</color> {0}", PendingList()));
+                return true;
+            }
+            return act switch
+            {
+                Tutorial.Act.Dash or Tutorial.Act.Spin => BlocksSkill(room),
+                Tutorial.Act.Item => BlocksItem(item, room),
+                _ => false,
+            };
+        }
+
+        private static bool BlocksSkill(RoomController room)
+        {
+            if (SkillsAllowed(room))
+                return false;
+            room.ShowMessage(Step(room) == 1
+                ? Loc.T("<color=#FFB060>지금은 움직여 보는 방이에요</color> - 방향키로 걸어서 출구(문)로")
+                : Loc.T("<color=#FFB060>지금은 공격을 배우는 방이에요</color> - 슬라임 쪽으로 이동 키를 눌러 부딪혀 보세요. 스킬은 다음 방에서"));
+            return true;
+        }
+
+        /// <summary>아이템을 고르려 했다 - 이 방 안내에 없는 아이템이면 안내를 띄우고 true(④는 폭탄만, ⑤~⑦은 그 방 3개만, ①~③은 없음).</summary>
+        private static bool BlocksItem(ItemType type, RoomController room)
+        {
+            var step = Step(room);
+            if (step == 0)
+                return false;
+            if (step == 4)
+            {
+                if (type == ItemType.Bomb)
+                    return false;
+                room.ShowMessage(Loc.T("<color=#FFB060>이 방에선 폭탄만 써 봐요</color> - 다른 아이템은 다음 방들에서 하나씩"));
+                return true;
+            }
+            if (RoomItems.TryGetValue(step, out var items))
+            {
+                if (System.Array.IndexOf(items, type) >= 0)
+                    return false;
+                room.ShowMessage(Loc.F("<color=#FFB060>이 방에선 이 아이템들을 써 봐요:</color> {0}",
+                    string.Join(", ", System.Array.ConvertAll(items, ItemInfo.Name))));
+                return true;
+            }
+            room.ShowMessage(Loc.T("<color=#FFB060>아이템은 조금 뒤 방에서 배워요</color> - 지금은 안내대로 해 보세요"));
+            return true;
+        }
+
+        private const float EnemyHealth = 1f; // 튜토리얼 몹은 한 대에 쓰러진다(10-20 사용자 - 체력 1 고정, RoomController.SpawnEnemy도 종류 배율 무시)
         private const float EnemyAttack = 1f;
 
         public static bool Active { get; private set; }
@@ -79,6 +195,7 @@ namespace LoopRogue
             _fromTitle = _requestedFromTitle;
             _requestedFromTitle = false;
             Active = true;
+            Tutorial.ResetAll(); // 기본 조작 안내를 처음부터 - 예전에 끝냈거나 건너뛴 기록이 남아 있으면 안내 단계 잠금이 아예 안 걸렸다
             PlayerPrefs.SetInt(DoneKey, 1);
             PlayerPrefs.Save();
             return true;
@@ -119,24 +236,17 @@ namespace LoopRogue
                 GameBootstrap.RebuildInPlace(); // 같은 Main 씬에서 진짜 1층을 새로 짓는다
         }
 
-        /// <summary>방 입장 때 위쪽 안내 줄에 띄우는 제목.</summary>
-        public static string Caption(int step) => step switch
-        {
-            1 => Loc.T("<color=#FFD966>튜토리얼 1/7</color>  첫걸음 - 움직여 보고 출구(문)로"),
-            2 => Loc.T("<color=#FFD966>튜토리얼 2/7</color>  공격 - 슬라임에게 부딪혀 보세요"),
-            3 => Loc.T("<color=#FFD966>튜토리얼 3/7</color>  스킬 - 대시와 회전 베기"),
-            4 => Loc.T("<color=#FFD966>튜토리얼 4/7</color>  위험 피하기 - 빨간 칸에서 비키고, 폭탄도 던져 보세요"),
-            5 => Loc.T("<color=#FFD966>튜토리얼 5/7</color>  아이템 ① 설치 - 횃불·덫·미끼를 놓아 보세요"),
-            6 => Loc.T("<color=#FFD966>튜토리얼 6/7</color>  아이템 ② 전투 보조 - 연막탄·약점 표식·보호막"),
-            _ => Loc.T("<color=#FFD966>튜토리얼 7/7</color>  아이템 ③ 위기 대처 - 정화제·섬광탄·반사 부적"),
-        };
-
         /// <summary>방 4는 폭탄, 방 5~7은 아이템 3개를 쥐여 주고 시작(퀵슬롯 1·2·3). 아이템 방은 쓰는 법을 한 줄씩 안내.</summary>
         public static void OnRoomEntered(RoomDefinition def, RoomController room)
         {
             PendingItems.Clear();
-            if (def.TutorialStep == 4 && !Inventory.Has(ItemType.Bomb))
-                Inventory.Give(ItemType.Bomb);
+            if (def.TutorialStep == 4)
+            {
+                if (!Inventory.Has(ItemType.Bomb))
+                    Inventory.Give(ItemType.Bomb);
+                Inventory.SetQuickSlot(0, ItemType.Bomb); // 안내대로 1번에
+                PendingItems.Add(ItemType.Bomb); // 폭탄도 던져 봐야 출구로(안내 상자가 남은 할 일을 보여 준다)
+            }
             if (!RoomItems.TryGetValue(def.TutorialStep, out var items))
                 return;
             for (var i = 0; i < items.Length; i++)
@@ -144,9 +254,8 @@ namespace LoopRogue
                 Inventory.Give(items[i]);
                 Inventory.SetQuickSlot(i, items[i]); // 원래 퀵슬롯 자리와 상관없이 1·2·3에
                 PendingItems.Add(items[i]);
-                room.ShowMessage($"[{i + 1}] <color=#FFD966>{ItemInfo.Name(items[i])}</color> - {ItemInfo.Description(items[i])}");
             }
-            room.ShowMessage(Loc.T("숫자 키로 아이템을 써요 - 놓거나 던지는 아이템은 숫자를 누른 뒤 방향키로. 세 개를 다 써 봐야 출구로 나갈 수 있어요"));
+            // 아이템 설명은 아래 안내 상자에(위쪽 줄로 따로 띄우면 안내가 두 군데서 나왔다)
         }
 
         public static List<RoomDefinition> BuildRooms()
@@ -169,7 +278,6 @@ namespace LoopRogue
             l3.EnemyPositions.Add(new Vector2Int(5, 6));
             l3.EnemyPositions.Add(new Vector2Int(5, 0));
             var r3 = Room(3, l3, EnemyKind.Melee, EnemyKind.Melee, EnemyKind.Melee, EnemyKind.Melee);
-            r3.EnemyMaxHealth = EnemyHealth * 2f;
             rooms.Add(r3);
 
             // ④ 위험 피하기 - 같은 줄 멀리 오크 돌격병(돌진할 줄을 빨갛게 예고) + 폭탄 아이템
@@ -179,7 +287,6 @@ namespace LoopRogue
                 if (y < 2 || y > 6)
                     l4.Walls.Add(new Vector2Int(8, y)); // 뒤쪽 기둥 - 돌격병이 너무 멀리 도망 다니지 않게
             var r4 = Room(4, l4, EnemyKind.Charger);
-            r4.EnemyMaxHealth = EnemyHealth * 4f;
             rooms.Add(r4);
 
             // ⑤ 아이템 - 설치(횃불·덫·미끼): 멀리서 다가오는 슬라임 둘 - 덫을 밟게 하고, 미끼로 시선을 돌린다
@@ -187,7 +294,6 @@ namespace LoopRogue
             l5.EnemyPositions.Add(new Vector2Int(8, 2));
             l5.EnemyPositions.Add(new Vector2Int(8, 6));
             var r5 = Room(5, l5, EnemyKind.Melee, EnemyKind.Melee);
-            r5.EnemyMaxHealth = EnemyHealth * 2f;
             rooms.Add(r5);
 
             // ⑥ 아이템 - 전투 보조(연막탄·약점 표식·보호막): 가까이 모인 슬라임 셋
@@ -196,7 +302,6 @@ namespace LoopRogue
             l6.EnemyPositions.Add(new Vector2Int(5, 5));
             l6.EnemyPositions.Add(new Vector2Int(6, 4));
             var r6 = Room(6, l6, EnemyKind.Melee, EnemyKind.Melee, EnemyKind.Melee);
-            r6.EnemyMaxHealth = EnemyHealth * 3f;
             rooms.Add(r6);
 
             // ⑦ 아이템 - 위기 대처(정화제·섬광탄·반사 부적): 거미줄을 쏘는 거미(정화제) + 슬라임
@@ -204,7 +309,6 @@ namespace LoopRogue
             l7.EnemyPositions.Add(new Vector2Int(5, 4));
             l7.EnemyPositions.Add(new Vector2Int(8, 6));
             var r7 = Room(7, l7, EnemyKind.Spider, EnemyKind.Melee);
-            r7.EnemyMaxHealth = EnemyHealth * 3f;
             rooms.Add(r7);
 
             return rooms;

@@ -64,6 +64,45 @@ namespace LoopRogue
 
         public static bool BasicsDone => (PlayerPrefs.GetInt(BasicsKey, 0) & AllBasics) == AllBasics;
 
+        /// <summary>튜토리얼 스테이지에서 막을 수 있는 행동. 이동은 이동 단계와 몹에게 다가가야 하는 단계(공격·대시·회전 베기)에서만 된다.</summary>
+        public enum Act
+        {
+            Move,
+            Attack,
+            Dash,
+            Spin,
+            Wait,
+            Stats,
+            Item,
+            Exit,
+        }
+
+        /// <summary>튜토리얼 스테이지(TutorialStage.Active)에서 아직 안 한 기본 조작 안내가 떠 있으면 그 행동(과 이동)만 된다(10-20 사용자 -
+        /// 안내에 벗어나는 행동은 막기). 막으면 띄울 안내를 why로. [건너뛰기]를 누르면 기본 조작이 끝난 것으로 쳐서 풀린다.</summary>
+        public static bool BlocksAct(Act act, out string why)
+        {
+            why = null;
+            if (_instance == null || !TutorialStage.Active || _instance._room == null)
+                return false;
+            var b = _instance.CurrentBasic();
+            if (!b.HasValue)
+                return false;
+            var allowed = b.Value switch
+            {
+                Basic.Move => act == Act.Move, // 걸어 보는 것만
+                Basic.Attack => act == Act.Attack || act == Act.Move, // 몹에게 다가가야 한다
+                Basic.Dash => act == Act.Dash || act == Act.Move,
+                Basic.Spin => act == Act.Spin || act == Act.Move,
+                Basic.Wait => act == Act.Wait, // 대기하라는데 걸어가지 않게(10-20 사용자)
+                Basic.Stats => act == Act.Stats,
+                _ => false,
+            };
+            if (allowed)
+                return false;
+            why = Loc.F("<color=#FFB060>먼저 안내대로 해 보세요</color> - 지금은 「{0}」 차례예요", BasicName(b.Value));
+            return true;
+        }
+
         /// <summary>설정 "튜토리얼 다시 보기" - 기본 조작과 상황 안내를 처음부터.</summary>
         public static void ResetAll()
         {
@@ -134,6 +173,14 @@ namespace LoopRogue
                 return;
             }
 
+            // 방이 바뀌면 이전 방의 상황 안내·칭찬은 내리고 새 방 안내로
+            if (_room.CurrentDefinition != _lastRoom)
+            {
+                _lastRoom = _room.CurrentDefinition;
+                _activeHint = Hint.None;
+                _praiseUntil = 0f;
+            }
+
             HandleSkipClick();
             var waited = _waitedThisFrame;
             _waitedThisFrame = false;
@@ -200,6 +247,7 @@ namespace LoopRogue
         }
 
         private bool _pendingDeathHint;
+        private RoomDefinition _lastRoom;
 
         private void CompleteBasic(Basic b)
         {
@@ -213,6 +261,7 @@ namespace LoopRogue
             _body.text = BasicsDone ? Loc.T("이제 방을 비우고 출구를 찾아 내려가세요. 처음 보는 것들은 그때그때 알려 드릴게요.") : "";
             _skipRect.gameObject.SetActive(false);
             _praiseUntil = Time.unscaledTime + (BasicsDone ? PraiseSeconds * 3f : PraiseSeconds);
+            FitBox();
             SfxPlayer.Play(Sfx.Hit);
         }
 
@@ -228,6 +277,8 @@ namespace LoopRogue
                     continue;
                 if ((b == Basic.Attack || b == Basic.Dash || b == Basic.Spin) && enemies == 0)
                     continue;
+                if ((b == Basic.Dash || b == Basic.Spin) && !TutorialStage.SkillsAllowed(_room))
+                    continue; // 튜토리얼 ①② - 스킬은 ③에서 배운다(그 전엔 키도 막혀 있다)
                 return b;
             }
             return null;
@@ -245,12 +296,33 @@ namespace LoopRogue
         private void ShowBasicOrHide()
         {
             var b = CurrentBasic();
+            var step = TutorialStage.StepOf(_room); // 튜토리얼 스테이지 방 번호(아니면 0) - 안내는 이 상자 하나로(10-20 사용자: 위쪽 줄과 두 군데서 나오던 것)
             if (!b.HasValue)
             {
+                if (step > 0 && !_room.IsInputLocked)
+                {
+                    _title.text = TutorialStage.BoxTitle(step);
+                    _body.text = TutorialStage.BoxBody(_room);
+                    _skipRect.gameObject.SetActive(false);
+                    SetVisible(true);
+                    return;
+                }
                 SetVisible(false);
                 return;
             }
-            var index = (int)b.Value + 1;
+            if (step > 0)
+            {
+                _title.text = Loc.F("{0}  ·  지금 할 일: {1}", TutorialStage.BoxTitle(step), BasicName(b.Value));
+                _body.text = BasicText(b.Value);
+                _skipRect.gameObject.SetActive(false); // 튜토리얼 스테이지는 안내대로 해야 넘어간다(건너뛰기 없음)
+                SetVisible(true);
+                return;
+            }
+            // 몇 번째인지는 끝낸 단계 수로 센다 - 몹 없는 방에선 공격·스킬을 건너뛰어서 순서 번호로 세면 1/6 다음이 5/6로 뛰었다
+            var index = 1;
+            for (var d = Basic.Move; d < Basic.Count; d++)
+                if (IsDone(d))
+                    index++;
             _title.text = Loc.F("<color=#FFD966>기본 조작 {0}/{1}</color>  {2}", index, (int)Basic.Count, BasicName(b.Value));
             _body.text = BasicText(b.Value);
             _skipRect.gameObject.SetActive(true);
@@ -302,6 +374,8 @@ namespace LoopRogue
                 return Hint.Boss;
             if (!Shown(Hint.LevelUp) && _hud != null && _hud.PendingUpgradeOptions != null)
                 return Hint.LevelUp;
+            if (TutorialStage.Active)
+                return Hint.None; // 튜토리얼 방 - 출구·아이템 안내는 방 안내 상자가 하고 있다(겹치면 방을 넘어가도 옛 안내가 7초 남았다)
             if (!Shown(Hint.Npc) && _room.Npc != null)
                 return Hint.Npc;
             if (!Shown(Hint.Exit) && _room.ExitPosition.HasValue && AliveEnemies() == 0)
@@ -374,6 +448,20 @@ namespace LoopRogue
         {
             if (_box != null && _box.activeSelf != visible)
                 _box.SetActive(visible);
+            if (visible)
+                FitBox();
+        }
+
+        /// <summary>본문 길이에 맞춰 상자 높이를 늘린다(아이템 설명·영어 안내가 3줄이 되면 아래 테두리 위로 넘쳐 그려지던 것). 아래 기준이라 위로 자란다.</summary>
+        private void FitBox()
+        {
+            if (_box == null || _body == null)
+                return;
+            var height = Mathf.Max(48f, _body.preferredHeight + 2f);
+            var bodyRect = _body.rectTransform;
+            bodyRect.offsetMin = new Vector2(bodyRect.offsetMin.x, -36f - height);
+            var box = (RectTransform)_box.transform;
+            box.sizeDelta = new Vector2(box.sizeDelta.x, 36f + height + 8f);
         }
 
         private void HandleSkipClick()

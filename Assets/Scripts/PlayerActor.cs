@@ -305,6 +305,11 @@ namespace LoopRogue
                 _room.ShowMessage(Loc.T("여기선 스킬·아이템을 쓸 수 없다")); // 인벤토리 창에서 고른 경우
                 return;
             }
+            if (TutorialStage.Blocks(Tutorial.Act.Item, _room, type))
+            {
+                AimingItem = null;
+                return; // 튜토리얼 - 이 방 안내에 없는 아이템
+            }
             IsAimingDash = false;
             if (ItemInfo.NeedsDirection(type))
             {
@@ -678,6 +683,11 @@ namespace LoopRogue
                     return; // 방향 고르는 중
             }
 
+            if (GameInput.Down(Key.Q) && !IsAimingDash && TutorialStage.Blocks(Tutorial.Act.Dash, _room))
+                return; // 튜토리얼 - 안내에 없는 행동(대시 조준을 끄는 건 된다)
+            if (GameInput.Down(Key.E) && TutorialStage.Blocks(Tutorial.Act.Spin, _room))
+                return;
+
             if (GameInput.Down(Key.Q))
             {
                 if (IsAimingDash)
@@ -714,7 +724,7 @@ namespace LoopRogue
 
             if (direction.HasValue)
                 TryAct(direction.Value);
-            else if (GameInput.Down(Key.Space))
+            else if (GameInput.Down(Key.Space) && !TutorialStage.Blocks(Tutorial.Act.Wait, _room))
                 Wait(); // 스페이스바 = 제자리 대기(한 턴 넘기기)
         }
 
@@ -790,6 +800,9 @@ namespace LoopRogue
                 return;
             }
 
+            if (!(occupant is EnemyActor) && TutorialStage.Blocks(Tutorial.Act.Move, _room))
+                return; // 튜토리얼 - 지금 안내는 이동이 아니다(턴 소모 없음)
+
             if (RootedTurns > 0 && !(occupant is EnemyActor))
             {
                 _room.ShowMessage(Loc.T("거미줄에 묶여 움직일 수 없다! (공격·회전 베기·대기는 가능)"));
@@ -798,6 +811,8 @@ namespace LoopRogue
 
             if (occupant is EnemyActor enemy)
             {
+                if (TutorialStage.Blocks(Tutorial.Act.Attack, _room))
+                    return; // 튜토리얼 - 아직 공격 차례가 아니다(턴 소모 없음)
                 BeginAction();
                 PlayAttackFlash(direction);
                 if (StrikeEnemy(enemy, direction, 1f, style: AttackStyle.Normal))

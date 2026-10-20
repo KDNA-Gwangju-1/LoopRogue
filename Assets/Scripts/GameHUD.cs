@@ -440,6 +440,11 @@ namespace LoopRogue
                 return;
 
             var open = !_statPanel.Root.activeSelf;
+            if (open && TutorialStage.Active && Tutorial.BlocksAct(Tutorial.Act.Stats, out var why))
+            {
+                ShowMessage(why); // 튜토리얼 - 아직 능력치 창 차례가 아니다(닫는 건 언제든)
+                return;
+            }
             _statPanel.Root.SetActive(open);
             if (open)
             {

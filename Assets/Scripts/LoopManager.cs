@@ -148,8 +148,7 @@ namespace LoopRogue
             RefreshHudProgress();
             if (def.IsTutorialRoom)
             {
-                TutorialStage.OnRoomEntered(def, _roomController);
-                _hud.ShowMessage(TutorialStage.Caption(def.TutorialStep));
+                TutorialStage.OnRoomEntered(def, _roomController); // 방 제목·할 일은 아래 안내 상자(Tutorial)가
             }
         }
 

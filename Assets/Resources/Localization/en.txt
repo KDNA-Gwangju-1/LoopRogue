@@ -1115,3 +1115,25 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 <color=#FF4040>거울 속 기사들이 한꺼번에 베어 들었다!</color>	<color=#FF4040>The knights in the mirror cut in all at once!</color>
 거울상 {0} · {1}턴	Reflections {0} · {1} turns
 체력이 75% 아래로 떨어지면 좌우가 뒤집힌 거울상 2개를 불러내고 진짜와 자리를 섞는다. 거울상에겐 칼이 안 통하고, 진짜의 예고 공격에 맞으면 깨진다. {0}턴 안에 다 못 깨면 즉사.	Below 75% health it summons 2 left-right mirrored reflections and swaps places with one. Blades pass through reflections; they shatter when hit by the real one's telegraphed attacks. Fail to shatter them all within {0} turns and you die instantly.
+<color=#FFB060>지금은 움직여 보는 방이에요</color> - 방향키로 걸어서 출구(문)로	<color=#FFB060>This room is for moving</color> - walk to the exit (door) with the arrow keys
+<color=#FFB060>지금은 공격을 배우는 방이에요</color> - 슬라임 쪽으로 이동 키를 눌러 부딪혀 보세요. 스킬은 다음 방에서	<color=#FFB060>This room is for attacking</color> - press a move key toward the slime to bump it. Skills come in the next room
+<color=#FFB060>이 방에선 폭탄만 써 봐요</color> - 다른 아이템은 다음 방들에서 하나씩	<color=#FFB060>Only try the bomb in this room</color> - the other items come one by one in the next rooms
+<color=#FFB060>이 방에선 이 아이템들을 써 봐요:</color> {0}	<color=#FFB060>Try these items in this room:</color> {0}
+<color=#FFB060>아이템은 조금 뒤 방에서 배워요</color> - 지금은 안내대로 해 보세요	<color=#FFB060>Items come a few rooms later</color> - follow the guide for now
+<color=#FFB060>먼저 안내대로 해 보세요</color> - 지금은 「{0}」 차례예요	<color=#FFB060>Follow the guide first</color> - it's time for "{0}"
+{0}  ·  지금 할 일: {1}	{0}  ·  Now: {1}
+<color=#FFD966>튜토리얼 {0}/{1}</color>  {2}	<color=#FFD966>Tutorial {0}/{1}</color>  {2}
+첫걸음	First Steps
+스킬	Skills
+위험 피하기	Dodging Danger
+아이템 ① 설치	Items ① Placing
+아이템 ② 전투 보조	Items ② Combat Support
+아이템 ③ 위기 대처	Items ③ Emergencies
+<color=#8CE08C>아이템을 다 써 봤어요!</color> 몹을 정리하고 출구로 가세요.	<color=#8CE08C>You've tried every item!</color> Clear the monsters and head for the exit.
+출구(문)까지 걸어가 보세요.	Walk to the exit (door).
+슬라임 쪽으로 이동 키를 누르면 공격해요. 몹을 다 잡으면 출구가 열려요.	Press a move key toward the slime to attack. The exit opens once all monsters are down.
+대시와 회전 베기로 몹을 정리하고 출구로 가세요.	Clear the monsters with Dash and Spin Slash, then head for the exit.
+빨간 칸은 다음 턴에 공격이 오는 곳 - 비켜서 피하세요. 몹을 정리하고 출구로.	Red tiles get hit next turn - step aside to dodge. Clear the monsters and head for the exit.
+남은 아이템: {0}  (숫자 키, 놓거나 던지는 건 그다음 방향키)\n<color=#FFD966>{1}</color> - {2}	Items left: {0}  (number key; then an arrow key to place or throw)\n<color=#FFD966>{1}</color> - {2}
+빨간 칸은 다음 턴에 공격이 오는 곳 - 비켜서 피하세요.\n숫자 키로 <color=#FFD966>폭탄</color>을 고른 뒤 방향키로 던져 보세요.	Red tiles get hit next turn - step aside to dodge.\nPick the <color=#FFD966>Bomb</color> with its number key, then throw it with an arrow key.
+<color=#FFB060>먼저 아이템을 써 봐요:</color> {0}	<color=#FFB060>Try the items first:</color> {0}

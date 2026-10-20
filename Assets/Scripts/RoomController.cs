@@ -472,7 +472,8 @@ namespace LoopRogue
 
             var (hpRatio, atkRatio) = KindRatios(kind);
             var enemy = go.AddComponent<EnemyActor>();
-            enemy.Initialize(def.EnemyMaxHealth * hpRatio * healthScale, def.EnemyAttackPower * atkRatio * attackScale, def.IsBossRoom, kind);
+            var maxHealth = def.IsTutorialRoom ? 1f : def.EnemyMaxHealth * hpRatio * healthScale; // 튜토리얼 몹 - 종류 상관없이 체력 1
+            enemy.Initialize(maxHealth, def.EnemyAttackPower * atkRatio * attackScale, def.IsBossRoom, kind);
             if (def.IsTutorialRoom)
                 enemy.MarkAsTutorialMob(); // 골드·경험치 없음
             if (def.IsBossRoom)
