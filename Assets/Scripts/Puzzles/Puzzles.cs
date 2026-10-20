@@ -286,6 +286,11 @@ namespace LoopRogue
         private bool _leverOn, _toldLocked;
         private int _turn, _limit;
 
+        // 가시 - 판 위에 겹친 그림(Puzzle_Spike_1~3). 다음 턴에 터질 칸은 끝만 살짝, 터지는 순간 쑥 솟았다가 들어간다. 그림이 없으면 예전처럼 불꽃만.
+        private readonly Dictionary<Vector2Int, SpriteRenderer> _spikes = new Dictionary<Vector2Int, SpriteRenderer>();
+        private readonly HashSet<Vector2Int> _popping = new HashSet<Vector2Int>();
+        private Sprite _spikePeek, _spikeHalf, _spikeUp;
+
         public override RoomLayout BuildLayout()
         {
             _width = 17 + 2 * Mathf.Min(2, (Stage - 1) / 3);
@@ -348,6 +353,16 @@ namespace LoopRogue
         {
             foreach (var p in _traps.Keys)
                 ArtTile(p, "TrapPlate", 0.94f, Color.white, new Color(0.35f, 0.12f, 0.12f, 0.9f), 0.7f, -9, "TrapBase");
+            _spikePeek = PuzzleArt("Spike_1");
+            _spikeHalf = PuzzleArt("Spike_2");
+            _spikeUp = PuzzleArt("Spike_3");
+            if (_spikePeek != null && _spikeHalf != null && _spikeUp != null)
+                foreach (var p in _traps.Keys)
+                {
+                    var spike = SpriteAt(World(p), _spikePeek, 0.94f, -8, "TrapSpike");
+                    spike.sprite = null;
+                    _spikes[p] = spike;
+                }
             for (var y = 0; y < Height; y++)
                 _goalTiles.Add(ArtTile(new Vector2Int(_width - 1, y), "ExitTile", 1f, GoalColor, GoalColor, 0.94f, -9, "Goal"));
             _leverTile = ArtTile(_lever, "Lever_Off", 0.95f, Color.white, new Color(0.45f, 0.45f, 0.9f), 0.6f, -7, "Lever");
@@ -364,6 +379,29 @@ namespace LoopRogue
             foreach (var p in _traps.Keys)
                 if (Fires(p, _turn + 1))
                     _warnings.Add(Track(Room.SpawnWarningTile(p, new Color(1f, 0.15f, 0.15f, 0.45f))));
+            foreach (var pair in _spikes)
+                if (!_popping.Contains(pair.Key) && pair.Value != null)
+                    pair.Value.sprite = RestingSpike(pair.Key);
+        }
+
+        /// <summary>쉬는 가시 - 다음 턴에 터질 칸이면 끝만 살짝, 아니면 구멍 속(그림 없음).</summary>
+        private Sprite RestingSpike(Vector2Int p) => IsRunning && Fires(p, _turn + 1) ? _spikePeek : null;
+
+        /// <summary>터지는 순간 - 반쯤 → 다 → 반쯤 → 쉬는 모양. 퍼즐이 치워져 그림이 사라졌으면 그만둔다.</summary>
+        private IEnumerator PopSpike(Vector2Int p, SpriteRenderer spike)
+        {
+            _popping.Add(p);
+            spike.sprite = _spikeHalf;
+            yield return new WaitForSeconds(0.04f);
+            if (spike == null) yield break;
+            spike.sprite = _spikeUp;
+            yield return new WaitForSeconds(0.28f);
+            if (spike == null) yield break;
+            spike.sprite = _spikeHalf;
+            yield return new WaitForSeconds(0.06f);
+            _popping.Remove(p);
+            if (spike != null)
+                spike.sprite = RestingSpike(p);
         }
 
         protected override void OnTurnEnd()
@@ -371,7 +409,17 @@ namespace LoopRogue
             _turn++;
             foreach (var p in _traps.Keys)
                 if (Fires(p, _turn))
-                    Fx.Play("hit_spark", World(p), 0.8f, fps: 18f);
+                {
+                    if (_spikes.TryGetValue(p, out var spike) && spike != null)
+                    {
+                        if (GameHUD.AutoPlayActive)
+                            spike.sprite = null; // 봇 - 연출 생략
+                        else
+                            Room.StartCoroutine(PopSpike(p, spike));
+                    }
+                    else
+                        Fx.Play("hit_spark", World(p), 0.8f, fps: 18f); // 가시 그림이 없으면 예전처럼 불꽃
+                }
             var pos = Player.GridPos;
             if (Fires(pos, _turn))
             {
