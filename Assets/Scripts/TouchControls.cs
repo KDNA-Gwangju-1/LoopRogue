@@ -63,8 +63,10 @@ namespace LoopRogue
 
         private void FindScene()
         {
-            if (_searched)
-                return; // 씬이 바뀌면 sceneLoaded가 다시 찾게 한다
+            // 씬이 바뀌면 sceneLoaded가 다시 찾게 한다. 같은 씬 안에서 다시 지을 때(튜토리얼 끝 RebuildInPlace)는
+            // sceneLoaded가 안 오니, Main에서 HUD/플레이어가 파괴돼 있으면 20프레임마다 다시 찾는다.
+            if (_searched && (!InMain || (_hud != null && _player != null) || Time.frameCount % 20 != 0))
+                return;
             _searched = true;
             _hud = FindAnyObjectByType<GameHUD>();
             _player = FindAnyObjectByType<PlayerActor>();

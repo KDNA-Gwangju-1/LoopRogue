@@ -103,6 +103,8 @@ namespace LoopRogue
         public bool EmergencyHealReady;
         /// <summary>유물 "두 번째 숨" - 이번 시도에서 아직 안 썼으면 true(죽으면 체력 30%로 부활).</summary>
         public bool ReviveReady;
+        /// <summary>퍼즐·미니게임 방 안 - 체력이 0이 되면 죽는 대신 퍼즐 실패(체력 복구)라, 두 번째 숨·모래시계를 쓰지 않는다(RoomController.Puzzle이 켜고 끈다).</summary>
+        public static bool RevivesSuspended;
         /// <summary>불굴/응급 처치가 발동했을 때 알림(메시지 표시용).</summary>
         public System.Action<string> OnArmorEffect;
         /// <summary>유물 "두 번째 숨"으로 되살아난 직후 - 플레이어를 안전한 칸으로 옮긴다(PlayerActor).</summary>
@@ -147,14 +149,14 @@ namespace LoopRogue
             }
             TakeDamage(toHealth);
 
-            if (IsDead && ReviveReady)
+            if (IsDead && ReviveReady && !RevivesSuspended)
             {
                 ReviveReady = false;
                 CurrentHealth = MaxHealth * Relics.SecondWindHealRate;
                 OnArmorEffect?.Invoke(Loc.T("두 번째 숨! 다시 일어섰다"));
                 OnRevived?.Invoke();
             }
-            if (IsDead && RunBuffs.ConsumeRevive()) // 방 이벤트 "시간의 모래시계"
+            if (IsDead && !RevivesSuspended && RunBuffs.ConsumeRevive()) // 방 이벤트 "시간의 모래시계"
             {
                 CurrentHealth = MaxHealth * RunBuffs.ReviveHealth;
                 OnArmorEffect?.Invoke(Loc.F("시간의 모래시계가 깨졌다! 체력 {0:0}%로 되살아났다", RunBuffs.ReviveHealth * 100f));

@@ -326,7 +326,11 @@ namespace LoopRogue
 
         /// <summary>보스 전용 - 스테이지별 예고 공격 패턴을 붙이고 그 층 보스 그림(Resources/Sprites/Boss{층})을 입힌다.</summary>
         /// <summary>보스 러시 - 입장하자마자 기믹 시작(체력은 이미 기믹 체력으로 깎아 둠).</summary>
-        public void StartGimmickNow(RoomController room) => _brain?.TryStartGimmick(room);
+        public void StartGimmickNow(RoomController room)
+        {
+            _turnRoom = room; // 보스 러시 - 한 턴도 안 움직였어도 무적·단단함 배율(DamageTakenMultiplier)이 방을 알게
+            _brain?.TryStartGimmick(room);
+        }
 
         public void SetupBossPatterns(List<BossPatternType> patterns, int stage)
         {
@@ -776,6 +780,8 @@ namespace LoopRogue
             if ((InSmoke || (player != null && player.InSmoke)) && !(IsBoss && room != null && room.MirrorLastStand))
                 return; // 연막 속 - 플레이어가 공격하기 전까지 아무것도 안 함(약점 표식 턴은 위에서 그대로 줄어든다). 연막 뒤에 나온 몹도.
                         // 10층 발악 중인 기사에겐 안 통한다(10-19 사용자 - 연막으로 발악을 공짜로 넘기던 구멍)
+            if (StunTurns > 0 && IsBoss && room != null && room.MirrorLastStand)
+                StunTurns = 0; // 10층 발악 중인 기사는 기절도 안 통한다(섬광탄·덫·파동의 핵으로 발악 턴을 공짜로 넘기던 구멍 - 연막과 같은 이유)
             if (StunTurns > 0)
             {
                 StunTurns--; // 기절(섬광탄/덫) - 아무것도 안 함

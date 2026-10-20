@@ -405,6 +405,8 @@ namespace LoopRogue
                     break;
                 case 6:
                 case 7:
+                    if (_gimmickStage == 7)
+                        _clones.RemoveAll(c => c == null || c.Stats.IsDead); // 칼날 말고 다른 길로 죽은 분신이 남아 무적이 안 풀리던 일 방지
                     if (!BossInvulnerable)
                         break; // 이미 다 없앴다
                     if (--_gimmickTurnsLeft <= 0)

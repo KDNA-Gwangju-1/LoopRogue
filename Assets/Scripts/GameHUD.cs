@@ -266,7 +266,7 @@ namespace LoopRogue
 
         // ---- 외부(자동 플레이 봇) 조작용 - 키 입력과 같은 동작을 그대로 호출한다 ----
         public IReadOnlyList<UpgradeOption> PendingUpgradeOptions => _pendingOptions;
-        public bool IsDeathChoiceOpen => _onContinueAfterDeath != null;
+        public bool IsDeathChoiceOpen => _onContinueAfterDeath != null && _pendingOptions == null;
         public bool IsStageClearOpen => _onStageClearContinue != null && _pendingOptions == null;
 
         public void ConfirmStageClear()
@@ -286,7 +286,7 @@ namespace LoopRogue
         private void ChooseDeathContinue(int startRoom)
         {
             var callback = _onContinueAfterDeath;
-            if (callback == null)
+            if (callback == null || _pendingOptions != null)
                 return;
             ClearDeathChoice();
             callback(startRoom);
@@ -295,7 +295,7 @@ namespace LoopRogue
         public void ChooseDeathLobby()
         {
             var callback = _onReturnToLobby;
-            if (callback == null)
+            if (callback == null || _pendingOptions != null)
                 return;
             ClearDeathChoice();
             callback();
@@ -305,7 +305,16 @@ namespace LoopRogue
         /// 고른다(업그레이드 카드와 같은 컨벤션).</summary>
         private void HandleDeathChoice()
         {
-            if (_onContinueAfterDeath == null || Time.frameCount <= _mapChoiceOpenedFrame)
+            if (_onContinueAfterDeath == null)
+                return;
+
+            // 레벨업 카드가 같이 떠 있으면(몹을 잡아 레벨업한 그 턴에 죽음) 카드부터 고르게 한다 - 그 사이엔 사망 창을
+            // 숨기고 입력도 무시(안 그러면 L로 로비에 가서 레벨만 오르고 카드 보상이 날아감). 클리어 창과 같은 방식.
+            var visible = _pendingOptions == null;
+            if (visible && !_deathPanel.activeSelf)
+                _mapChoiceOpenedFrame = Time.frameCount;
+            _deathPanel.SetActive(visible);
+            if (!visible || Time.frameCount <= _mapChoiceOpenedFrame)
                 return;
 
             if (_roomMap.HandleInput())

@@ -754,6 +754,7 @@ namespace LoopRogue
 
             if (_room.IsGolemCrystal(targetPos))
             {
+                BeginAction(); // 이것도 한 턴 - 쿨타임·속박·면역이 같이 줄어야 한다(퍼즐 ConsumeTurn과 같게)
                 _room.BreakGolemCrystal(targetPos); // 3층 골렘 수정 - 붙어서 그쪽으로 움직이면 한 번에 깬다(안 깨면 폭발)
                 PlayAttackFlash(direction);
                 EndTurn();
@@ -762,6 +763,7 @@ namespace LoopRogue
 
             if (_room.IsLightMirror(targetPos))
             {
+                BeginAction(); // 이것도 한 턴 - 쿨타임·속박·면역이 같이 줄어야 한다(퍼즐 ConsumeTurn과 같게)
                 _room.RotateLightMirror(targetPos); // 10층 빛 단계 거울 - 붙어서 그쪽으로 움직이면 /·\가 바뀐다
                 PlayAttackFlash(direction);
                 EndTurn();
@@ -770,6 +772,7 @@ namespace LoopRogue
 
             if (_room.IsOgreHole(targetPos))
             {
+                BeginAction(); // 이것도 한 턴 - 쿨타임·속박·면역이 같이 줄어야 한다(퍼즐 ConsumeTurn과 같게)
                 _room.FillOgreHole(targetPos); // 2층 오우거 바닥 구멍 - 붙어서 그쪽으로 움직이면 한 턴 써서 메운다
                 PlayAttackFlash(direction);
                 EndTurn();
@@ -946,7 +949,10 @@ namespace LoopRogue
                 {
                     if (e == null || e.Stats.IsDead)
                         continue;
-                    var damage = Stats.AttackPower * Relics.ChainBlastRate;
+                    // 칼이 안 통하는 몹(분신·거울상·포탑)과 보스 무적·단단함도 지킨다 - 다른 공격과 같은 배율
+                    var damage = Stats.AttackPower * Relics.ChainBlastRate * e.DamageTakenMultiplier;
+                    if (damage <= 0f)
+                        continue;
                     e.Stats.TakeDamage(damage);
                     DamagePopup.Spawn(e.transform.position, damage, new Color(1f, 0.6f, 0.2f));
                     if (e.Stats.IsDead && ClaimKill(e))
@@ -1029,6 +1035,7 @@ namespace LoopRogue
             BeginAction();
             DashCooldown = DashCooldownMax;
             var from = transform.position;
+            var startPos = GridPos;
             LastSkill = AttackStyle.Dash;
             if (landing != GridPos)
                 Map.MoveActor(this, landing);
@@ -1036,6 +1043,9 @@ namespace LoopRogue
             if (hit == null && _room.TryUseExit(landing))
                 return true;
             _room.CheckPlayerCrack(); // 대시로 내려선 칸이 균열이면 묶인다
+            _room.CheckSlimePuddle(); // 4층 슬라임 킹 점액 - 걸어서 밟을 때와 같게
+            if (landing != startPos)
+                _room.Puzzle?.PlayerMoved(landing); // 룬·보물 찾기처럼 밟은 칸에 반응하는 퍼즐
 
             if (hit != null)
             {

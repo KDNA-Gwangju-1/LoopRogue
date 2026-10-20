@@ -162,7 +162,19 @@ namespace LoopRogue
         // ===================== 퍼즐·미니게임 방 =====================
 
         /// <summary>지금 방이 퍼즐·미니게임이면 그 퍼즐(성공하면 null) - PlayerActor가 행동을 넘기고, 몹 턴 끝·처치·사망을 여기서 넘긴다.</summary>
-        public PuzzleBase Puzzle { get; private set; }
+        public PuzzleBase Puzzle
+        {
+            get => _puzzle;
+            private set
+            {
+                _puzzle = value;
+                CharacterStats.RevivesSuspended = value != null; // 퍼즐 안 죽음은 실패일 뿐 - 한 번뿐인 부활을 거기서 쓰지 않게
+            }
+        }
+
+        private PuzzleBase _puzzle;
+
+        private void OnDestroy() => CharacterStats.RevivesSuspended = false; // 퍼즐 도중 로비로 나가거나 다시 지어도 다음 판에 남지 않게
 
         /// <summary>지금 방 청사진(퍼즐이 그 방 몹 종류·세기를 빌려 쓴다).</summary>
         public RoomDefinition CurrentDefinition => _current;

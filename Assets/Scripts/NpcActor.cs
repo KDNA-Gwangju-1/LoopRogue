@@ -456,7 +456,7 @@ namespace LoopRogue
                 if (LoopRogue.Blacksmith.Current == LoopRogue.Blacksmith.Stage.NotMet)
                     AcceptSmithQuest(silent: true);
                 else
-                    LoopRogue.Blacksmith.Forge();
+                    ForgeNow();
                 return bought;
             }
             foreach (var entry in _stock.OrderBy(e => e.Kind))
@@ -510,9 +510,30 @@ namespace LoopRogue
                 new[] { new NpcDialogUI.Choice(Loc.T("떠난다"), null) });
         }
 
+        /// <summary>Unknown 세트를 받고 이번 판 스탯에도 바로 반영 - 장비 몫만큼 고정 몫(Fixed)을 올린다(RoomController.GrantPotionNow와 같은 방식).
+        /// 예전엔 지갑만 바뀌어 그 판엔 세트 스탯이 없었고, 로비에 다녀오면 RunProgress 복원이 성장 몫을 장비 증가분만큼 깎았다.</summary>
+        private bool ForgeNow()
+        {
+            var attackBefore = RunProgress.CurrentPermanentAttack();
+            var healthBefore = RunProgress.CurrentPermanentHealth();
+            var criticalBefore = RunProgress.CurrentPermanentCritical();
+            if (!LoopRogue.Blacksmith.Forge())
+                return false;
+            if (_player != null)
+            {
+                var stats = _player.Stats;
+                stats.FixedAttack += RunProgress.CurrentPermanentAttack() - attackBefore;
+                var healthGain = RunProgress.CurrentPermanentHealth() - healthBefore;
+                stats.FixedMaxHealth += healthGain;
+                stats.Heal(healthGain);
+                stats.CriticalChanceRate += RunProgress.CurrentPermanentCritical() - criticalBefore;
+            }
+            return true;
+        }
+
         private void ForgeSet()
         {
-            if (!LoopRogue.Blacksmith.Forge())
+            if (!ForgeNow())
                 return;
             _room.ShowMessage(Loc.F("<color=#7FE0D8>Unknown 장비 세트</color>를 받았다! 세트 효과 「{0}」: {1}", EquipmentEffects.MemorySetName, EquipmentEffects.MemorySetDescription));
             HitFeedback.OnBonusReward(_player);
