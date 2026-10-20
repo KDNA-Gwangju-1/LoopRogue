@@ -28,5 +28,5 @@
 Unity 가져오기 설정 추천: Load Type = Streaming, Compression = Vorbis, 품질 70% 정도.
 
 지금 들어 있는 곡(10-19, 바탕화면 LoopRogue_에셋모음/07_Sound에서 복사):
-  Boss1 = 1층 보스 / Casino = 도박장 / Lobby = 로비맵 / MiniGame = 미니게임맵 / Dungeon = 일반맵 타이틀맵 / Puzzle = 퍼즐맵 / Mural = 횃불방
-아직 없는 곡: Gacha, Boss2~Boss10
+  Boss1 = 1층 보스 / Boss2 = 2층보스 / Boss3 = 3층 보스(10-20) / Casino = 도박장 / Lobby = 로비맵 / MiniGame = 미니게임맵 / Dungeon = 일반맵 타이틀맵 / Puzzle = 퍼즐맵 / Mural = 횃불방
+아직 없는 곡: Gacha, Boss4~Boss10
