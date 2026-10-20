@@ -579,7 +579,7 @@ namespace LoopRogue
             anim.Face(Facing);
         }
 
-        private const string MimicSpriteSet = "Mimic";
+        public const string MimicSpriteSet = "Mimic";
 
         /// <summary>히든 몹 "기억하는 기사" - 녹슨 기사 도트 그림(Resources/Sprites/MemoryKnight, 4방향 대기·걷기·공격). 그림이 없으면 청록 사각형.</summary>
         /// <param name="patternPower">강타·기억 재현의 기준 공격력(보스 공격력 × MemoryKnight.BossPatternRate) - 일반 공격은 Stats.AttackPower(약함).</param>

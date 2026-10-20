@@ -495,6 +495,18 @@ namespace LoopRogue
             ev.Initialize(type);
             Map.PlaceActor(ev, pos);
             _events.Add(ev);
+            if (type == RoomEventType.Mimic)
+                StartCoroutine(PreloadMimic());
+        }
+
+        /// <summary>미믹이 있는 방 - 상자 괴물 그림(4방향 대기·걷기·공격, 200장 가까이)과 소환 이펙트를 방이 깔린 뒤 한 프레임에 한 묶음씩 미리 읽는다.
+        /// 예전엔 상자를 밟아 미믹이 튀어나오는 순간 한꺼번에 읽느라 화면이 멈췄다(10-20 사용자 "미믹 소환 때 렉"). 10층 기사 변신(PreloadMirrorForms)과 같은 방식.</summary>
+        private IEnumerator PreloadMimic()
+        {
+            yield return null;
+            SpriteAnimator.Preload(EnemyActor.MimicSpriteSet);
+            yield return null;
+            Fx.Frames("summon");
         }
 
         /// <summary>일반 방 클리어 시 NPC 등장 - 모험가: 의뢰를 들고 있으면 방 10에서 반드시(보고 받으러), 없으면 방 1에서 WandererChance.
