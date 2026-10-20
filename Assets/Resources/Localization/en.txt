@@ -1137,3 +1137,7 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 남은 아이템: {0}  (숫자 키, 놓거나 던지는 건 그다음 방향키)\n<color=#FFD966>{1}</color> - {2}	Items left: {0}  (number key; then an arrow key to place or throw)\n<color=#FFD966>{1}</color> - {2}
 빨간 칸은 다음 턴에 공격이 오는 곳 - 비켜서 피하세요.\n숫자 키로 <color=#FFD966>폭탄</color>을 고른 뒤 방향키로 던져 보세요.	Red tiles get hit next turn - step aside to dodge.\nPick the <color=#FFD966>Bomb</color> with its number key, then throw it with an arrow key.
 <color=#FFB060>먼저 아이템을 써 봐요:</color> {0}	<color=#FFB060>Try the items first:</color> {0}
+이용권 {0}장 사용 - 잭팟 {1} / 2개 일치 {2} / 꽝 {3}  →  총 {4}골드 획득	Used {0} tickets - Jackpot {1} / Pair {2} / Miss {3}  →  {4} gold total
+[T] {0}장 쓰기	[T] Use {0}
+[T] {0}장 다 쓰기	[T] Use all {0}
+[Shift+T] 전부 ({0}장)	[Shift+T] All ({0})

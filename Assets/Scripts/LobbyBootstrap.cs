@@ -77,6 +77,11 @@ namespace LoopRogue
         private Sprite _slotFrameWinSprite;
         private Text _slotButtonText;
         private Text _slotHighButtonText;
+        private Text _slotBulkButtonText;
+        private Text _slotAllButtonText;
+        private RectTransform _slotBulkButton;
+        private RectTransform _slotAllButton;
+        private const int SlotBulkCount = 10; // [T] 이용권 한 번에 10장씩
         private bool _slotSpinning;
         private int _slotPendingPayout;
 
@@ -198,6 +203,8 @@ namespace LoopRogue
                 case LobbyView.Casino:
                     if (GameInput.Down(Key.S))
                         DoSlotSpin(shift);
+                    if (GameInput.Down(Key.T))
+                        DoSlotTicketBulk(shift ? int.MaxValue : SlotBulkCount);
                     break;
             }
 
@@ -435,8 +442,52 @@ namespace LoopRogue
             StartCoroutine(SlotSpinRoutine(result.Value));
         }
 
+        /// <summary>이용권 여러 장을 한 번에 - [T] 10장씩(10장 미만이면 남은 전부), [Shift+T] 전부. 결과는 한꺼번에 정하고,
+        /// 릴 연출은 한 번만(그중 제일 좋은 결과의 그림으로) 돌린 뒤 합계를 보여 준다.</summary>
+        private void DoSlotTicketBulk(int count)
+        {
+            if (_slotSpinning || SlotMachine.Tickets <= 0)
+                return;
+
+            var results = new List<SlotMachine.SpinResult>();
+            while (results.Count < count && SlotMachine.Tickets > 0)
+            {
+                var result = SlotMachine.Spin(false);
+                if (result == null || !result.Value.UsedTicket)
+                    break; // 이용권이 다 떨어졌다(골드로 돌리지 않게 - Spin은 이용권이 없으면 골드를 쓴다)
+                results.Add(result.Value);
+            }
+            if (results.Count == 0)
+                return;
+
+            RefreshSlotDisplay();
+            StartCoroutine(SlotBulkRoutine(results));
+        }
+
+        private IEnumerator SlotBulkRoutine(List<SlotMachine.SpinResult> results)
+        {
+            var best = results[0];
+            int total = 0, jackpots = 0, pairs = 0;
+            foreach (var r in results)
+            {
+                total += r.Payout;
+                if (r.MatchCount == 3) jackpots++;
+                else if (r.MatchCount == 2) pairs++;
+                if (r.MatchCount > best.MatchCount)
+                    best = r;
+            }
+
+            _slotPendingPayout = total; // 연출이 끝날 때까지 보유 골드에 안 보이게(한 장 돌릴 때와 같다)
+            yield return SlotSpinRoutine(best, showResult: false);
+            _slotPendingPayout = 0;
+
+            var misses = results.Count - jackpots - pairs;
+            var summary = Loc.F("이용권 {0}장 사용 - 잭팟 {1} / 2개 일치 {2} / 꽝 {3}  →  총 {4}골드 획득", results.Count, jackpots, pairs, misses, total);
+            ShowResult(summary, jackpots > 0 ? new Color(1f, 0.85f, 0.3f) : total > 0 ? new Color(0.6f, 0.9f, 1f) : new Color(1f, 0.5f, 0.5f));
+        }
+
         /// <summary>결과는 이미 정해졌고 연출만 한다 - 전부 돌다가 왼쪽 릴부터 하나씩 멈춘다.</summary>
-        private IEnumerator SlotSpinRoutine(SlotMachine.SpinResult result)
+        private IEnumerator SlotSpinRoutine(SlotMachine.SpinResult result, bool showResult = true)
         {
             _slotSpinning = true;
             _slotPendingPayout = result.Payout;
@@ -463,6 +514,12 @@ namespace LoopRogue
 
             _slotPendingPayout = 0;
             _slotSpinning = false;
+
+            if (!showResult)
+            {
+                SetSlotLook(dim: result.MatchCount == 1, win: result.MatchCount == 3);
+                yield break; // 여러 장 한 번에 - 합계는 호출부(SlotBulkRoutine)가
+            }
 
             if (result.MatchCount == 3)
             {
@@ -513,6 +570,16 @@ namespace LoopRogue
                 ? Loc.F("[S] 돌리기 (이용권 {0}장)", SlotMachine.Tickets)
                 : Loc.F("[S] 돌리기 ({0}G)", SlotMachine.GetBet(false));
             _slotHighButtonText.text = Loc.F("[Shift+S] {0}배 베팅 ({1}G)", SlotMachine.HighBetMultiplier, SlotMachine.GetBet(true));
+
+            // 이용권 한 번에 쓰기 - 2장 이상일 때만, 전부 쓰기는 10장보다 많을 때만(10장 이하면 [T]가 곧 전부)
+            var tickets = SlotMachine.Tickets;
+            _slotBulkButton.gameObject.SetActive(tickets >= 2);
+            _slotAllButton.gameObject.SetActive(tickets > SlotBulkCount);
+            _slotBulkButton.anchoredPosition = new Vector2(tickets > SlotBulkCount ? -84f : 0f, _slotBulkButton.anchoredPosition.y); // 혼자면 가운데
+            _slotBulkButtonText.text = tickets >= SlotBulkCount
+                ? Loc.F("[T] {0}장 쓰기", SlotBulkCount)
+                : Loc.F("[T] {0}장 다 쓰기", tickets);
+            _slotAllButtonText.text = Loc.F("[Shift+T] 전부 ({0}장)", tickets);
         }
 
         private void RefreshEquipmentDisplay()
@@ -836,6 +903,10 @@ namespace LoopRogue
                 out _slotButtonText, string.Empty, 17, Color.white, () => DoSlotSpin(false));
             CreateButton(view, "SlotHighButton", new Color(0.5f, 0.2f, 0.15f), -62f, 300f, 42f,
                 out _slotHighButtonText, string.Empty, 17, Color.white, () => DoSlotSpin(true));
+            _slotBulkButton = CreateButton(view, "SlotBulkButton", new Color(0.35f, 0.3f, 0.15f), -112f, 160f, 42f,
+                out _slotBulkButtonText, string.Empty, 14, Color.white, () => DoSlotTicketBulk(SlotBulkCount), x: -84f);
+            _slotAllButton = CreateButton(view, "SlotAllButton", new Color(0.35f, 0.3f, 0.15f), -112f, 160f, 42f,
+                out _slotAllButtonText, string.Empty, 14, Color.white, () => DoSlotTicketBulk(int.MaxValue), x: 84f);
 
             CreateBackButton(view);
         }
