@@ -393,8 +393,8 @@ namespace LoopRogue
 
             var maxHp = Mathf.Max(1f, stats.MaxHealth);
             _hpBar.Set(stats.CurrentHealth / maxHp, stats.Shield >= 1f
-                ? Loc.F("{0:0} / {1:0}  <color=#9FD8FF>+보호막 {2:0}</color>", stats.CurrentHealth, stats.MaxHealth, stats.Shield)
-                : $"{stats.CurrentHealth:0} / {stats.MaxHealth:0}");
+                ? Loc.F("{0:0} / {1:0}  <color=#9FD8FF>+보호막 {2:0}</color>", ShownHealth(stats.CurrentHealth), stats.MaxHealth, stats.Shield)
+                : $"{ShownHealth(stats.CurrentHealth):0} / {stats.MaxHealth:0}");
             _hpBar.SetOverlay(stats.CurrentHealth / maxHp, stats.Shield / maxHp); // 체력 끝에 이어 흰 보호막
             var expRatio = levels.IsMaxLevel ? 1f : levels.Exp / (float)Mathf.Max(1, levels.ExpToNext);
             _expBar.Set(expRatio, levels.IsMaxLevel
@@ -526,7 +526,7 @@ namespace LoopRogue
             var title = Achievements.EquippedTitle;
             sb.AppendLine(title != null ? Loc.F("칭호  「{0}」  ({1})", title.Title, title.EffectText) : Loc.T("칭호  없음 (로비 업적 창에서 장착)"));
             sb.AppendLine(levels.IsMaxLevel ? Loc.F("레벨  Lv.{0}  (MAX)", levels.Level) : Loc.F("레벨  Lv.{0}  (EXP {1}/{2})", levels.Level, levels.Exp, levels.ExpToNext));
-            sb.AppendLine(Loc.F("체력  {0:0} / {1:0}  (장비·영약 {2:0})", s.CurrentHealth, s.MaxHealth, s.FixedMaxHealth));
+            sb.AppendLine(Loc.F("체력  {0:0} / {1:0}  (장비·영약 {2:0})", ShownHealth(s.CurrentHealth), s.MaxHealth, s.FixedMaxHealth));
             sb.AppendLine(Loc.F("공격력  {0:0.#}  (장비·영약 {1:0.#})", s.AttackPower, s.FixedAttack));
             sb.AppendLine(Loc.F("치명타  {0:0.#}%  (피해 {1:0.#}%)", s.EffectiveCriticalChance * 100f, s.CriticalDamageMultiplier * 100f));
             if (s.CriticalChanceRate > CharacterStats.MaxCriticalChance)
@@ -584,7 +584,7 @@ namespace LoopRogue
             var ratio = stats.MaxHealth > 0f ? Mathf.Clamp01(stats.CurrentHealth / stats.MaxHealth) : 0f;
             _targetFill.anchorMax = new Vector2(ratio, 1f);
             _targetFillImage.color = _target.IsBoss ? new Color(0.85f, 0.35f, 0.1f) : new Color(0.75f, 0.15f, 0.15f);
-            _targetText.text = $"{_target.DisplayName}  HP {stats.CurrentHealth:0}/{stats.MaxHealth:0}  (ATK {stats.AttackPower:0})";
+            _targetText.text = $"{_target.DisplayName}  HP {ShownHealth(stats.CurrentHealth):0}/{stats.MaxHealth:0}  (ATK {stats.AttackPower:0})";
         }
 
         public void RefreshProgress(int stage, int roomNumber, int roomCount, int loopCount)
@@ -602,6 +602,9 @@ namespace LoopRogue
 
         /// <summary>화면 위쪽 배너로 짧은 안내(방 이벤트 결과, 보스 소환 등).</summary>
         public void ShowMessage(string message) => ShowBanner(message);
+
+        /// <summary>화면에 보일 체력 - 올림(0.4 남았는데 반올림으로 "0"이 떠서 살아 있는데 죽은 것처럼 보이던 문제). 살아 있으면 최소 1.</summary>
+        private static float ShownHealth(float health) => health > 0f ? Mathf.Max(1f, Mathf.Ceil(health - 0.001f)) : 0f;
 
         public void ShowLoopResetBanner(int startRoom) => ShowBanner(Loc.F("스탯은 그대로! {0}부터 다시.", RoomMapView.RoomLabel(startRoom, _roomCount)));
 
