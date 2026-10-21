@@ -84,6 +84,8 @@ namespace LoopRogue
         public const float BoarPillarHealthRatio = 0.5f;
         public const int BoarPhaseChargeDistance = 8;
         public const float BoarArmorMultiplier = 0.1f;
+        /// <summary>6·7·9·10층 기믹 중(RoomController.BossInvulnerable) 보스가 받는 피해 배율 - 10-21 사용자 "기믹 중 보스는 뎀감 90%"(예전엔 0 = 무적).</summary>
+        public const float GimmickArmorMultiplier = 0.1f;
         public const int BoarCrashStunTurns = 3;
         private bool _pillarPhase;
 
@@ -124,7 +126,7 @@ namespace LoopRogue
 
         /// <summary>보스가 받는 피해 배율 - 멧돼지 기둥이 서 있으면 BoarArmorMultiplier(EnemyActor.DamageTakenMultiplier).</summary>
         public float ArmorMultiplier(RoomController room) =>
-            room != null && room.BossInvulnerable ? 0f // 6·7·9층 기믹 - 촛불·분신·죽음의 낙인이 남아 있는 동안 무적
+            room != null && room.BossInvulnerable ? GimmickArmorMultiplier // 6·7·9·10층 기믹 - 촛불·분신·죽음의 낙인·빛이 남아 있는 동안 피해 90% 감소(10-21 사용자, 예전엔 무적)
             : IsBoar && _pillarPhase && room != null && room.BoarPillarCount > 0 ? BoarArmorMultiplier
             : IsOgre && room != null ? room.OgreMightMultiplier // 2층 - 구멍을 메워 쌓은 대지의 기세
             : 1f;

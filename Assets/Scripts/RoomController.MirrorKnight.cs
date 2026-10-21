@@ -728,7 +728,7 @@ namespace LoopRogue
                     return Loc.F("거울 속 나 {0}/{1} · {2}턴", _reflectionHitCount, ReflectionHits, _gimmickTurnsLeft);
                 case 3 when MirrorPhaseActive:
                     danger = _gimmickTurnsLeft <= 20;
-                    return Loc.F("무적 · 빛 {0}턴", _gimmickTurnsLeft);
+                    return Loc.F("단단함 · 빛 {0}턴", _gimmickTurnsLeft);
                 case 4 when MirrorPhaseActive:
                     danger = true;
                     return Loc.F("발악 {0:0.0}초", _lastStandLeft * LastStandTurnSeconds);
