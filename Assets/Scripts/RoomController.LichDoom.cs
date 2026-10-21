@@ -44,7 +44,6 @@ namespace LoopRogue
             _doomTurnsLeft = DoomTurns;
             _doomAbsorbed = 0;
             _doomOrbClock = 0;
-            c.Line = Loc.T("<color=#C090FF>리치가 죽음의 낙인을 찍었다!</color> 낙인이 있는 동안 리치는 무적");
             c.Steps.Add(() =>
             {
                 Appear(_player.gameObject, "soul_summon", hide: false);
@@ -54,10 +53,6 @@ namespace LoopRogue
             });
             c.Steps.Add(() => SpawnDoomOrbs() > 0);
         }
-
-        private string DoomAfterLine =>
-            Loc.F("영혼 구체가 나를 쫓아온다 - 리치를 사이에 두고 구체가 리치에게 닿게 하자. 구체 {0}개를 흡수시키면 낙인이 리치에게 옮겨 간다. <color=#FF6060>{1}턴 안에 못 옮기면 끝장이다</color>",
-                DoomAbsorbNeeded, DoomTurns);
 
         // ------------------------------------------------------------------ 구체 생성
         /// <summary>방 가장자리 서로 다른 쪽(왼·오른·아래·위 중 무작위 셋)에 구체를 하나씩 - 만든 개수.</summary>

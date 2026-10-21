@@ -84,24 +84,19 @@ namespace LoopRogue
             _gimmickStage = stage;
             _gimmickBoss = boss;
             var c = new GimmickCutscene();
-            string after = null;
             switch (stage)
             {
                 case 4:
                     BeginSlimeSplit(boss, c);
-                    after = Loc.F("킹이 내려앉은 자리엔 점액이 남는다(밟으면 한 턴 묶임) - 벽 조각의 파동이 점액을 씻어 낸다. <color=#FF6060>점액이 {0}칸 쌓이면 끝장이다</color>", SlimePuddleLimit);
                     break;
                 case 5:
                     _infectionClock = InfectionEveryTurns;
-                    c.Line = Loc.T("<color=#C080FF>버섯 군주가 포자를 흩뿌린다!</color> 독안개가 방을 뒤덮는다 - 파동에 맞거나 안개를 마시면 감염된다");
                     c.Steps.Add(() => { SpawnSporeFog(); return !DamagePopup.Suppressed; }); // 독안개가 천천히 덮는다(10-16 사용자)
                     c.StepDelays.Add(0.9f);
                     c.Steps.Add(PropStep(_mushrooms, SpawnMushroomAnywhere, "mushroom_sprout"));
-                    after = Loc.F("안개 속 포자가 {0}턴마다 몸에 스며든다 - 파동 뒤에 피는 빛버섯을 밟으면 해독. <color=#FF6060>감염 {1}이면 끝장이다</color>", InfectionEveryTurns, InfectionLimit);
                     break;
                 case 6:
                     _gimmickTurnsLeft = CandleTurnLimit;
-                    c.Line = Loc.T("<color=#A0E0FF>망령 궁수가 모습을 감추고 영혼 촛불이 켜졌다!</color> 촛불이 켜져 있는 동안 궁수는 무적");
                     for (var i = 0; i < CandleCount; i++)
                         c.Steps.Add(PropStep(_candles, () =>
                         {
@@ -109,41 +104,26 @@ namespace LoopRogue
                             SpawnFloorProps(_candles, before + 1, "Spirit_Candle", new Color(0.7f, 0.9f, 1f), boss, 3);
                             return _candles.Count > before;
                         }, "candle_light"));
-                    after = Loc.F("촛불 옆에 서서 저격이 촛불을 덮게 하자 - <color=#FF6060>{0}턴 안에 다 못 끄면 끝장이다</color>", CandleTurnLimit);
                     break;
                 case 7:
                     _gimmickTurnsLeft = CloneTurnLimit;
-                    c.Line = cloneAgain
-                        ? Loc.T("<color=#B090D0>그림자 암살자가 다시 분신을 만들었다!</color> 분신이 있는 동안 암살자는 무적")
-                        : Loc.T("<color=#B090D0>그림자 암살자가 분신을 만들었다!</color> 분신에겐 칼이 안 통하고, 분신이 있는 동안 암살자는 무적");
                     for (var i = 0; i < CloneCount; i++)
                         c.Steps.Add(EnemyStep(() => SpawnClones(boss, 1) > 0, "shadow_split"));
-                    after = cloneAgain ? null
-                        : Loc.F("분신과 대각선 줄에 서서 X자 베기가 분신을 베게 하자 - <color=#FF6060>{0}턴 안에 다 못 지우면 끝장이다</color>", CloneTurnLimit);
                     break;
                 case 8:
                     BeginCrusher(c);
-                    after = Loc.F("다가오는 벽을 등지고 서서 도끼 충격파가 벽을 부수게 하자 - <color=#FF6060>닫히는 줄에 서 있거나 방이 {0}칸보다 좁아지면 끝장이다</color>", CrushMinRoom);
                     break;
                 case 9:
                     BeginLichDoom(c);
-                    after = DoomAfterLine;
                     break;
                 case BossBrain.MirrorStage:
                     _gimmickTurnsLeft = MirrorFakeTurnLimit;
-                    c.Line = Loc.T("<color=#C8D8FF>거울 가면 기사가 거울 속 자신을 불러냈다!</color> 좌우가 뒤집힌 가짜에겐 칼이 안 통한다");
                     for (var i = 0; i < MirrorFakeCount; i++)
                         c.Steps.Add(EnemyStep(() => SpawnMirrorFakes(boss, 1) > 0, "morph"));
                     c.Steps.Add(() => ShuffleMirror(boss)); // 마지막에 진짜와 가짜 하나가 자리를 바꾼다 - 눈으로 따라가면 안 된다
-                    after = Loc.F("진짜는 좌우가 제대로다 - 기사의 예고 공격에 가짜를 맞혀 깨뜨리자. <color=#FF6060>{0}턴 안에 다 못 깨면 끝장이다</color>", MirrorFakeTurnLimit);
                     break;
             }
-            c.Finish = () =>
-            {
-                if (after != null)
-                    ShowMessage(after);
-                UpdateGimmickLabel();
-            };
+            c.Finish = UpdateGimmickLabel;
             UpdateGimmickLabel();
             PlayGimmickCutscene(c);
         }

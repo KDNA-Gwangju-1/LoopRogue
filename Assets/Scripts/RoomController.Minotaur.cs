@@ -44,7 +44,6 @@ namespace LoopRogue
             _crushCountdown = CrushStartInterval;
             _crushActive = true;
             _crushWarned = false;
-            c.Line = Loc.T("<color=#FF9040>미노타우로스가 도끼로 바닥을 내리찍자 사방의 벽이 움직이기 시작한다!</color>");
         }
 
         /// <summary>side 벽이 지금 닫을 줄의 칸들(다른 벽 사이 구간만).</summary>

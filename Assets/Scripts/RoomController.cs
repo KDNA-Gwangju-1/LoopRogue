@@ -2164,7 +2164,7 @@ namespace LoopRogue
         public void StartBoarPillarPhase(EnemyActor boar)
         {
             // 공용 기믹 컷신(RoomController.Cutscenes) - 어두워진 사이 멧돼지는 중앙, 플레이어는 몸 2칸 아래 → 기둥이 하나씩 솟는다
-            var c = new GimmickCutscene { Line = Loc.T("<color=#FFB060>거대 멧돼지가 분노해 울부짖는다!</color>"), Fade = true };
+            var c = new GimmickCutscene { Fade = true };
             c.Relocate = () =>
             {
                 if (boar != null && !boar.Stats.IsDead)
@@ -2173,11 +2173,7 @@ namespace LoopRogue
             };
             foreach (var spot in BoarPillarTemplate())
                 c.Steps.Add(() => boar != null && !boar.Stats.IsDead && AddBoarPillar(spot)); // 솟아오르는 이펙트는 AddBoarPillar가
-            c.Finish = () =>
-            {
-                if (FinishBoarPillars() > 0)
-                    AnnounceBoarPillars();
-            };
+            c.Finish = () => FinishBoarPillars();
             PlayGimmickCutscene(c);
         }
 
@@ -2234,14 +2230,7 @@ namespace LoopRogue
 
         private void SpawnBoarPillarsAndAnnounce(EnemyActor boar)
         {
-            if (SpawnBoarPillars(boar) > 0)
-                AnnounceBoarPillars();
-        }
-
-        private void AnnounceBoarPillars()
-        {
-            ShowMessage(Loc.T("<color=#FFB060>멧돼지가 땅을 들이받자 돌기둥이 솟았다!</color> 기둥이 서 있는 동안 멧돼지는 단단하다"));
-            ShowMessage(Loc.F("기둥 뒤에 서서 돌진을 유도해 기둥에 박게 하자! <color=#FF6060>{0}턴 안에 다 못 부수면 끝장이다</color>", BoarPillarTurnLimit));
+            SpawnBoarPillars(boar);
         }
 
         public int SpawnBoarPillars(EnemyActor boar)

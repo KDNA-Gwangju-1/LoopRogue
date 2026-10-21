@@ -83,28 +83,22 @@ namespace LoopRogue
             _mirrorPhase = phase;
             SetMirrorFloor(boss, running: true);
             var c = new GimmickCutscene();
-            string after = null;
             switch (phase)
             {
                 case 2:
                     _gimmickTurnsLeft = ReflectionTurnLimit;
                     _reflectionHitCount = 0;
-                    c.Line = Loc.T("<color=#C8D8FF>거울 가면 기사가 나를 비췄다!</color> 좌우가 뒤집힌 내가 방 반대편에 나타났다");
                     c.Steps.Add(() => SpawnReflection());
-                    after = Loc.F("거울 속 나는 좌우가 반대로 움직인다 - 기사의 예고 공격에 거울 속 나를 {0}번 맞히자. <color=#FF6060>{1}턴 안에 못 하면 끝장이다</color>",
-                        ReflectionHits, ReflectionTurnLimit);
                     break;
                 case 3:
                     if (!BuildLightPuzzle(boss))
                     {
                         // 방이 좁아 빛 길을 못 만들었다 - 이 단계는 건너뛴다(무적 없음)
-                        ShowMessage(Loc.T("<color=#FFE890>어디선가 빛이 비쳤다가 사라졌다...</color>"));
                         SetMirrorFloor(boss, running: false);
                         return;
                     }
                     _lightActive = true;
                     _gimmickTurnsLeft = Mathf.Max(LightTurnLimit, LightTurnBase + LightTurnPerStep * LightTourSteps());
-                    c.Line = Loc.T("<color=#FFE890>의문의 조력자가 나타나 빛을 쏘았다!</color> 거울 갑옷을 두른 기사는 무적이 됐다");
                     var helper = _lightHelper;
                     c.Steps.Add(WallStep(() => { SpawnLightHelperProp(helper); return true; }, "candle_light"));
                     foreach (var m in _lightMirrors.Keys.ToList())
@@ -112,8 +106,6 @@ namespace LoopRogue
                         var at = m;
                         c.Steps.Add(WallStep(() => { SpawnLightMirrorProp(at); return true; }, "morph"));
                     }
-                    after = Loc.F("거울에 붙어 밀면 방향이 바뀐다 - 빛이 거울 {0}개에 모두 반사된 뒤 기사에게 닿으면 무적이 풀리고 기사가 기절한다. <color=#FF6060>{1}턴 안에 못 하면 끝장이다</color>",
-                        LightMirrorCount, _gimmickTurnsLeft);
                     break;
                 case 4:
                     _lastStandLeft = LastStandTurns;
@@ -121,14 +113,10 @@ namespace LoopRogue
                     foreach (var m in _enemies.Where(e => e != null && e.IsMinion && !e.Stats.IsDead).ToList())
                         DespawnEnemy(m, new Color(0.8f, 0.88f, 1f));
                     boss.ClearStun();
-                    c.Line = Loc.T("<color=#FF6060>거울 가면이 깨지며 기사가 발악한다!</color> 칼은 더 이상 통하지 않는다");
-                    after = Loc.F("이제 시간이 흐른다 - <color=#FF6060>{0:0}초 동안 기사의 공격을 피하자! 맞으면 끝장이다</color>", LastStandTurns * LastStandTurnSeconds);
                     break;
             }
             c.Finish = () =>
             {
-                if (after != null)
-                    ShowMessage(after);
                 RefreshLightBeam();
                 UpdateGimmickLabel();
             };

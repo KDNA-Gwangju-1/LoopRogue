@@ -34,7 +34,6 @@ namespace LoopRogue
         // ------------------------------------------------------------------ 시작
         private void BeginSlimeSplit(EnemyActor boss, GimmickCutscene c)
         {
-            c.Line = Loc.T("<color=#FF7088>슬라임 킹이 몸을 찢으며 둘로 갈라졌다!</color> 떨어져 나간 조각이 벽에 달라붙는다");
             // 1) 몸을 옆으로 늘이다 가운데가 잘록해져 둘로 갈라지는 그림(Boss4/split_south_0~4) - 그림이 없으면 건너뜀
             c.Steps.Add(() => boss.TryGetComponent<SpriteAnimator>(out var anim) && anim.PlayClip("split", 0.9f, 0.25f));
             c.StepDelays.Add(1.15f);

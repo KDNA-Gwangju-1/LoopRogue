@@ -12,7 +12,6 @@ namespace LoopRogue
     {
         public sealed class GimmickCutscene
         {
-            public string Line;                 // 시작 대사(ShowMessage)
             public bool Fade;                   // 화면을 어둡게 해서 그 사이에 Relocate
             public Action Relocate;
             public readonly List<Func<bool>> Steps = new List<Func<bool>>(); // 하나씩 등장 - 뭔가 나왔으면 true(그때만 쉬어 간다)
@@ -28,8 +27,6 @@ namespace LoopRogue
         {
             if (DamagePopup.Suppressed)
             {
-                if (c.Line != null)
-                    ShowMessage(c.Line);
                 c.Relocate?.Invoke();
                 foreach (var step in c.Steps)
                     step();
@@ -48,8 +45,6 @@ namespace LoopRogue
             IsInputLocked = true;
             ClearAllTelegraphs();
             CameraShake.Focus(c.Focus != null ? c.Focus : _enemies.FirstOrDefault(e => e != null && e.IsBoss && !e.Stats.IsDead)); // 10-14 사용자: 컷신 동안 보스를 비추게
-            if (c.Line != null)
-                ShowMessage(c.Line);
             CameraShake.Shake(0.35f, 0.6f);
             SfxPlayer.Play(Sfx.Slam);
             yield return new WaitForSeconds(0.5f);
@@ -159,9 +154,8 @@ namespace LoopRogue
         /// <summary>2층 오우거 - 구멍 단계 시작: 몽둥이로 내리치며 첫 구멍 1개.</summary>
         public void StartOgreHolePhase(EnemyActor ogre)
         {
-            var c = new GimmickCutscene { Line = Loc.T("<color=#FFB060>오우거가 분노해 몽둥이로 땅을 내리친다!</color> 이제 강타마다 던전이 흔들려 바닥에 구멍이 뚫린다") };
+            var c = new GimmickCutscene();
             c.Steps.Add(() => { var before = _ogreHoles.Count; OpenOgreHoles(ogre, 1); return _ogreHoles.Count > before; }); // 첫 구멍 1개(10-14 사용자: 두 개씩은 많다)
-            c.Finish = () => ShowMessage(Loc.F("구멍에 붙어 그쪽으로 움직이면 메울 수 있다 - <color=#FF6060>구멍이 {0}개가 되면 바닥이 무너진다</color>", OgreHoleCollapseCount));
             PlayGimmickCutscene(c);
         }
 
@@ -172,18 +166,12 @@ namespace LoopRogue
         {
             var c = new GimmickCutscene
             {
-                Line = Loc.F("<color=#7FE0D8>골렘이 땅을 울리자 수정 {0}개가 솟고 천장에서 바위가 떨어졌다!</color>", crystals.Count),
                 StepDelay = 0.34f, // 0.22 → 0.34(10-16 사용자 "생길 때마다 그 자리를 비추게" - 카메라가 따라갈 틈)
             };
             foreach (var wave in rubbleWaves)
                 c.Steps.Add(WallStep(() => DropGolemRubbleAround(golem, 1, wave) > 0, "rubble_fall"));
             foreach (var crystal in crystals)
                 c.Steps.Add(WallStep(() => SpawnGolemCrystals(golem, _golemCrystals.Count + 1, crystal.Fuse, crystal.Wave) > 0, "crystal_rise"));
-            c.Finish = () =>
-            {
-                if (firstWave && crystals.Count > 0)
-                    ShowMessage(Loc.F("수정은 {0}턴 뒤 방 전체를 날려 버린다 - <color=#FF6060>붙어서 깨거나, 바위 뒤에 숨자</color> (바위는 폭발에 깨진다)", crystals[0].Fuse));
-            };
             PlayGimmickCutscene(c);
         }
     }
