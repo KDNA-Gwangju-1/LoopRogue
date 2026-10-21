@@ -197,6 +197,8 @@ namespace LoopRogue
             }
             if (_turretCooldown > 0 || along < -1 || along > 2)
                 return; // 아직 쉬는 중이거나 줄이 멀다 - 계속 미끄러진다
+            if (player.RootedTurns > 0)
+                return; // 점액에 묶여 다음 턴에 못 움직이면 예고해도 못 피한다 - 풀릴 때까지 미룬다
             _turretPending = SlimeWaveTiles(turret.GridPos);
             ShowEnemyTelegraph(turret, _turretPending, SlimeTelegraphColor);
         }

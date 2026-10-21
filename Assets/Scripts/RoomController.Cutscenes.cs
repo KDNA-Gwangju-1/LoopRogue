@@ -39,8 +39,12 @@ namespace LoopRogue
             StartCoroutine(GimmickCutsceneRoutine(c));
         }
 
+        /// <summary>기믹 컷신이 돌고 있다(소품·거울상이 아직 다 안 나왔다) - 10층 단계 확인이 "벌써 끝났다"로 착각하지 않게.</summary>
+        private bool _gimmickCutscenePlaying;
+
         private IEnumerator GimmickCutsceneRoutine(GimmickCutscene c)
         {
+            _gimmickCutscenePlaying = true;
             IsInputLocked = true;
             ClearAllTelegraphs();
             CameraShake.Focus(c.Focus != null ? c.Focus : _enemies.FirstOrDefault(e => e != null && e.IsBoss && !e.Stats.IsDead)); // 10-14 사용자: 컷신 동안 보스를 비추게
@@ -69,6 +73,7 @@ namespace LoopRogue
                 yield return new WaitForSeconds(i < c.StepDelays.Count && c.StepDelays[i] > 0f ? c.StepDelays[i] : c.StepDelay);
             }
             c.Finish?.Invoke();
+            _gimmickCutscenePlaying = false;
             yield return new WaitForSeconds(0.35f);
             CameraShake.Focus(null);
             IsInputLocked = false;

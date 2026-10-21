@@ -100,7 +100,7 @@ namespace LoopRogue
                     continue;
                 var renderer = enemy.GetComponent<SpriteRenderer>();
                 if (renderer != null)
-                    renderer.enabled = enemy.IsBoss || _visible.Contains(enemy.GridPos);
+                    renderer.enabled = enemy.IsBoss || enemy == _room.SlimeTurret || _visible.Contains(enemy.GridPos); // 4층 포탑(2x2)은 보스 몸의 일부 - 예고 칸만 보이고 몸이 숨지 않게
             }
         }
 

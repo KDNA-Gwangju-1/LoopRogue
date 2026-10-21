@@ -715,6 +715,7 @@ namespace LoopRogue
             if (!DamagePopup.Suppressed)
                 DeathBurst.Spawn(e.transform.position, burst, 14, GridConstants.CellSize * 1.6f, GridConstants.CellSize * 0.14f);
             e.Stats.TakeDamage(e.Stats.CurrentHealth + 1f);
+            ClearBombTelegraph(e);
             Map.RemoveActor(e);
             _enemies.Remove(e);
             Destroy(e.gameObject);

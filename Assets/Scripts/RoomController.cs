@@ -1160,7 +1160,17 @@ namespace LoopRogue
                     if (go != null)
                         Destroy(go);
             _bombs.Clear();
+            DestroyPlayerBombObjects(); // 던져 놓고 안 터진 폭탄(같은 턴에 출구로 나감·사망)도 - 예전엔 목록만 비워 그림이 다음 방까지 남았다
             ClearTelegraph();
+        }
+
+        private void DestroyPlayerBombObjects()
+        {
+            foreach (var bomb in _playerBombs)
+                foreach (var go in bomb.Objects)
+                    if (go != null)
+                        Destroy(go);
+            _playerBombs.Clear();
         }
 
         private GameObject SpawnTelegraphTile(Vector2Int t, Color color, int sortingOrder)
@@ -2518,6 +2528,7 @@ namespace LoopRogue
                 {
                     if (minion == null)
                         continue;
+                    ClearBombTelegraph(minion); // 4층 포탑 등 예고 중이던 졸개의 칸도
                     Map.RemoveActor(minion);
                     Destroy(minion.gameObject);
                 }
@@ -2793,15 +2804,9 @@ namespace LoopRogue
             if (_playerBombs.Count == 0)
                 return;
             var bombs = _playerBombs.ToArray();
-            _playerBombs.Clear();
+            DestroyPlayerBombObjects(); // 그림은 먼저 다 지운다 - 앞 폭탄이 마지막 몹을 잡아도 뒤 폭탄 그림이 남지 않게
             foreach (var bomb in bombs)
-            {
-                foreach (var go in bomb.Objects)
-                    if (go != null)
-                        Destroy(go);
-                if (ExplodePlayerBomb(bomb.Center))
-                    return; // 방 전환
-            }
+                ExplodePlayerBomb(bomb.Center); // 방이 비어도 남은 폭탄은 마저 터진다(금 간 벽은 부서져야)
         }
 
         // ===================== 아이템이 방에 하는 일 =====================

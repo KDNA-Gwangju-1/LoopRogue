@@ -587,7 +587,7 @@ namespace LoopRogue
             _queuedWait = false;
             if (move.HasValue && dash && TryDash(move.Value))
                 return true;
-            if (move.HasValue && Map.IsWalkable(GridPos + move.Value))
+            if (move.HasValue && RootedTurns <= 0 && Map.IsWalkable(GridPos + move.Value)) // 묶였으면 TryAct가 턴을 안 써서 시간이 멈춘다 → 대기로
             {
                 TryAct(move.Value);
                 return true;

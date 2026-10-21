@@ -54,10 +54,7 @@ namespace LoopRogue.EditorTools
                 EditorApplication.isPlaying = false;
                 return;
             }
-            UnityEngine.PlayerPrefs.Save();
-            if (RunReg($"export \"{PrefsRegistryKey}\" \"{TestBackupPath}\" /y"))
-                EditorPrefs.SetBool(TestRestorePendingKey, true);
-            else if (!EditorUtility.DisplayDialog("저장 백업 실패", "지금 저장을 백업하지 못했습니다. 테스트 중 바뀐 저장이 그대로 남습니다. 그래도 시작할까요?", "시작", "취소"))
+            if (!BackupBeforeTest("테스트"))
                 return;
             EditorPrefs.SetBool(TestMap.PrefKey, true);
             EditorApplication.isPlaying = true;
@@ -65,17 +62,41 @@ namespace LoopRogue.EditorTools
 
         private static string TestBackupPath => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(BackupPath), "testmap_backup.reg");
 
+        /// <summary>체험 4종(테스트 맵·퍼즐·벽화·보스 기믹) 공통 백업. 아직 되돌리지 않은 백업이 있으면 덮어쓰지 않는다 - 예전엔
+        /// Play 진입이 막힌 채(컴파일 에러 등) 다시 누르면 체험용으로 바뀐 저장이 백업을 덮어 진짜 저장이 사라졌다. 시작해도 되면 true.</summary>
+        private static bool BackupBeforeTest(string what)
+        {
+            if (EditorPrefs.GetBool(TestRestorePendingKey, false) && System.IO.File.Exists(TestBackupPath))
+                return true; // 진짜 저장은 이미 백업돼 있다 - Play를 멈추면 그걸로 되돌아간다
+            UnityEngine.PlayerPrefs.Save();
+            if (RunReg($"export \"{PrefsRegistryKey}\" \"{TestBackupPath}\" /y"))
+            {
+                EditorPrefs.SetBool(TestRestorePendingKey, true);
+                return true;
+            }
+            return EditorUtility.DisplayDialog("저장 백업 실패", $"지금 저장을 백업하지 못했습니다. {what} 중 바뀐 저장이 그대로 남습니다. 그래도 시작할까요?", "시작", "취소");
+        }
+
+        /// <summary>체험 백업으로 되돌린다 - 성공해야 되돌리기 표시를 끈다(실패하면 남겨 둬서 다음에 다시 시도하고, 새 체험이 백업을 덮지 않게).</summary>
+        private static void RestoreTestBackup(string okLog)
+        {
+            if (RestoreFrom(TestBackupPath))
+            {
+                EditorPrefs.SetBool(TestRestorePendingKey, false);
+                UnityEngine.Debug.Log(okLog);
+                return;
+            }
+            UnityEngine.Debug.LogError($"[테스트 맵] 저장 되돌리기 실패 - 백업은 그대로 있습니다({TestBackupPath}). 다음에 Play를 멈추거나 에디터를 다시 켜면 또 시도합니다.");
+            EditorUtility.DisplayDialog("저장 되돌리기 실패", "체험 전 저장으로 되돌리지 못했습니다. 백업 파일은 남아 있고 다음에 다시 시도합니다.\n" + TestBackupPath, "확인");
+        }
+
         [InitializeOnLoadMethod]
         private static void HookTestMapRestore() => EditorApplication.playModeStateChanged += state =>
         {
             if (state != PlayModeStateChange.EnteredEditMode)
                 return;
             if (EditorPrefs.GetBool(TestRestorePendingKey, false))
-            {
-                EditorPrefs.SetBool(TestRestorePendingKey, false);
-                if (RestoreFrom(TestBackupPath))
-                    UnityEngine.Debug.Log("[테스트 맵] 저장을 테스트 시작 전으로 되돌렸습니다.");
-            }
+                RestoreTestBackup("[테스트 맵] 저장을 테스트 시작 전으로 되돌렸습니다.");
             if (EditorPrefs.GetBool(TestStartAfterStopKey, false))
             {
                 EditorPrefs.SetBool(TestStartAfterStopKey, false);
@@ -109,10 +130,7 @@ namespace LoopRogue.EditorTools
                 EditorApplication.isPlaying = false;
                 return;
             }
-            UnityEngine.PlayerPrefs.Save();
-            if (RunReg($"export \"{PrefsRegistryKey}\" \"{TestBackupPath}\" /y"))
-                EditorPrefs.SetBool(TestRestorePendingKey, true);
-            else if (!EditorUtility.DisplayDialog("저장 백업 실패", "지금 저장을 백업하지 못했습니다. 체험 중 바뀐 저장이 그대로 남습니다. 그래도 시작할까요?", "시작", "취소"))
+            if (!BackupBeforeTest("체험"))
                 return;
             EditorPrefs.SetInt(PuzzleTrial.PrefKey, (int)type);
             EditorApplication.isPlaying = true;
@@ -151,10 +169,7 @@ namespace LoopRogue.EditorTools
                 EditorUtility.DisplayDialog("벽화의 방 체험", "Play를 멈춘 뒤 다시 골라 주세요(멈추면 저장이 되돌아갑니다).", "확인");
                 return;
             }
-            UnityEngine.PlayerPrefs.Save();
-            if (RunReg($"export \"{PrefsRegistryKey}\" \"{TestBackupPath}\" /y"))
-                EditorPrefs.SetBool(TestRestorePendingKey, true);
-            else if (!EditorUtility.DisplayDialog("저장 백업 실패", "지금 저장을 백업하지 못했습니다. 체험 중 바뀐 저장이 그대로 남습니다. 그래도 시작할까요?", "시작", "취소"))
+            if (!BackupBeforeTest("체험"))
                 return;
             UnityEngine.PlayerPrefs.SetInt("LoopRogue_CurrentStage", stage);
             UnityEngine.PlayerPrefs.SetInt(LoopRogue.TutorialStage.DoneKey, 1); // 튜토리얼로 새지 않게
@@ -277,10 +292,7 @@ namespace LoopRogue.EditorTools
                 EditorUtility.DisplayDialog("기준 상태 없음", "BotLogs/reference_snapshots.tsv에 10층 입장 기준 상태가 없습니다. 자동 플레이 봇(100판)을 먼저 한 번 돌리세요.", "확인");
                 return;
             }
-            UnityEngine.PlayerPrefs.Save();
-            if (RunReg($"export \"{PrefsRegistryKey}\" \"{TestBackupPath}\" /y"))
-                EditorPrefs.SetBool(TestRestorePendingKey, true);
-            else if (!EditorUtility.DisplayDialog("저장 백업 실패", "지금 저장을 백업하지 못했습니다. 보스 러시 중 바뀐 저장이 그대로 남습니다. 그래도 시작할까요?", "시작", "취소"))
+            if (!BackupBeforeTest("보스 러시"))
                 return;
             LoopRogue.GameSettings.Preserve(() => UnityEngine.PlayerPrefs.DeleteAll());
             var inv = System.Globalization.CultureInfo.InvariantCulture;
@@ -357,11 +369,7 @@ namespace LoopRogue.EditorTools
                 EditorPrefs.SetString(AutoPlayBot.ModePrefKey, "");
             };
             if (!EditorApplication.isPlayingOrWillChangePlaymode && EditorPrefs.GetBool(TestRestorePendingKey, false))
-            {
-                EditorPrefs.SetBool(TestRestorePendingKey, false);
-                if (RestoreFrom(TestBackupPath))
-                    UnityEngine.Debug.Log("[테스트 맵] 지난번 테스트가 끝나기 전에 에디터가 꺼져서, 저장을 테스트 시작 전으로 되돌렸습니다.");
-            }
+                RestoreTestBackup("[테스트 맵] 지난번 테스트가 끝나기 전에 에디터가 꺼져서(또는 Play에 못 들어가서), 저장을 테스트 시작 전으로 되돌렸습니다.");
         }
 
         /// <summary>백업 파일로 저장을 되돌린다 - 파일이 없거나 비정상이면 지우지도 않는다(예전엔 지운 뒤 가져오기가 실패하면 저장이 비었다).</summary>
@@ -369,8 +377,15 @@ namespace LoopRogue.EditorTools
         {
             if (!System.IO.File.Exists(path) || new System.IO.FileInfo(path).Length < 64)
                 return false;
+            // 지우기 전에 지금 상태를 따로 떠 둔다 - 가져오기가 실패하면 그걸로 다시 채워서 저장이 텅 비지 않게
+            var undo = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path), "restore_undo.reg");
+            var haveUndo = RunReg($"export \"{PrefsRegistryKey}\" \"{undo}\" /y");
             RunReg($"delete \"{PrefsRegistryKey}\" /f");
-            return RunReg($"import \"{path}\"");
+            if (RunReg($"import \"{path}\""))
+                return true;
+            if (haveUndo)
+                RunReg($"import \"{undo}\"");
+            return false;
         }
 
         /// <summary>에디터 PlayerPrefs는 레지스트리(HKCU\Software\Unity\UnityEditor\회사\제품)에 있다 - 통째로 .reg로 내보낸다.</summary>
@@ -400,7 +415,8 @@ namespace LoopRogue.EditorTools
                 EditorUtility.DisplayDialog("저장 되돌리기", "백업 파일이 없습니다.\n" + BackupPath, "확인");
                 return;
             }
-            if (!EditorUtility.DisplayDialog("저장 되돌리기", "지금 저장을 지우고 봇 시작 전 저장으로 되돌릴까요?", "되돌리기", "취소"))
+            var taken = System.IO.File.GetLastWriteTime(BackupPath).ToString("yyyy-MM-dd HH:mm"); // 오래된 백업이면 그 사이 진행이 사라진다 - 날짜를 보여 준다
+            if (!EditorUtility.DisplayDialog("저장 되돌리기", $"지금 저장을 지우고 봇 시작 전 저장({taken} 백업)으로 되돌릴까요?\n그 뒤에 한 진행은 사라집니다.", "되돌리기", "취소"))
                 return;
             var ok = RestoreFrom(BackupPath);
             if (ok)

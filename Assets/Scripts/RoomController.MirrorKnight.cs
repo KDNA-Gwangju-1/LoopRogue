@@ -693,6 +693,8 @@ namespace LoopRogue
         {
             finished = false;
             _mirrorFakes.RemoveAll(f => f == null || f.Stats.IsDead);
+            if (_gimmickCutscenePlaying)
+                return false; // 단계를 막 시작한 몹 턴 - 거울상·거울 속 나가 컷신에서 나오기 전이라 끝난 걸로 보면 체력 하한이 풀린다
             if (!MirrorPhaseActive)
             {
                 SetMirrorFloor(_gimmickBoss, running: false);
