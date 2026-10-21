@@ -84,6 +84,11 @@ namespace LoopRogue
         private const int SlotBulkCount = 10; // [T] 이용권 한 번에 10장씩
         private bool _slotSpinning;
         private int _slotPendingPayout;
+        // 연출 스킵 - 켜 두면 릴이 돌지 않고 바로 결과(저장), 꺼져 있어도 도는 중에 다시 누르면 그 판만 바로 멈춘다.
+        private const string SlotSkipPrefKey = "LoopRogue_SlotSkipAnim";
+        private bool _slotSkipAnim;
+        private bool _slotSkipNow;
+        private Text _slotSkipButtonText;
 
         private void Awake()
         {
@@ -205,6 +210,8 @@ namespace LoopRogue
                         DoSlotSpin(shift);
                     if (GameInput.Down(Key.T))
                         DoSlotTicketBulk(shift ? int.MaxValue : SlotBulkCount);
+                    if (GameInput.Down(Key.K))
+                        ToggleSlotSkip();
                     break;
             }
 
@@ -429,7 +436,10 @@ namespace LoopRogue
         private void DoSlotSpin(bool high)
         {
             if (_slotSpinning)
+            {
+                _slotSkipNow = true; // 도는 중에 다시 누르면 바로 멈춤
                 return;
+            }
 
             var result = SlotMachine.Spin(high);
             if (result == null)
@@ -446,7 +456,12 @@ namespace LoopRogue
         /// 릴 연출은 한 번만(그중 제일 좋은 결과의 그림으로) 돌린 뒤 합계를 보여 준다.</summary>
         private void DoSlotTicketBulk(int count)
         {
-            if (_slotSpinning || SlotMachine.Tickets <= 0)
+            if (_slotSpinning)
+            {
+                _slotSkipNow = true;
+                return;
+            }
+            if (SlotMachine.Tickets <= 0)
                 return;
 
             var results = new List<SlotMachine.SpinResult>();
@@ -496,8 +511,11 @@ namespace LoopRogue
             var shown = new int[3];
             var stopped = 0;
             var elapsed = 0f;
+            _slotSkipNow = false;
             while (stopped < 3)
             {
+                if (_slotSkipAnim || _slotSkipNow)
+                    elapsed = SlotSpinDuration + SlotReelStopInterval * 3f; // 연출 스킵 - 남은 릴을 한꺼번에 세운다
                 while (stopped < 3 && elapsed >= SlotSpinDuration + SlotReelStopInterval * stopped)
                 {
                     shown[stopped] = result.Reels[stopped];
@@ -508,10 +526,13 @@ namespace LoopRogue
                     shown[i] = UnityEngine.Random.Range(0, SlotMachine.Symbols.Length);
 
                 ShowReels(shown);
+                if (stopped >= 3)
+                    break; // 다 멈췄으면 기다리지 않는다(스킵이 켜져 있으면 누르는 즉시 결과)
                 yield return new WaitForSeconds(0.06f);
                 elapsed += 0.06f;
             }
 
+            _slotSkipNow = false;
             _slotPendingPayout = 0;
             _slotSpinning = false;
 
@@ -580,6 +601,17 @@ namespace LoopRogue
                 ? Loc.F("[T] {0}장 쓰기", SlotBulkCount)
                 : Loc.F("[T] {0}장 다 쓰기", tickets);
             _slotAllButtonText.text = Loc.F("[Shift+T] 전부 ({0}장)", tickets);
+            _slotSkipButtonText.text = _slotSkipAnim ? Loc.T("[K] 연출 스킵: 켬") : Loc.T("[K] 연출 스킵: 끔");
+        }
+
+        private void ToggleSlotSkip()
+        {
+            _slotSkipAnim = !_slotSkipAnim;
+            PlayerPrefs.SetInt(SlotSkipPrefKey, _slotSkipAnim ? 1 : 0);
+            PlayerPrefs.Save();
+            if (_slotSpinning && _slotSkipAnim)
+                _slotSkipNow = true;
+            RefreshSlotDisplay();
         }
 
         private void RefreshEquipmentDisplay()
@@ -907,6 +939,9 @@ namespace LoopRogue
                 out _slotBulkButtonText, string.Empty, 14, Color.white, () => DoSlotTicketBulk(SlotBulkCount), x: -84f);
             _slotAllButton = CreateButton(view, "SlotAllButton", new Color(0.35f, 0.3f, 0.15f), -112f, 160f, 42f,
                 out _slotAllButtonText, string.Empty, 14, Color.white, () => DoSlotTicketBulk(int.MaxValue), x: 84f);
+            _slotSkipAnim = PlayerPrefs.GetInt(SlotSkipPrefKey, 0) == 1;
+            CreateButton(view, "SlotSkipButton", new Color(0.25f, 0.28f, 0.35f), -162f, 220f, 36f,
+                out _slotSkipButtonText, string.Empty, 14, Color.white, ToggleSlotSkip);
 
             CreateBackButton(view);
         }

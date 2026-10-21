@@ -1144,6 +1144,8 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 [T] {0}장 쓰기	[T] Use {0}
 [T] {0}장 다 쓰기	[T] Use all {0}
 [Shift+T] 전부 ({0}장)	[Shift+T] All ({0})
+[K] 연출 스킵: 켬	[K] Skip animation: ON
+[K] 연출 스킵: 끔	[K] Skip animation: OFF
 도끼 충격파	Axe Shockwave
 체스판 마법	Chessboard Spell
 영혼 구체	Soul Orb
