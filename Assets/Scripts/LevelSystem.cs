@@ -205,6 +205,7 @@ namespace LoopRogue
                 pool.RemoveAt(idx);
             }
 
+            PlayLog.LevelUpOffered(picks);
             OnUpgradeChoicesReady?.Invoke(picks);
         }
 
@@ -215,6 +216,7 @@ namespace LoopRogue
         {
             LastChoiceFrame = UnityEngine.Time.frameCount;
             option.Apply(_stats);
+            PlayLog.LevelUpChosen(option, Level);
             IsChoosingUpgrade = false;
             // 고르는 사이 쌓인 경험치로 또 레벨업하거나, 미뤄둔 보너스 카드가 있으면 이어서 보여준다.
             if (TryLevelUp())

@@ -96,6 +96,7 @@ namespace LoopRogue
             foreach (ItemSlot slot in System.Enum.GetValues(typeof(ItemSlot)))
                 EquipmentWallet.TryEquipIfBetter(slot, ItemGrade.Unknown);
             Set(Stage.Done);
+            PlayLog.Lobby("대장장이: Unknown 세트 받음");
             Achievements.Unlock("ACH_UNKNOWN");
             return true;
         }

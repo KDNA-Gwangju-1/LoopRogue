@@ -58,6 +58,7 @@ namespace LoopRogue
             GoldWallet.Add(gold);
             GachaSystem.AddTickets(RewardGachaTickets);
             Achievements.Unlock("ACH_WANDERER");
+            PlayLog.Note($"모험가 의뢰 완료: 골드 {gold}, 뽑기권 {RewardGachaTickets}");
             return Loc.F("모험가의 의뢰 완료! 골드 +{0}, 뽑기권 +{1}", gold, RewardGachaTickets);
         }
 
@@ -175,6 +176,8 @@ namespace LoopRogue
             PlayerPrefs.SetInt(StageClaimedKey, _stageClaimed);
             PlayerPrefs.SetInt(KillClaimedKey, _killClaimed);
             GoldWallet.Add(total); // 안에서 PlayerPrefs.Save
+            if (total > 0)
+                PlayLog.Lobby($"의뢰 보상 받기: {total}골드");
             return total;
         }
     }

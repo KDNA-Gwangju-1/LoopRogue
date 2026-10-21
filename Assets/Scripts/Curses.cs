@@ -67,6 +67,7 @@ namespace LoopRogue
                 player.Stats.LoseCurrentHealthPercent(deal.HealthCost);
             var result = deal.Instant?.Invoke(player, roomClearGold);
             Active.Add(deal);
+            PlayLog.Note($"저주 계약: {deal.Name}");
             return result != null ? Loc.F("{0} 성립! {1}", deal.Name, result) : Loc.F("{0} 성립!", deal.Name);
         }
 

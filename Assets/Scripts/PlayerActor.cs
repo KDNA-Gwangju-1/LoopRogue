@@ -177,9 +177,15 @@ namespace LoopRogue
 
             // 아이템은 턴을 쓰지 않는다(10-14 사용자) - 써도 몹이 행동하지 않고 쿨타임·거미줄·반사 남은 턴도 그대로. 같은 턴에 이어서 움직이거나 때릴 수 있다.
             if (EquipmentEffects.Has(ItemSlot.Accessory, 2) && ItemRng.NextDouble() < EquipmentEffects.ItemSaveChance)
+            {
                 _room.ShowMessage(Loc.F("절약! {0}이(가) 남았다", ItemInfo.Name(type))); // 반지 "절약"
+                PlayLog.ItemUsed(type, saved: true);
+            }
             else
+            {
                 Inventory.Consume(type);
+                PlayLog.ItemUsed(type, saved: false);
+            }
             ApplyItem(type, target);
             HitFeedback.OnItemUsed(this, type, target);
             TutorialStage.NotifyItemUsed(type, _room); // 튜토리얼 아이템 방 - 써 본 아이템 체크
@@ -766,6 +772,7 @@ namespace LoopRogue
             {
                 BeginAction(); // 이것도 한 턴 - 쿨타임·속박·면역이 같이 줄어야 한다(퍼즐 ConsumeTurn과 같게)
                 _room.BreakGolemCrystal(targetPos); // 3층 골렘 수정 - 붙어서 그쪽으로 움직이면 한 번에 깬다(안 깨면 폭발)
+                PlayLog.Act("기믹조작");
                 PlayAttackFlash(direction);
                 EndTurn();
                 return;
@@ -775,6 +782,7 @@ namespace LoopRogue
             {
                 BeginAction(); // 이것도 한 턴 - 쿨타임·속박·면역이 같이 줄어야 한다(퍼즐 ConsumeTurn과 같게)
                 _room.RotateLightMirror(targetPos); // 10층 빛 단계 거울 - 붙어서 그쪽으로 움직이면 /·\가 바뀐다
+                PlayLog.Act("기믹조작");
                 PlayAttackFlash(direction);
                 EndTurn();
                 return;
@@ -784,6 +792,7 @@ namespace LoopRogue
             {
                 BeginAction(); // 이것도 한 턴 - 쿨타임·속박·면역이 같이 줄어야 한다(퍼즐 ConsumeTurn과 같게)
                 _room.FillOgreHole(targetPos); // 2층 오우거 바닥 구멍 - 붙어서 그쪽으로 움직이면 한 턴 써서 메운다
+                PlayLog.Act("기믹조작");
                 PlayAttackFlash(direction);
                 EndTurn();
                 return;
@@ -814,6 +823,7 @@ namespace LoopRogue
                 if (TutorialStage.Blocks(Tutorial.Act.Attack, _room))
                     return; // 튜토리얼 - 아직 공격 차례가 아니다(턴 소모 없음)
                 BeginAction();
+                PlayLog.Act("공격");
                 PlayAttackFlash(direction);
                 if (StrikeEnemy(enemy, direction, 1f, style: AttackStyle.Normal))
                     return; // 다음 방/승리 전환은 이미 끝났다 - 새 방 몹은 이번 턴엔 안 움직인다.
@@ -832,6 +842,7 @@ namespace LoopRogue
             else if (occupant == null)
             {
                 BeginAction();
+                PlayLog.Act("이동");
                 Map.MoveActor(this, targetPos);
                 if (_room.TryUseExit(targetPos))
                     return; // 다음 방으로 넘어감 - 새 방 몹은 이번 턴에 안 움직인다
@@ -1048,6 +1059,7 @@ namespace LoopRogue
                 return false;
 
             BeginAction();
+            PlayLog.Act("대시");
             DashCooldown = DashCooldownMax;
             var from = transform.position;
             var startPos = GridPos;
@@ -1112,6 +1124,7 @@ namespace LoopRogue
                 return false;
 
             BeginAction();
+            PlayLog.Act("회전베기");
             SpinCooldown = SpinCooldownTurns - EquipmentEffects.SkillCooldownReduction;
             LastSkill = AttackStyle.Spin;
             PlayAttackFlash();
@@ -1154,6 +1167,7 @@ namespace LoopRogue
         private void Wait()
         {
             BeginAction();
+            PlayLog.Act("대기");
             Tutorial.NotifyWaited(); // 첫 판 안내 "대기" 단계
             EndTurn();
         }
@@ -1173,6 +1187,7 @@ namespace LoopRogue
 
         private void EndTurn()
         {
+            PlayLog.Turn();
             _room.RunEnemyTurns();
         }
 

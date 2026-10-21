@@ -77,3 +77,6 @@ crashlytics-build.properties
 
 # 자동 플레이 봇 로그
 /BotLogs/
+
+# 플레이 기록(PlayLog) - 에디터에서 하면 프로젝트 폴더에 생긴다
+/PlayLogs/

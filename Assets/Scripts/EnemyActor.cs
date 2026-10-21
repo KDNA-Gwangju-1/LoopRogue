@@ -954,6 +954,7 @@ namespace LoopRogue
                 return;
             ChargeHitCount++;
             var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower * ChargeDamageRate);
+            PlayLog.PlayerHit($"{PlayLog.EnemyLabel(this)} 돌진", dealt, player.Stats);
             room.ApplyThorns(this, dealt);
             DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.35f, 0.35f), isCritical: true);
             HitFeedback.OnPlayerHurt(player, this);
@@ -1097,6 +1098,7 @@ namespace LoopRogue
                     return;
                 }
                 var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower * WebDamageRate);
+                PlayLog.PlayerHit($"{PlayLog.EnemyLabel(this)} 거미줄", dealt, player.Stats);
                 DamagePopup.Spawn(player.transform.position, dealt, new Color(0.85f, 0.7f, 1f));
                 player.ApplyRoot(1);
                 HitFeedback.OnPlayerWebbed(player);
@@ -1315,6 +1317,7 @@ namespace LoopRogue
             KnightEchoHitCount++;
             KnightPatternLanded = true;
             var dealt = player.Stats.TakeIncomingDamage(damage);
+            PlayLog.PlayerHit($"{PlayLog.EnemyLabel(this)} 잔상", dealt, player.Stats);
             room.ApplyThorns(this, dealt);
             DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.35f, 0.35f), isCritical: true);
             HitFeedback.OnPlayerHurt(player, this);
@@ -1338,6 +1341,7 @@ namespace LoopRogue
             KnightSlashHitCount++;
             KnightPatternLanded = true;
             var dealt = player.Stats.TakeIncomingDamage(_knightPatternPower * MemoryKnight.SlashDamageRate);
+            PlayLog.PlayerHit($"{PlayLog.EnemyLabel(this)} 베기", dealt, player.Stats);
             room.ApplyThorns(this, dealt);
             DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.35f, 0.35f), isCritical: true);
             HitFeedback.OnPlayerHurt(player, this);
@@ -1632,6 +1636,7 @@ namespace LoopRogue
             if (IsBoss && player.ReflectInto(this, _turnRoom))
                 return; // 반사 부적 - 보스 평타도 막고 되돌린다(10-16 사용자)
             var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower * rate);
+            PlayLog.PlayerHit($"{PlayLog.EnemyLabel(this)} {(melee ? "근접" : "원거리")}", dealt, player.Stats);
             if (melee)
                 _turnRoom?.ApplyThorns(this, dealt); // 갑옷 "가시"
             DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.35f, 0.35f), isCritical: rate > 1f);

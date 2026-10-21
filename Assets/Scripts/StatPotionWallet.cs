@@ -169,6 +169,7 @@ namespace LoopRogue
                 return false;
 
             AddPotion(type);
+            PlayLog.Lobby($"영약 구매: {type} ({cost}골드)");
             switch (type)
             {
                 case PotionType.Attack:

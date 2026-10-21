@@ -35,6 +35,7 @@ namespace LoopRogue
         // 테스트 배포용 버튼(오른쪽 아래) - 누르면 잠깐 안내 글로 바뀌었다가 돌아온다.
         private Text _surveyLabel;
         private Text _recordLabel;
+        private Text _logLabel;
         private float _playtestLabelUntil = -1f;
 
         private void Awake()
@@ -144,9 +145,29 @@ namespace LoopRogue
             _playtestLabelUntil = Time.unscaledTime + PlaytestLabelSeconds;
         }
 
+        /// <summary>PlayLog 파일이 있는 폴더를 탐색기로 연다 - 테스터가 설문과 함께 보내 줄 파일.</summary>
+        private void OnOpenLogClicked()
+        {
+            ResetPlaytestLabels();
+            try
+            {
+                var folder = PlayLog.Folder;
+                System.IO.Directory.CreateDirectory(folder);
+                Application.OpenURL("file:///" + folder.Replace('\\', '/'));
+                _logLabel.text = Loc.T("폴더를 열었어요");
+            }
+            catch (Exception)
+            {
+                _logLabel.text = Loc.T("폴더를 못 열었어요");
+            }
+            _playtestLabelUntil = Time.unscaledTime + PlaytestLabelSeconds;
+        }
+
         private void ResetPlaytestLabels()
         {
             _playtestLabelUntil = -1f;
+            if (_logLabel != null)
+                _logLabel.text = Loc.T("플레이 기록 폴더");
             _surveyLabel.text = Loc.T("설문 참여");
             _recordLabel.text = Loc.T("내 기록 복사");
         }
@@ -206,6 +227,10 @@ namespace LoopRogue
                 Loc.T("내 기록 복사"), 16, OnCopyRecordClicked, "Reset", new Color(0.85f, 0.93f, 1f));
             PlaceBottomRight(recordRect, 24f);
             _recordLabel = recordRect.GetComponentInChildren<Text>();
+            var logRect = CreateButton(canvasGo.transform, "PlayLogButton", ButtonColor, 0f, 240f, 40f,
+                Loc.T("플레이 기록 폴더"), 16, OnOpenLogClicked, "Reset", new Color(0.85f, 0.93f, 1f));
+            PlaceBottomRight(logRect, 128f);
+            _logLabel = logRect.GetComponentInChildren<Text>();
 
             // 튜토리얼 스테이지 다시 하기(왼쪽 아래) - 죽을 일 없는 방 4개, 끝나면 타이틀로
             var tutorialRect = CreateButton(canvasGo.transform, "TutorialButton", ButtonColor, 0f, 240f, 40f,

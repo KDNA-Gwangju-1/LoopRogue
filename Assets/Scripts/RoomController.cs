@@ -209,6 +209,7 @@ namespace LoopRogue
             if (puzzle.AllowsTools)
                 _player.OnRoomEntered(); // 갑옷 보호막 등 - 몹과 싸우는 퍼즐만(허수아비 유물이 퍼즐 칸을 막지 않게)
             IsInputLocked = false;
+            PlayLog.RoomEntered(_stage, def, $"퍼즐 {type}", _player);
             puzzle.Begin();
         }
 
@@ -251,6 +252,8 @@ namespace LoopRogue
             _roomObjects.AddRange(objects);
             _roomCleared = true;
             PuzzleClearCount++;
+            PlayLog.PuzzleResult(puzzle.Type, true, null);
+            PlayLog.RoomCleared(_player, true);
             if (!_current.IsTestRoom)
                 StageProgress.MarkRoomCleared(_current.RoomNumber);
             var rewards = GrantPuzzleRewards(puzzle.Type);
@@ -331,6 +334,7 @@ namespace LoopRogue
             if (Puzzle != puzzle)
                 return;
             PuzzleFailCount++;
+            PlayLog.PuzzleResult(puzzle.Type, false, reason);
             IsInputLocked = true;
             ClearAllTelegraphs();
             var back = _loopManager.CanReturnToPreviousRoom ? Loc.T("[B] 이전 방으로") : Loc.T("[B] 전투 방으로");
@@ -431,6 +435,7 @@ namespace LoopRogue
                 StartCoroutine(StartRushGimmick()); // 보스 러시 - 들어가자마자 기믹 컷신
             if (glitch)
                 StartGlitch(glitchTiles);
+            PlayLog.RoomEntered(_stage, def, PlayLog.DescribeRoom(def, _loadCleared), _player);
             if (_loadCleared)
             {
                 _roomCleared = true; // 퍼즐 실패 후 돌아온 이전 방 - 이미 깬 방이라 출구만
@@ -631,6 +636,7 @@ namespace LoopRogue
         public bool TriggerEvent(RoomEventActor ev)
         {
             var message = ev.Trigger(_player, this, out var consumed);
+            PlayLog.EventTriggered(ev.Type, message);
             if (message != null)
                 ShowMessage(message);
             if (!consumed)
@@ -872,7 +878,11 @@ namespace LoopRogue
             }
         }
 
-        public void ShowMessage(string message) => _loopManager.ShowMessage(message);
+        public void ShowMessage(string message)
+        {
+            PlayLog.Message(message);
+            _loopManager.ShowMessage(message);
+        }
 
         /// <summary>상하좌우 걸음 수 지도(벽만 막힘, 몹은 무시) - starts에서 각 칸까지. 못 가는 칸은 -1.</summary>
         private static int[,] WalkSteps(GridMap map, IEnumerable<Vector2Int> starts)
@@ -1245,6 +1255,7 @@ namespace LoopRogue
             {
                 BombPlayerHitCount++;
                 var dealt = _player.Stats.TakeIncomingDamage(damage);
+                PlayLog.PlayerHit($"{PlayLog.EnemyLabel(bomber)} 폭발", dealt, _player.Stats);
                 DamagePopup.Spawn(_player.transform.position, dealt, new Color(1f, 0.5f, 0.1f), isCritical: true);
                 HitFeedback.OnPlayerHurt(_player, null);
             }
@@ -1940,6 +1951,7 @@ namespace LoopRogue
         /// <summary>기믹 실패 즉사 - TakeIncomingDamage를 안 거쳐 보호막·불굴·부활·피해 무효가 안 걸린다. 사망 처리(OnPlayerDied)는 호출부가.</summary>
         private void KillPlayerInstantly()
         {
+            PlayLog.InstantKill($"{_stage}층 기믹");
             _player.Stats.Shield = 0f;
             _player.Stats.TakeDamage(_player.Stats.CurrentHealth);
         }
@@ -2585,6 +2597,7 @@ namespace LoopRogue
             }
             _roomCleared = true;
             RoomClearCount++;
+            PlayLog.RoomCleared(_player, false);
             LastClearedRoom = _current.RoomName;
             LastClearedWasBoss = _current.IsBossRoom;
             LastClearHpFraction = _player.Stats.CurrentHealth / Mathf.Max(1f, _player.Stats.MaxHealth); // 클리어 회복 전

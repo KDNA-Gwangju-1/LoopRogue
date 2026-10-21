@@ -925,6 +925,7 @@ namespace LoopRogue
             if (!hit)
                 return;
             var dealt = Player.Stats.TakeIncomingDamage(Player.Stats.MaxHealth * RockDamageRate);
+            PlayLog.PlayerHit("미니게임 낙석", dealt, Player.Stats);
             DamagePopup.Spawn(Player.transform.position, dealt, new Color(1f, 0.5f, 0.2f), isCritical: true);
             HitFeedback.OnPlayerHurt(Player, null);
             if (Player.Stats.IsDead)

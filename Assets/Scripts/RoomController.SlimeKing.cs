@@ -246,6 +246,7 @@ namespace LoopRogue
                 if (!player.ReflectInto(_gimmickBoss, this)) // 반사 부적 - 파동도 막고 킹에게 되돌린다(포탑은 무적)
                 {
                     var dealt = player.Stats.TakeIncomingDamage(turret.Stats.AttackPower);
+                    PlayLog.PlayerHit("슬라임 포탑 파동", dealt, player.Stats);
                     DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.4f, 0.55f), isCritical: true);
                 }
             }

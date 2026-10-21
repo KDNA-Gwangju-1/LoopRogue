@@ -733,6 +733,7 @@ namespace LoopRogue
                     var ironWall = EquipmentEffects.Has(ItemSlot.Armor, 5) ? 1f - EquipmentEffects.BossPatternReduction : 1f; // 갑옷 "철벽"
                     var waveRate = type == BossPatternType.MirrorShards || type == BossPatternType.Checker ? MirrorWaveDamageRate : 1f; // 거울 파편·체스판은 여러 번이라 한 번은 약하게
                     var dealt = player.Stats.TakeIncomingDamage(_boss.Stats.AttackPower * PatternDamageMultiplier * ironWall * waveRate);
+                    PlayLog.PlayerHit($"{_boss.DisplayName} 패턴 {type}", dealt, player.Stats);
                     DamagePopup.Spawn(player.transform.position, dealt, new Color(1f, 0.2f, 0.2f), isCritical: true);
                 }
             }

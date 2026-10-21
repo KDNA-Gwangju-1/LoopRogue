@@ -857,6 +857,9 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 브라우저에서 열었어요	Opened in your browser
 설문 링크가 아직 없어요	No survey link yet
 복사했어요! 설문에 붙여 넣기	Copied! Paste it into the survey
+플레이 기록 폴더	Play log folder
+폴더를 열었어요	Folder opened
+폴더를 못 열었어요	Couldn't open the folder
 이름 없는 대장장이	The Nameless Blacksmith
 기사의 검 조각	Knight's Blade Shard
 기억의 벼림	Forged Memory

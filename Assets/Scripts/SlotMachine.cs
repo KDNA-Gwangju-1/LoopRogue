@@ -82,6 +82,7 @@ namespace LoopRogue
             if (matchCount == 3)
                 Achievements.Unlock("ACH_JACKPOT");
 
+            PlayLog.Lobby($"슬롯 {(high ? "고액" : "일반")} {(usedTicket ? "이용권" : bet + "골드")} → {matchCount}개 같음, 당첨 {payout}");
             return new SpinResult { Reels = reels, Bet = bet, Payout = payout, MatchCount = matchCount, UsedTicket = usedTicket };
         }
     }

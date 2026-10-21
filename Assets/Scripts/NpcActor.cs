@@ -414,6 +414,7 @@ namespace LoopRogue
                 return false;
             entry.Sold = true;
             entry.Apply();
+            PlayLog.Shop($"{entry.Name} ({entry.Price}골드)");
             Achievements.AddMerchantBuy(); // "단골손님" 업적
             return true;
         }

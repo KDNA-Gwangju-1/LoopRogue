@@ -128,6 +128,7 @@ namespace LoopRogue
             PositionCamera(layout);
             SpawnEvent(new Vector2Int(mid, top - 2), RoomEventType.MuralChest);
             _roomCleared = true;
+            PlayLog.RoomEntered(_stage, _current, "벽화의 방", _player);
             IsInputLocked = false;
             SpawnExit();
             ShowMural(_stage);

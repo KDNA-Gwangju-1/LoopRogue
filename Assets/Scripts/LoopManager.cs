@@ -52,10 +52,15 @@ namespace LoopRogue
 
             _roomController.Initialize(player, this, stage);
             _player.OnAttemptStarted();
+            PlayLog.AttemptStarted(stage, _player, TutorialStage.Active ? "튜토리얼" : BossRush.Active ? "보스 러시" : "던전 입장");
             if (GameHUD.AutoPlayActive || TutorialStage.Active)
                 EnterRoom(); // 봇은 시작 방 고르기 창이 없어서 첫 방도 여기서 퍼즐 확률을 굴린다(튜토리얼도 고르기 없이 방 1부터)
             else
+            {
+                PlayLog.SkipNextRoomEntry = true; // 자리 표시용 방은 기록에 "입장"으로 안 남긴다
                 _roomController.LoadRoom(_rooms[_roomIndex]); // 사람은 고르기 창 뒤 자리 표시용 - 고른 뒤 EnterRoom
+                PlayLog.SkipNextRoomEntry = false;
+            }
             RefreshHudProgress();
             _attemptStartGold = GoldWallet.Gold;
 
@@ -165,6 +170,7 @@ namespace LoopRogue
         public void RetryPuzzle(PuzzleType type)
         {
             PuzzleHud.SkipRulesNext = true; // 방금 읽은 설명 창은 건너뛴다
+            PlayLog.PuzzleChoice(type, retry: true);
             _roomController.LoadPuzzle(_rooms[_roomIndex], type);
         }
 
@@ -174,6 +180,7 @@ namespace LoopRogue
         /// 방 1이라 이전 방이 없으면 평소 전투 방으로.</summary>
         public void LeavePuzzle()
         {
+            PlayLog.Note("퍼즐 포기 → 이전 방으로");
             if (!CanReturnToPreviousRoom)
             {
                 _roomController.LoadRoom(_rooms[_roomIndex]);
@@ -191,8 +198,9 @@ namespace LoopRogue
         {
             _roomController.IsInputLocked = true;
             LoopRecord.AddDeath(); // 누적 회차 - NPC 대사가 바뀐다
-            Inventory.LoseAll(); // 죽으면 들고 있던 아이템 전부 잃음(사용자 결정)
             var penalty = ApplyDeathGoldPenalty();
+            PlayLog.Death(_player, _roomController, penalty); // 잃는 아이템까지 적으려고 LoseAll 전에
+            Inventory.LoseAll(); // 죽으면 들고 있던 아이템 전부 잃음(사용자 결정)
             _hud.ShowDeathChoice(ContinueAfterDeath, ReturnToLobby, penalty, _rooms, _roomIndex, // 기본값 = 죽은 방
                 bossRoom: _rooms[_roomIndex].IsBossRoom); // 보스방이면 노인의 한마디도 보스 조언 위주로
         }
@@ -209,6 +217,7 @@ namespace LoopRogue
 
         private void RetreatToLobby()
         {
+            PlayLog.Retreat("로비로");
             ApplyDeathGoldPenalty();
             Inventory.LoseAll(); // 중도 포기도 사망과 같다
             SaveProgressAndLoadLobby();
@@ -217,6 +226,7 @@ namespace LoopRogue
         /// <summary>Esc 메뉴 → 타이틀. 중도 포기라 로비 이동과 같은 데스 패널티, 런 진행은 저장해서 다시 시작하면 이어진다.</summary>
         private void RetreatToTitle()
         {
+            PlayLog.Retreat("타이틀로");
             ApplyDeathGoldPenalty();
             Inventory.LoseAll();
             SaveProgress();
@@ -230,6 +240,8 @@ namespace LoopRogue
             _roomIndex = startRoom;
             RollRoomEvent();
             StageProgress.BeginAttempt();
+            PlayLog.DeathChoice(false, startRoom);
+            PlayLog.AttemptStarted(_stage, _player, "사망 후 계속하기");
             Curses.Reset(); // 죽으면 저주도 풀린다
             RunBuffs.Reset();
             _player.Stats.FullHeal();
@@ -239,7 +251,11 @@ namespace LoopRogue
             _hud.ShowLoopResetBanner(startRoom);
         }
 
-        private void ReturnToLobby() => SaveProgressAndLoadLobby();
+        private void ReturnToLobby()
+        {
+            PlayLog.DeathChoice(true, 0);
+            SaveProgressAndLoadLobby();
+        }
 
         /// <summary>이 스테이지의 보스를 잡으면 - 다음 스테이지로 승격시켜두고(StageProgress),
         /// 로비로 돌아가서 그동안 번 골드로 장비를 맞춘 뒤 "시작"을 누르면 그 다음(이미 올라간)
@@ -248,6 +264,7 @@ namespace LoopRogue
         public void OnBossDefeated()
         {
             _roomController.IsInputLocked = true;
+            PlayLog.BossDefeated(_stage, _player);
             StageProgress.AdvanceStage();
             if (_stage >= StageProgress.MaxStage)
                 Achievements.Unlock("ACH_CLEAR_10");
@@ -257,6 +274,7 @@ namespace LoopRogue
             if (offer != null)
                 _hud.ShowRelicChoice(offer, picked =>
                 {
+                    PlayLog.RelicChosen(offer, picked);
                     Relics.Acquire(picked, _player);
                     Achievements.Check(); // 유물 개수 업적
                     ShowStageClear();
@@ -278,6 +296,7 @@ namespace LoopRogue
                     CodexFound = Codex.FoundCount(),
                     CodexTotal = Codex.TotalCount(),
                 };
+                PlayLog.Ending(record.Clears);
                 EndingScreen.Show(record, () => !_player.Levels.IsChoosingUpgrade, () =>
                 {
                     SaveReset.ResetForNewGame();

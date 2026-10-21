@@ -158,7 +158,9 @@ namespace LoopRogue
             else if (!GoldWallet.TrySpend(GetPullCost(slot)))
                 return null;
 
-            return PullOnce(slot);
+            var result = PullOnce(slot);
+            PlayLog.Lobby($"가챠 1회 {slot}: {Describe(result)}");
+            return result;
         }
 
         /// <summary>10연차 - 골드가 모자라면 null. 한 번씩 순서대로 굴려서 도중에 상점 레벨이 오르면 남은
@@ -171,8 +173,13 @@ namespace LoopRogue
             var results = new List<GachaResult>(MultiPullCount);
             for (var i = 0; i < MultiPullCount; i++)
                 results.Add(PullOnce(slot));
+            PlayLog.Lobby($"가챠 {MultiPullCount}연차 {slot}: {string.Join(", ", results.ConvertAll(Describe))}");
             return results;
         }
+
+        /// <summary>플레이 기록용 한 줄 - 등급(장착/강화).</summary>
+        private static string Describe(GachaResult r) =>
+            EquipmentData.Grades[r.Grade].Name + (r.Equipped ? "(장착)" : r.EnhanceLevelsGained > 0 ? $"(강화 +{r.EnhanceLevelsGained})" : string.Empty);
 
         private static GachaResult PullOnce(ItemSlot slot)
         {
