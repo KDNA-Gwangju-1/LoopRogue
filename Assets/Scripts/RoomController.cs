@@ -951,13 +951,18 @@ namespace LoopRogue
                     cells.AddRange(scored.Where(s => s.Diff <= best + (toSpawn > 1 ? 1 : 0)).Select(s => s.P)); // 여러 마리면 한 칸 차이까지(한데 뭉치지 않게)
                 }
             }
-            var ring = boss.FootprintReach + 1;
-            for (var dx = -ring; dx <= ring && cells.Count == 0; dx++)
-            for (var dy = -ring; dy <= ring; dy++)
+            // 둘레 한 줄 전부를 후보로 - 예전엔 반복문 조건에 cells.Count == 0이 붙어 첫 세로줄(보스 왼쪽)만 모으고 멈췄다.
+            // 짝수 몸(2x2)도 몸에서 한 칸 떨어진 칸만(FootprintChebyshev).
+            if (cells.Count == 0)
             {
-                var p = boss.GridPos + new Vector2Int(dx, dy);
-                if (Map.IsWalkable(p))
-                    cells.Add(p);
+                var ring = boss.FootprintReach + 2;
+                for (var dx = -ring; dx <= ring; dx++)
+                for (var dy = -ring; dy <= ring; dy++)
+                {
+                    var p = boss.GridPos + new Vector2Int(dx, dy);
+                    if (Map.IsWalkable(p) && GridMap.FootprintChebyshev(boss, p) == 1)
+                        cells.Add(p);
+                }
             }
 
             // 10층 기사(슬라임 킹을 비출 때)의 졸개는 슬라임(기본 근접 몹)으로, 세기는 10층 마지막 방 몹과 같게(10-19 사용자).
