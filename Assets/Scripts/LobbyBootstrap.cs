@@ -593,7 +593,7 @@ namespace LoopRogue
         {
             var grade = EquipmentWallet.GetEquipped(slot);
             if (!grade.HasValue)
-                return Loc.F("{0}: (미장착)", slot);
+                return Loc.F("{0}: (미장착)", EquipmentData.Templates[slot].BaseName);
 
             var atk = EquipmentData.AttackBonus(slot, grade.Value) * EquipmentEnhance.Multiplier(slot);
             var hp = EquipmentData.HealthBonus(slot, grade.Value) * EquipmentEnhance.Multiplier(slot);
@@ -602,7 +602,7 @@ namespace LoopRogue
             if (slot == ItemSlot.Accessory && EquipmentEffects.HasMemorySet)
                 effects += Loc.F("  <color=#7FE0D8>세트 「{0}」</color>", EquipmentEffects.MemorySetName);
             var enhance = Loc.F("  <color=#FFD27A>강화 +{0} ({1})</color>", EquipmentEnhance.GetLevel(slot), EquipmentEnhance.ProgressText(slot));
-            return Loc.F("{0}: {1} (공격력+{2:0.#} 체력+{3:0.#}){4}", slot, EquipmentData.DisplayName(slot, grade.Value) + EquipmentEnhance.Suffix(slot), atk, hp, effects + enhance);
+            return Loc.F("{0}: {1} (공격력+{2:0.#} 체력+{3:0.#}){4}", EquipmentData.Templates[slot].BaseName, EquipmentData.DisplayName(slot, grade.Value) + EquipmentEnhance.Suffix(slot), atk, hp, effects + enhance);
         }
 
         private static string EnhanceLevelMessage(ItemSlot slot) =>

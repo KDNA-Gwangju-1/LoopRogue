@@ -787,10 +787,14 @@ namespace LoopRogue
             }
             if (_questTracker.activeSelf != (text != null))
                 _questTracker.SetActive(text != null);
+            var rect = (RectTransform)_questTracker.transform;
+            // 퍼즐 방에선 위 띠 아래에 퍼즐 진행 줄이 생기니 그 아래로 내린다(안 그러면 줄이 의뢰를 덮는다)
+            var y = -(ActionBarLayout.TopBarHeight + 8f + PuzzleHud.ExtraTopInset);
+            if (rect.anchoredPosition.y != y)
+                rect.anchoredPosition = new Vector2(rect.anchoredPosition.x, y);
             if (text == null || _questText.text == text)
                 return;
             _questText.text = text;
-            var rect = (RectTransform)_questTracker.transform;
             rect.sizeDelta = new Vector2(rect.sizeDelta.x, 30f + 20f * (lines - 1));
         }
 

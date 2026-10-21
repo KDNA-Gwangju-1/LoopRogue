@@ -44,6 +44,11 @@ namespace LoopRogue
         /// <summary>열려 있거나 이번 프레임에 막 닫혔으면 true - 닫는 키(Esc/Space/숫자)가 같은 프레임에 다른 곳에서 또 읽히지 않게.</summary>
         public static bool BlocksInput => IsOpen || Time.frameCount == _closedFrame;
 
+        /// <summary>대화창 맨 위(화자 이름표 포함)의 높이 - 캔버스 아래에서부터, 기준 1280x720. 벽화 창이 이 위에만 그림을 띄운다.</summary>
+        public static float PanelTop => Instance != null && Instance._panelRect != null
+            ? Instance._panelRect.anchoredPosition.y + Instance._panelRect.sizeDelta.y + 17f // 이름표(34)가 위로 반 튀어나온다
+            : 0f;
+
         private static int _closedFrame = -1;
         private int _openedFrame = -1;
 

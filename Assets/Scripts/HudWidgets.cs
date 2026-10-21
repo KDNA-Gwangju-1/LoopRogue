@@ -258,6 +258,8 @@ namespace LoopRogue
             image.type = Image.Type.Sliced;
             image.pixelsPerUnitMultiplier = 1f / scale;
             image.color = Color.white;
+            var fit = image.GetComponent<SliceFit>() ?? image.gameObject.AddComponent<SliceFit>();
+            fit.Scale = scale;
             return true;
         }
 
@@ -301,6 +303,35 @@ namespace LoopRogue
             rect.anchorMax = Vector2.one;
             rect.offsetMin = new Vector2(inset, inset);
             rect.offsetMax = new Vector2(-inset, -inset);
+        }
+    }
+
+    /// <summary>작은 버튼(닫기 X·28~34px 줄)은 4배 쇠테 양쪽이 칸보다 커서 테가 찌그러진다 - 크기가 정해질 때마다
+    /// 테가 들어갈 때까지 픽셀 배율을 4→2→1로 반으로 줄인다(정수 배율이라 도트는 그대로 또렷하다).</summary>
+    public class SliceFit : MonoBehaviour
+    {
+        public float Scale = PixelUi.Scale;
+        private Image _image;
+
+        private void OnEnable() => Fit();
+        private void OnRectTransformDimensionsChange() => Fit();
+
+        private void Fit()
+        {
+            if (_image == null)
+                _image = GetComponent<Image>();
+            if (_image == null || _image.sprite == null || _image.type != Image.Type.Sliced)
+                return;
+            var size = ((RectTransform)transform).rect.size;
+            if (size.x <= 0f || size.y <= 0f)
+                return; // 아직 크기가 안 정해졌다
+            var border = _image.sprite.border; // 왼, 아래, 오른, 위(그림 픽셀)
+            var unitsPerPixel = (_image.canvas != null ? _image.canvas.referencePixelsPerUnit : 100f) / _image.sprite.pixelsPerUnit;
+            var scale = Scale;
+            while (scale > 1f && ((border.x + border.z) * unitsPerPixel * scale > size.x || (border.y + border.w) * unitsPerPixel * scale > size.y))
+                scale *= 0.5f;
+            if (!Mathf.Approximately(_image.pixelsPerUnitMultiplier, 1f / scale))
+                _image.pixelsPerUnitMultiplier = 1f / scale;
         }
     }
 }
