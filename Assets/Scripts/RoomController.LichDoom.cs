@@ -46,7 +46,7 @@ namespace LoopRogue
             _doomOrbClock = 0;
             c.Steps.Add(() =>
             {
-                Appear(_player.gameObject, "soul_summon", hide: false);
+                Appear(_player.gameObject, "doom_summon", hide: false); // 초록 영혼불이 모여 해골로 뭉쳤다 퍼짐(10-23, soul_summon은 벽화의 방 제단용으로 남김)
                 if (HitFeedback.Enabled)
                     ActorJuice.Get(_player).Flash(DoomColor);
                 return true;
@@ -105,7 +105,7 @@ namespace LoopRogue
                 if (Fx.Play("soul_wisp", orb.Go.transform.position, 1f, fps: 8f, loop: true, sortingOrder: 6, parent: orb.Go.transform) == null)
                     VisualUtil.CreateSquareVisual(orb.Go, OrbFallbackColor, GridConstants.CellSize * 0.45f, sortingOrder: 6);
                 _roomObjects.Add(orb.Go);
-                Fx.Play("soul_summon", orb.Go.transform.position, 1f, fps: 16f, sortingOrder: 7);
+                Fx.Play("doom_summon", orb.Go.transform.position, 1f, fps: 16f, sortingOrder: 7);
             }
             _doomOrbs.Add(orb);
         }
