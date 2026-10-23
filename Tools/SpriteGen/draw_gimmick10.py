@@ -1,5 +1,5 @@
 """10층 거울 가면 기사 기믹 그림(10-23).
-Effects/mirror_crack (24x24 4단계): 변신 중 머리 위 거울 - 기사 가면과 같은 은테 타원 거울, 맞을수록 금이 늘고 마지막엔 조각이 빠짐
+Effects/mirror_crack (96x96 4단계): 변신 중 보스 몸 전체를 감싸는 거울 방어막 - 맞을수록 금이 퍼지고 마지막엔 조각이 떨어져 나감
 Effects/tel_mirror (32x32 4프레임, 흰 그림): 거울 파편 예고 칸 - 깨진 유리 금 + 반짝이는 조각
 Sprites/Props/Light_Mirror (32x32): 빛 거울 받침대(돌 받침 + 은 고리)
 Sprites/Props/Light_Mirror_Face (32x32): 거울 면 "/" 방향 - "\"는 좌우 반전(RoomController.UpdateMirrorFace)
@@ -22,48 +22,93 @@ VIOLET = (170, 110, 255)
 W = (255, 255, 255)
 
 
-# ---------------------------------------------------------------- 머리 위 거울
-CRACKS = [  # 단계마다 더해지는 금(가운데 기준 선분)
-    [],
-    [((0, -8), (-1, -2)), ((-1, -2), (1, 2))],
-    [((1, 2), (-3, 6)), ((-1, -2), (-5, -3)), ((1, 2), (5, 4))],
-    [((-5, -3), (-6, 3)), ((5, 4), (4, 8)), ((-1, -2), (3, -6)), ((-3, 6), (-1, 9))],
-]
+# ---------------------------------------------------------------- 거울 방어막(변신 중 몸 전체)
+SC, SY, SR = 47.5, 48.5, 45.5  # 가운데·반지름(96x96)
 
 
-def mirror_icon(stage):
-    cv = Canvas(24, 24)
-    cx, cy = 11.5, 12.5
-    glow(cv, cx, cy, 11, GLASS[2], 0.25 + stage * 0.05)
-    frame = ellipse(cx, cy, 7.5, 9.5)
-    finial = poly([(cx - 2, 3.5), (cx + 2, 3.5), (cx, 0.5)]) | poly([(cx - 2, 21.5), (cx + 2, 21.5), (cx, 23.5)])
-    part(cv, frame | finial, STEEL, 'sphere')
-    glass = ellipse(cx, cy, 5.5, 7.5)
-    part(cv, glass, GLASS, 'vspan', outline=STEEL[0], bands=(0.25, 0.5, 0.8))
-    inner = glass - boundary(glass)
-    for k in (0, 2):  # 반사광
-        for t in range(-6, 7):
-            p = (int(cx - 2 + k + t * 0.45), int(cy + t))
-            if p in inner:
-                cv.set(p[0], p[1], GLASS[3])
-    for ex in (-2, 2):
-        cv.blend(int(cx + ex), int(cy), VIOLET, 0.6)
-    for s in range(1, stage + 1):
-        for (x0, y0), (x1, y1) in CRACKS[s]:
-            for p in line(cx + x0, cy + y0, cx + x1, cy + y1):
-                if p in inner:
-                    cv.set(p[0], p[1], OUT)
-                    q = (p[0] + 1, p[1])
-                    if q in inner and cv.get(*q) != (*OUT, 255):
-                        cv.set(q[0], q[1], GLASS[3])
-    if stage == 3:  # 조각 하나 빠짐(검은 구멍) + 떨어지는 조각
-        hole = poly([(cx + 1, cy + 2), (cx + 5, cy + 4), (cx + 4, cy + 8)])
-        for p in hole:
-            if p in inner:
-                cv.set(p[0], p[1], (24, 20, 40))
-        for p in ((20, 21), (21, 22), (20, 22)):
-            cv.set(p[0], p[1], GLASS[2])
-        cv.set(21, 21, GLASS[3])
+def crack_paths(stage):
+    """단계마다 늘어나는 금 - 맞은 자리(가장자리 근처)에서 안쪽으로 갈라져 나가는 꺾은선들."""
+    import random
+    rng = random.Random(10)
+    starts = [(-0.55, -0.35), (0.5, 0.3), (-0.2, 0.6), (0.35, -0.55)]
+    paths = []
+    for s in range(stage):
+        for k in range(3 + s):
+            ox, oy = starts[s]
+            x, y = SC + ox * SR, SY + oy * SR
+            ang = rng.uniform(0, math.tau)
+            pts = [(x, y)]
+            for _ in range(rng.randint(3, 5)):
+                ang += rng.uniform(-0.7, 0.7)
+                ln = rng.uniform(5, 10)
+                x, y = x + math.cos(ang) * ln, y + math.sin(ang) * ln
+                pts.append((x, y))
+            paths.append(pts)
+    return paths
+
+
+def mirror_shield(stage):
+    """변신한 보스를 감싸는 거울 방어막 - 반투명 유리 구(가장자리일수록 진함) + 면 무늬 + 은빛 테 + 반사광.
+    stage 0~3: 맞을수록 금이 퍼지고, 3단계엔 조각이 떨어져 나가 구멍이 뚫린다."""
+    cv = Canvas(96, 96)
+    holes = set()
+    if stage == 3:
+        for tri in ([(SC + 20, SY + 8), (SC + 34, SY + 14), (SC + 26, SY + 28)], [(SC - 34, SY - 18), (SC - 22, SY - 26), (SC - 20, SY - 10)]):
+            holes |= poly(tri)
+    inside = {}
+    for y in range(96):
+        for x in range(96):
+            d = math.hypot((x + 0.5 - SC) / SR, (y + 0.5 - SY) / (SR + 0.5))
+            if d <= 1 and (x, y) not in holes:
+                inside[(x, y)] = d
+    for (x, y), d in inside.items():
+        a = 0.06 + 0.26 * d ** 3
+        col = GLASS[1] if y < SY + SR * 0.4 else (150, 150, 230)
+        cv.blend(x, y, col, a)
+    # 면 무늬 - 세 방향 평행선(삼각 격자)
+    for ang in (0, 60, 120):
+        ca, sa = math.cos(math.radians(ang)), math.sin(math.radians(ang))
+        for (x, y), d in inside.items():
+            u = (x - SC) * ca + (y - SY) * sa
+            if abs(u % 16) < 0.6 and d < 0.93:
+                cv.blend(x, y, GLASS[3], 0.16)
+    # 테 + 안쪽 테
+    for (x, y), d in inside.items():
+        if d > 0.965:
+            cv.blend(x, y, GLASS[3], 0.85)
+        elif d > 0.93:
+            cv.blend(x, y, GLASS[2], 0.4)
+    # 반사광(왼쪽 위 굵은 호 + 작은 호)
+    for (x, y), d in inside.items():
+        t = math.degrees(math.atan2(y - SY, x - SC)) % 360
+        if 200 <= t <= 255 and 0.78 <= d <= 0.86:
+            cv.blend(x, y, (255, 255, 255), 0.6)
+        if 270 <= t <= 290 and 0.62 <= d <= 0.66:
+            cv.blend(x, y, (255, 255, 255), 0.5)
+    for gx, gy in ((SC + 26, SY - 30), (SC - 30, SY + 24)):
+        for dx, dy, a in ((0, 0, 1), (1, 0, .6), (-1, 0, .6), (0, 1, .6), (0, -1, .6)):
+            cv.blend(int(gx + dx), int(gy + dy), (255, 255, 255), a)
+    cv.blend(int(SC), int(SY + SR - 3), VIOLET, 0.5)
+    # 금
+    for pts in crack_paths(stage):
+        for i in range(len(pts) - 1):
+            for p in line(*pts[i], *pts[i + 1]):
+                if p in inside:
+                    cv.blend(p[0] + 1, p[1] + 1, STEEL[0], 0.45)
+                    cv.blend(p[0], p[1], (255, 255, 255), 0.95)
+    if stage == 3:  # 구멍 가장자리 반짝 + 떨어지는 조각
+        for p in boundary(holes):
+            q = None
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                if (p[0] + dx, p[1] + dy) in inside:
+                    q = (p[0] + dx, p[1] + dy)
+            if q:
+                cv.blend(q[0], q[1], (255, 255, 255), 0.9)
+        for tri in ([(SC + 30, SY + 36), (SC + 36, SY + 38), (SC + 31, SY + 43)], [(SC - 28, SY - 2), (SC - 23, SY), (SC - 27, SY + 5)]):
+            for p in poly(tri):
+                cv.blend(p[0], p[1], GLASS[2], 0.8)
+            for p in boundary(poly(tri)):
+                cv.blend(p[0], p[1], (255, 255, 255), 0.9)
     return cv
 
 
@@ -178,7 +223,7 @@ if __name__ == '__main__':
     eff = os.path.join(root, 'Effects')
     props = os.path.join(root, 'Sprites', 'Props')
     for i in range(4):
-        mirror_icon(i).save(os.path.join(eff, 'mirror_crack', f'{i}.png'))
+        mirror_shield(i).save(os.path.join(eff, 'mirror_crack', f'{i}.png'))
     os.makedirs(os.path.join(eff, 'tel_mirror'), exist_ok=True)
     for f in range(4):
         tel_mirror(f).save(os.path.join(eff, 'tel_mirror', f'{f}.png'))

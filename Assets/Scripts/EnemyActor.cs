@@ -486,6 +486,8 @@ namespace LoopRogue
         // ---- 거울 깨기(10층) - 다른 보스를 비추는 동안 최대 체력의 MirrorBreakRatio만큼 맞으면 거울이 깨져 본모습 + 기절 ----
         public const float MirrorBreakRatio = 0.08f;
         public const int MirrorBreakStunTurns = 2;
+        /// <summary>거울 방어막 지름(칸) - 보스 몸(BossBodyCells 3.2칸)을 넉넉히 감싼다.</summary>
+        private const float MirrorShieldCells = 4f;
         private float _mirrorDamage;
         private SpriteRenderer _crackIcon;
 
@@ -512,7 +514,7 @@ namespace LoopRogue
             room?.ShowMessage(Loc.F("거울이 깨졌다! {0}가 본모습으로 돌아와 {1}턴 동안 비틀거린다", BossBrain.BossName(BossBrain.MirrorStage), MirrorBreakStunTurns));
         }
 
-        /// <summary>머리 위 거울 아이콘 - 금 간 정도(4단계). 본모습이거나 그림이 없거나 봇 중이면 숨긴다.</summary>
+        /// <summary>몸을 감싼 거울 방어막 - 금 간 정도(4단계). 본모습이거나 그림이 없거나 봇 중이면 숨긴다.</summary>
         private void RefreshMirrorCrack()
         {
             var frames = DamagePopup.Suppressed ? null : Fx.Frames("mirror_crack");
@@ -533,11 +535,11 @@ namespace LoopRogue
             _crackIcon.gameObject.SetActive(true);
             var index = Mathf.Min(frames.Length - 1, Mathf.FloorToInt(MirrorCrack * (frames.Length - 1) + 0.0001f));
             _crackIcon.sprite = frames[index];
-            // 부모(보스) 크기와 상관없이 0.45칸, 머리 위(3x3 몸 위쪽 가장자리)
+            // 몸 전체를 감싸는 방어막(10-23 사용자, 예전엔 머리 위 0.45칸 아이콘) - 부모(보스) 크기와 상관없이 MirrorShieldCells칸, 몸 가운데(그림 피벗 = 몸통 중심)
             var parentScale = Mathf.Max(0.0001f, transform.lossyScale.x);
-            var size = GridConstants.CellSize * 0.45f / (frames[0].rect.width / frames[0].pixelsPerUnit);
+            var size = GridConstants.CellSize * MirrorShieldCells / (frames[0].rect.width / frames[0].pixelsPerUnit);
             _crackIcon.transform.localScale = Vector3.one * size / parentScale;
-            _crackIcon.transform.localPosition = new Vector3(0f, GridConstants.CellSize * (BossFootprintRadius + 0.95f) / parentScale, 0f);
+            _crackIcon.transform.localPosition = Vector3.zero;
         }
 
         /// <summary>거울 가면 기사가 자기 패턴(거울 파편)을 쓸 때 - 비추던 모습을 풀고 본모습으로. 이미 본모습이면 false.</summary>
