@@ -542,22 +542,23 @@ namespace LoopRogue
             }
         }
 
-        // ---- 10층 발악(RoomController.MirrorLastStand) - 사람은 시간이 턴을 넘긴다: 누른 행동을 모아 두었다가
-        // LastStandTurnSeconds마다 마지막으로 고른 걸 한 번 실행(없으면 대기). 봇은 원래대로 턴마다 바로 움직인다.
+        // ---- 10층 발악(RoomController.MirrorLastStand) - 사람은 누르는 즉시 움직이고(10-23 사용자 - 예전엔 0.6초 박자까지 모아 두었다가
+        // 실행해 최대 0.6초 늦게 움직였다), LastStandTurnSeconds 동안 아무것도 안 하면 시간이 대기 턴을 넘긴다. 행동할 때마다 시계는 처음부터.
+        // 봇은 원래대로 턴마다 바로 움직인다.
         private float _realtimeClock;
-        private Vector2Int? _queuedMove;
-        private bool _queuedDash;
-        private bool _queuedWait;
 
         private bool HandleRealtimeTurn(Vector2Int? direction)
         {
             if (_room == null || !_room.MirrorLastStand || GameHUD.AutoPlayActive)
             {
                 _realtimeClock = 0f;
-                _queuedMove = null;
-                _queuedDash = false;
-                _queuedWait = false;
                 return false;
+            }
+            if (_room.TickLastStandClock(Time.deltaTime))
+            {
+                _realtimeClock = 0f;
+                Wait(); // 발악 시간이 다 됐다 - 한 턴 넘겨 기사가 바로 쓰러지게
+                return true;
             }
             if (GameInput.Down(Key.Q))
             {
@@ -570,35 +571,39 @@ namespace LoopRogue
             }
             if (direction.HasValue)
             {
-                _queuedMove = direction;
-                _queuedDash = IsAimingDash;
-                _queuedWait = false;
+                var dash = IsAimingDash;
                 IsAimingDash = false;
+                if (dash && TryDash(direction.Value))
+                {
+                    _realtimeClock = 0f;
+                    return true;
+                }
+                if (RootedTurns > 0) // 묶였으면 TryAct가 턴을 안 써서 시간이 멈춘다 → 제자리 대기로 한 턴
+                {
+                    _realtimeClock = 0f;
+                    Wait();
+                    return true;
+                }
+                if (Map.IsWalkable(GridPos + direction.Value))
+                {
+                    _realtimeClock = 0f;
+                    TryAct(direction.Value);
+                    return true;
+                }
+                // 벽·기사 쪽은 무시(턴을 안 쓴다) - 칼은 통하지 않고, 잘못 누른 키로 한 턴을 날리지 않게
             }
             else if (GameInput.Down(Key.Space))
             {
-                _queuedMove = null;
-                _queuedDash = false;
-                _queuedWait = true;
+                _realtimeClock = 0f;
+                Wait();
+                return true;
             }
 
             _realtimeClock += Time.deltaTime;
             if (_realtimeClock < RoomController.LastStandTurnSeconds)
                 return true;
             _realtimeClock = 0f;
-            var move = _queuedMove;
-            var dash = _queuedDash;
-            _queuedMove = null;
-            _queuedDash = false;
-            _queuedWait = false;
-            if (move.HasValue && dash && TryDash(move.Value))
-                return true;
-            if (move.HasValue && RootedTurns <= 0 && Map.IsWalkable(GridPos + move.Value)) // 묶였으면 TryAct가 턴을 안 써서 시간이 멈춘다 → 대기로
-            {
-                TryAct(move.Value);
-                return true;
-            }
-            Wait(); // 아무것도 안 골랐거나 못 가는 쪽이면 제자리 - 시간은 기다려 주지 않는다
+            Wait(); // 아무것도 안 했으면 제자리 - 시간은 기다려 주지 않는다
             return true;
         }
 

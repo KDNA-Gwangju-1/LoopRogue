@@ -135,7 +135,7 @@ namespace LoopRogue
                 Loc.F("체력이 75% 아래로 떨어지면 좌우가 뒤집힌 거울상 3개를 불러내고 진짜와 자리를 섞는다. 거울상에겐 칼이 안 통하고, 진짜의 예고 공격에 맞으면 깨진다. {0}턴 안에 다 못 깨면 즉사.", RoomController.MirrorFakeTurnLimit) + " " +
                 Loc.F("50%에선 좌우가 뒤집힌 내가 방 반대편에 나타나 따라 움직인다 - 기사의 예고 공격에 {0}번 맞혀 깨야 한다({1}턴 안에 못 하면 즉사).", RoomController.ReflectionHits, RoomController.ReflectionTurnLimit) + " " +
                 Loc.F("25%에선 의문의 조력자가 빛을 쏘고 기사는 단단해진다(받는 피해 90% 감소) - 거울에 붙어 밀면 방향이 바뀐다. 빛이 거울 {0}개에 모두 반사된 뒤 기사에게 닿으면 단단함이 풀리고 기사가 기절한다(최소 {1}턴, 거울이 멀수록 더 길게 - 시간 안에 못 하면 즉사).", RoomController.LightMirrorCount, RoomController.LightTurnLimit) + " " +
-                Loc.F("체력이 다하면 쓰러지지 않고 발악한다 - 시간이 턴을 넘기고(약 {0:0.#}초마다) 기사는 쉬지 않고 예고 공격을 퍼붓는다. {1:0}초를 버티면 쓰러지고, 맞으면 즉사.", RoomController.LastStandTurnSeconds, RoomController.LastStandTurns * RoomController.LastStandTurnSeconds));
+                Loc.F("체력이 다하면 쓰러지지 않고 발악한다 - 시간이 턴을 넘기고(약 {0:0.#}초마다) 기사는 쉬지 않고 예고 공격을 퍼붓는다. {1:0}초를 버티면 쓰러지고, 맞으면 즉사.", RoomController.LastStandTurnSeconds, RoomController.LastStandSeconds));
 
             return list.ToArray();
         }

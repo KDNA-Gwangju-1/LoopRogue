@@ -8,8 +8,9 @@ namespace LoopRogue
     /// 1 거울상(75%): 좌우가 뒤집힌 가짜 3개 - 진짜의 예고 공격에 맞혀 깬다(RoomController.BossGimmicks).
     /// 2 내 거울상(50%): 방 가운데 세로줄을 기준으로 좌우가 뒤집힌 내가 따라 움직인다 - 기사의 예고 공격에 ReflectionHits번 맞혀 깬다.
     /// 3 빛(25%): 의문의 조력자가 빛을 쏘고, 기사는 무적 - 거울에 붙어 밀면 /·\가 바뀐다. 빛이 거울 LightMirrorCount개를 모두 거쳐 기사에게 닿으면 무적이 풀린다.
-    /// 4 발악(0%): 체력이 0이 돼도 쓰러지지 않고, LastStandTurnSeconds초마다 턴이 저절로 흐른다(사람만 - 봇은 턴 그대로) - 기사는 쉬지 않고
-    ///   예고 공격만 하고 맞으면 즉사. LastStandTurns턴(약 30초)을 버티면 쓰러진다. 칼은 통하지 않는다.
+    /// 4 발악(0%): 체력이 0이 돼도 쓰러지지 않고, 사람은 누르는 즉시 움직이되 LastStandTurnSeconds초 동안 가만히 있으면 턴이 저절로 흐른다
+    ///   (봇은 턴 그대로) - 기사는 쉬지 않고 예고 공격만 하고 맞으면 즉사. 실제 LastStandSeconds초(봇은 턴당 LastStandTurnSeconds초로 셈)를
+    ///   버티면 쓰러진다(10-23 사용자 - 빨리 움직여도 일찍 안 끝나게 턴 수 대신 실제 시간). 칼은 통하지 않는다.
     /// 다음 단계 체력보다 더 깎이지 않게 단계마다 보스 체력 하한(CharacterStats.HealthFloor)을 건다 - 기믹을 건너뛰고 잡을 수 없다.</summary>
     public partial class RoomController
     {
@@ -21,7 +22,7 @@ namespace LoopRogue
         public const int LightTurnLimit = 80;
         public const int LightTurnBase = 50;
         public const int LightTurnPerStep = 2;
-        public const int LastStandTurns = 50;
+        public const float LastStandSeconds = 30f;
         public const float LastStandTurnSeconds = 0.6f;
 
         /// <summary>봇 통계용 - 10층 단계별 기믹 즉사 횟수(인덱스 = 단계 1~4).</summary>
@@ -39,7 +40,8 @@ namespace LoopRogue
         private Vector2Int _lightFinalDir;
         private bool _lightActive;
         private readonly List<GameObject> _beamObjects = new List<GameObject>();
-        private int _lastStandLeft;
+        private float _lastStandSeconds;   // 발악 남은 시간(초)
+        private bool _lastStandRunning, _lastStandWarned;
 
         /// <summary>지금 10층 기믹 단계(1~4) - 다른 층이거나 없으면 0.</summary>
         public int MirrorPhase => _gimmickStage == BossBrain.MirrorStage && _mirrorPhase <= 4 ? _mirrorPhase : 0;
@@ -50,12 +52,12 @@ namespace LoopRogue
             1 => _mirrorFakes.Count > 0,
             2 => _reflection != null && _reflectionHitCount < ReflectionHits,
             3 => _lightActive,
-            4 => _lastStandLeft > 0,
+            4 => _lastStandRunning,
             _ => false,
         };
 
         /// <summary>발악 중 - 보스는 예고 공격만 하고(BossBrain), 맞으면 즉사, 사람은 시간이 턴을 넘긴다(PlayerActor).</summary>
-        public bool MirrorLastStand => MirrorPhase == 4 && _lastStandLeft > 0;
+        public bool MirrorLastStand => MirrorPhase == 4 && _lastStandRunning;
 
         /// <summary>2단계 - 거울 속 나의 칸(방 가운데 세로줄 기준 좌우 반전). 단계가 아니면 null.</summary>
         public Vector2Int? ReflectionPos => MirrorPhase == 2 && _reflection != null ? MirrorOf(_player.GridPos) : (Vector2Int?)null;
@@ -109,7 +111,9 @@ namespace LoopRogue
                     }
                     break;
                 case 4:
-                    _lastStandLeft = LastStandTurns;
+                    _lastStandSeconds = LastStandSeconds;
+                    _lastStandRunning = true;
+                    _lastStandWarned = false;
                     ClearLightPuzzle();
                     foreach (var m in _enemies.Where(e => e != null && e.IsMinion && !e.Stats.IsDead).ToList())
                         DespawnEnemy(m, new Color(0.8f, 0.88f, 1f));
@@ -662,7 +666,8 @@ namespace LoopRogue
         {
             var boss = _gimmickBoss;
             _mirrorPhase = 5;
-            _lastStandLeft = 0;
+            _lastStandRunning = false;
+            _lastStandSeconds = 0f;
             ClearTelegraph();
             if (boss == null || boss.Stats.IsDead)
                 return false;
@@ -685,6 +690,19 @@ namespace LoopRogue
             return _player.ClaimKill(boss);
         }
 
+        /// <summary>발악 시계 - 사람이 조작할 수 있는 동안 PlayerActor가 매 프레임 부른다(일시정지·창이 열린 동안은 멈춤).
+        /// 시간이 다 됐으면 true - 그 자리에서 한 턴을 넘겨 몹 턴 끝(TickMirrorPhase)에 기사가 쓰러지게.</summary>
+        public bool TickLastStandClock(float deltaTime)
+        {
+            if (!MirrorLastStand)
+                return false;
+            var before = Mathf.CeilToInt(_lastStandSeconds * 10f);
+            _lastStandSeconds -= deltaTime;
+            if (Mathf.CeilToInt(_lastStandSeconds * 10f) != before)
+                UpdateGimmickLabel(); // 0.1초마다 남은 시간 표시
+            return _lastStandSeconds <= 0f;
+        }
+
         // ------------------------------------------------------------------ 몹 턴 끝
         /// <summary>10층 단계별 - 제한 턴·빛 확인·발악 시간. 즉사면 true(사망 처리는 TickStageGimmick이), 발악을 버텨 방이 넘어갔으면 finished.</summary>
         private bool TickMirrorPhase(out bool finished)
@@ -702,14 +720,19 @@ namespace LoopRogue
                 return false;
             if (MirrorPhase == 4)
             {
-                if (--_lastStandLeft <= 0)
+                if (GameHUD.AutoPlayActive)
+                    _lastStandSeconds -= LastStandTurnSeconds; // 봇은 실제 시간이 아니라 턴으로 센다
+                if (_lastStandSeconds <= 0f)
                 {
                     FinishLastStand();
                     finished = true; // 처치 처리로 방이 넘어갔을 수 있다 - 이번 몹 턴은 여기서 끝
                     return false;
                 }
-                if (_lastStandLeft == 10)
+                if (!_lastStandWarned && _lastStandSeconds <= 6f)
+                {
+                    _lastStandWarned = true;
                     ShowMessage(Loc.T("<color=#FFD24A>거울 가면이 부서져 간다...</color> 조금만 더!"));
+                }
                 return false;
             }
             if (--_gimmickTurnsLeft <= 0)
@@ -741,7 +764,7 @@ namespace LoopRogue
                     return Loc.F("단단함 · 빛 {0}턴", _gimmickTurnsLeft);
                 case 4 when MirrorPhaseActive:
                     danger = true;
-                    return Loc.F("발악 {0:0.0}초", _lastStandLeft * LastStandTurnSeconds);
+                    return Loc.F("발악 {0:0.0}초", Mathf.Max(0f, _lastStandSeconds));
             }
             return null;
         }
@@ -753,7 +776,8 @@ namespace LoopRogue
             _reflection = null;
             _reflectionHitCount = 0;
             ClearLightPuzzle();
-            _lastStandLeft = 0;
+            _lastStandRunning = false;
+            _lastStandSeconds = 0f;
             _mirrorPhase = 0;
         }
     }
