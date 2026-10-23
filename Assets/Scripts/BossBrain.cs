@@ -410,6 +410,7 @@ namespace LoopRogue
             BossPatternType.AxeWave => "tel_axe",          // 도끼 충격파 - 충격파 방향으로 뻗는 땅 균열(10-23, 방향대로 돌림)
             BossPatternType.Checker => "tel_checker",      // 체스판 마법 - 룬 테두리 + 돌아가는 마름모 룬(10-23)
             BossPatternType.SoulOrbs => "tel_orb",         // 영혼 구체 - 조여 드는 고리 + 해골(10-23)
+            BossPatternType.MirrorShards => "tel_mirror",  // 거울 파편 - 깨진 유리 금 + 반짝이는 조각(10-23)
             _ => null,
         };
 

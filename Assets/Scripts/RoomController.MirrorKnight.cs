@@ -449,12 +449,17 @@ namespace LoopRogue
             _lightWalls.Add(p);
             if (!_wallObjects.TryGetValue(p, out var go) || go == null)
                 return;
-            // 거울 면 - 얇은 막대를 /·\ 방향으로 눕힌다
+            // 거울 면 - 그림(Props/Light_Mirror_Face, "/" 방향, 10-23)이 있으면 받침대 위에 얹어 "\"는 좌우 반전, 없으면 얇은 막대를 /·\ 방향으로 눕힌다
             var bar = new GameObject("MirrorFace");
             bar.transform.SetParent(go.transform, false);
-            var r = VisualUtil.CreateSquareVisual(bar, new Color(0.85f, 0.95f, 1f), 1f, sortingOrder: -5);
-            bar.transform.localScale = new Vector3(1.25f, 0.18f, 1f);
-            r.sortingOrder = -5;
+            var faceSprite = Resources.Load<Sprite>("Sprites/Props/Light_Mirror_Face");
+            if (faceSprite != null)
+                VisualUtil.CreateSpriteVisual(bar, faceSprite, 1f, sortingOrder: -5);
+            else
+            {
+                VisualUtil.CreateSquareVisual(bar, new Color(0.85f, 0.95f, 1f), 1f, sortingOrder: -5);
+                bar.transform.localScale = new Vector3(1.25f, 0.18f, 1f);
+            }
             UpdateMirrorFace(p);
         }
 
@@ -463,7 +468,11 @@ namespace LoopRogue
             if (!_wallObjects.TryGetValue(p, out var go) || go == null)
                 return;
             var face = go.transform.Find("MirrorFace");
-            if (face != null)
+            if (face == null)
+                return;
+            if (face.TryGetComponent<SpriteRenderer>(out var r) && r.sprite != null)
+                r.flipX = !_lightMirrors[p];
+            else
                 face.localRotation = Quaternion.Euler(0f, 0f, _lightMirrors[p] ? 45f : -45f);
         }
 
