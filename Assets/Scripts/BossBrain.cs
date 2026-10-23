@@ -407,6 +407,7 @@ namespace LoopRogue
             BossPatternType.Encircle => "tel_encircle",    // 포위 폭발 - 네 변 톱니 + 해골(대시로만 피함, 10-23)
             BossPatternType.Diagonal => "tel_diag",        // X자 베기 - 가는 칼자국 X 두 겹 + 흐르는 빛(10-23)
             BossPatternType.Zigzag => "tel_zigzag",        // 지그재그 - 서로 반대로 흐르는 톱날 띠(10-23)
+            BossPatternType.AxeWave => "tel_axe",          // 도끼 충격파 - 충격파 방향으로 뻗는 땅 균열(10-23, 방향대로 돌림)
             _ => null,
         };
 
@@ -534,7 +535,7 @@ namespace LoopRogue
             // 환각 중엔 예고 칸 모양·소리도 반대 패턴으로(10-23) - 파동/역파동 그림이 달라서, 모양만 보고 속임수를 알아채지 않게
             var shownType = shownTiles == null ? type : type == BossPatternType.Ring ? BossPatternType.RingInverse : BossPatternType.Ring;
             room.ShowTelegraph(_pendingTiles, type == BossPatternType.Encircle ? DashTelegraphColor : (Color?)null, shownTiles,
-                shownType, type == BossPatternType.Charge ? _chargeDirection : (Vector2Int?)null);
+                shownType, type == BossPatternType.Charge ? _chargeDirection : type == BossPatternType.AxeWave ? _axeDir : (Vector2Int?)null);
             if (type == BossPatternType.Jump && HitFeedback.Enabled)
             {
                 // 점프 준비 - 움츠린다(점프 그림이 있으면 그 그림으로 예고 턴 내내, 없으면 한 번 찌그러지기)
@@ -583,7 +584,7 @@ namespace LoopRogue
                 if (_pendingTiles.Count == 0)
                     continue;
                 _pending = type;
-                room.ShowTelegraph(_pendingTiles, pattern: type, direction: type == BossPatternType.Charge ? _chargeDirection : (Vector2Int?)null);
+                room.ShowTelegraph(_pendingTiles, pattern: type, direction: type == BossPatternType.Charge ? _chargeDirection : type == BossPatternType.AxeWave ? _axeDir : (Vector2Int?)null);
                 TryMorph(type, out _);
                 return true;
             }

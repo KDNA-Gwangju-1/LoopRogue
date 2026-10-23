@@ -81,7 +81,7 @@ namespace LoopRogue
             {
                 if (_crushCountdown <= CrushWarnTurns)
                 {
-                    ShowEnemyTelegraph(_gimmickBoss, NextCrushCells().ToList(), CrushTelegraphColor);
+                    ShowEnemyTelegraph(_gimmickBoss, NextCrushCells().ToList(), CrushTelegraphColor, "tel_crush"); // 벽돌 무늬(10-23)
                     if (!_crushWarned)
                     {
                         _crushWarned = true;
@@ -169,6 +169,8 @@ namespace LoopRogue
             foreach (var p in _crushWalls.Where(kv => kv.Value.Side == side && kv.Value.Line == line).Select(kv => kv.Key).ToList())
             {
                 _crushWalls.Remove(p);
+                if (HitFeedback.Enabled)
+                    Fx.Play("crush_dust", new Vector3(p.x * GridConstants.CellSize, p.y * GridConstants.CellSize, 0f), 1.3f, fps: 14f, sortingOrder: 6); // 무너지는 돌먼지(10-23)
                 RemoveWallObject(p);
             }
             _crushInset[side]--;
@@ -181,7 +183,7 @@ namespace LoopRogue
                 _crushWarned = false;
             }
             else
-                ShowEnemyTelegraph(_gimmickBoss, NextCrushCells().ToList(), CrushTelegraphColor);
+                ShowEnemyTelegraph(_gimmickBoss, NextCrushCells().ToList(), CrushTelegraphColor, "tel_crush"); // 벽돌 무늬(10-23)
             ShowMessage(Loc.T("<color=#FFB060>도끼 충격파가 조여 오던 벽을 부쉈다!</color> 벽이 물러나고 조이는 속도가 느려진다"));
             if (HitFeedback.Enabled)
                 CameraShake.Shake(0.25f, 0.4f);
@@ -204,7 +206,7 @@ namespace LoopRogue
             renderer.gameObject.name = "CrusherWall";
             _roomObjects.Add(renderer.gameObject);
             _wallObjects[p] = renderer.gameObject;
-            if (HitFeedback.Enabled)
+            if (HitFeedback.Enabled && Fx.Play("crush_dust", renderer.transform.position, 1.3f, fps: 14f, sortingOrder: 6) == null) // 내려앉는 돌먼지(10-23)
                 DeathBurst.Spawn(renderer.transform.position, CrushWallColor, 6, GridConstants.CellSize * 1.1f, GridConstants.CellSize * 0.1f);
         }
 
