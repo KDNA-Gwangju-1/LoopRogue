@@ -29,8 +29,11 @@ namespace LoopRogue
         /// <summary>상한 직전에 남는 등장 비율 - 가중치 × (1 - CapFalloff × 찬 정도).</summary>
         public const float CapFalloff = 0.75f;
 
+        /// <summary>등급 기본값 대신 쓸 가중치 - 등급은 그대로 두고 이 카드만 덜(더) 나오게.</summary>
+        public int? WeightOverride;
+
         /// <summary>뽑힐 상대 가중치 - C가 제일 흔하고 S가 제일 드물다.</summary>
-        public int Weight => Grade switch
+        public int Weight => WeightOverride ?? Grade switch
         {
             UpgradeGrade.C => 10,
             UpgradeGrade.B => 8,
@@ -115,7 +118,8 @@ namespace LoopRogue
                 Apply = s => { s.IncreaseMaxHealth(s.BaseMaxHealth * 0.15f, true); s.BaseAttack *= 0.95f; } },
             new UpgradeOption { Grade = UpgradeGrade.A, Title = Loc.T("날카로움"), Description = Loc.T("치명타 +5%p / 공격력 -4%"),
                 Apply = s => { s.CriticalChanceRate += 0.05f; s.BaseAttack *= 0.96f; } },
-            new UpgradeOption { Grade = UpgradeGrade.A, Title = Loc.T("[도박] 광폭화"), Description = Loc.T("공격력 +20% / 최대체력 -10%"),
+            // 광폭화는 곱하기라 A등급 가중치 6이면 예전(도박 4)보다 판당 거의 두 배 뽑혀 공격력 ×2·체력 -40%로 튀었다(10-24 봇 100판·카드 시뮬레이션) - 3이면 등급제 전과 같다
+            new UpgradeOption { Grade = UpgradeGrade.A, WeightOverride = 3, Title = Loc.T("[도박] 광폭화"), Description = Loc.T("공격력 +20% / 최대체력 -10%"),
                 Apply = s => { s.BaseAttack *= 1.2f; s.MultiplyMaxHealth(0.9f); } },
 
             // S - 상한 있는 카드(상한에 가까울수록 덜 나오고, 닿으면 빠진다)
