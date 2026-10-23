@@ -21,6 +21,7 @@
   Boss8     8층 보스방 (미노타우로스)
   Boss9     9층 보스방 (리치)
   Boss10    10층 보스방 (거울 가면 기사)
+  Knight    히든 몹 기억하는 기사가 나온 방 (10-23 연결됨 - 기사가 나타나면 이 곡, 잡거나 방을 나가면 일반 방 곡)
 
 음악이 나오지 않는 곳: 보스를 잡은 뒤(서서히 꺼짐), 아직 파일이 없는 곳.
 볼륨: 설정 > 배경음악 (전체 볼륨도 함께 적용). 자동 플레이 봇 실행 중엔 음악을 틀지 않습니다.
@@ -29,4 +30,5 @@ Unity 가져오기 설정 추천: Load Type = Streaming, Compression = Vorbis, �
 
 지금 들어 있는 곡(10-19, 바탕화면 LoopRogue_에셋모음/07_Sound에서 복사):
   Boss1 = 1층 보스 / Boss2 = 2층보스 / Boss3 = 3층 보스(10-20) / Casino = 도박장 / Lobby = 로비맵 / MiniGame = 미니게임맵 / Dungeon = 일반맵 타이틀맵 / Puzzle = 퍼즐맵 / Mural = 횃불방
-아직 없는 곡: Gacha, Boss4~Boss10
+10-23 추가: Boss4 = 4층보스 / Boss5 = 5층보스 / Boss6 = 6층보스 / Boss7 = 7층보스 / Boss8 = 8층보스 / Boss9 = 9층 보스 / Boss10 = 10층보스
+아직 없는 곡: Gacha

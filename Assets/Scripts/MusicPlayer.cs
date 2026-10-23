@@ -16,6 +16,7 @@ namespace LoopRogue
         public const string Puzzle = "Puzzle";   // 퍼즐 방(퍼즐 5종)
         public const string MiniGame = "MiniGame"; // 미니게임 방(미니게임 5종)
         public const string Mural = "Mural";     // 횃불로 연 잊힌 벽화의 방
+        public const string Knight = "Knight";   // 히든 몹 기억하는 기사가 나온 방(10-23) - 잡으면 일반 방 곡으로
         public static string Boss(int stage) => $"Boss{Mathf.Clamp(stage, 1, 10)}"; // 층별 보스방
 
         public const float FadeSeconds = 1.2f;

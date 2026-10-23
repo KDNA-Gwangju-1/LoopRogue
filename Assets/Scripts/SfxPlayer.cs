@@ -55,6 +55,26 @@ namespace LoopRogue
             voice.PlayOneShot(clip, MasterVolume * GameSettings.SfxVolume); // × 설정 "효과음"(전체 볼륨은 AudioListener)
         }
 
+        private static readonly System.Collections.Generic.Dictionary<string, AudioClip> FileClips = new System.Collections.Generic.Dictionary<string, AudioClip>();
+
+        /// <summary>Resources 안 효과음 파일을 재생(10-23 - 보스 예고 효과음 칸). 파일이 없으면 false(호출부가 합성음으로).</summary>
+        public static bool PlayFile(string resourcePath)
+        {
+            if (DamagePopup.Suppressed)
+                return true; // 봇 중엔 소리 없이 - 합성음으로 넘기지도 않는다
+            if (!FileClips.TryGetValue(resourcePath, out var clip))
+                FileClips[resourcePath] = clip = Resources.Load<AudioClip>(resourcePath); // 없으면 null을 기억해 매번 찾지 않는다
+            if (clip == null)
+                return false;
+            if (_instance == null)
+                _instance = Create();
+            var voice = _instance._voices[_instance._nextVoice];
+            _instance._nextVoice = (_instance._nextVoice + 1) % VoiceCount;
+            voice.pitch = 1f;
+            voice.PlayOneShot(clip, MasterVolume * GameSettings.SfxVolume);
+            return true;
+        }
+
         /// <summary>음높이를 정해서 재생(무작위 흔들림 없음) - 뽑기 등급 오름처럼 점점 높아지는 소리.</summary>
         public static void PlayPitched(Sfx sfx, float pitch)
         {
