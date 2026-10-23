@@ -1331,6 +1331,9 @@ namespace LoopRogue
             room.ClearEnemyTelegraph(this);
             if (TryGetComponent<SpriteAnimator>(out var anim) && tiles.Count > 0)
                 anim.PlayAttack(tiles[0] - GridPos);
+            if (HitFeedback.Enabled) // 강타 칸마다 청록 충격(Effects/knight_smash, 10-23) - 그림이 없으면 조용히
+                foreach (var t in tiles)
+                    Fx.Play("knight_smash", new Vector3(t.x * GridConstants.CellSize, t.y * GridConstants.CellSize, 0f), 1.4f, fps: 16f, sortingOrder: 4);
             if (_decoyTarget != null && tiles.Contains(_decoyTarget.GridPos))
             {
                 _decoyTarget.TakeHit(this, _knightPatternPower * MemoryKnight.SlashDamageRate);

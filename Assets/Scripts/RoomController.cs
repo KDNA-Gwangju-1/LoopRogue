@@ -706,6 +706,7 @@ namespace LoopRogue
                 MemoryKnight.NormalAttackRatio);
             knight.MarkAsKnight(bossAtk * MemoryKnight.BossPatternRate);
             knight.FaceToward(_player.GridPos);
+            MusicPlayer.Play(MusicPlayer.Knight); // 기사 전용 곡(파일이 없으면 조용히) - 방을 나가거나 잡으면 일반 방 곡
             KnightSpawnCount++;
             MemoryKnight.MarkAppeared(_stage);
             Achievements.Unlock("ACH_KNIGHT_MET");
@@ -842,6 +843,7 @@ namespace LoopRogue
             }
             if (enemy.IsKnight)
             {
+                MusicPlayer.Play(MusicPlayer.Dungeon); // 기사 곡 → 일반 방 곡
                 var gold = RoomClearGold * MemoryKnight.GoldRooms;
                 GoldWallet.Add(gold);
                 HitFeedback.OnGold(enemy.transform.position);
@@ -1097,63 +1099,49 @@ namespace LoopRogue
 
         /// <param name="color">예고 칸 색 - 없으면 기본 빨강(포위 폭발처럼 "대시로 피하라"는 패턴은 주황).</param>
         /// <param name="display">보이는 칸이 실제 칸과 다를 때(5층 환각 - 거꾸로 보임). 없으면 tiles 그대로 보인다. 위험 판정은 늘 tiles.</param>
-        public void ShowTelegraph(IEnumerable<Vector2Int> tiles, Color? color = null, IEnumerable<Vector2Int> display = null)
+        /// <param name="pattern">보스 패턴 - 패턴 전용 예고 그림(Effects/tel_*)과 예고 효과음(Sounds/Telegraph/패턴 이름)을 고른다(10-23).</param>
+        /// <param name="direction">돌진처럼 방향이 있는 패턴 - 예고 그림을 그쪽으로 돌린다.</param>
+        public void ShowTelegraph(IEnumerable<Vector2Int> tiles, Color? color = null, IEnumerable<Vector2Int> display = null,
+            BossPatternType? pattern = null, Vector2Int? direction = null)
         {
             ClearTelegraph();
-            HitFeedback.OnTelegraph();
+            HitFeedback.OnTelegraph(pattern);
             foreach (var t in tiles)
                 _bossDangerTiles.Add(t);
+            var style = BossBrain.TelegraphStyle(pattern);
+            var angle = direction.HasValue ? Fx.Angle(direction.Value) : 0f;
             foreach (var t in display ?? tiles)
-                _telegraphObjects.Add(SpawnTelegraphTile(t, color ?? TelegraphColor, -5));
+                _telegraphObjects.Add(SpawnTelegraphTile(t, color ?? TelegraphColor, -5, style, angle));
             RebuildDangerTiles();
         }
 
-        private static readonly Color TelegraphLaterColor = new Color(0.7f, 0.45f, 1f, 0.35f);
+        /// <summary>순서 예고 색(10-23 사용자 - 숫자 대신 색으로만): 바로 다음 빨강 → 주황 → 노랑 → 그 뒤는 옅은 노랑.</summary>
+        private static readonly Color[] TelegraphWaveColors =
+        {
+            new Color(1f, 0.15f, 0.15f, 0.95f), new Color(1f, 0.55f, 0.1f, 0.75f), new Color(1f, 0.95f, 0.3f, 0.5f), new Color(1f, 0.95f, 0.55f, 0.32f),
+        };
 
-        /// <summary>거울 파편 - 여러 웨이브를 한꺼번에 예고. 칸마다 몇 번째에 터지는지 숫자를 적고, 바로 다음(waves[0]) 칸은 진한 빨강,
+        /// <summary>거울 파편 - 여러 웨이브를 한꺼번에 예고. 칸마다 몇 번째에 터지는지 색으로(빨강 → 주황 → 노랑 → 옅은 노랑, 10-23 숫자는 뺐다),
         /// 나중 칸은 옅은 보라. 실제 위험 칸(봇·위험 표시 기준)은 바로 다음 웨이브만.</summary>
-        public void ShowTelegraphWaves(IReadOnlyList<HashSet<Vector2Int>> waves, int firstNumber)
+        public void ShowTelegraphWaves(IReadOnlyList<HashSet<Vector2Int>> waves, int firstNumber, BossPatternType? pattern = null)
         {
             ClearTelegraph();
-            HitFeedback.OnTelegraph();
+            HitFeedback.OnTelegraph(pattern);
             if (waves.Count == 0)
                 return;
             _bossDangerTiles.UnionWith(waves[0]);
-            var numbers = new Dictionary<Vector2Int, List<int>>();
+            var first = new Dictionary<Vector2Int, int>(); // 칸마다 가장 먼저 터지는 웨이브
             for (var i = 0; i < waves.Count; i++)
                 foreach (var t in waves[i])
-                {
-                    if (!numbers.TryGetValue(t, out var list))
-                        numbers[t] = list = new List<int>();
-                    list.Add(firstNumber + i);
-                }
-            foreach (var pair in numbers)
+                    if (!first.ContainsKey(t))
+                        first[t] = i;
+            var style = BossBrain.TelegraphStyle(pattern);
+            foreach (var pair in first)
             {
-                var next = pair.Value[0] == firstNumber;
-                _telegraphObjects.Add(SpawnTelegraphTile(pair.Key, next ? TelegraphColor : TelegraphLaterColor, next ? -5 : -6));
-                _telegraphObjects.Add(SpawnTelegraphLabel(pair.Key, string.Join(" ", pair.Value), next));
+                var color = TelegraphWaveColors[Mathf.Min(pair.Value, TelegraphWaveColors.Length - 1)];
+                _telegraphObjects.Add(SpawnTelegraphTile(pair.Key, color, pair.Value == 0 ? -5 : -6, style));
             }
             RebuildDangerTiles();
-        }
-
-        /// <summary>예고 칸 위 숫자(월드 글자) - 다음 웨이브 숫자는 흰색으로 크게.</summary>
-        private GameObject SpawnTelegraphLabel(Vector2Int t, string text, bool next)
-        {
-            var go = new GameObject("TelegraphNumber");
-            go.transform.SetParent(transform, false);
-            go.transform.position = new Vector3(t.x * GridConstants.CellSize, t.y * GridConstants.CellSize, -0.4f);
-            var mesh = go.AddComponent<TextMesh>();
-            mesh.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            mesh.text = text;
-            mesh.fontSize = 48;
-            mesh.characterSize = next ? 0.075f : 0.06f;
-            mesh.anchor = TextAnchor.MiddleCenter;
-            mesh.alignment = TextAlignment.Center;
-            mesh.color = next ? Color.white : new Color(0.85f, 0.75f, 1f, 0.9f);
-            var renderer = go.GetComponent<MeshRenderer>();
-            renderer.material = mesh.font.material;
-            renderer.sortingOrder = 4;
-            return go;
         }
 
         /// <summary>보스 예고만 지운다(폭발병 예고는 그대로).</summary>
@@ -1188,11 +1176,13 @@ namespace LoopRogue
             _playerBombs.Clear();
         }
 
-        private GameObject SpawnTelegraphTile(Vector2Int t, Color color, int sortingOrder)
+        private GameObject SpawnTelegraphTile(Vector2Int t, Color color, int sortingOrder, string style = null, float angle = 0f)
         {
             var position = new Vector3(t.x * GridConstants.CellSize, t.y * GridConstants.CellSize, 0f);
             // 도트 예고 칸(흰 그림에 색을 곱함 - 보스 = 빨강, 폭발 = 주황, 깜빡임) - 그림이 없거나 봇 중이면 예전 사각형.
-            var fx = Fx.Play("telegraph", position, 0.95f, tint: new Color(color.r, color.g, color.b, 0.95f), fps: 6f, loop: true,
+            // 패턴 전용 그림(Effects/tel_*, 10-23 - 돌진 화살표·강타 갈라진 땅·파동 고리·십자)이 있으면 그것, 방향 있는 패턴은 angle만큼 돌린다.
+            var name = style != null && Fx.Frames(style).Length > 0 ? style : "telegraph";
+            var fx = Fx.Play(name, position, 0.95f, angle, tint: new Color(color.r, color.g, color.b, 0.95f), fps: 6f, loop: true,
                 sortingOrder: sortingOrder, parent: transform);
             if (fx != null)
                 return fx.gameObject;
@@ -1211,6 +1201,7 @@ namespace LoopRogue
                 _dangerTiles.UnionWith(bomb.Tiles);
             foreach (var tel in _crystalTelegraphs.Values)
                 _dangerTiles.UnionWith(tel.Tiles);
+            _dangerTiles.UnionWith(_beatTiles); // 7층 그림자 박자(10-23)
         }
 
         /// <summary>폭발병이 불을 붙였을 때 - 3x3 주황 예고.</summary>
@@ -1220,10 +1211,10 @@ namespace LoopRogue
         public static readonly Color ChargeTelegraphColor = new Color(1f, 0.3f, 0.2f, 0.45f);
 
         /// <summary>일반 몹 하나의 예고 칸(폭발병 3x3, 돌진병 돌진 줄) - 몹마다 따로 들고 있다가 발동하거나 그 몹이 죽으면 지운다.</summary>
-        public void ShowEnemyTelegraph(EnemyActor enemy, List<Vector2Int> tiles, Color color)
+        public void ShowEnemyTelegraph(EnemyActor enemy, List<Vector2Int> tiles, Color color, string style = null)
         {
             ClearBombTelegraph(enemy);
-            var objects = tiles.Select(t => SpawnTelegraphTile(t, color, -4)).ToList();
+            var objects = tiles.Select(t => SpawnTelegraphTile(t, color, -4, style)).ToList();
             _bombs[enemy] = (tiles, objects);
             RebuildDangerTiles();
         }
@@ -1748,7 +1739,9 @@ namespace LoopRogue
                 var go = new GameObject("GolemCrystal");
                 go.transform.SetParent(transform, false);
                 go.transform.position = new Vector3(p.x * GridConstants.CellSize, p.y * GridConstants.CellSize, 0f);
-                if (VisualUtil.TryCreateProp(go, "Golem_Crystal_1", -7) == null)
+                // 공중에 뜬 마름모 수정이 위아래로 둥실(Effects/crystal_float 반복, 10-23 사용자) - 없으면 정지 그림(Props/Golem_Crystal_1), 그것도 없으면 사각형
+                var floatFx = DamagePopup.Suppressed ? null : Fx.Play("crystal_float", go.transform.position, 1f, fps: 8f, loop: true, sortingOrder: -7, parent: go.transform);
+                if (floatFx == null && VisualUtil.TryCreateProp(go, "Golem_Crystal_1", -7) == null)
                     VisualUtil.CreateSquareVisual(go, new Color(0.4f, 0.9f, 0.95f), GridConstants.CellSize * 0.6f, sortingOrder: -7);
                 _roomObjects.Add(go);
                 _wallObjects[p] = go;
@@ -2059,6 +2052,8 @@ namespace LoopRogue
             OgreHoleFillCount++;
             _ogreMightStacks = Mathf.Min(OgreMightMaxStacks, _ogreMightStacks + 1);
             _ogreMightTurns = OgreMightTurns;
+            if (HitFeedback.Enabled) // 구멍 자리에 흙이 쏟아져 차오르고 다져진다(Effects/hole_fill 48x48, 10-23) - 구멍 그림은 이 이펙트 첫 장에 들어 있다
+                Fx.Play("hole_fill", new Vector3(p.x * GridConstants.CellSize, p.y * GridConstants.CellSize, 0f), 1.5f, fps: 14f, sortingOrder: -6);
             RemoveWallObject(p); // 구멍 목록에서도 빠지고 바닥 타일이 다시 깔린다
             ShowMessage(Loc.F("<color=#FFD070>대지의 기세 {0}단계!</color> 오우거에게 주는 피해 +{1:0}% ({2}턴)",
                 _ogreMightStacks, (OgreMightMultiplier - 1f) * 100f, OgreMightTurns));
@@ -2351,6 +2346,8 @@ namespace LoopRogue
             var broke = false;
             foreach (var p in cells.Where(c => _boarPillars.Contains(c)).ToList())
             {
+                if (HitFeedback.Enabled) // 돌기둥이 산산조각 난다(Effects/pillar_break 48x48, 10-23)
+                    Fx.Play("pillar_break", new Vector3(p.x * GridConstants.CellSize, p.y * GridConstants.CellSize, 0f), 1.5f, fps: 14f, sortingOrder: 6);
                 RemoveWallObject(p);
                 broke = true;
             }
@@ -2687,6 +2684,7 @@ namespace LoopRogue
         {
             if (Puzzle != null && !Puzzle.IsRunning)
                 return; // 퍼즐이 방금 실패했다(실패 창이 떠 있는 동안 몹이 때리지 않게)
+            _gimmickJustStarted = false; // 지난 턴(또는 보스 러시 입장 때) 시작한 기믹은 이번 몹 턴부터 깎는다
             ClearBossWindup(); // 몹 턴 동안엔 끄고(광폭화 색이 바뀌어도 덮어쓰지 않게) 끝나면 다시 판단
             // 스냅샷을 떠서 순회한다 - 턴 도중 죽거나 소환돼서 리스트가 바뀌어도 이번 순회엔 영향 없게.
             // 플레이어에게 가까운 몹부터 움직여서 가까운 몹이 가까운 옆 칸을 먼저 예약하게 한다(포위 AI).

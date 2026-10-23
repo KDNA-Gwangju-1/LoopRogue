@@ -8,7 +8,9 @@ namespace LoopRogue
     /// 4 슬라임 킹: 2x2로 작아지며 분열 - 벽 포탑이 점액 파동을 쏘고 킹은 점프로 점액을 남긴다. 점액이 쌓이면 즉사(RoomController.SlimeKing, 10-16 사용자).
     /// 5 버섯 군주: 파동에 맞거나 12턴마다 감염 +1 - 감염 3이면 즉사. 파동 뒤 피는 빛버섯을 밟으면 해독.
     /// 6 망령 궁수: 영혼 촛불 4개가 켜져 있는 동안 무적 - 저격(1·2발)이 촛불 칸을 덮으면 꺼진다. 120턴 안에 다 못 끄면 즉사.
+    ///   체력 25% 아래에선 영혼 과녁(RoomController.SoulTarget, 10-23) - 과녁 5개를 저격에서 지키며 30턴 버티기.
     /// 7 그림자 암살자: 칼이 안 통하는 그림자 분신 3개가 있는 동안 무적 - X자 베기가 분신을 베면 사라진다. 120턴 안에 다 못 지우면 즉사.
+    ///   체력 75%·35% 아래(분신이 없을 때)엔 그림자 박자(RoomController.ShadowBeat, 10-23) - 빈 칸 순서를 보여 주고 5박자 동안 방 전체를 벤다(35%는 하얀 표식 섞임).
     /// 8 미노타우로스: 사방 벽이 조여 온다 - 도끼 충격파가 벽에 닿으면 물러난다. 닫히는 줄에 있거나 방이 너무 좁아지면 즉사(RoomController.Minotaur, 10-16 사용자).
     /// 9 리치: 체력 50%·25%에 죽음의 낙인 - 낙인이 있는 동안 무적, 쫓아오는 영혼 구체를 리치에게 흡수시켜 옮긴다(RoomController.LichDoom, 10-19 사용자).
     /// 남은 상황은 보스 머리 위 글자(CreateBossLabel). 봇은 AutoPlayBot.TryStageGimmick이 같은 규칙으로 대응한다.</summary>
@@ -38,6 +40,9 @@ namespace LoopRogue
         private int _gimmickStage;   // 0 = 없음
         private EnemyActor _gimmickBoss;
         private int _gimmickTurnsLeft;
+        /// <summary>이번 몹 턴에 기믹이 시작됐다 - 그 턴 끝 틱은 건너뛴다(예전엔 시작 턴에 제한 턴·감염 시계가 1 먼저 깎였다, 10-23).
+        /// 몹 턴 시작 때 지운다(보스 러시는 입장 때 시작하니 첫 몹 턴부터 정상으로 깎인다).</summary>
+        private bool _gimmickJustStarted;
         private TextMesh _gimmickLabel;
 
         private int _infection;
@@ -65,7 +70,7 @@ namespace LoopRogue
 
         /// <summary>6·7층 - 촛불·분신이 남아 있는 동안, 9층 - 죽음의 낙인이 있는 동안 보스는 무적(BossBrain.ArmorMultiplier). 10층 - 빛 단계·발악 동안.</summary>
         public bool BossInvulnerable =>
-            (_gimmickStage == 6 && _candles.Count > 0) || (_gimmickStage == 7 && _clones.Count > 0) || DoomActive
+            (_gimmickStage == 6 && (_candles.Count > 0 || _soulTargetActive)) || (_gimmickStage == 7 && (_clones.Count > 0 || _beatActive)) || DoomActive
             || (MirrorPhase == 3 && _lightActive) || MirrorLastStand;
 
         /// <summary>졸개가 플레이어 대신 갈 곳 - 예전 4층 흡수 기믹용(10-16에 분열 기믹으로 바뀌어 지금은 없음).</summary>
@@ -83,6 +88,7 @@ namespace LoopRogue
                 ClearStageGimmick();
             _gimmickStage = stage;
             _gimmickBoss = boss;
+            _gimmickJustStarted = true;
             var c = new GimmickCutscene();
             switch (stage)
             {
@@ -182,9 +188,18 @@ namespace LoopRogue
         {
             if (_gimmickStage != 6)
                 return;
+            if (_soulTargetActive)
+            {
+                SnipeSoulTargets(tiles); // 영혼 과녁 - 덮이면 부서진다(다 부서지면 즉사)
+                return;
+            }
             var hit = tiles.Where(_candles.ContainsKey).ToList();
             foreach (var c in hit)
+            {
+                if (HitFeedback.Enabled && _candles[c] != null)
+                    Fx.Play("candle_out", _candles[c].transform.position, 1.1f, fps: 12f, sortingOrder: 6); // 불꽃이 휘청이다 꺼지며 연기로(10-23)
                 RemoveFloorProp(_candles, c, new Color(0.7f, 0.9f, 1f));
+            }
             if (hit.Count == 0)
                 return;
             ShowMessage(_candles.Count > 0
@@ -205,6 +220,8 @@ namespace LoopRogue
             foreach (var c in cut)
             {
                 _clones.Remove(c);
+                if (HitFeedback.Enabled)
+                    Fx.Play("clone_vanish", c.transform.position, 2.4f, fps: 14f, sortingOrder: 6); // 두 조각으로 갈라져 연기로(10-23)
                 DespawnEnemy(c, new Color(0.5f, 0.3f, 0.7f));
             }
             if (cut.Count == 0)
@@ -330,6 +347,12 @@ namespace LoopRogue
                 ClearStageGimmick();
                 return false;
             }
+            if (_gimmickJustStarted)
+            {
+                _gimmickJustStarted = false;
+                UpdateGimmickLabel();
+                return false; // 방금 시작한 턴 - 제한 턴은 다음 몹 턴부터 깎는다
+            }
 
             var dead = false;
             switch (_gimmickStage)
@@ -385,6 +408,16 @@ namespace LoopRogue
                     break;
                 case 6:
                 case 7:
+                    if (SoulTargetActive)
+                    {
+                        TickSoulTarget(); // 영혼 과녁 - 버티면 기절 + 피해 증가(실패 즉사는 저격 때)
+                        break;
+                    }
+                    if (ShadowBeatActive)
+                    {
+                        dead = TickShadowBeat(); // 그림자 박자 - 빈 칸이 아니면 즉사
+                        break;
+                    }
                     if (_gimmickStage == 7)
                         _clones.RemoveAll(c => c == null || c.Stats.IsDead); // 칼날 말고 다른 길로 죽은 분신이 남아 무적이 안 풀리던 일 방지
                     if (!BossInvulnerable)
@@ -481,9 +514,17 @@ namespace LoopRogue
                     text = Loc.F("감염 {0}/{1} · {2}턴", _infection, InfectionLimit, _infectionClock);
                     danger = _infection >= InfectionLimit - 1;
                     break;
+                case 6 when SoulTargetActive:
+                    text = SoulTargetLabelText(out danger);
+                    break;
                 case 6:
-                    text = _candles.Count > 0 ? Loc.F("촛불 {0} · {1}턴", _candles.Count, _gimmickTurnsLeft) : null;
-                    danger = _gimmickTurnsLeft <= 20;
+                    text = _candles.Count > 0 ? Loc.F("촛불 {0} · {1}턴", _candles.Count, _gimmickTurnsLeft)
+                        : _soulTargetBonus > 0f ? Loc.F("받는 피해 +{0}%", Mathf.RoundToInt(_soulTargetBonus * 100f)) : null;
+                    danger = _candles.Count > 0 && _gimmickTurnsLeft <= 20;
+                    break;
+                case 7 when ShadowBeatActive:
+                    text = Loc.F("그림자 박자 {0}/{1}", _beatIndex + 1, ShadowBeatCount);
+                    danger = true;
                     break;
                 case 7:
                     text = _clones.Count > 0 ? Loc.F("분신 {0} · {1}턴", _clones.Count, _gimmickTurnsLeft) : null;
@@ -723,6 +764,8 @@ namespace LoopRogue
             ClearSporeFog();
             _lava.Clear();
             ClearDoom();
+            ClearSoulTarget();
+            ClearShadowBeat();
             if (_gimmickLabel != null)
                 Destroy(_gimmickLabel.gameObject);
             _gimmickLabel = null;

@@ -540,7 +540,7 @@ namespace LoopRogue
                 : Loc.F("받는 피해  <color=#FF7070>+{0:0.#}%</color>", -reduction * 100f));
             sb.AppendLine(Loc.F("흡혈  {0:0.#}%{1}", s.EffectiveLifeSteal * 100f, (s.LifeStealRate >= Relics.LifeStealCap ? Loc.T(" (최대)") : "")));
             sb.AppendLine(Loc.F("수호막  방마다 {0:0.#}%  (≈{1:0.#} HP)", s.RoomShieldCardRate * 100f, s.MaxHealth * s.RoomShieldCardRate));
-            sb.AppendLine(Loc.F("처치 회복  {0:0.#}%  (≈{1:0.#} HP)", s.KillHealRate * 100f, s.MaxHealth * s.KillHealRate));
+            sb.AppendLine(Loc.F("처치 회복  {0:0.#}%  (≈{1:0.#} HP)", s.EffectiveKillHeal * 100f, s.MaxHealth * s.EffectiveKillHeal));
 
             sb.AppendLine();
             sb.AppendLine(Loc.T("<b><color=#FFE680>[경제]</color></b>"));
@@ -671,14 +671,17 @@ namespace LoopRogue
         /// <summary>가장 최근 사망 때 잃은 골드 - 자동 플레이 봇 통계용.</summary>
         public int LastDeathGoldPenalty { get; private set; }
 
-        private static Color CardColor(UpgradeCategory category) => category switch
+        /// <summary>그림(UI/Common/Card_등급)이 없을 때의 단색 - C 회색 / B 파랑 / A 보라 / S 호박.</summary>
+        private static Color CardColor(UpgradeGrade grade) => grade switch
         {
-            UpgradeCategory.Growth => new Color(0.3f, 0.6f, 1f, 0.25f),
-            UpgradeCategory.Special => new Color(0.3f, 0.9f, 0.5f, 0.22f),
-            UpgradeCategory.Economy => new Color(1f, 0.85f, 0.3f, 0.22f),
-            UpgradeCategory.Gamble => new Color(1f, 0.3f, 0.3f, 0.3f),
+            UpgradeGrade.B => new Color(0.3f, 0.5f, 0.9f, 0.25f),
+            UpgradeGrade.A => new Color(0.6f, 0.4f, 0.95f, 0.25f),
+            UpgradeGrade.S => new Color(1f, 0.65f, 0.25f, 0.28f),
             _ => new Color(1f, 1f, 1f, 0.15f),
         };
+
+        /// <summary>등급 테두리 그림 위 기본 밝기 - 마우스를 올리면 흰색(원래 그림 색)으로 밝아진다(ClickedCard).</summary>
+        private static readonly Color CardArtColor = new Color(0.86f, 0.86f, 0.86f, 1f);
 
         private void ShowUpgradeChoices(List<UpgradeOption> options)
         {
@@ -702,7 +705,11 @@ namespace LoopRogue
                 rect.anchoredPosition = new Vector2(0f, 100f - i * 90f);
 
                 var cardImage = cardGo.AddComponent<Image>();
-                cardImage.color = PixelUi.Slice(cardImage, "Button") ? PixelUi.Tint(CardColor(option.Category), 0.5f) : CardColor(option.Category);
+                // 등급별 카드 테두리(10-23, 9-slice) - 없으면 예전 버튼 그림에 등급 색, 그것도 없으면 단색
+                if (PixelUi.Slice(cardImage, $"Card_{option.Grade}"))
+                    cardImage.color = CardArtColor;
+                else
+                    cardImage.color = PixelUi.Slice(cardImage, "Button") ? PixelUi.Tint(CardColor(option.Grade), 0.5f) : CardColor(option.Grade);
                 _upgradeCards.Add((rect, cardImage, cardImage.color));
 
                 var textGo = new GameObject("Text", typeof(RectTransform));

@@ -931,7 +931,7 @@ namespace LoopRogue
             if (GlitchRoom.Active == GlitchRoom.Rule.Revive && !enemy.IsBoss && !enemy.IsGlitchRevived && !enemy.IsPuzzleMob)
                 _room.SpawnGlitchRevive(enemy); // 오류방 - 한 번 되살아난다(처치 처리 전에)
             Destroy(enemy.gameObject);
-            Stats.Heal(Stats.MaxHealth * Stats.KillHealRate); // 처치 회복 카드
+            Stats.Heal(Stats.MaxHealth * Stats.EffectiveKillHeal); // 처치 회복 카드(상한 36%)
 
             // 경험치도 골드처럼 StageScaling 배율을 곱한다(몹은 스테이지마다 세지는데 경험치만
             // 고정이면 뒤로 갈수록 레벨이 안 오름). 보스 처치 경험치는 스테이지 클리어 화면보다

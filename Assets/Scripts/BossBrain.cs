@@ -129,10 +129,18 @@ namespace LoopRogue
             room != null && room.BossInvulnerable ? GimmickArmorMultiplier // 6·7·9·10층 기믹 - 촛불·분신·죽음의 낙인·빛이 남아 있는 동안 피해 90% 감소(10-21 사용자, 예전엔 무적)
             : IsBoar && _pillarPhase && room != null && room.BoarPillarCount > 0 ? BoarArmorMultiplier
             : IsOgre && room != null ? room.OgreMightMultiplier // 2층 - 구멍을 메워 쌓은 대지의 기세
+            : _stage == 6 && room != null && room.SoulTargetBonus > 0f ? 1f + room.SoulTargetBonus // 6층 영혼 과녁을 지켜 낸 만큼(10-23)
             : 1f;
 
         // ---- 4~9층 기믹(10-14 사용자) - 체력 StageGimmickHealthRatio 이하에서 한 번 시작(RoomController.BeginStageGimmick)
         public const float StageGimmickHealthRatio = 0.5f;
+        /// <summary>6층 영혼 과녁(10-23 사용자) - 촛불을 다 끈 뒤 체력 25% 아래에서 한 번(RoomController.BeginSoulTarget).</summary>
+        public const float SoulTargetHealthRatio = 0.25f;
+        private bool _soulTargetStarted;
+        /// <summary>7층 그림자 박자(10-23 사용자) - 분신이 없을 때 체력 75%·35% 아래에서 한 번씩(RoomController.BeginShadowBeat).
+        /// 두 번째(35%)는 하얀 표식(반대 방향으로 밟기)이 섞인다.</summary>
+        public static readonly float[] ShadowBeatHealth = { 0.75f, 0.35f };
+        private int _shadowBeatWave;
         /// <summary>10층 거울 가면 기사 "진짜 찾기" - 체력 75% 아래에서 한 번(10-15 사용자).</summary>
         public const float MirrorFakeHealthRatio = 0.75f;
         /// <summary>10층 기믹 4단계가 시작되는 체력(10-16 사용자) - 거울상 / 내 거울상 / 빛 / 발악(0% = 체력 하한 1에 닿았을 때).
@@ -327,6 +335,16 @@ namespace LoopRogue
                 return true;
             }
 
+            if (_stage == 7 && _stageGimmickStarted && _shadowBeatWave < ShadowBeatHealth.Length && !room.BossInvulnerable
+                && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * ShadowBeatHealth[_shadowBeatWave])
+            {
+                // 한 번에 두 문턱을 다 지났으면 한 번만(어려운 쪽으로)
+                while (_shadowBeatWave < ShadowBeatHealth.Length && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * ShadowBeatHealth[_shadowBeatWave])
+                    _shadowBeatWave++;
+                room.BeginShadowBeat(_boss, mixWhite: _shadowBeatWave >= 2); // 컷신 - 그림자 속으로(이 동안 분신 물결은 기다린다)
+                return true;
+            }
+
             if (_stage == 7 && _cloneWave < CloneWaveHealth.Length && !room.BossInvulnerable
                 && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * CloneWaveHealth[_cloneWave])
             {
@@ -357,6 +375,14 @@ namespace LoopRogue
                 return true;
             }
 
+            if (_stage == 6 && _stageGimmickStarted && !_soulTargetStarted && !room.BossInvulnerable && room.GimmickStage == 6
+                && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * SoulTargetHealthRatio)
+            {
+                _soulTargetStarted = true;
+                room.BeginSoulTarget(_boss); // 컷신 - 과녁이 하나씩
+                return true;
+            }
+
             if (!_stageGimmickStarted && _stage >= 4 && _stage < MirrorStage && _stage != 7 && _stage != 9 && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * StageGimmickRatio(_stage))
             {
                 _stageGimmickStarted = true;
@@ -365,6 +391,24 @@ namespace LoopRogue
             }
             return false;
         }
+
+        /// <summary>패턴 전용 예고 칸 그림(Resources/Effects/tel_*, 10-23 - 패턴마다 테두리·무늬·움직임이 다르게). 없는 패턴은 null(공용 telegraph).</summary>
+        public static string TelegraphStyle(BossPatternType? type) => type switch
+        {
+            BossPatternType.Charge => "tel_charge",
+            BossPatternType.Slam => "tel_slam",
+            BossPatternType.TripleWave => "tel_wave",
+            BossPatternType.Cross => "tel_cross",
+            BossPatternType.Jump => "tel_jump", // 4층 슬라임 킹 - 그림자 + 조여 드는 표식(10-23)
+            BossPatternType.Ring => "tel_ring",            // 5층 - 포자 구름 테(10-23)
+            BossPatternType.RingInverse => "tel_ring_inv", // 5층 - 모서리에서 뻗는 균사(10-23)
+            BossPatternType.Snipe => "tel_snipe",          // 저격 1발 - 돌아가는 조준 고리 + 대각선 눈금(10-23)
+            BossPatternType.SnipeFollowUp => "tel_snipe2", // 저격 2발 - 마름모 조준 + 조여 드는 십자 눈금(10-23)
+            BossPatternType.Encircle => "tel_encircle",    // 포위 폭발 - 네 변 톱니 + 해골(대시로만 피함, 10-23)
+            BossPatternType.Diagonal => "tel_diag",        // X자 베기 - 가는 칼자국 X 두 겹 + 흐르는 빛(10-23)
+            BossPatternType.Zigzag => "tel_zigzag",        // 지그재그 - 서로 반대로 흐르는 톱날 띠(10-23)
+            _ => null,
+        };
 
         /// <summary>그 층 기믹이 처음 시작하는 체력 비율 - 보스 러시는 보스를 이 체력으로 내보낸다. 기믹이 없으면 1.</summary>
         public static float GimmickStartHealthRatio(int stage) => stage switch
@@ -384,6 +428,8 @@ namespace LoopRogue
             _turnsSinceEncircle++;
             if (room.MirrorLastStand)
                 return TakeLastStandTurn(player, room);
+            if (room.ShadowBeatActive)
+                return true; // 7층 그림자 박자 - 베기는 RoomController가 박자마다, 암살자는 그림자 속에서 가만히
             if (_pending.HasValue)
             {
                 Resolve(player, room);
@@ -432,9 +478,9 @@ namespace LoopRogue
                     return false;
                 _pending = type;
                 _mirrorWaveNumber = 1;
-                room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber);
+                room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber, type);
                 TryMorph(type, out var mirrorMessage);
-                room.ShowMessage(mirrorMessage + Loc.T(" - 숫자 순서대로 터진다!"));
+                room.ShowMessage(mirrorMessage + Loc.T(" - 빨강 → 주황 → 노랑 순서로 터진다!"));
                 return true;
             }
 
@@ -445,8 +491,8 @@ namespace LoopRogue
                     return false;
                 _pending = type;
                 _mirrorWaveNumber = 1;
-                room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber);
-                room.ShowMessage(Loc.T("<color=#FFB060>오우거가 땅을 연달아 내려친다!</color> 안쪽부터 1·2·3 순서로 퍼진다"));
+                room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber, type);
+                room.ShowMessage(Loc.T("<color=#FFB060>오우거가 땅을 연달아 내려친다!</color> 안쪽부터 빨강 → 주황 → 노랑 순서로 퍼진다"));
                 return true;
             }
 
@@ -457,10 +503,10 @@ namespace LoopRogue
                     return false;
                 _pending = type;
                 _mirrorWaveNumber = 1;
-                room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber);
+                room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber, type);
                 room.ShowMessage(TryMorph(type, out var checkerMorph)
                     ? $"{checkerMorph} ({PatternName(type)})"
-                    : Loc.T("<color=#C090FF>리치가 바닥에 체스판 마법진을 그린다!</color> 1·2 순서로 터진다"));
+                    : Loc.T("<color=#C090FF>리치가 바닥에 체스판 마법진을 그린다!</color> 빨강 → 주황 순서로 터진다"));
                 return true;
             }
 
@@ -474,16 +520,21 @@ namespace LoopRogue
             if (type == BossPatternType.Zigzag && room.Clones.Count > 0)
                 type = BossPatternType.Diagonal; // 7층 분신이 있는 동안은 X자만 - 분신은 X자로만 지워진다(10-15 사용자, 30턴 안에 X자가 모자라지 않게)
 
-            if (type == BossPatternType.Encircle && (!CanDashEscape(player, room.Map) || room.Candles.Count > 0))
+            if (type == BossPatternType.Encircle && (!CanDashEscape(player, room.Map) || room.Candles.Count > 0 || room.SoulTargetActive))
                 type = BossPatternType.Snipe; // 대시가 안 돌았거나 대시로 빠져나갈 길이 없으면 피할 방법이 없다 - 저격으로 대신.
                                               // 촛불이 켜져 있는 동안도 저격만(촛불은 저격으로만 꺼진다 - 10-15 사용자, 봇 100판에서 제한 시간 즉사 판당 16회)
+                                              // 영혼 과녁 동안도 저격만(X자·마름모를 과녁에서 비키는 기믹 - 10-23 사용자)
 
             ComputeTiles(type, player, room.Map);
             if (_pendingTiles.Count == 0)
                 return false; // 쓸 칸이 없으면(구석 등) 그냥 일반 행동
 
             _pending = type;
-            room.ShowTelegraph(_pendingTiles, type == BossPatternType.Encircle ? DashTelegraphColor : (Color?)null, HallucinatedTiles(type, room));
+            var shownTiles = HallucinatedTiles(type, room);
+            // 환각 중엔 예고 칸 모양·소리도 반대 패턴으로(10-23) - 파동/역파동 그림이 달라서, 모양만 보고 속임수를 알아채지 않게
+            var shownType = shownTiles == null ? type : type == BossPatternType.Ring ? BossPatternType.RingInverse : BossPatternType.Ring;
+            room.ShowTelegraph(_pendingTiles, type == BossPatternType.Encircle ? DashTelegraphColor : (Color?)null, shownTiles,
+                shownType, type == BossPatternType.Charge ? _chargeDirection : (Vector2Int?)null);
             if (type == BossPatternType.Jump && HitFeedback.Enabled)
             {
                 // 점프 준비 - 움츠린다(점프 그림이 있으면 그 그림으로 예고 턴 내내, 없으면 한 번 찌그러지기)
@@ -524,7 +575,7 @@ namespace LoopRogue
                         continue;
                     _pending = type;
                     _mirrorWaveNumber = 1;
-                    room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber);
+                    room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber, type);
                     TryMorph(type, out _);
                     return true;
                 }
@@ -532,7 +583,7 @@ namespace LoopRogue
                 if (_pendingTiles.Count == 0)
                     continue;
                 _pending = type;
-                room.ShowTelegraph(_pendingTiles);
+                room.ShowTelegraph(_pendingTiles, pattern: type, direction: type == BossPatternType.Charge ? _chargeDirection : (Vector2Int?)null);
                 TryMorph(type, out _);
                 return true;
             }
@@ -770,7 +821,7 @@ namespace LoopRogue
                 {
                     _mirrorWaveNumber++;
                     _pending = type;
-                    room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber);
+                    room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber, type);
                 }
                 else
                     _mirrorWaves.Clear();
@@ -782,7 +833,7 @@ namespace LoopRogue
                 if (_pendingTiles.Count > 0)
                 {
                     _pending = BossPatternType.SnipeFollowUp;
-                    room.ShowTelegraph(_pendingTiles);
+                    room.ShowTelegraph(_pendingTiles, pattern: BossPatternType.SnipeFollowUp);
                 }
             }
         }

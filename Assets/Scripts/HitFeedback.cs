@@ -162,15 +162,15 @@ namespace LoopRogue
             }
 
             // 패턴마다 칸 위에 터지는 그림(강타 = 흙·돌, 돌진 = 먼지, 십자 = 얼음 균열, 파동 = 포자, 저격 = 빛줄기, X자 = 보라 베기).
-            // 10-19 보스끼리 같은 그림을 쓰던 것을 보스 전용으로(4층 점액, 6층 유령 화살, 8층 용암 균열·붉은 흙먼지, 9층 영혼 창) - 그림이 없으면 예전 것.
+            // 10-19 보스끼리 같은 그림을 쓰던 것을 보스 전용으로(4층 점액, 5층 포자 구름, 6층 유령 화살, 8층 용암 균열·붉은 흙먼지, 9층 영혼 창) - 그림이 없으면 예전 것.
             string Own(string own, string old) => Fx.Frames(own).Length > 0 ? own : old;
             var name = type switch
             {
                 BossPatternType.Slam => stage == 4 ? Own("slime_splash", "boss_slam") : "boss_slam",
                 BossPatternType.Charge => stage == 8 ? Own("bull_charge", "boss_charge") : "boss_charge",
                 BossPatternType.Cross => stage == 9 ? Own("lich_cross", "boss_cross") : "boss_cross",
-                BossPatternType.Ring => "boss_ring",
-                BossPatternType.RingInverse => "boss_ring",
+                BossPatternType.Ring => stage == 5 ? Own("spore_burst", "boss_ring") : "boss_ring", // 5층 포자 구름(10-23)
+                BossPatternType.RingInverse => stage == 5 ? Own("spore_burst", "boss_ring") : "boss_ring",
                 BossPatternType.Snipe => "boss_snipe",
                 BossPatternType.SnipeFollowUp => "boss_snipe",
                 BossPatternType.Diagonal => "boss_diag",
@@ -239,12 +239,14 @@ namespace LoopRogue
             SfxPlayer.Play(Sfx.Spin);
         }
 
-        /// <summary>보스가 예고 칸을 깔 때 - 짧은 경고음.</summary>
-        public static void OnTelegraph()
+        /// <summary>보스가 예고 칸을 깔 때 - 짧은 경고음. 패턴 전용 효과음 파일(Resources/Sounds/Telegraph/패턴 이름, 예: Charge)이 있으면 그걸로(10-23 - 파일만 넣으면 된다).</summary>
+        public static void OnTelegraph(BossPatternType? pattern = null)
         {
             if (!Enabled)
                 return;
 
+            if (pattern.HasValue && SfxPlayer.PlayFile($"Sounds/Telegraph/{pattern.Value}"))
+                return;
             SfxPlayer.Play(Sfx.Warning);
         }
 

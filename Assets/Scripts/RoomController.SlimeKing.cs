@@ -199,7 +199,7 @@ namespace LoopRogue
             if (player.RootedTurns > 0)
                 return; // 점액에 묶여 다음 턴에 못 움직이면 예고해도 못 피한다 - 풀릴 때까지 미룬다
             _turretPending = SlimeWaveTiles(turret.GridPos);
-            ShowEnemyTelegraph(turret, _turretPending, SlimeTelegraphColor);
+            ShowEnemyTelegraph(turret, _turretPending, SlimeTelegraphColor, "tel_slime"); // 흘러내리는 점액 예고(10-23)
         }
 
         /// <summary>포탑 파동 - 앞 두 칸에서 방 안쪽으로 곧게(두 줄 폭) + 앞 모서리에서 바깥쪽 대각선 2줄, 벽이나 방 끝까지.</summary>

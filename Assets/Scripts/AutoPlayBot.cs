@@ -22,7 +22,7 @@ namespace LoopRogue
     {
         public const string EnabledPrefKey = "LoopRogue_AutoPlayBot_Enabled";
 
-        private const int RunsPerSession = 300;
+        private const int RunsPerSession = 500;
 
         /// <summary>"층별 순수 난이도 측정" 모드(EditorPrefs ModePrefKey = StageTestMode) - 일반 모드가 남긴 기준 상태
         /// (BotLogs/reference_snapshots.tsv, 층마다 "그 층에 들어갈 때 전체 저장 상태"의 중앙값 판)를 불러와서 각 층만
@@ -93,7 +93,7 @@ namespace LoopRogue
         /// 로비/씬 전환 자체를 검증하고 싶을 땐 false로.</summary>
         private const bool FastDeathLobby = true;
         private const int MaxDeathsPerStage = 60;    // 이보다 많이 죽으면 "벽"으로 보고 그 판 종료(40이었는데 10층 목표가 평균 약 31회라 운 나쁜 판이 걸려서 사용자 결정으로 60)
-        private const float MaxRealSeconds = 10800f; // 전체 실행 제한(3시간)
+        private const float MaxRealSeconds = 43200f; // 전체 실행 제한(12시간 - 10-23에 1000판으로 늘리며 3시간에서)
 
         /// <summary>판 수가 많으면 방/레벨업/로비 같은 상세 로그는 끄고 판 결과와 요약만 남긴다(100판이면 파일이 수십 MB).</summary>
         private static readonly bool DetailedLog = RunsPerSession <= 10; // 층 테스트 모드는 항상 요약만
@@ -2135,6 +2135,20 @@ namespace LoopRogue
                 }
                 case 6:
                 {
+                    if (_room.SoulTargetActive)
+                    {
+                        // 영혼 과녁(10-23) - 저격(X자·마름모)은 내 자리 둘레 한 칸을 덮으니, 과녁에서 2칸 넘게 떨어진 칸에 선다
+                        var targets = _room.SoulTargets;
+                        bool Safe(Vector2Int c) => targets.All(k => Mathf.Max(Mathf.Abs(k.x - c.x), Mathf.Abs(k.y - c.y)) >= 3);
+                        if (targets.Count == 0 || Safe(start))
+                            return false;
+                        var away = FirstStepTo(Safe, passable);
+                        if (!away.HasValue)
+                            return false;
+                        _lastDecision = "과녁에서 멀리";
+                        dir = away;
+                        return true;
+                    }
                     var candles = _room.Candles;
                     if (candles.Count == 0)
                         return false;
@@ -2153,6 +2167,22 @@ namespace LoopRogue
                 }
                 case 7:
                 {
+                    if (_room.ShadowBeatSafe is Vector2Int beatSafe)
+                    {
+                        // 그림자 박자(10-23) - 이번 박자의 빈 칸으로(제자리면 대기)
+                        if (start == beatSafe)
+                        {
+                            _lastDecision = "박자 빈 칸 대기";
+                            return true;
+                        }
+                        var toSafe = beatSafe - start;
+                        if (Mathf.Abs(toSafe.x) + Mathf.Abs(toSafe.y) == 1)
+                        {
+                            _lastDecision = "박자 빈 칸으로";
+                            dir = toSafe;
+                            return true;
+                        }
+                    }
                     var clones = _room.Clones.Where(c => c != null).Select(c => c.GridPos).ToList();
                     if (clones.Count == 0)
                         return false;

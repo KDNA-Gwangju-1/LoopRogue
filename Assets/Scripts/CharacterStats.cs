@@ -46,13 +46,19 @@ namespace LoopRogue
         public float RoomShieldCardRate;
         public const float MaxRoomShieldCard = 0.5f;
         public float KillHealRate;     // 적 처치 시 최대체력 대비 회복 비율
+        /// <summary>처치 회복 상한(10-23 사용자 36% = 카드 3장) - 상한에 닿으면 카드가 더 안 나온다. 이미 넘긴 저장도 적용은 이 값까지만.</summary>
+        public const float MaxKillHeal = 0.36f;
+        public float EffectiveKillHeal => Mathf.Clamp(KillHealRate, 0f, MaxKillHeal);
         public float ExpBonusRate;     // 획득 경험치 +%
         public float GoldBonusRate;    // 획득 골드 +%
 
         /// <summary>골드/경험치 보너스는 카드 손해로 마이너스까지 갈 수 있어서 실제 적용은 이 하한으로 자른다.</summary>
         public const float MinBonusRate = -0.5f;
         public float EffectiveExpBonus => Mathf.Max(MinBonusRate, ExpBonusRate);
-        public float EffectiveGoldBonus => Mathf.Max(MinBonusRate, GoldBonusRate);
+        /// <summary>레벨업 카드로 쌓는 골드 보너스 상한(10-23 사용자 - 테스터가 "수집"·"황금 욕심"을 몰아 +200%로 영약 파밍을 너무 빨리 끝냄).
+        /// 반지 "행운"·유물 "탐욕"·칭호·저주 계약은 따로 더해진다(RoomController.GoldBonus). 이미 넘긴 저장도 여기서 잘린다.</summary>
+        public const float MaxGoldBonusCard = 1f;
+        public float EffectiveGoldBonus => Mathf.Clamp(GoldBonusRate, MinBonusRate, MaxGoldBonusCard);
 
         public CharacterStats(float maxHealth, float attackPower)
         {

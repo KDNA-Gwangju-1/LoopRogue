@@ -311,17 +311,17 @@ Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}	Stage {0}/{1}   Room {2}/{3}   Atte
 재생	Regen
 매 턴 최대체력 1.5% 회복 / 받는 피해 +2%	Heal 1.5% Max HP every turn / Damage taken +2%
 처치 회복	Kill Heal
-처치 시 최대체력 12% 회복 / 공격력 -3%	Heal 12% Max HP on kill / ATK -3%
+처치 시 최대체력 12% 회복 (최대 36%) / 공격력 -3%	Heal 12% Max HP on kill (max 36%) / ATK -3%
 학습	Learning
 경험치 +25% / 받는 피해 +3%	EXP +25% / Damage taken +3%
 수집	Collector
-골드 +20% / 경험치 -10%	Gold +20% / EXP -10%
+골드 +20% (최대 100%) / 경험치 -10%	Gold +20% (max 100%) / EXP -10%
 [도박] 광폭화	[Gamble] Berserk
 공격력 +20% / 최대체력 -10%	ATK +20% / Max HP -10%
 [도박] 철갑	[Gamble] Ironclad
 받는 피해 -3% / 공격력 -5%	Damage taken -3% / ATK -5%
 [도박] 황금 욕심	[Gamble] Gold Greed
-골드 +30% / 받는 피해 +8%	Gold +30% / Damage taken +8%
+골드 +30% (최대 100%) / 받는 피해 +8%	Gold +30% (max 100%) / Damage taken +8%
 업적 달성! {0} - 칭호 「{1}」{2}	Achievement unlocked! {0} - Title 「{1}」{2}
 보유 골드: {0}	Gold: {0}
 공격력	ATK
@@ -690,8 +690,8 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 거울 파편(2번째)	Mirror Shards (2nd)
 {0}가 본모습을 드러냈다! ({1})	{0} reveals its true form! ({1})
 본모습일 때는 거울 파편을 쓴다 - 주변 4칸을 체스판 무늬로 두 번 연달아 친다. 상하좌우로 한 칸 움직이면 피하고, 두 번째도 다시 움직여야 한다.	In its true form it uses Mirror Shards: two checkerboard strikes in a row within 4 tiles of you. Step one tile up/down/left/right to dodge, then move again for the second.
- - 숫자 순서대로 터진다!	 - they burst in numbered order!
-본모습일 때는 거울 파편을 쓴다 - 주변에 4번의 공격 칸을 한꺼번에 보여주고(칸의 숫자 = 몇 번째에 터지는지) 순서대로 터뜨린다. 매번 서 있는 칸이 포함되니 숫자를 읽고 길을 짜서 움직이자.	In its true form it uses Mirror Shards: it shows four waves of strike tiles at once (the number on a tile = which wave hits it) and detonates them in order. Your current tile is always in the next wave, so read the numbers and plan your path.
+ - 빨강 → 주황 → 노랑 순서로 터진다!	 - they burst red → orange → yellow!
+본모습일 때는 거울 파편을 쓴다 - 주변에 4번의 공격 칸을 한꺼번에 보여주고(칸의 색 = 몇 번째에 터지는지, 빨강 → 주황 → 노랑 → 옅은 노랑) 순서대로 터뜨린다. 매번 서 있는 칸이 포함되니 색을 읽고 길을 짜서 움직이자.	In its true form it uses Mirror Shards: it shows four waves of strike tiles at once (tile color = which wave hits it: red → orange → yellow → pale yellow) and detonates them in order. Your current tile is always in the next wave, so read the colors and plan your path.
 거울이 깨졌다! {0}가 본모습으로 돌아와 {1}턴 동안 비틀거린다	The mirror shatters! {0} returns to its true form and staggers for {1} turns
 다른 보스를 비추는 동안 많이 때리면 머리 위 거울에 금이 가다가 깨진다 - 깨지면 본모습으로 돌아오고, 예고한 패턴이 취소되고, 2턴 동안 비틀거린다.	While it mirrors another boss, hit it hard enough and the mirror above its head cracks and shatters: it returns to its true form, its telegraphed pattern is cancelled, and it staggers for 2 turns.
 주변 {0}칸 몹과 보스가 {1:0}초 동안 받는 피해 +{2:0}%	Mobs and bosses within {0} tiles take +{2:0}% damage for {1:0} seconds
@@ -1110,7 +1110,7 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 포위 폭발	Encircling Blast
 <color=#FFA040>보스가 포위 폭발을 준비한다!</color> 걸어서는 못 빠져나간다 - 대시로 피하자	<color=#FFA040>The boss prepares an Encircling Blast!</color> You can't walk out of it - dodge with a dash
 3연 파동	Triple Shockwave
-<color=#FFB060>오우거가 땅을 연달아 내려친다!</color> 안쪽부터 1·2·3 순서로 퍼진다	<color=#FFB060>The Ogre pounds the ground again and again!</color> It spreads outward in order 1, 2, 3
+<color=#FFB060>오우거가 땅을 연달아 내려친다!</color> 안쪽부터 빨강 → 주황 → 노랑 순서로 퍼진다	<color=#FFB060>The Ogre pounds the ground again and again!</color> It spreads outward red → orange → yellow
 <color=#C8D8FF>거울 가면 기사가 거울 속 자신을 불러냈다!</color> 좌우가 뒤집힌 가짜에겐 칼이 안 통한다	<color=#C8D8FF>The Mirror-Masked Knight summoned its reflections!</color> Blades pass through the mirrored fakes
 진짜는 좌우가 제대로다 - 기사의 예고 공격에 가짜를 맞혀 깨뜨리자. <color=#FF6060>{0}턴 안에 다 못 깨면 끝장이다</color>	The real one is not mirrored - lure the knight's telegraphed attacks onto the fakes to shatter them. <color=#FF6060>Fail to shatter them all within {0} turns and you die</color>
 <color=#C8D8FF>기사의 공격이 거울상을 깨뜨렸다!</color> 남은 가짜 {0}	<color=#C8D8FF>The knight's attack shattered a reflection!</color> Fakes left: {0}
@@ -1150,7 +1150,7 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 체스판 마법	Chessboard Spell
 영혼 구체	Soul Orb
 점프 짓누르기	Jump Crush
-<color=#C090FF>리치가 바닥에 체스판 마법진을 그린다!</color> 1·2 순서로 터진다	<color=#C090FF>The Lich draws a chessboard circle on the floor!</color> It bursts in order 1, 2
+<color=#C090FF>리치가 바닥에 체스판 마법진을 그린다!</color> 빨강 → 주황 순서로 터진다	<color=#C090FF>The Lich draws a chessboard circle on the floor!</color> It bursts red, then orange
 점프 짓누르기(내 자리를 덮는 칸에 내려앉음)와 몸 둘레 짓누르기를 번갈아 쓴다. 점프는 예고된 칸 밖으로 한 칸 비키면 피한다.	Alternates a jump crush (lands on tiles covering your spot) and a crush around its body. Step one tile outside the warned area to dodge the jump.
 체력이 절반 아래로 떨어지면 2x2로 작아지며 둘로 갈라진다. 떨어져 나간 조각은 벽에 붙은 무적 포탑이 되어 벽을 따라 내 줄로 미끄러져 와 일직선과 위아래 대각선, 세 줄의 점액 파동을 쏜다. 킹이 내려앉은 자리엔 점액이 남고, 밟으면 한 턴 묶인다(점액은 떨어진다). 파동이 지나간 점액은 씻겨 나간다 - 점액이 {0}칸 쌓이면 즉사.	Below half health it shrinks to 2x2 and splits in two. The broken-off piece becomes an invulnerable wall turret that slides along the wall to your line and fires three slime waves: straight and both diagonals. Where the King lands, slime remains; stepping in it binds you for a turn (the slime comes off). Waves wash slime away - {0} slime tiles means instant death.
 체력이 절반 아래로 떨어지면 독안개가 방을 뒤덮는다 - 파동에 맞거나 {0}턴마다 안개 속 포자를 들이마셔 감염된다(감염될 때가 가까우면 안개가 짙어진다). 감염 {1}이면 즉사 - 파동 뒤에 피는 빛버섯을 밟으면 해독되고, 그 둘레 3x3이 {2}턴 동안 맑은 공기가 돼 안개로는 감염되지 않는다(파동은 그대로). 감염 1부터 환각 - 파동 예고 고리가 거꾸로 보이고(빨간 칸이 안전), 감염 2부터는 혼란까지 - 방향키가 뒤집힌다.	Below half health, toxic fog fills the room - you get infected when hit by a wave or every {0} turns by inhaling spores in the fog (the fog thickens as infection nears). Infection {1} means instant death - step on the glow mushrooms that sprout after waves to cure it, and the 3x3 around them becomes clean air for {2} turns, safe from fog infection (waves still hit). From infection 1, hallucination - wave warning rings appear inverted (red tiles are safe); from infection 2, confusion too - arrow keys are reversed.
@@ -1260,3 +1260,14 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 모루	Anvil
 모험가의 유해	Adventurer's Remains
 벽화의 상자	Mural Chest
+<color=#FF8080>화살이 영혼 과녁을 꿰뚫었다!</color> 남은 과녁 {0}	<color=#FF8080>An arrow pierced a soul target!</color> Targets left {0}
+<color=#FF4040>영혼 과녁이 모두 꿰뚫렸다!</color>	<color=#FF4040>Every soul target has been pierced!</color>
+<color=#A0E0FF>조금만 더...</color> {0}턴!	<color=#A0E0FF>Just a little longer...</color> {0} turns!
+<color=#A0E0FF>영혼이 돌아왔다!</color> 지켜 낸 과녁 {0}개 - 망령 궁수가 받는 피해 +{1}%	<color=#A0E0FF>Your soul returned!</color> Targets kept {0} - the Wraith Archer takes +{1}% damage
+과녁 {0} · {1}턴	Targets {0} · {1} turns
+받는 피해 +{0}%	Damage taken +{0}%
+체력이 25% 아래로 떨어지면 내 영혼이 과녁 {0}개로 흩어진다. {1}턴 동안 궁수는 단단해지고 저격만 쏜다 - 저격이 덮은 과녁은 부서지고, 다 부서지면 즉사. 버티면 궁수가 기절하고 남은 과녁 하나당 궁수가 받는 피해 +{2}%.	Below 25% HP your soul splits into {0} targets. For {1} turns the archer hardens and only snipes - targets covered by a snipe break, and if all break you die instantly. Survive and the archer is stunned, taking +{2}% damage per remaining target.
+<color=#FF4040>그림자 칼날이 몸을 갈랐다!</color>	<color=#FF4040>A shadow blade cut you down!</color>
+<color=#B090D0>그림자 박자를 끝까지 버텼다!</color> 그림자 암살자가 모습을 드러내며 비틀거린다	<color=#B090D0>You survived every shadow beat!</color> The Shadow Assassin reappears, staggering
+그림자 박자 {0}/{1}	Shadow beat {0}/{1}
+체력이 75%와 35% 아래로 떨어지면 그림자 속에 숨고 방이 어두워진다. 먼저 빈 칸 {0}곳을 순서대로 한 번씩 번쩍여 보여 준 뒤 매 턴 방 전체를 벤다 - 박자마다 비는 칸은 본 순서의 칸 하나뿐(내 자리와 상하좌우 중 하나). 순서를 기억해 밟자. 35%에는 하얀 표식이 섞인다 - 하얀 표식은 거울에 비친 칸이라 반대 방향으로 밟아야 한다. 한 번이라도 베이면 즉사, 다 버티면 암살자가 비틀거린다.	Below 75% and 35% HP it hides in the shadows and the room goes dark. It first flashes {0} open tiles one by one, then slashes the whole room every turn - each beat only the next tile in that order is open (yours or one next to it). Remember the order. At 35% white marks are mixed in - a white mark is a mirrored tile, so step the opposite way. One cut means instant death; survive them all and the assassin staggers.

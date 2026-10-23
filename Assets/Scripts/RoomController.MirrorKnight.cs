@@ -80,6 +80,7 @@ namespace LoopRogue
             }
             _gimmickStage = BossBrain.MirrorStage;
             _gimmickBoss = boss;
+            _gimmickJustStarted = true;
             _mirrorPhase = phase;
             SetMirrorFloor(boss, running: true);
             var c = new GimmickCutscene();
