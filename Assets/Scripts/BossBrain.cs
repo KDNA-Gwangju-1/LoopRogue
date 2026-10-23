@@ -408,6 +408,8 @@ namespace LoopRogue
             BossPatternType.Diagonal => "tel_diag",        // X자 베기 - 가는 칼자국 X 두 겹 + 흐르는 빛(10-23)
             BossPatternType.Zigzag => "tel_zigzag",        // 지그재그 - 서로 반대로 흐르는 톱날 띠(10-23)
             BossPatternType.AxeWave => "tel_axe",          // 도끼 충격파 - 충격파 방향으로 뻗는 땅 균열(10-23, 방향대로 돌림)
+            BossPatternType.Checker => "tel_checker",      // 체스판 마법 - 룬 테두리 + 돌아가는 마름모 룬(10-23)
+            BossPatternType.SoulOrbs => "tel_orb",         // 영혼 구체 - 조여 드는 고리 + 해골(10-23)
             _ => null,
         };
 
