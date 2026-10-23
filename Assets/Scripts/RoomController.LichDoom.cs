@@ -46,7 +46,8 @@ namespace LoopRogue
             _doomOrbClock = 0;
             c.Steps.Add(() =>
             {
-                Appear(_player.gameObject, "doom_summon", hide: false); // 초록 영혼불이 모여 해골로 뭉쳤다 퍼짐(10-23, soul_summon은 벽화의 방 제단용으로 남김)
+                // 유령 해골이 나를 머금고 턱을 닫아 감쌌다가 가슴의 낙인으로 조여 듦(10-23) - 96px = 용사 그림(64px·1.25칸)과 같은 도트 크기라 1.875칸
+                Fx.Play("doom_mark", _player.transform.position, 1.875f, fps: 16f, sortingOrder: 9);
                 if (HitFeedback.Enabled)
                     ActorJuice.Get(_player).Flash(DoomColor);
                 return true;

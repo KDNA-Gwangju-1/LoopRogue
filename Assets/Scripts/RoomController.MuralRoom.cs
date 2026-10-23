@@ -72,24 +72,31 @@ namespace LoopRogue
                 StageProgress.MarkAltarUsed(); // 체험 중엔 몇 번이고
             AltarLitCount++;
             var at = new Vector3(_altar.Value.x * GridConstants.CellSize, _altar.Value.y * GridConstants.CellSize, 0f);
-            if (_wallObjects.TryGetValue(_altar.Value, out var go) && go != null && go.TryGetComponent<SpriteRenderer>(out var r))
-            {
-                var lit = Resources.Load<Sprite>("Sprites/Props/Altar_Lit");
-                if (lit != null)
-                    r.sprite = lit;
-            }
+            // 불씨가 그릇에 떨어져 불꽃이 확 솟는 이펙트(10-23, 48px = 제단과 같은 도트 크기라 1.5칸) - 불꽃이 솟는 3장째(≈0.14초)에 켜진 그림·번쩍임
+            var shown = HitFeedback.Enabled ? Fx.Play("altar_ignite", at, 1.5f, fps: 14f, sortingOrder: 8) : null;
+            StartCoroutine(LightAltarSprite(shown != null ? 2f / 14f : 0f));
             ShowMessage(Loc.T("<color=#9CD8FF>제단에 푸른 불이 붙었다!</color> 벽 너머로 길이 열린다..."));
-            if (HitFeedback.Enabled)
-            {
-                Fx.Play("soul_summon", at, 1.4f, fps: 14f, sortingOrder: 8);
-                ScreenFlash.Play(new Color(0.5f, 0.75f, 1f), 0.3f, 0.5f);
-            }
             IsInputLocked = true;
             StartCoroutine(EnterMuralAfter(DamagePopup.Suppressed ? 0f : 0.7f));
         }
 
         /// <summary>봇·통계용 - 제단에 불을 붙인 횟수.</summary>
         public static int AltarLitCount;
+
+        private IEnumerator LightAltarSprite(float delay)
+        {
+            var altar = _altar;
+            if (delay > 0f)
+                yield return new WaitForSeconds(delay);
+            if (altar.HasValue && _wallObjects.TryGetValue(altar.Value, out var go) && go != null && go.TryGetComponent<SpriteRenderer>(out var r))
+            {
+                var lit = Resources.Load<Sprite>("Sprites/Props/Altar_Lit");
+                if (lit != null)
+                    r.sprite = lit;
+            }
+            if (HitFeedback.Enabled)
+                ScreenFlash.Play(new Color(0.5f, 0.75f, 1f), 0.3f, 0.5f);
+        }
 
         private IEnumerator EnterMuralAfter(float seconds)
         {
