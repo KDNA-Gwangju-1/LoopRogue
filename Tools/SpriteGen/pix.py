@@ -56,6 +56,61 @@ class Canvas:
                     + ch(b'IDAT', zlib.compress(bytes(raw), 9)) + ch(b'IEND', b''))
 
 
+def read_png(path):
+    """8비트 RGBA·RGB·팔레트 PNG를 (w, h, [[(r, g, b, a)]]) 로 읽는다 - 예전 그림 위에 덧그릴 때."""
+    d = open(path, 'rb').read()
+    i, idat, pal, trns = 8, b'', None, None
+    while i < len(d):
+        n = struct.unpack('>I', d[i:i + 4])[0]
+        t, c = d[i + 4:i + 8], d[i + 8:i + 8 + n]
+        i += 12 + n
+        if t == b'IHDR':
+            w, h, bd, ct = struct.unpack('>IIBB', c[:10])
+        elif t == b'PLTE':
+            pal = [tuple(c[j:j + 3]) for j in range(0, n, 3)]
+        elif t == b'tRNS':
+            trns = list(c)
+        elif t == b'IDAT':
+            idat += c
+    raw = zlib.decompress(idat)
+    bpp = {6: 4, 2: 3, 3: 1, 4: 2, 0: 1}[ct]
+    st, out, prev, k = w * bpp, [], bytearray(w * bpp), 0
+    for y in range(h):
+        f = raw[k]
+        ln = bytearray(raw[k + 1:k + 1 + st])
+        k += 1 + st
+        for x in range(st):
+            a = ln[x - bpp] if x >= bpp else 0
+            b = prev[x]
+            cc = prev[x - bpp] if x >= bpp else 0
+            if f == 1:
+                ln[x] = (ln[x] + a) & 255
+            elif f == 2:
+                ln[x] = (ln[x] + b) & 255
+            elif f == 3:
+                ln[x] = (ln[x] + (a + b) // 2) & 255
+            elif f == 4:
+                pp = a + b - cc
+                pa, pb, pc = abs(pp - a), abs(pp - b), abs(pp - cc)
+                ln[x] = (ln[x] + (a if pa <= pb and pa <= pc else b if pb <= pc else cc)) & 255
+        prev = ln
+        row = []
+        for x in range(w):
+            if ct == 6:
+                row.append(tuple(ln[x * 4:x * 4 + 4]))
+            elif ct == 2:
+                row.append(tuple(ln[x * 3:x * 3 + 3]) + (255,))
+            elif ct == 3:
+                ix = ln[x]
+                row.append(pal[ix] + ((trns[ix] if trns and ix < len(trns) else 255),))
+            elif ct == 4:
+                row.append((ln[x * 2],) * 3 + (ln[x * 2 + 1],))
+            else:
+                row.append((ln[x],) * 3 + (255,))
+        out.append(row)
+    return w, h, out
+
+
 # ---- 모양(mask = 칸 집합) ----
 def poly(pts):
     xs = [p[0] for p in pts]
