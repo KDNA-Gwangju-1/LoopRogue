@@ -1201,7 +1201,7 @@ namespace LoopRogue
                 ("spent", goldBefore - GoldWallet.Gold), ("quest_accepted", accepted), ("quest_completed", completed));
         }
 
-        /// <summary>봇 유물 우선순위 - 생존/전투력 순. 사냥꾼의 눈(봇은 안개와 무관), 보물 사냥꾼·탐욕(경제)은 뒤로.</summary>
+        /// <summary>봇 유물 우선순위 - 생존/전투력 순. 사냥꾼의 눈(봇은 안개와 무관), 오래된 보물지도·탐욕(경제)은 뒤로.</summary>
         private static readonly RelicType[] RelicPriority =
         {
             RelicType.SecondWind, RelicType.IronSkin, RelicType.TyrantPlate, RelicType.ChargeHorn, RelicType.Executioner,
