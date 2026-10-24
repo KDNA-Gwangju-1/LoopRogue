@@ -142,7 +142,7 @@ namespace LoopRogue
                     var gold = roomClearGold * TreasureGoldMultiplier;
                     GoldWallet.Add(gold);
                     var item = Inventory.GiveRandomMissing(); // 없는 아이템 중 하나
-                    var extra = Relics.Has(RelicType.TreasureHunter) ? Inventory.GiveRandomMissing() : null; // 유물 "보물 사냥꾼"
+                    var extra = Relics.Has(RelicType.TreasureHunter) ? Inventory.GiveRandomMissing() : null; // 유물 "오래된 보물지도"(TreasureHunter)
                     return item.HasValue
                         ? Loc.F("보물상자! 골드 +{0}, {1}{2} 획득", gold, ItemInfo.Name(item.Value), (extra.HasValue ? $", {ItemInfo.Name(extra.Value)}" : ""))
                         : Loc.F("보물상자! 골드 +{0} (아이템은 이미 다 있다)", gold);

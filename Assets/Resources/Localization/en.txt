@@ -605,7 +605,7 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 일반 몹 처치 시 주변 8칸 몹에게 공격력 20% 피해	Killing a regular mob deals 20% ATK damage to mobs in the surrounding 8 tiles
 두 번째 숨	Second Wind
 시도마다 1회, 죽으면 체력 30%로 부활	Once per attempt, revive with 30% HP on death
-보물 사냥꾼	Treasure Hunter
+오래된 보물지도	Old Treasure Map
 보물상자에서 아이템 2개, 몹 아이템 드롭 +3%p	2 items from treasure chests, mob item drop +3%p
 회전 칼날	Spinning Blades
 회전 베기 피해 80%→120%	Spin Slash damage 80%→120%

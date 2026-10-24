@@ -84,7 +84,7 @@ namespace LoopRogue
             { RelicType.BloodPact, (Loc.T("피의 계약"), Loc.T("최대체력(성장분) -20%, 흡혈 상한 50%→70%")) },
             { RelicType.ChainBlast, (Loc.T("연쇄 폭발"), Loc.T("일반 몹 처치 시 주변 8칸 몹에게 공격력 20% 피해")) },
             { RelicType.SecondWind, (Loc.T("두 번째 숨"), Loc.T("시도마다 1회, 죽으면 체력 30%로 부활")) },
-            { RelicType.TreasureHunter, (Loc.T("보물 사냥꾼"), Loc.T("보물상자에서 아이템 2개, 몹 아이템 드롭 +3%p")) },
+            { RelicType.TreasureHunter, (Loc.T("오래된 보물지도"), Loc.T("보물상자에서 아이템 2개, 몹 아이템 드롭 +3%p")) },
             { RelicType.SpinningBlade, (Loc.T("회전 칼날"), Loc.T("회전 베기 피해 80%→120%")) },
             { RelicType.HunterEye, (Loc.T("사냥꾼의 눈"), Loc.T("시야 +2칸, 출구가 처음부터 보임")) },
             { RelicType.Greed, (Loc.T("탐욕"), Loc.T("골드 +40%, 데스 패널티 40%→60%")) },
