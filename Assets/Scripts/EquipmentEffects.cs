@@ -13,12 +13,12 @@ namespace LoopRogue
         // ---- 검 ----
         public const int ComboEvery = 3;              // 연격: 일반 공격 3번째마다
         public const int ComboEveryUpgraded = 2;      // 영원: 2번째마다
-        public const float ComboBonus = 0.5f;
-        public const float ComboBonusUpgraded = 1f;
+        public const float ComboBonus = 0.25f;        // 10-24 사용자 0.5 → 0.25
+        public const float ComboBonusUpgraded = 0.75f; // 10-24 사용자 1 → 0.75
         public const float ExecuteThreshold = 0.25f;  // 처형: 체력 25% 이하
         public const float ExecuteBonus = 0.3f;
-        public const float BossHunterBonus = 0.15f;
-        public const float FirstStrikeBonus = 0.4f;   // 선제타격: 체력이 가득 찬 적
+        public const float BossHunterBonus = 0.3f;    // 10-24 사용자 0.15 → 0.3
+        public const float FirstStrikeBonus = 0.15f;  // 선제타격: 체력이 가득 찬 적(10-24 사용자 0.4 → 0.15)
 
         // ---- 갑옷 ----
         public const float RoomShieldRate = 0.05f;    // 보호막: 방 입장 시 최대체력 5% (봇 측정 후 10%→5%)
@@ -37,11 +37,11 @@ namespace LoopRogue
                 {
                     ItemSlot.Weapon, new[]
                     {
-                        (Loc.T("연격"), Loc.T("일반 공격 3번째마다 피해 +50%")),
+                        (Loc.T("연격"), Loc.T("일반 공격 3번째마다 피해 +25%")),
                         (Loc.T("처형"), Loc.T("체력 25% 이하인 적에게 피해 +30%")),
-                        (Loc.T("보스 사냥꾼"), Loc.T("보스에게 피해 +15%")),
-                        (Loc.T("선제타격"), Loc.T("체력이 가득 찬 적에게 피해 +40%")),
-                        (Loc.T("연격 강화"), Loc.T("연격이 2번째마다, 피해 +100%")),
+                        (Loc.T("보스 사냥꾼"), Loc.T("보스에게 피해 +30%")),
+                        (Loc.T("선제타격"), Loc.T("체력이 가득 찬 적에게 피해 +15%")),
+                        (Loc.T("연격 강화"), Loc.T("연격이 2번째마다, 피해 +75%")),
                     }
                 },
                 {

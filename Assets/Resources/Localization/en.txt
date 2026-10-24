@@ -188,15 +188,15 @@ X자 베기	X Slash
 초월	Transcendent
 영원	Eternal
 연격	Combo
-일반 공격 3번째마다 피해 +50%	Every 3rd normal attack deals +50% damage
+일반 공격 3번째마다 피해 +25%	Every 3rd normal attack deals +25% damage
 처형	Execute
 체력 25% 이하인 적에게 피해 +30%	+30% damage to enemies at 25% HP or less
 보스 사냥꾼	Boss Hunter
-보스에게 피해 +15%	+15% damage to bosses
+보스에게 피해 +30%	+30% damage to bosses
 선제타격	First Strike
-체력이 가득 찬 적에게 피해 +40%	+40% damage to enemies at full HP
+체력이 가득 찬 적에게 피해 +15%	+15% damage to enemies at full HP
 연격 강화	Combo+
-연격이 2번째마다, 피해 +100%	Combo triggers every 2nd hit, +100% damage
+연격이 2번째마다, 피해 +75%	Combo triggers every 2nd hit, +75% damage
 보호막	Barrier
 방에 들어갈 때 최대체력 5% 보호막	Gain a barrier of 5% Max HP on entering a room
 가시	Thorns
