@@ -27,14 +27,14 @@ namespace LoopRogue
     {
         private static readonly LocCache<CurseDeal[]> AllCache = new LocCache<CurseDeal[]>(() => new CurseDeal[]
         {
-            new CurseDeal { Id = "Rage", Name = Loc.T("분노의 계약"), Cost = Loc.T("받는 피해 +30%"), Gain = Loc.T("주는 피해 +40%"),
-                DamageTaken = 1.3f, DamageDealt = 1.4f },
+            new CurseDeal { Id = "Rage", Name = Loc.T("분노의 계약"), Cost = Loc.T("받는 피해 +15%"), Gain = Loc.T("주는 피해 +20%"),
+                DamageTaken = 1.15f, DamageDealt = 1.2f }, // 10-24 사용자 받는 1.3·주는 1.4 → 1.15·1.2
             new CurseDeal { Id = "Blood", Name = Loc.T("피의 계약"), Cost = Loc.T("지금 체력 40% 잃음"), Gain = Loc.T("레벨업 카드 1장"),
                 HealthCost = 0.4f, Instant = (p, _) => { p.Levels.GrantBonusUpgrade(); return null; } },
             new CurseDeal { Id = "Gold", Name = Loc.T("황금의 저주"), Cost = Loc.T("골드 획득 -50%"), Gain = Loc.T("지금 골드 대량 획득"),
                 GoldGain = 0.5f, Instant = (_, roomGold) => { var g = roomGold * GoldDealRooms; GoldWallet.Add(g); return Loc.F("골드 +{0}", g); } },
-            new CurseDeal { Id = "Dry", Name = Loc.T("메마른 저주"), Cost = Loc.T("방 클리어 회복 없음"), Gain = Loc.T("주는 피해 +25%"),
-                RoomHeal = 0f, DamageDealt = 1.25f },
+            new CurseDeal { Id = "Dry", Name = Loc.T("메마른 저주"), Cost = Loc.T("방 클리어 회복 없음"), Gain = Loc.T("주는 피해 +10%"),
+                RoomHeal = 0f, DamageDealt = 1.1f }, // 10-24 사용자 1.25 → 1.1
             new CurseDeal { Id = "Glutton", Name = Loc.T("탐식의 계약"), Cost = Loc.T("지금 체력 25% 잃음"), Gain = Loc.T("없는 아이템 2개"),
                 HealthCost = 0.25f, Instant = (_, __) =>
                 {

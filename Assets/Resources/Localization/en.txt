@@ -137,8 +137,8 @@ X자 베기	X Slash
 < 도감 목록	< Codex List
 ←/→·1/2/3·클릭: 고르기   Enter: 열기   Esc: 닫기	←/→·1/2/3·Click: Select   Enter: Open   Esc: Close
 분노의 계약	Pact of Wrath
-받는 피해 +30%	Damage taken +30%
-주는 피해 +40%	Damage dealt +40%
+받는 피해 +15%	Damage taken +15%
+주는 피해 +20%	Damage dealt +20%
 피의 계약	Pact of Blood
 지금 체력 40% 잃음	Lose 40% HP now
 레벨업 카드 1장	1 Level-Up Card
@@ -148,7 +148,7 @@ X자 베기	X Slash
 골드 +{0}	Gold +{0}
 메마른 저주	Withering Curse
 방 클리어 회복 없음	No healing on room clear
-주는 피해 +25%	Damage dealt +25%
+주는 피해 +10%	Damage dealt +10%
 탐식의 계약	Pact of Gluttony
 지금 체력 25% 잃음	Lose 25% HP now
 없는 아이템 2개	2 new items
@@ -597,7 +597,7 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 폭군의 갑주	Tyrant's Plate
 대시로 내려선 자리 주변 8칸 몹에게 30% 피해	Dash landing deals 30% damage to mobs in the surrounding 8 tiles
 사형 집행자	Executioner
-체력 15% 이하인 일반 몹은 한 대에 처치	Regular mobs at 15% HP or less die in one hit
+일반 몹에게 주는 피해 +30%	+30% damage to regular mobs
 끝의 왕관	Crown of the End
 공격력 +10, 최대체력 +50	ATK +10, Max HP +50
 최대체력(성장분) -20%, 흡혈 상한 50%→70%	Max HP (growth) -20%, lifesteal cap 50%→70%

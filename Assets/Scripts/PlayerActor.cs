@@ -890,7 +890,8 @@ namespace LoopRogue
                 raw *= (Stats.CriticalDamageMultiplier + Relics.SniperCritDamageBonus) / Stats.CriticalDamageMultiplier;
             var berserk = Relics.Has(RelicType.Berserker) && Stats.CurrentHealth <= Stats.MaxHealth * Relics.BerserkerThreshold
                 ? 1f + Relics.BerserkerBonus : 1f; // 유물 "광전사"
-            var damage = raw * damageRate * enemy.DamageTakenMultiplier * berserk
+            var executioner = Relics.Has(RelicType.Executioner) && !enemy.IsBoss ? Relics.ExecutionerDamage : 1f; // 유물 "사형 집행자" - 일반 몹 피해 증가
+            var damage = raw * damageRate * enemy.DamageTakenMultiplier * berserk * executioner
                 * WeaponEffectMultiplier(enemy, countCombo: !isSkill)
                 * Curses.DamageDealtMultiplier // 저주 계약(분노·메마름)
                 * RunBuffs.DamageDealtMultiplier; // 방 이벤트(숫돌·피의 제단)
@@ -900,9 +901,6 @@ namespace LoopRogue
                 damage *= EnemyActor.ShieldFrontDamageRate;
                 ShieldBlockCount++;
             }
-            if (Relics.Has(RelicType.Executioner) && !enemy.IsBoss &&
-                enemy.Stats.CurrentHealth <= enemy.Stats.MaxHealth * Relics.ExecutionerThreshold)
-                damage = Mathf.Max(damage, enemy.Stats.CurrentHealth); // 유물 "사형 집행자"
             enemy.Stats.TakeDamage(damage);
             DamagePopup.Spawn(enemy.transform.position, damage, blocked ? new Color(0.6f, 0.65f, 0.75f) : Color.white, isCritical && !blocked);
             HitFeedback.OnPlayerHitEnemy(this, enemy, direction, isCritical, blocked);

@@ -6,8 +6,8 @@ namespace LoopRogue
     /// 저주 계약(Curses)처럼 시도 단위 - 죽거나 로비로 나가거나 층을 넘기면 풀린다(LoopManager가 Reset).</summary>
     public static class RunBuffs
     {
-        public const float WhetstoneDamage = 1.15f;
-        public const float BloodAltarDamage = 1.35f;
+        public const float WhetstoneDamage = 1.05f;   // 10-24 사용자 1.15 → 1.05
+        public const float BloodAltarDamage = 1.15f;  // 10-24 사용자 1.35 → 1.15
         public const float BloodAltarHealthCost = 0.25f; // 최대 체력 대비
         public const float ReviveHealth = 0.5f;
         public const float AnvilDamageTaken = 0.85f; // 모루 - 받는 피해 ×(10-19)

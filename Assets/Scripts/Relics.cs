@@ -48,7 +48,8 @@ namespace LoopRogue
         public const int PulseCoreStunTurns = 2; // 파동의 핵 - 회전 베기 기절(10-19 사용자 1 → 2)
         public const float PiercingRate = 0.3f;
         public const float TyrantLandingRate = 0.3f;
-        public const float ExecutionerThreshold = 0.15f;
+        /// <summary>사형 집행자 - 일반 몹(보스 아님)에게 주는 피해 배율(10-24 사용자, 예전엔 체력 15% 이하 일반 몹 한 방 처치).</summary>
+        public const float ExecutionerDamage = 1.3f;
         public const float SniperCritDamageBonus = 0.5f;
         public const float CrownAttack = 10f;
         public const float CrownHealth = 50f;
@@ -78,7 +79,7 @@ namespace LoopRogue
             { RelicType.SniperEye, (Loc.T("저격수의 눈"), Loc.T("치명타 피해 +50%p")) },
             { RelicType.PiercingSeal, (Loc.T("관통의 인장"), Loc.T("일반 공격이 대상 뒤 1칸 몹에게도 30% 피해")) },
             { RelicType.TyrantPlate, (Loc.T("폭군의 갑주"), Loc.T("대시로 내려선 자리 주변 8칸 몹에게 30% 피해")) },
-            { RelicType.Executioner, (Loc.T("사형 집행자"), Loc.T("체력 15% 이하인 일반 몹은 한 대에 처치")) },
+            { RelicType.Executioner, (Loc.T("사형 집행자"), Loc.T("일반 몹에게 주는 피해 +30%")) },
             { RelicType.CrownOfEnd, (Loc.T("끝의 왕관"), Loc.T("공격력 +10, 최대체력 +50")) },
             { RelicType.BloodPact, (Loc.T("피의 계약"), Loc.T("최대체력(성장분) -20%, 흡혈 상한 50%→70%")) },
             { RelicType.ChainBlast, (Loc.T("연쇄 폭발"), Loc.T("일반 몹 처치 시 주변 8칸 몹에게 공격력 20% 피해")) },
