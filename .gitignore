@@ -80,3 +80,7 @@ crashlytics-build.properties
 
 # 플레이 기록(PlayLog) - 에디터에서 하면 프로젝트 폴더에 생긴다
 /PlayLogs/
+
+# 로컬 빌드 결과물
+/Roop/
+/Roop.zip
