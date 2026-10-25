@@ -1280,4 +1280,4 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 벽 슬라임 파동 조준 중	Wall slime is aiming its wave
 포자 감염까지 {0}턴 · 감염 {1}/{2}	Spore infection in {0} turns · Infection {1}/{2}
 과녁이 흩어진 뒤로는 저격이 커진다 - 1발은 대각선 2칸까지, 2발은 2칸 거리 마름모까지(가운데만 안전).	Once the targets scatter, the snipes grow - the 1st shot reaches 2 tiles diagonally, the 2nd covers a diamond 2 tiles out (only the center is safe).
-사망	YOU DIED
+시간이 되감긴다...	Time rewinds...

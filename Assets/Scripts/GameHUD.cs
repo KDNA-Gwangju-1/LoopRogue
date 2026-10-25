@@ -708,20 +708,39 @@ namespace LoopRogue
             StartCoroutine(DeathSequence(() => OpenDeathPanel(onContinue, onLobby, goldPenalty, rooms, defaultRoom, bossRoom)));
         }
 
-        // ---- 사망 연출: 느린 화면(0.3배) + 붉은 번쩍임·흔들림·피 튀김 + 화면 가장자리가 붉게 물들며 가운데 큰 "사망" → DeathSequenceSeconds 뒤 사망 창
-        private const float DeathSlowSeconds = 0.5f;
-        private const float DeathSequenceSeconds = 1.4f;
+        // ---- 사망 연출 "리플레이 → 시간 되감기"(10-25 사용자): 맞는 순간 붉은 번쩍임·흔들림·피 튀김 + 느린 화면(녹화는 이어서) →
+        // 세상이 멈추고 죽기 직전 장면을 느리게 다시 틀어 준다(위아래 검은 띠 + REPLAY) → 그 장면을 거꾸로 빠르게 감으며 화면이 세피아로 바래고
+        // 가운데 금장 시계 바늘이 거꾸로 돌며 금빛 고리가 빨려 든다 + "시간이 되감긴다..." → 사망 창. Enter·Space·클릭이면 바로 사망 창.
+        // 녹화가 모자라면(방에 막 들어와 죽음 등) 리플레이 없이 되감기만.
+        private const float ImpactSeconds = 0.45f;
+        private const float ReplaySeconds = 1.3f;      // 녹화의 마지막 이만큼을
+        private const float ReplaySpeed = 0.6f;        // 이 속도로 앞으로
+        private const float ReplayHoldSeconds = 0.3f;  // 마지막 장면(맞는 순간)에서 잠깐 멈춤
+        private const float RewindSeconds = 1.0f;      // 녹화 전체를 거꾸로
+        private const float RewindOutroSeconds = 0.35f;
+        private const int RewindRingCount = 3;
+        private static readonly Color RewindGold = new Color(1f, 0.85f, 0.45f);
+        private static readonly Color SepiaTint = new Color(1f, 0.86f, 0.66f);
+        private DeathReplay _replay;
         private GameObject _deathOverlay;
-        private Image _deathShade;
+        private RawImage _replayImage;
+        private GameObject _replayBars;
+        private Text _replayLabel;
+        private Image _deathShade, _rewindClock;
+        private RectTransform _clockRect, _minuteHand, _hourHand;
+        private readonly Image[] _rewindRings = new Image[RewindRingCount];
         private Text _deathTitle;
         private bool _deathSlowMo;
+        private float _deathStartTime;
+        private const float DeathSkipGuardSeconds = 0.4f; // 죽은 턴에 누른 키(Space 대기 등)가 곧바로 건너뛰기로 읽히지 않게
 
         private IEnumerator DeathSequence(Action open)
         {
             EnsureDeathOverlay();
+            _deathStartTime = Time.unscaledTime;
             _deathSlowMo = true;
             Time.timeScale = 0.3f;
-            ScreenFlash.Play(new Color(1f, 0.1f, 0.08f), 0.6f, 0.6f);
+            ScreenFlash.Play(new Color(1f, 0.1f, 0.08f), 0.45f, 0.5f);
             CameraShake.Shake(0.5f, 0.6f);
             SfxPlayer.Play(Sfx.Hurt);
             SfxPlayer.PlayPitched(Sfx.Slam, 0.55f);
@@ -733,22 +752,133 @@ namespace LoopRogue
                 if (body != null)
                     DeathBurst.SpawnGhost(body.sprite, pos, GridConstants.CellSize * 1.2f, new Color(1f, 0.25f, 0.25f, 0.8f));
             }
-            _deathOverlay.SetActive(true);
-            _deathOverlay.transform.SetAsLastSibling();
-            for (var t = 0f; t < DeathSequenceSeconds; t += Time.unscaledDeltaTime)
+            // 1) 맞는 순간 - 녹화는 이어서(쓰러지는 장면까지 리플레이에 담기게)
+            for (var t = 0f; t < ImpactSeconds; t += Time.unscaledDeltaTime)
             {
-                if (_deathSlowMo && t >= DeathSlowSeconds)
-                    EndDeathSlowMo();
-                var k = Mathf.Clamp01(t / 0.35f);
-                _deathShade.color = new Color(0.35f, 0f, 0.02f, 0.55f * k);
-                _deathTitle.color = new Color(1f, 0.22f, 0.2f, k);
-                var s = Mathf.Lerp(1.6f, 1f, 1f - (1f - k) * (1f - k));
-                _deathTitle.rectTransform.localScale = new Vector3(s, s, 1f);
+                if (SkipDeathPressed())
+                {
+                    FinishDeathSequence(open);
+                    yield break;
+                }
                 yield return null;
             }
+            _replay.Recording = false;
+            Time.timeScale = 0f; // 리플레이·되감기 동안 세상은 멈춤
+            _deathOverlay.SetActive(true);
+            _deathOverlay.transform.SetAsLastSibling();
+            ResetRewindVisuals();
+            var frames = _replay.Count;
+            var hasReplay = frames >= 12;
+            if (hasReplay)
+            {
+                PlaceReplayImage(_replay.ViewportRect);
+                _replayImage.gameObject.SetActive(true);
+                _replayBars.SetActive(true);
+                _replayImage.color = Color.white;
+
+                // 2) 리플레이 - 마지막 ReplaySeconds를 느리게 앞으로
+                var first = Mathf.Max(0, frames - Mathf.RoundToInt(ReplaySeconds * 30f));
+                var span = frames - 1 - first;
+                var play = span / 30f / ReplaySpeed;
+                for (var t = 0f; t < play + ReplayHoldSeconds; t += Time.unscaledDeltaTime)
+                {
+                    if (SkipDeathPressed())
+                    {
+                        FinishDeathSequence(open);
+                        yield break;
+                    }
+                    var k = Mathf.Clamp01(t / Mathf.Max(0.01f, play));
+                    _replayImage.texture = _replay.Frame(first + Mathf.RoundToInt(span * k));
+                    _replayLabel.color = new Color(1f, 0.3f, 0.3f, Mathf.Repeat(t, 0.8f) < 0.55f ? 1f : 0.35f);
+                    yield return null;
+                }
+                _replayBars.SetActive(false);
+            }
+
+            // 3) 되감기 - 녹화 전체를 거꾸로 빠르게 + 세피아 + 거꾸로 도는 시계
+            var minute = 0f;
+            var hour = 0f;
+            var nextTick = 0.05f;
+            var tick = 0;
+            var total = RewindSeconds + RewindOutroSeconds;
+            for (var t = 0f; t < total; t += Time.unscaledDeltaTime)
+            {
+                if (SkipDeathPressed())
+                    break;
+                var k = Mathf.Clamp01(t / RewindSeconds);
+                var appear = Mathf.Clamp01(t / 0.3f);
+                var outro = Mathf.Clamp01((total - t) / RewindOutroSeconds);
+                if (hasReplay)
+                {
+                    // 처음엔 천천히, 점점 빨라지며 감긴다
+                    var back = k * k;
+                    _replayImage.texture = _replay.Frame(Mathf.RoundToInt((frames - 1) * (1f - back)));
+                    var sepia = Color.Lerp(Color.white, SepiaTint, appear);
+                    _replayImage.color = new Color(sepia.r, sepia.g, sepia.b, outro);
+                }
+                _deathShade.color = new Color(0.32f, 0.26f, 0.18f, (hasReplay ? 0.38f : 0.62f) * appear * outro);
+
+                var pop = 1f - (1f - appear) * (1f - appear);
+                var s = Mathf.Lerp(0.6f, 1f, pop) * (1f + 0.04f * Mathf.Sin(t * 20f) * appear);
+                _clockRect.localScale = new Vector3(s, s, 1f);
+                var a = appear * outro;
+                _rewindClock.color = new Color(1f, 1f, 1f, a);
+                var speed = Mathf.Lerp(300f, 1600f, k);
+                minute += speed * Time.unscaledDeltaTime;
+                hour += speed / 12f * Time.unscaledDeltaTime;
+                _minuteHand.localEulerAngles = new Vector3(0f, 0f, minute); // 양수 = 반시계(거꾸로)
+                _hourHand.localEulerAngles = new Vector3(0f, 0f, hour);
+                _minuteHand.GetComponent<Image>().color = new Color(RewindGold.r, RewindGold.g, RewindGold.b, a);
+                _hourHand.GetComponent<Image>().color = new Color(RewindGold.r * 0.85f, RewindGold.g * 0.85f, RewindGold.b * 0.85f, a);
+
+                // 금빛 고리 - 바깥에서 시계로 빨려 들어간다(차례로 반복)
+                for (var i = 0; i < RewindRingCount; i++)
+                {
+                    var ring = _rewindRings[i];
+                    var cycle = t / 0.55f - i / (float)RewindRingCount;
+                    if (cycle < 0f)
+                    {
+                        ring.color = Color.clear;
+                        continue;
+                    }
+                    var phase = Mathf.Repeat(cycle, 1f);
+                    var rs = Mathf.Lerp(4.5f, 0.9f, phase * phase);
+                    ring.rectTransform.localScale = new Vector3(rs, rs, 1f);
+                    ring.color = new Color(RewindGold.r, RewindGold.g, RewindGold.b, 0.55f * Mathf.Sin(phase * Mathf.PI) * outro);
+                }
+
+                // 째깍 소리 - 점점 빠르고 낮게
+                if (t >= nextTick && tick < 6)
+                {
+                    SfxPlayer.PlayPitched(Sfx.GradeUp, 1.1f - tick * 0.12f);
+                    tick++;
+                    nextTick += Mathf.Lerp(0.22f, 0.1f, k);
+                }
+
+                _deathTitle.color = new Color(RewindGold.r, RewindGold.g, RewindGold.b, Mathf.Clamp01((t - 0.2f) / 0.35f) * outro);
+                yield return null;
+            }
+            FinishDeathSequence(open);
+        }
+
+        private void FinishDeathSequence(Action open)
+        {
             EndDeathSlowMo();
+            _replay.Recording = true;
+            _replay.Clear(); // 다음 리플레이에 이번 장면이 섞이지 않게
             _deathOverlay.SetActive(false);
             open();
+        }
+
+        /// <summary>리플레이·되감기를 건너뛰고 바로 사망 창(누른 그 프레임은 사망 창이 입력을 안 받는다 - _mapChoiceOpenedFrame).</summary>
+        private bool SkipDeathPressed()
+        {
+            if (Time.unscaledTime - _deathStartTime < DeathSkipGuardSeconds)
+                return false;
+            if (GameInput.Down(Key.Enter) || GameInput.Down(Key.Space))
+                return true;
+            var pointer = Pointer.current;
+            return pointer != null && pointer.press.wasPressedThisFrame;
         }
 
         private void EndDeathSlowMo()
@@ -759,6 +889,28 @@ namespace LoopRogue
             Time.timeScale = 1f;
         }
 
+        private void ResetRewindVisuals()
+        {
+            _replayImage.gameObject.SetActive(false);
+            _replayBars.SetActive(false);
+            _deathShade.color = Color.clear;
+            _rewindClock.color = Color.clear;
+            _minuteHand.GetComponent<Image>().color = Color.clear;
+            _hourHand.GetComponent<Image>().color = Color.clear;
+            foreach (var ring in _rewindRings)
+                ring.color = Color.clear;
+            _deathTitle.color = Color.clear;
+        }
+
+        /// <summary>리플레이 그림을 녹화 때 카메라가 그리던 자리(HUD 띠를 뺀 가운데)에 그대로.</summary>
+        private void PlaceReplayImage(Rect viewport)
+        {
+            var rect = _replayImage.rectTransform;
+            rect.anchorMin = new Vector2(viewport.xMin, viewport.yMin);
+            rect.anchorMax = new Vector2(viewport.xMax, viewport.yMax);
+            rect.offsetMin = rect.offsetMax = Vector2.zero;
+        }
+
         private void EnsureDeathOverlay()
         {
             if (_deathOverlay != null)
@@ -766,17 +918,81 @@ namespace LoopRogue
             _deathOverlay = new GameObject("DeathOverlay", typeof(RectTransform));
             _deathOverlay.transform.SetParent(_canvasRect, false);
             HudUi.Stretch((RectTransform)_deathOverlay.transform, 0f);
+
+            var replayGo = new GameObject("Replay", typeof(RectTransform));
+            replayGo.transform.SetParent(_deathOverlay.transform, false);
+            _replayImage = replayGo.AddComponent<RawImage>();
+            _replayImage.raycastTarget = false;
+            // 리플레이 띠 - 영화처럼 위아래 검은 띠 + 왼쪽 위 깜빡이는 REPLAY
+            _replayBars = new GameObject("ReplayBars", typeof(RectTransform));
+            _replayBars.transform.SetParent(replayGo.transform, false);
+            HudUi.Stretch((RectTransform)_replayBars.transform, 0f);
+            foreach (var top in new[] { true, false })
+            {
+                var bar = HudUi.CreateImage(_replayBars.transform, "Bar", new Color(0f, 0f, 0f, 0.85f)).rectTransform;
+                bar.anchorMin = new Vector2(0f, top ? 1f : 0f);
+                bar.anchorMax = new Vector2(1f, top ? 1f : 0f);
+                bar.pivot = new Vector2(0.5f, top ? 1f : 0f);
+                bar.sizeDelta = new Vector2(0f, 34f);
+                bar.anchoredPosition = Vector2.zero;
+            }
+            _replayLabel = HudUi.CreateText(_replayBars.transform, "ReplayLabel", 18, TextAnchor.MiddleLeft);
+            var label = _replayLabel.rectTransform;
+            label.anchorMin = label.anchorMax = new Vector2(0f, 1f);
+            label.pivot = new Vector2(0f, 1f);
+            label.sizeDelta = new Vector2(240f, 34f);
+            label.anchoredPosition = new Vector2(16f, 0f);
+            _replayLabel.fontStyle = FontStyle.Bold;
+            _replayLabel.text = "● REPLAY";
+
             _deathShade = HudUi.CreateImage(_deathOverlay.transform, "Shade", Color.clear);
             HudUi.Stretch(_deathShade.rectTransform, 0f);
             _deathShade.raycastTarget = false;
-            _deathTitle = HudUi.CreateText(_deathOverlay.transform, "Title", 72, TextAnchor.MiddleCenter);
-            HudUi.Stretch(_deathTitle.rectTransform, 0f);
-            _deathTitle.fontStyle = FontStyle.Bold;
-            _deathTitle.text = Loc.T("사망");
+
+            var ringSprite = PixelUi.Get("UI/Common/RewindRing");
+            for (var i = 0; i < RewindRingCount; i++)
+            {
+                var ring = HudUi.CreateImage(_deathOverlay.transform, "RewindRing", Color.clear);
+                ring.sprite = ringSprite;
+                var rr = ring.rectTransform;
+                rr.anchorMin = rr.anchorMax = new Vector2(0.5f, 0.5f);
+                rr.sizeDelta = new Vector2(128f, 128f);
+                rr.anchoredPosition = new Vector2(0f, 20f);
+                ring.raycastTarget = false;
+                _rewindRings[i] = ring;
+            }
+
+            _rewindClock = HudUi.CreateImage(_deathOverlay.transform, "RewindClock", Color.clear);
+            _rewindClock.sprite = PixelUi.Get("UI/Common/RewindClock");
+            _clockRect = _rewindClock.rectTransform;
+            _clockRect.anchorMin = _clockRect.anchorMax = new Vector2(0.5f, 0.5f);
+            _clockRect.sizeDelta = new Vector2(128f, 128f); // 32px × 4
+            _clockRect.anchoredPosition = new Vector2(0f, 20f);
+            _hourHand = CreateClockHand("HourHand", 6f, 30f);
+            _minuteHand = CreateClockHand("MinuteHand", 4f, 44f);
+
+            _deathTitle = HudUi.CreateText(_deathOverlay.transform, "Title", 22, TextAnchor.MiddleCenter);
+            var title = _deathTitle.rectTransform;
+            title.anchorMin = title.anchorMax = new Vector2(0.5f, 0.5f);
+            title.sizeDelta = new Vector2(600f, 40f);
+            title.anchoredPosition = new Vector2(0f, -72f);
+            _deathTitle.text = Loc.T("시간이 되감긴다...");
             var outline = _deathTitle.gameObject.AddComponent<Outline>();
-            outline.effectColor = new Color(0f, 0f, 0f, 0.9f);
-            outline.effectDistance = new Vector2(3f, -3f);
+            outline.effectColor = new Color(0f, 0f, 0f, 0.85f);
+            outline.effectDistance = new Vector2(2f, -2f);
             _deathOverlay.SetActive(false);
+        }
+
+        /// <summary>시계 바늘 - 아래 끝(pivot)이 시계 가운데에 오는 막대. 돌리면 가운데를 축으로 돈다.</summary>
+        private RectTransform CreateClockHand(string name, float width, float length)
+        {
+            var hand = HudUi.CreateImage(_clockRect, name, Color.clear).rectTransform;
+            hand.anchorMin = hand.anchorMax = new Vector2(0.5f, 0.5f);
+            hand.pivot = new Vector2(0.5f, 0f);
+            hand.sizeDelta = new Vector2(width, length);
+            hand.anchoredPosition = Vector2.zero;
+            hand.GetComponent<Image>().raycastTarget = false;
+            return hand;
         }
 
         private void OpenDeathPanel(Action<int> onContinue, Action onLobby, int goldPenalty, IReadOnlyList<RoomDefinition> rooms, int defaultRoom,
@@ -882,6 +1098,7 @@ namespace LoopRogue
             BuildRoomSelectPanel(canvasGo.transform);
             _relicPanel = BuildOverlayPanel(canvasGo.transform, "RelicPanel", new Vector2(500f, 330f), active: false);
             canvasGo.AddComponent<InventoryUI>().Build(canvasGo.transform, _player);
+            _replay = gameObject.AddComponent<DeathReplay>(); // 사망 리플레이용 녹화(최근 2초)
             BuildQuestTracker(canvasGo.transform);
             NpcDialogUI.Create();
         }
