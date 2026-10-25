@@ -37,6 +37,7 @@ namespace LoopRogue
             _roomController = roomController;
             _player = player;
             _hud = hud;
+            _hud.Room = roomController;
             _rooms = rooms;
             for (var i = 0; i < rooms.Count; i++)
                 rooms[i].RoomNumber = i + 1;

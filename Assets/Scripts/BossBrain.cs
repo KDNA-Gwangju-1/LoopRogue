@@ -137,6 +137,8 @@ namespace LoopRogue
         /// <summary>6층 영혼 과녁(10-23 사용자) - 촛불을 다 끈 뒤 체력 25% 아래에서 한 번(RoomController.BeginSoulTarget).</summary>
         public const float SoulTargetHealthRatio = 0.25f;
         private bool _soulTargetStarted;
+        /// <summary>영혼 과녁이 시작된 뒤로는 저격이 3x3 → 5x5 같은 모양(X자·마름모 2칸까지, 10-25 사용자) - 방 끝까지.</summary>
+        private int SnipeReach => _stage == 6 && _soulTargetStarted ? 2 : 1;
         /// <summary>7층 그림자 박자(10-23 사용자) - 분신이 없을 때 체력 75%·35% 아래에서 한 번씩(RoomController.BeginShadowBeat).
         /// 두 번째(35%)는 하얀 표식(반대 방향으로 밟기)이 섞인다.</summary>
         public static readonly float[] ShadowBeatHealth = { 0.75f, 0.35f };
@@ -167,6 +169,7 @@ namespace LoopRogue
         /// <summary>돌진 뒤 비틀거림·기둥/용암 충돌 등 패턴 쪽 기절 중인지(머리 위 기절 별 - StatusIcons).</summary>
         public bool IsStunned => _stunTurns > 0;
         private BossPatternType? _pending;
+        private bool _hallucinatedShown; // 지금 예고가 5층 환각으로 반대 고리로 그려져 있다
         private readonly HashSet<Vector2Int> _pendingTiles = new HashSet<Vector2Int>();
         private Vector2Int _chargeDirection;
 
@@ -535,6 +538,7 @@ namespace LoopRogue
 
             _pending = type;
             var shownTiles = HallucinatedTiles(type, room);
+            _hallucinatedShown = shownTiles != null;
             // 환각 중엔 예고 칸 모양·소리도 반대 패턴으로(10-23) - 파동/역파동 그림이 달라서, 모양만 보고 속임수를 알아채지 않게
             var shownType = shownTiles == null ? type : type == BossPatternType.Ring ? BossPatternType.RingInverse : BossPatternType.Ring;
             room.ShowTelegraph(_pendingTiles, type == BossPatternType.Encircle ? DashTelegraphColor : (Color?)null, shownTiles,
@@ -843,6 +847,18 @@ namespace LoopRogue
             }
         }
 
+        /// <summary>5층 - 환각으로 반대로 그려 둔 파동 예고를, 빛버섯으로 감염이 풀리면 진짜 칸으로 다시 그린다
+        /// (10-25 사용자 "감염은 풀렸는데 위험지대가 여전히 반전"). 이미 발동했거나 다른 패턴이면 그대로.</summary>
+        public void RefreshHallucinatedTelegraph(RoomController room)
+        {
+            if (!_hallucinatedShown || room.PlayerHallucinating)
+                return;
+            _hallucinatedShown = false;
+            if (_pending != BossPatternType.Ring && _pending != BossPatternType.RingInverse || _pendingTiles.Count == 0)
+                return;
+            room.ShowTelegraph(_pendingTiles, pattern: _pending);
+        }
+
         /// <summary>5층 환각 중 - 파동(홀수)·역파동(짝수) 예고를 반대 고리로 보여 줄 칸. 해당 없으면 null(그대로 보임).
         /// 5층 고리는 방 끝까지라 둘이 정확히 반대 - "환각 중엔 빨간 칸이 안전".</summary>
         private List<Vector2Int> HallucinatedTiles(BossPatternType type, RoomController room)
@@ -926,14 +942,22 @@ namespace LoopRogue
                 }
                 case BossPatternType.Snipe:
                     // 3x3이면 한 턴에 한 칸만 움직이는 플레이어가 절대 못 빠져나가서, 플레이어 자리 + 대각선만 친다.
+                    // 영혼 과녁부터는 대각선 2칸까지(5x5 X자) - 상하좌우 한 칸 비키기는 그대로 통한다.
                     AddTile(map, player.GridPos);
-                    foreach (var d in new[] { new Vector2Int(1, 1), new Vector2Int(1, -1), new Vector2Int(-1, 1), new Vector2Int(-1, -1) })
-                        AddTile(map, player.GridPos + d);
+                    for (var k = 1; k <= SnipeReach; k++)
+                        foreach (var d in new[] { new Vector2Int(1, 1), new Vector2Int(1, -1), new Vector2Int(-1, 1), new Vector2Int(-1, -1) })
+                            AddTile(map, player.GridPos + d * k);
                     break;
                 case BossPatternType.SnipeFollowUp:
                     // 마름모 - 상하좌우 4칸만, 가운데(플레이어 자리)는 비워서 대기 키로 피할 수 있게.
-                    foreach (var d in Directions)
-                        AddTile(map, player.GridPos + d);
+                    // 영혼 과녁부터는 2칸 거리 마름모까지 꽉 채운다(5x5, 가운데만 안전).
+                    for (var dx = -SnipeReach; dx <= SnipeReach; dx++)
+                    for (var dy = -SnipeReach; dy <= SnipeReach; dy++)
+                    {
+                        var m = Mathf.Abs(dx) + Mathf.Abs(dy);
+                        if (m >= 1 && m <= SnipeReach)
+                            AddTile(map, player.GridPos + new Vector2Int(dx, dy));
+                    }
                     break;
                 case BossPatternType.Ring:
                     // 거리 1과 3을 치고 그 사이 거리 2는 안전 - 보스 옆에서 때리다 예고가 뜨면 한 칸 물러나서 피한다.

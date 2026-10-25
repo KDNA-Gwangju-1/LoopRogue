@@ -228,6 +228,216 @@ namespace LoopRogue
         }
     }
 
+    /// <summary>화면 위 기믹 게이지 한 줄(10-25) - 로스트아크 아이덴티티 게이지처럼(사용자): 둥근 금장 받침에 기믹 아이콘(Icons/Gimmick_*),
+    /// 양 끝 뾰족한 금장 테(GaugeFrame) 안에 빛나는 채움(GaugeFill, 색을 곱함). 글자 없이 그림만.
+    /// - 채움 위로 사선 광택(GaugeShine)이 계속 흐르고, 채움 맨 앞은 밝게 빛난다(GaugeEdge).
+    /// - steps가 있으면 칸 눈금 - 한 칸 찰 때마다 그 칸이 하얗게 번쩍이고 아이콘이 톡 튄다.
+    /// - 가득 차거나 위험하면 막대 둘레가 같은 색으로 맥박 치며 빛난다(GaugeGlow).</summary>
+    public sealed class GimmickGauge
+    {
+        private const float BarHeight = 28f;  // 테 14px × 2
+        public const float IconBox = 36f;     // 받침 18px × 2
+        private const float InsetX = 12f, InsetY = 8f; // 테 안쪽 채움 자리(6·4px × 2)
+        private const float ShineWidth = 32f, ShinePeriod = 1.6f;
+        public readonly RectTransform Rect;
+        private readonly RectTransform _fill, _fillArea, _shine, _edge, _flash, _slot;
+        private readonly Image _fillImage, _edgeImage, _flashImage, _glow, _icon;
+        private readonly System.Collections.Generic.List<GameObject> _ticks = new System.Collections.Generic.List<GameObject>();
+        private string _iconName;
+        private int _steps = -1, _lastStep = -1;
+        private float _shown = -1f, _flashT, _punchT;
+
+        public GimmickGauge(Transform parent, float width)
+        {
+            var root = new GameObject("GimmickGauge", typeof(RectTransform));
+            root.transform.SetParent(parent, false);
+            Rect = (RectTransform)root.transform;
+            Rect.anchorMin = Rect.anchorMax = new Vector2(0.5f, 1f);
+            Rect.pivot = new Vector2(0.5f, 1f);
+            Rect.sizeDelta = new Vector2(width, IconBox);
+
+            var bar = new GameObject("Bar", typeof(RectTransform)).GetComponent<RectTransform>();
+            bar.SetParent(root.transform, false);
+            bar.anchorMin = new Vector2(0f, 0.5f);
+            bar.anchorMax = new Vector2(1f, 0.5f);
+            bar.offsetMin = new Vector2(IconBox - 8f, -BarHeight * 0.5f);
+            bar.offsetMax = new Vector2(0f, BarHeight * 0.5f);
+
+            // 둘레 발광(맨 뒤) - 평소엔 투명
+            _glow = HudUi.CreateImage(bar, "Glow", Color.white);
+            HudUi.Stretch(_glow.rectTransform, -10f);
+            PixelUi.Slice(_glow, "GaugeGlow", 2f);
+            _glow.color = new Color(1f, 1f, 1f, 0f);
+
+            var back = HudUi.CreateImage(bar, "Back", new Color(0.05f, 0.04f, 0.07f, 0.95f)).rectTransform;
+            back.anchorMin = Vector2.zero;
+            back.anchorMax = Vector2.one;
+            back.offsetMin = new Vector2(InsetX, InsetY);
+            back.offsetMax = new Vector2(-InsetX, -InsetY);
+
+            _fillArea = new GameObject("FillArea", typeof(RectTransform)).GetComponent<RectTransform>();
+            _fillArea.SetParent(bar, false);
+            _fillArea.anchorMin = Vector2.zero;
+            _fillArea.anchorMax = Vector2.one;
+            _fillArea.offsetMin = new Vector2(InsetX, InsetY);
+            _fillArea.offsetMax = new Vector2(-InsetX, -InsetY);
+
+            _fillImage = HudUi.CreateImage(_fillArea, "Fill", Color.white);
+            _fill = _fillImage.rectTransform;
+            _fill.anchorMin = Vector2.zero;
+            _fill.anchorMax = Vector2.one;
+            _fill.offsetMin = _fill.offsetMax = Vector2.zero;
+            if (PixelUi.Get("UI/Common/GaugeFill") != null)
+                PixelUi.Slice(_fillImage, "GaugeFill", 2f);
+            _fill.gameObject.AddComponent<RectMask2D>(); // 광택이 채운 데까지만
+
+            var shine = HudUi.CreateImage(_fill, "Shine", new Color(1f, 1f, 1f, 0.55f));
+            shine.sprite = PixelUi.Get("UI/Common/GaugeShine");
+            if (shine.sprite == null)
+                shine.color = new Color(1f, 1f, 1f, 0.18f);
+            _shine = shine.rectTransform;
+            _shine.anchorMin = new Vector2(0f, 0f);
+            _shine.anchorMax = new Vector2(0f, 1f);
+            _shine.pivot = new Vector2(0f, 0.5f);
+            _shine.sizeDelta = new Vector2(ShineWidth, 0f);
+
+            _flashImage = HudUi.CreateImage(_fillArea, "Flash", new Color(1f, 1f, 1f, 0f));
+            _flash = _flashImage.rectTransform;
+
+            _edgeImage = HudUi.CreateImage(_fillArea, "Edge", Color.white);
+            _edgeImage.sprite = PixelUi.Get("UI/Common/GaugeEdge");
+            _edge = _edgeImage.rectTransform;
+            _edge.anchorMin = new Vector2(0f, 0f);
+            _edge.anchorMax = new Vector2(0f, 1f);
+            _edge.pivot = new Vector2(0.5f, 0.5f);
+            _edge.sizeDelta = new Vector2(12f, 4f);
+
+            var frame = HudUi.CreateImage(bar, "Frame", Color.white);
+            if (PixelUi.Slice(frame, "GaugeFrame", 2f) || PixelUi.Slice(frame, "BarFrame", 2f))
+                HudUi.Stretch(frame.rectTransform, 0f);
+            else
+                Object.Destroy(frame.gameObject);
+
+            // 둥근 금장 받침 + 아이콘 - 막대 왼쪽 끝을 덮는다
+            var slot = HudUi.CreateImage(root.transform, "IconSlot", new Color(0.1f, 0.1f, 0.13f, 0.95f));
+            var slotSprite = PixelUi.Get("UI/Common/GaugeIconSlot");
+            if (slotSprite != null)
+            {
+                slot.sprite = slotSprite;
+                slot.color = Color.white;
+            }
+            _slot = slot.rectTransform;
+            _slot.anchorMin = _slot.anchorMax = new Vector2(0f, 0.5f);
+            _slot.pivot = new Vector2(0.5f, 0.5f);
+            _slot.sizeDelta = new Vector2(IconBox, IconBox);
+            _slot.anchoredPosition = new Vector2(IconBox * 0.5f, 0f);
+            _icon = HudUi.CreateImage(slot.transform, "Icon", Color.white);
+            HudUi.Stretch(_icon.rectTransform, 6f);
+            _icon.preserveAspect = true;
+            _icon.enabled = false;
+        }
+
+        public void Set(string icon, float ratio, int steps, Color color, bool alert)
+        {
+            if (_iconName != icon)
+            {
+                _iconName = icon;
+                _shown = -1f; // 다른 기믹으로 바뀌었다 - 이전 막대에서 미끄러지지 않게
+                _lastStep = -1;
+                var sprite = icon != null ? PixelUi.Get("UI/Icons/Gimmick_" + icon) : null;
+                _icon.sprite = sprite;
+                _icon.enabled = sprite != null;
+            }
+            if (_steps != steps)
+                BuildTicks(steps);
+            var dt = Time.unscaledDeltaTime;
+            ratio = Mathf.Clamp01(ratio);
+            // 턴이 넘어가 목표가 바뀌면 부드럽게 차오른다(처음 나타날 땐 바로)
+            _shown = _shown < 0f ? ratio : Mathf.MoveTowards(_shown, ratio, dt * 4f);
+            var visible = _shown > 0.005f;
+            if (_fill.gameObject.activeSelf != visible)
+                _fill.gameObject.SetActive(visible);
+            _fill.anchorMax = new Vector2(_shown, 1f);
+
+            var full = ratio >= 0.999f;
+            var t = Time.unscaledTime;
+            var pulse = 0.5f + 0.5f * Mathf.Sin(t * (full ? 9f : 6f));
+            _fillImage.color = full || alert ? Color.Lerp(color, Color.white, (full ? 0.3f : 0.15f) * pulse) : color;
+
+            // 광택 - 채운 폭을 왼→오로 지나간다
+            var fillWidth = _fillArea.rect.width * _shown;
+            var phase = Mathf.Repeat(t / ShinePeriod, 1f);
+            _shine.anchoredPosition = new Vector2(Mathf.Lerp(-ShineWidth, fillWidth + ShineWidth, phase), 0f);
+
+            // 맨 앞 빛 - 채우는 중일 때만
+            var edgeOn = _shown > 0.01f && _shown < 0.995f;
+            if (_edge.gameObject.activeSelf != edgeOn)
+                _edge.gameObject.SetActive(edgeOn);
+            if (edgeOn)
+            {
+                _edge.anchorMin = new Vector2(_shown, 0f);
+                _edge.anchorMax = new Vector2(_shown, 1f);
+                _edge.anchoredPosition = Vector2.zero;
+                var ec = Color.Lerp(color, Color.white, 0.6f);
+                ec.a = 0.75f + 0.25f * pulse;
+                _edgeImage.color = ec;
+            }
+
+            // 칸이 찰 때 번쩍 + 아이콘 톡
+            if (steps > 0)
+            {
+                var step = Mathf.Clamp(Mathf.FloorToInt(ratio * steps + 0.001f), 0, steps);
+                if (_lastStep >= 0 && step > _lastStep)
+                {
+                    _flash.anchorMin = new Vector2((step - 1) / (float)steps, 0f);
+                    _flash.anchorMax = new Vector2(step / (float)steps, 1f);
+                    _flash.offsetMin = new Vector2(0f, -2f);
+                    _flash.offsetMax = new Vector2(0f, 2f);
+                    _flashT = 1f;
+                    _punchT = 1f;
+                }
+                _lastStep = step;
+            }
+            _flashT = Mathf.Max(0f, _flashT - dt * 3f);
+            _flashImage.color = new Color(1f, 1f, 1f, _flashT * _flashT * 0.9f);
+            _punchT = Mathf.Max(0f, _punchT - dt * 5f);
+            var scale = 1f + 0.18f * _punchT * _punchT + (full ? 0.06f * pulse : 0f);
+            _slot.localScale = new Vector3(scale, scale, 1f);
+
+            // 둘레 발광 - 가득 차면 강하게, 위험하면 약하게 맥박
+            var glow = color;
+            glow.a = full ? 0.45f + 0.45f * pulse : alert ? 0.15f + 0.3f * pulse : 0f;
+            _glow.color = glow;
+        }
+
+        /// <summary>칸 사이 세로 눈금(어두운 2px 줄) - 채움 위, 번쩍임 아래.</summary>
+        private void BuildTicks(int steps)
+        {
+            _steps = steps;
+            _lastStep = -1;
+            foreach (var t in _ticks)
+                Object.Destroy(t);
+            _ticks.Clear();
+            for (var i = 1; i < steps; i++)
+            {
+                var tick = HudUi.CreateImage(_fillArea, "Tick", new Color(0.04f, 0.03f, 0.05f, 0.9f)).rectTransform;
+                tick.anchorMin = new Vector2(i / (float)steps, 0f);
+                tick.anchorMax = new Vector2(i / (float)steps, 1f);
+                tick.sizeDelta = new Vector2(2f, 0f);
+                tick.anchoredPosition = Vector2.zero;
+                tick.SetSiblingIndex(_flash.GetSiblingIndex()); // 번쩍임·맨 앞 빛보다 아래
+                _ticks.Add(tick.gameObject);
+            }
+        }
+
+        /// <summary>다시 보일 때 이전 값에서 미끄러져 오지 않게.</summary>
+        public void ResetFill()
+        {
+            _shown = -1f;
+            _lastStep = -1;
+        }
+    }
+
     /// <summary>도트 UI 그림 공용 - Resources/UI/Common(9-slice 패널·버튼·칸·막대·띠), Resources/UI/Icons(아이콘).
     /// 타이틀·로비와 같은 4배 픽셀. 그림이 없으면 Slice가 false를 돌려주고 호출부는 예전 단색을 그대로 쓴다.</summary>
     public static class PixelUi

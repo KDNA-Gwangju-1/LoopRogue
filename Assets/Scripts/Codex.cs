@@ -115,7 +115,8 @@ namespace LoopRogue
                 Loc.T("두 발 연속 저격. 1발은 플레이어 자리와 대각선 4칸(X자) - 상하좌우로 한 칸 움직여 피한다. 2발은 그 자리의 상하좌우 4칸 - 제자리에서 대기하면 피한다.") + " " +
                 Loc.F("체력이 절반 아래로 떨어지면 영혼 촛불을 켜고 단단해진다(받는 피해 90% 감소). 촛불 옆에 서서 저격이 촛불 칸을 덮게 하면 꺼진다. {0}턴 안에 다 못 끄면 즉사.", RoomController.CandleTurnLimit) + " " +
                 Loc.F("체력이 25% 아래로 떨어지면 내 영혼이 과녁 {0}개로 흩어진다. {1}턴 동안 궁수는 단단해지고 저격만 쏜다 - 저격이 덮은 과녁은 부서지고, 다 부서지면 즉사. 버티면 궁수가 기절하고 남은 과녁 하나당 궁수가 받는 피해 +{2}%.",
-                      RoomController.SoulTargetCount, RoomController.SoulTargetTurns, Mathf.RoundToInt(RoomController.SoulTargetBonusPerTarget * 100f)));
+                      RoomController.SoulTargetCount, RoomController.SoulTargetTurns, Mathf.RoundToInt(RoomController.SoulTargetBonusPerTarget * 100f)) + " " +
+                Loc.T("과녁이 흩어진 뒤로는 저격이 커진다 - 1발은 대각선 2칸까지, 2발은 2칸 거리 마름모까지(가운데만 안전)."));
             AddBoss(list, 7, new Color(0.23f, 0.19f, 0.32f),
                 Loc.T("쌍단검으로 플레이어 자리를 기준으로 대각선 4줄을 벤다. 상하좌우로 비켜서 대각선에서 벗어나자.") + " " +
                 Loc.F("체력이 10% 줄 때마다 칼이 안 통하는 그림자 분신 4개를 만들고 단단해진다(받는 피해 90% 감소). 분신과 대각선 줄에 서면 X자 베기가 분신을 벤다. {0}턴 안에 다 못 지우면 즉사. 지그재그 베기도 섞어 쓴다.", RoomController.CloneTurnLimit) + " " +

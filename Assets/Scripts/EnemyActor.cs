@@ -154,6 +154,7 @@ namespace LoopRogue
 
         /// <summary>섬광탄 - 보스가 예고해둔 공격을 취소한다.</summary>
         public void CancelBossPattern(RoomController room) => _brain?.CancelPending(room);
+        public void RefreshHallucinatedTelegraph(RoomController room) => _brain?.RefreshHallucinatedTelegraph(room);
         public bool MirrorShardsActive => _brain != null && _brain.MirrorShardsActive;
 
         /// <summary>방패병이 바라보는 방향(상하좌우). 다른 몹은 의미 없음.</summary>

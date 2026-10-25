@@ -76,6 +76,17 @@ namespace LoopRogue
         public bool IsStatPanelOpen => _statPanel != null && _statPanel.Root.activeSelf;
         private int _roomCount;
 
+        // 기믹 게이지(10-25 사용자) - 보스 머리 위 남은 턴 글자는 멀리 가면 화면 밖이라, 같은 시계를 타겟 체력바 아래 막대로도 보여 준다.
+        // 목록은 RoomController.HudTimers()가 매 프레임 준다(LoopManager가 Room을 꽂아 줌). 배너는 막대 수만큼 아래로 밀린다.
+        public RoomController Room { get; set; }
+        private readonly List<GimmickGauge> _gimmickBars = new List<GimmickGauge>();
+        private RectTransform _bannerRect;
+        private const float GaugeHeight = GimmickGauge.IconBox; // 둥근 아이콘 받침 높이(막대는 28)
+        private const float GaugeGap = 2f;
+        private static readonly Color GaugeColor = new Color(0.95f, 0.6f, 0.15f);
+        private static readonly Color GaugeDangerColor = new Color(0.9f, 0.18f, 0.18f);
+        private static readonly Color GaugeBuffColor = new Color(0.35f, 0.8f, 0.4f);
+
         public void Initialize(PlayerActor player)
         {
             _player = player;
@@ -420,6 +431,7 @@ namespace LoopRogue
             RefreshSkillSlots();
 
             RefreshTarget();
+            RefreshGimmickGauges();
             RefreshQuestTracker();
 
             if (_statPanel.Root.activeSelf)
@@ -585,6 +597,37 @@ namespace LoopRogue
             _targetFill.anchorMax = new Vector2(ratio, 1f);
             _targetFillImage.color = _target.IsBoss ? new Color(0.85f, 0.35f, 0.1f) : new Color(0.75f, 0.15f, 0.15f);
             _targetText.text = $"{_target.DisplayName}  HP {ShownHealth(stats.CurrentHealth):0}/{stats.MaxHealth:0}  (ATK {stats.AttackPower:0})";
+        }
+
+        private void RefreshGimmickGauges()
+        {
+            var timers = Room != null && !AutoPlayActive ? Room.HudTimers() : null;
+            var count = timers?.Count ?? 0;
+            var top = ActionBarLayout.TopBarHeight + 8f + 34f + 4f; // 타겟 체력바(높이 34) 자리 아래 - 체력바가 숨어 있어도 자리는 비워 둔다
+            while (_gimmickBars.Count < count)
+            {
+                var bar = new GimmickGauge(_canvasRect, 300f);
+                bar.Rect.anchoredPosition = new Vector2(0f, -(top + _gimmickBars.Count * (GaugeHeight + GaugeGap)));
+                bar.Rect.SetSiblingIndex(_bannerGo.transform.GetSiblingIndex()); // 배너·선택 창보다 아래 층
+                _gimmickBars.Add(bar);
+            }
+            for (var i = 0; i < _gimmickBars.Count; i++)
+            {
+                var bar = _gimmickBars[i];
+                var visible = i < count;
+                if (bar.Rect.gameObject.activeSelf != visible)
+                {
+                    bar.Rect.gameObject.SetActive(visible);
+                    bar.ResetFill();
+                }
+                if (!visible)
+                    continue;
+                var t = timers[i];
+                bar.Set(t.Icon, t.Fill, t.Steps, t.Buff ? GaugeBuffColor : t.Danger ? GaugeDangerColor : GaugeColor, t.Danger);
+            }
+            var bannerY = -(top + 4f + count * (GaugeHeight + GaugeGap));
+            if (_bannerRect.anchoredPosition.y != bannerY)
+                _bannerRect.anchoredPosition = new Vector2(0f, bannerY);
         }
 
         public void RefreshProgress(int stage, int roomNumber, int roomCount, int loopCount)
@@ -1203,7 +1246,7 @@ namespace LoopRogue
         {
             _bannerGo = new GameObject("Banner", typeof(RectTransform));
             _bannerGo.transform.SetParent(parent, false);
-            var rect = _bannerGo.GetComponent<RectTransform>();
+            var rect = _bannerRect = _bannerGo.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 1f);
             rect.anchorMax = new Vector2(0.5f, 1f);
             rect.pivot = new Vector2(0.5f, 1f);

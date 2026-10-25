@@ -366,6 +366,7 @@ namespace LoopRogue
                             ? Loc.F("<color=#80FFB0>빛버섯을 먹었다!</color> 감염이 씻겨 나가고 둘레 공기가 맑아졌다({0}턴)", CleanAirTurns)
                             : Loc.F("<color=#80FFB0>빛버섯을 먹었다!</color> 둘레 공기가 맑아졌다({0}턴)", CleanAirTurns));
                         _infection = 0;
+                        _gimmickBoss.RefreshHallucinatedTelegraph(this); // 환각으로 반대로 그려진 파동 예고를 진짜로
                         AddCleanAir(_player.GridPos); // 둘레 3x3 안전지대(10-16 사용자)
                     }
                     var breathed = false;
