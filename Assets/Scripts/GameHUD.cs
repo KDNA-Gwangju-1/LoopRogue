@@ -104,6 +104,7 @@ namespace LoopRogue
 
         private void OnDestroy()
         {
+            EndDeathSlowMo(); // 연출 도중 씬이 바뀌어도 느린 화면이 남지 않게
             Achievements.Unlocked -= OnAchievementUnlocked;
             Codex.Discovered -= OnCodexDiscovered;
         }
@@ -697,6 +698,90 @@ namespace LoopRogue
         public void ShowDeathChoice(Action<int> onContinue, Action onLobby, int goldPenalty, IReadOnlyList<RoomDefinition> rooms, int defaultRoom,
             bool bossRoom = false)
         {
+            LastDeathGoldPenalty = goldPenalty;
+            if (AutoPlayActive || DamagePopup.Suppressed)
+            {
+                OpenDeathPanel(onContinue, onLobby, goldPenalty, rooms, defaultRoom, bossRoom);
+                return;
+            }
+            // 죽는 순간 연출 뒤에 창을 연다(10-25 테스터 "사망 인지가 힘들다" - 예전엔 맞는 순간 창이 바로 떠서 뭐에 죽었는지 못 봤다)
+            StartCoroutine(DeathSequence(() => OpenDeathPanel(onContinue, onLobby, goldPenalty, rooms, defaultRoom, bossRoom)));
+        }
+
+        // ---- 사망 연출: 느린 화면(0.3배) + 붉은 번쩍임·흔들림·피 튀김 + 화면 가장자리가 붉게 물들며 가운데 큰 "사망" → DeathSequenceSeconds 뒤 사망 창
+        private const float DeathSlowSeconds = 0.5f;
+        private const float DeathSequenceSeconds = 1.4f;
+        private GameObject _deathOverlay;
+        private Image _deathShade;
+        private Text _deathTitle;
+        private bool _deathSlowMo;
+
+        private IEnumerator DeathSequence(Action open)
+        {
+            EnsureDeathOverlay();
+            _deathSlowMo = true;
+            Time.timeScale = 0.3f;
+            ScreenFlash.Play(new Color(1f, 0.1f, 0.08f), 0.6f, 0.6f);
+            CameraShake.Shake(0.5f, 0.6f);
+            SfxPlayer.Play(Sfx.Hurt);
+            SfxPlayer.PlayPitched(Sfx.Slam, 0.55f);
+            if (_player != null)
+            {
+                var pos = _player.transform.position;
+                DeathBurst.Spawn(pos, new Color(0.85f, 0.08f, 0.1f), 30, GridConstants.CellSize * 3f, GridConstants.CellSize * 0.18f);
+                var body = _player.GetComponentInChildren<SpriteRenderer>();
+                if (body != null)
+                    DeathBurst.SpawnGhost(body.sprite, pos, GridConstants.CellSize * 1.2f, new Color(1f, 0.25f, 0.25f, 0.8f));
+            }
+            _deathOverlay.SetActive(true);
+            _deathOverlay.transform.SetAsLastSibling();
+            for (var t = 0f; t < DeathSequenceSeconds; t += Time.unscaledDeltaTime)
+            {
+                if (_deathSlowMo && t >= DeathSlowSeconds)
+                    EndDeathSlowMo();
+                var k = Mathf.Clamp01(t / 0.35f);
+                _deathShade.color = new Color(0.35f, 0f, 0.02f, 0.55f * k);
+                _deathTitle.color = new Color(1f, 0.22f, 0.2f, k);
+                var s = Mathf.Lerp(1.6f, 1f, 1f - (1f - k) * (1f - k));
+                _deathTitle.rectTransform.localScale = new Vector3(s, s, 1f);
+                yield return null;
+            }
+            EndDeathSlowMo();
+            _deathOverlay.SetActive(false);
+            open();
+        }
+
+        private void EndDeathSlowMo()
+        {
+            if (!_deathSlowMo)
+                return;
+            _deathSlowMo = false;
+            Time.timeScale = 1f;
+        }
+
+        private void EnsureDeathOverlay()
+        {
+            if (_deathOverlay != null)
+                return;
+            _deathOverlay = new GameObject("DeathOverlay", typeof(RectTransform));
+            _deathOverlay.transform.SetParent(_canvasRect, false);
+            HudUi.Stretch((RectTransform)_deathOverlay.transform, 0f);
+            _deathShade = HudUi.CreateImage(_deathOverlay.transform, "Shade", Color.clear);
+            HudUi.Stretch(_deathShade.rectTransform, 0f);
+            _deathShade.raycastTarget = false;
+            _deathTitle = HudUi.CreateText(_deathOverlay.transform, "Title", 72, TextAnchor.MiddleCenter);
+            HudUi.Stretch(_deathTitle.rectTransform, 0f);
+            _deathTitle.fontStyle = FontStyle.Bold;
+            _deathTitle.text = Loc.T("사망");
+            var outline = _deathTitle.gameObject.AddComponent<Outline>();
+            outline.effectColor = new Color(0f, 0f, 0f, 0.9f);
+            outline.effectDistance = new Vector2(3f, -3f);
+            _deathOverlay.SetActive(false);
+        }
+
+        private void OpenDeathPanel(Action<int> onContinue, Action onLobby, int goldPenalty, IReadOnlyList<RoomDefinition> rooms, int defaultRoom,
+            bool bossRoom)
+        {
             _mapChoiceOpenedFrame = Time.frameCount;
             _deathTipText.text = Loc.F("<color=#C8B88A>시간지기 노인의 한마디</color>  \"{0}\"", LobbyGuide.DeathTip(bossRoom));
             _onContinueAfterDeath = onContinue;
@@ -704,7 +789,6 @@ namespace LoopRogue
             _roomMap ??= new RoomMapView(_deathPanel.transform, rooms.Count);
             _roomMap.Show(_deathPanel.transform, new Vector2(0f, -18f + DeathTipHeight * 0.5f), rooms, defaultRoom); // 아래 조언 줄만큼 늘어난 패널 보정
             _onReturnToLobby = onLobby;
-            LastDeathGoldPenalty = goldPenalty;
             _deathPenaltyText.text = goldPenalty > 0
                 ? Loc.F("데스 패널티: 골드 -{0} (이번 시도 획득분의 {1:0}%)", goldPenalty, Relics.DeathPenaltyRate * 100f)
                 : Loc.T("데스 패널티: 이번 시도에 번 골드 없음");

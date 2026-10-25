@@ -802,16 +802,16 @@ namespace LoopRogue
         }
     }
 
-    /// <summary>버티기 - 가운데에서 시작해 사방 끝에서 몹이 계속 몰려온다. 실제 시간 2분을 버티면 성공(사용자 결정: 턴 대신 분),
+    /// <summary>버티기 - 가운데에서 시작해 사방 끝에서 몹이 계속 몰려온다. 실제 시간 1분을 버티면 성공(사용자 결정: 턴 대신 분, 10-25 테스터 "2분은 길다"로 2분 → 1분),
     /// 남은 몹은 사라짐. 쓰러지면 실패. 턴제라 가만히 서서 시간만 보내지 못하게 AutoTurnSeconds 동안 아무것도 안 하면 저절로 한 턴
     /// (제자리 대기)이 넘어가 몹이 움직인다. 시간은 직접 움직일 수 있을 때만 흐른다(레벨업 카드·Esc 메뉴 중엔 멈춤).
-    /// 추가 규칙: 10초마다 낙석(빨간 칸, 두 턴 뒤에 떨어져 최대 체력의 25% - 저절로 넘어가는 턴이 0.8초라 한 턴이면 피할 틈이 없다), 1분이 지나면 몹이 더 자주 몰려오고 정예 1마리가 나온다.
+    /// 추가 규칙: 10초마다 낙석(빨간 칸, 두 턴 뒤에 떨어져 최대 체력의 25% - 저절로 넘어가는 턴이 0.8초라 한 턴이면 피할 틈이 없다), 절반(30초)이 지나면 몹이 더 자주 몰려오고 정예 1마리가 나온다.
     /// 잡은 몹은 골드·경험치 없음. 대시·회전 베기·아이템 사용 가능.</summary>
     public class SurvivalMiniGame : PuzzleBase
     {
         public override bool AllowsTools => true;
         public override string Title => Loc.T("버티기");
-        public override string Rule => Loc.T("2분을 버텨라. 가만히 있어도 몹은 움직인다. 빨간 칸엔 돌이 떨어지고, 1분이 지나면 더 거세진다!");
+        public override string Rule => Loc.T("1분을 버텨라. 가만히 있어도 몹은 움직인다. 빨간 칸엔 돌이 떨어지고, 30초가 지나면 더 거세진다!");
         public override string Status
         {
             get
@@ -822,10 +822,10 @@ namespace LoopRogue
         }
 
         private const int Size = 11; // 몹 수 제한 없음(사용자 결정) - 가장자리 빈 칸이 다 차면 그 웨이브는 들어갈 자리만큼만
-        private const float Duration = 120f;       // 2분
+        private const float Duration = 60f;        // 1분
         private const float AutoTurnSeconds = 0.8f; // 이만큼 아무것도 안 하면 저절로 한 턴
-        private const float WaveSeconds = 6f;       // 몹이 몰려오는 간격(처음 1분)
-        private const float LateWaveSeconds = 4f;   // 1분 뒤
+        private const float WaveSeconds = 6f;       // 몹이 몰려오는 간격(처음 절반)
+        private const float LateWaveSeconds = 4f;   // 절반 뒤
         private const float RockSeconds = 10f;      // 낙석 간격
         private const float RockDamageRate = 0.25f;
         private int _perWave;

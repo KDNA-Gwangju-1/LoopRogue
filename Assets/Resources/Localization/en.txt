@@ -771,7 +771,7 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 없음	no
 열쇠를 주웠다! 이제 보물 상자로	Got the key! Now to the chest
 잠겨 있다 - 열쇠가 필요하다	Locked - you need the key
-2분을 버텨라. 가만히 있어도 몹은 움직인다. 빨간 칸엔 돌이 떨어지고, 1분이 지나면 더 거세진다!	Survive 2 minutes. Monsters move even if you stand still. Rocks fall on red tiles, and it gets fiercer after 1 minute!
+1분을 버텨라. 가만히 있어도 몹은 움직인다. 빨간 칸엔 돌이 떨어지고, 30초가 지나면 더 거세진다!	Survive 1 minute. Monsters move even if you stand still. Rocks fall on red tiles, and it gets fiercer after 30 seconds!
 정예 몹이 나타났다!	An elite monster appeared!
 벽·바위까지 미끄러진다(진흙에선 멈춤). 보석을 전부 모은 뒤 깃발 칸에 딱 멈춰라!	You slide until a wall or rock (mud stops you). Collect every gem, then stop exactly on the flag!
 벽·바위까지 미끄러진다. 보석을 전부 모은 뒤 깃발 칸에 딱 멈춰라!	You slide until a wall or rock. Collect every gem, then stop exactly on the flag!
@@ -1280,3 +1280,4 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 벽 슬라임 파동 조준 중	Wall slime is aiming its wave
 포자 감염까지 {0}턴 · 감염 {1}/{2}	Spore infection in {0} turns · Infection {1}/{2}
 과녁이 흩어진 뒤로는 저격이 커진다 - 1발은 대각선 2칸까지, 2발은 2칸 거리 마름모까지(가운데만 안전).	Once the targets scatter, the snipes grow - the 1st shot reaches 2 tiles diagonally, the 2nd covers a diamond 2 tiles out (only the center is safe).
+사망	YOU DIED
