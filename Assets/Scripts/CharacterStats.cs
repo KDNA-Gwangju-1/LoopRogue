@@ -35,7 +35,14 @@ namespace LoopRogue
         // ---- 레벨업 카드 전용 스탯(몹은 전부 0이라 영향 없음) ----
         /// <summary>받는 피해 감소 비율 - 음수면 오히려 더 받는다(도박 카드). 적용 시 ±MaxDamageReduction(30%)으로 제한.</summary>
         public const float MaxDamageReduction = 0.3f;
-        public float DamageReductionRate;
+        /// <summary>누적값도 -MaxDamageReduction 아래로는 안 내려간다(10-25 사용자) - 예전엔 카드 대가가 -37%처럼 계속 쌓여서 받는 피해가 +30%에 붙은 채
+        /// 방어 카드(+2%)를 먹어도 그대로였다. 이제 대가가 상한에 닿은 뒤 방어 카드를 먹으면 바로 줄어든다(저장값도 불러올 때 잘림).</summary>
+        public float DamageReductionRate
+        {
+            get => _damageReductionRate;
+            set => _damageReductionRate = Mathf.Max(-MaxDamageReduction, value);
+        }
+        private float _damageReductionRate;
         public float LifeStealRate;    // 준 피해 대비 회복 비율
         /// <summary>흡혈 상한(사용자 결정 50%) - 봇 100판에서 흡혈 카드가 판당 중앙 11장(88%), 최대 20장(160%)까지 쌓였다.
         /// 상한에 닿으면 흡혈 카드는 더 이상 안 나온다(LevelSystem). 상한 도입 전 저장된 판도 적용은 이 값까지만.</summary>

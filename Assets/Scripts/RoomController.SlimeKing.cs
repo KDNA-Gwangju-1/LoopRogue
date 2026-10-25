@@ -15,7 +15,7 @@ namespace LoopRogue
     {
         public const int SlimePuddleLimit = 8; // 16 → 8(10-16 사용자 "점액 지우기가 생각보다 쉽다") - 점프 한 번에 3칸이라 안 씻으면 점프 세 번에 즉사
         public const int SlimePuddlesPerJump = 3; // 킹이 내려앉을 때 몸 4칸 중 점액이 남는 칸(10-25 사용자 4 → 3)
-        public const int SlimeTurretCooldown = 1;   // 파동을 쏜 뒤 쉬는 턴
+        public const int SlimeTurretCooldown = 2;   // 파동을 쏜 뒤 쉬는 턴 - 예고 1 + 발사 1 + 쉼 2 = 3턴에 한 번(10-25 사용자, 예전 1 = 2턴에 한 번)
         public const int SlimeTurretFarSteps = 3;   // 따라갈 자리가 이보다 멀면 한 턴에 두 칸씩 벽을 탄다
         public const float SlimeTurretDamageRate = 1f; // 킹 공격력 ×
         private static readonly Color SlimeTelegraphColor = new Color(1f, 0.45f, 0.75f, 0.42f); // 보스 예고(빨강)와 구분되는 분홍
