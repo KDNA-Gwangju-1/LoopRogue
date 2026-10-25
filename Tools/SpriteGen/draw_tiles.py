@@ -1,7 +1,9 @@
 """던전 바닥·벽 타일 리드로우(10-24) - 32x32 = 한 칸, DungeonTiles가 칸마다 무작위로 섞어 깐다.
 칸 오른쪽·아래 가장자리는 늘 줄눈(어두운 선) 한 줄이라 어떤 조합으로 붙어도 이어진다.
-Floor_0~5      판석 바닥 - 크기가 다른 돌, 돌마다 위·왼쪽 밝은 모서리 / 아래·오른쪽 그림자, 잔 흠
-FloorDecor_0~5 장식 바닥(10%) - 이끼 / 금 / 뼈 / 물웅덩이 / 돌 부스러기 / 희미한 룬
+Floor_0~9      판석 바닥 - 크기가 다른 돌, 돌마다 위·왼쪽 밝은 모서리 / 아래·오른쪽 그림자, 잔 흠
+               (10-25 테스터 "바닥 종류가 더 많았으면" - 6 → 10: 엇갈린 벽돌 / 통판석 / 작은 정사각 타일 / 섞어 깐 판석 추가)
+FloorDecor_0~11 장식 바닥 - 이끼 / 금 / 뼈 / 물웅덩이 / 돌 부스러기 / 틈새 풀 / 하수구 쇠창살 / 마른 핏자국 /
+               구석 거미줄 / 깨진 항아리 / 작은 버섯 / 녹아내린 초(10-25 마법진 같던 "희미한 룬"은 사용자 요청으로 뺐다)
 WallTop_0~2    벽 윗면 - 두꺼운 덮개돌을 위에서 본 모습
 WallFace_0~5   벽 앞면 - 엇갈려 쌓은 벽돌, 위 턱, 바닥 쪽 그림자 (기본 3 / 금 / 이끼 / 사슬 - 무늬는 각 1/6)
 WallFace_Torch 횃불 벽 - 주변 벽돌이 따뜻하게 물듦
@@ -17,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pix import Canvas
 
 MORTAR = (17, 16, 24)
+OUTLINE = (24, 18, 26)
 STONE = [(30, 29, 39), (38, 37, 49), (45, 44, 57), (53, 52, 66), (63, 61, 77)]   # 그림자 → 밝은 모서리
 TOPS = [(46, 43, 58), (58, 55, 72), (68, 65, 84), (80, 77, 97), (95, 92, 113)]
 BRICK = [(38, 33, 46), (50, 44, 60), (60, 54, 72), (72, 66, 86), (88, 82, 104)]
@@ -69,18 +72,40 @@ FLOOR_LAYOUTS = [  # 줄눈은 칸 오른쪽·아래(31) 한 줄 + 안쪽 나눔
     [(0, 0, 9, 20), (11, 0, 30, 13), (11, 15, 22, 30), (24, 15, 30, 30), (0, 22, 9, 30)],
     [(0, 0, 14, 6), (0, 8, 14, 30), (16, 0, 30, 22), (16, 24, 30, 30)],
     [(0, 0, 30, 14), (0, 16, 21, 30), (23, 16, 30, 30)],
+    # 엇갈려 깐 벽돌
+    [(0, 0, 9, 6), (11, 0, 20, 6), (22, 0, 30, 6), (0, 8, 4, 14), (6, 8, 15, 14), (17, 8, 25, 14), (27, 8, 30, 14),
+     (0, 16, 9, 22), (11, 16, 20, 22), (22, 16, 30, 22), (0, 24, 4, 30), (6, 24, 15, 30), (17, 24, 25, 30), (27, 24, 30, 30)],
+    # 통판석 하나
+    [(0, 0, 30, 30)],
+    # 작은 정사각 타일 4x4
+    [(x, y, x + 6, y + 6) for y in (0, 8, 16, 24) for x in (0, 8, 16, 24)],
+    # 섞어 깐 판석
+    [(0, 0, 30, 5), (0, 7, 7, 30), (9, 7, 30, 18), (9, 20, 19, 30), (21, 20, 30, 30)],
 ]
+FLOOR_COUNT = len(FLOOR_LAYOUTS)
+DECOR_COUNT = 12
+BLOOD = [(52, 22, 28), (66, 26, 32), (80, 32, 38)]
+RUST = [(70, 44, 34), (104, 66, 46), (140, 92, 62), (176, 124, 84)]
+CLAY = [(96, 54, 38), (140, 82, 56), (178, 112, 76), (206, 146, 104)]
+SHROOM = [(120, 60, 120), (170, 90, 160), (214, 140, 200), (240, 200, 230)]
+WAX = [(170, 150, 120), (214, 198, 160), (240, 230, 200)]
 
 
 def floor(i):
     rng = random.Random(100 + i)
     cv = Canvas(32, 32)
-    stones(cv, FLOOR_LAYOUTS[i], STONE, rng)
+    stones(cv, FLOOR_LAYOUTS[i], STONE, rng, pits=5 if len(FLOOR_LAYOUTS[i]) == 1 else 3)
+    if len(FLOOR_LAYOUTS[i]) == 1:  # 통판석 - 가운데 가는 금 하나(밋밋하지 않게)
+        x, y = 6, 22
+        for k in range(14):
+            cv.set(x, y, STONE[0])
+            x += 1
+            y -= rng.choice((0, 1, 1))
     return cv, rng
 
 
 def decor(i):
-    cv, rng = floor((i + 2) % 6)
+    cv, rng = floor((i + 2) % FLOOR_COUNT)
     if i == 0:  # 이끼 - 돌 위에 번진 덩어리 두세 개(가장자리는 성기게)
         for cx, cy, r in ((9, 21, 7), (21, 9, 4.5), (24, 24, 3)):
             for y in range(32):
@@ -132,18 +157,83 @@ def decor(i):
                     if abs(dx) + abs(dy) <= r:
                         cv.set(x + dx, y + dy, STONE[3] if dy < 0 or dx < 0 else STONE[1])
             cv.set(x + r + 1, y + 1, MORTAR)
-    else:  # 희미한 룬(새김)
-        for a in range(0, 360, 8):
-            x = 16 + math.cos(math.radians(a)) * 9
-            y = 16 + math.sin(math.radians(a)) * 9
-            cv.set(int(x), int(y), STONE[0])
-        for p in ((16, 9), (16, 23), (9, 16), (23, 16)):
-            pass
-        for k in range(-5, 6):
-            cv.set(16 + k, 16, STONE[0])
-            cv.set(16, 16 + k, STONE[0])
-        for k in range(-3, 4):
-            cv.set(16 + k, 16 + k, STONE[1])
+    elif i == 5:  # 줄눈 틈새로 삐져나온 풀
+        for x0, y0 in ((14, 31), (31, 12), (15, 11)):
+            for k in range(rng.randint(4, 6)):
+                gx = x0 + rng.randint(-4, 4)
+                gy = y0 + rng.randint(-1, 1)
+                h = rng.randint(2, 4)
+                for t in range(h):
+                    cv.set(gx + (t // 2) * rng.choice((-1, 0, 1)), gy - t, MOSS[2] if t == h - 1 else MOSS[1])
+    elif i == 6:  # 하수구 쇠창살
+        for y in range(9, 23):
+            for x in range(9, 23):
+                edge = x in (9, 22) or y in (9, 22)
+                bar = (x - 10) % 3 == 0
+                cv.set(x, y, RUST[1] if edge else (RUST[2] if bar else (8, 6, 10)))
+        for x in range(10, 22):
+            cv.set(x, 10, RUST[3] if (x - 10) % 3 == 0 else RUST[2])
+        cv.set(9, 9, RUST[3])
+        cv.set(22, 22, RUST[0])
+    elif i == 7:  # 마른 핏자국 - 바닥색에 섞인 얼룩 + 튄 점
+        for cx, cy, r in ((14, 17, 6), (21, 12, 2.5)):
+            for y in range(32):
+                for x in range(32):
+                    d = math.hypot(x - cx, (y - cy) * 1.3) / r
+                    if d < 1 and rng.random() < (0.95 if d < 0.7 else 0.5):
+                        old = cv.get(x, y)
+                        cv.set(x, y, lerp(old[:3], BLOOD[1] if d < 0.5 else BLOOD[0], 0.7))
+        for _ in range(6):
+            cv.set(rng.randint(4, 27), rng.randint(4, 27), BLOOD[2])
+    elif i == 8:  # 왼쪽 위 구석 거미줄
+        web = (150, 150, 165)
+        for a in (0, 22, 45, 68, 90):
+            for k in range(14):
+                x = int(round(math.cos(math.radians(a)) * k))
+                y = int(round(math.sin(math.radians(a)) * k))
+                if rng.random() < 0.9:
+                    cv.set(x, y, web)
+        for rr in (4, 8, 12):
+            for a in range(0, 91, 6):
+                cv.set(int(math.cos(math.radians(a)) * rr), int(math.sin(math.radians(a)) * rr), lerp(web, STONE[2], 0.35))
+    elif i == 9:  # 깨진 항아리 조각
+        pieces = [((10, 18), [(0, 0), (1, 0), (2, 0), (3, 0), (0, 1), (1, 1), (2, 1), (1, 2)]),
+                  ((19, 20), [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1), (3, 1), (2, 2), (3, 2)]),
+                  ((15, 11), [(0, 0), (1, 0), (0, 1), (1, 1), (2, 1)]),
+                  ((22, 14), [(0, 0), (1, 0), (1, 1)])]
+        for (ox, oy), cells in pieces:  # 조각 칸 하나 = 2x2 픽셀
+            big = {(dx * 2 + i, dy * 2 + j) for dx, dy in cells for i in (0, 1) for j in (0, 1)}
+            ox, oy = ox - 6 + (ox - 15) // 2, oy - 6 + (oy - 16) // 2
+            for dx, dy in big:
+                top = (dx, dy - 1) not in big
+                cv.set(ox + dx, oy + dy, CLAY[3] if top and dx < 2 else CLAY[2] if top else CLAY[1] if dy % 4 < 3 else CLAY[0])
+            for dx, dy in big:
+                if (dx, dy + 1) not in big:
+                    cv.set(ox + dx, oy + dy + 1, OUTLINE)
+    elif i == 10:  # 작은 보라 버섯 무리
+        for mx, my in ((12, 20), (17, 22), (15, 16)):
+            for y in range(my, my + 3):
+                cv.set(mx, y, WAX[1])
+            for dx in range(-2, 3):
+                cv.set(mx + dx, my - 1, SHROOM[2] if dx < 1 else SHROOM[1])
+            for dx in range(-1, 2):
+                cv.set(mx + dx, my - 2, SHROOM[3] if dx < 0 else SHROOM[2])
+            cv.set(mx - 3, my - 1, OUTLINE)
+            cv.set(mx + 3, my - 1, OUTLINE)
+            cv.set(mx, my + 3, MORTAR)
+    else:  # 다 녹아내린 초 - 촛농 웅덩이 + 짧은 몽당초
+        for y in range(19, 25):
+            for x in range(9, 24):
+                d = ((x - 16) / 7.5) ** 2 + ((y - 22) / 2.8) ** 2
+                if d <= 1:
+                    cv.set(x, y, WAX[0] if d > 0.7 else WAX[1])
+        for y in range(15, 22):
+            for x in range(14, 19):
+                cv.set(x, y, WAX[2] if x == 14 else WAX[1] if x < 18 else WAX[0])
+        cv.set(16, 14, (40, 34, 30))
+        cv.set(16, 13, (40, 34, 30))
+        cv.set(13, 18, WAX[1])
+        cv.set(13, 19, WAX[1])
     return cv
 
 
@@ -246,8 +336,9 @@ def wall_face(i, torch=False, cracked=False):
 
 if __name__ == '__main__':
     out = sys.argv[1]
-    for i in range(6):
+    for i in range(FLOOR_COUNT):
         floor(i)[0].save(os.path.join(out, f'Floor_{i}.png'))
+    for i in range(DECOR_COUNT):
         decor(i).save(os.path.join(out, f'FloorDecor_{i}.png'))
     for i in range(3):
         wall_top(i).save(os.path.join(out, f'WallTop_{i}.png'))

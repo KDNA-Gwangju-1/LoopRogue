@@ -4,11 +4,11 @@ using UnityEngine;
 namespace LoopRogue
 {
     /// <summary>던전 바닥·벽 도트 타일(Resources/Tiles, 32x32 = 한 칸) - 위에서 비스듬히 내려다보는 시점이라 아래 칸이 바닥인 벽은
-    /// 벽돌 앞면(WallFace), 아니면 덮개돌 윗면(WallTop). 바닥은 기본 돌판 4종에 가끔 장식(금·이끼·뼈·물웅덩이).
+    /// 벽돌 앞면(WallFace), 아니면 덮개돌 윗면(WallTop). 바닥은 기본 돌판 10종에 가끔 장식 12종(금·이끼·뼈·물웅덩이·풀·쇠창살·핏자국·거미줄·항아리·버섯·촛농 등).
     /// 그림이 없거나 봇 실행 중이면 RoomController가 예전 단색 바닥/벽을 쓴다(봇 방 생성 속도 유지).</summary>
     public static class DungeonTiles
     {
-        private const float DecorChance = 0.1f;
+        private const float DecorChance = 0.12f; // 장식 12종(10-25 6 → 12)이라 조금 더 자주
         private const float TorchChance = 0.12f;
 
         // 오류방(10-19) - 깨진 타일(Tiles/Glitch*)을 일반 타일과 섞어 깐다(같은 깨진 칸이 줄 맞춰 반복돼 보이지 않게). RoomController가 오류방을 깔 때만 켠다.

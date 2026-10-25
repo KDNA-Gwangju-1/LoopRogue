@@ -1104,7 +1104,7 @@ namespace LoopRogue
         public void ShowTelegraph(IEnumerable<Vector2Int> tiles, Color? color = null, IEnumerable<Vector2Int> display = null,
             BossPatternType? pattern = null, Vector2Int? direction = null)
         {
-            ClearTelegraph();
+            ClearTelegraph(rebuild: false);
             HitFeedback.OnTelegraph(pattern);
             foreach (var t in tiles)
                 _bossDangerTiles.Add(t);
@@ -1125,7 +1125,7 @@ namespace LoopRogue
         /// 나중 칸은 옅은 보라. 실제 위험 칸(봇·위험 표시 기준)은 바로 다음 웨이브만.</summary>
         public void ShowTelegraphWaves(IReadOnlyList<HashSet<Vector2Int>> waves, int firstNumber, BossPatternType? pattern = null)
         {
-            ClearTelegraph();
+            ClearTelegraph(rebuild: false);
             HitFeedback.OnTelegraph(pattern);
             if (waves.Count == 0)
                 return;
@@ -1145,14 +1145,17 @@ namespace LoopRogue
         }
 
         /// <summary>보스 예고만 지운다(폭발병 예고는 그대로).</summary>
-        public void ClearTelegraph()
+        public void ClearTelegraph() => ClearTelegraph(rebuild: true);
+
+        /// <summary>rebuild = false면 위험 칸 다시 계산은 호출부가(바로 새 예고를 깔 때 두 번 하지 않게).</summary>
+        private void ClearTelegraph(bool rebuild)
         {
             foreach (var go in _telegraphObjects)
-                if (go != null)
-                    Destroy(go);
+                Fx.Release(go); // 지우지 않고 풀로 - 다음 예고가 그대로 다시 쓴다
             _telegraphObjects.Clear();
             _bossDangerTiles.Clear();
-            RebuildDangerTiles();
+            if (rebuild)
+                RebuildDangerTiles();
         }
 
         /// <summary>보스 예고 + 폭발 예고 전부 - 방을 비우거나 플레이어가 죽을 때.</summary>
@@ -1160,8 +1163,7 @@ namespace LoopRogue
         {
             foreach (var bomb in _bombs.Values)
                 foreach (var go in bomb.Objects)
-                    if (go != null)
-                        Destroy(go);
+                    Fx.Release(go);
             _bombs.Clear();
             DestroyPlayerBombObjects(); // 던져 놓고 안 터진 폭탄(같은 턴에 출구로 나감·사망)도 - 예전엔 목록만 비워 그림이 다음 방까지 남았다
             ClearTelegraph();
@@ -1171,8 +1173,7 @@ namespace LoopRogue
         {
             foreach (var bomb in _playerBombs)
                 foreach (var go in bomb.Objects)
-                    if (go != null)
-                        Destroy(go);
+                    Fx.Release(go);
             _playerBombs.Clear();
         }
 
@@ -1226,8 +1227,7 @@ namespace LoopRogue
             if (!_bombs.TryGetValue(bomber, out var bomb))
                 return;
             foreach (var go in bomb.Objects)
-                if (go != null)
-                    Destroy(go);
+                Fx.Release(go);
             _bombs.Remove(bomber);
             RebuildDangerTiles();
         }
@@ -1651,8 +1651,7 @@ namespace LoopRogue
             if (!_crystalTelegraphs.TryGetValue(c, out var tel))
                 return;
             foreach (var go in tel.Objects)
-                if (go != null)
-                    Destroy(go);
+                Fx.Release(go);
             _crystalTelegraphs.Remove(c);
             RebuildDangerTiles();
         }

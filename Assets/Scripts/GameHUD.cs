@@ -902,13 +902,14 @@ namespace LoopRogue
             _deathTitle.color = Color.clear;
         }
 
-        /// <summary>리플레이 그림을 녹화 때 카메라가 그리던 자리(HUD 띠를 뺀 가운데)에 그대로.</summary>
+        /// <summary>리플레이 그림을 녹화 때 카메라가 그리던 자리(HUD 띠를 뺀 가운데)에 그대로 - 복사본은 화면 전체라 그 부분만 잘라서(uvRect).</summary>
         private void PlaceReplayImage(Rect viewport)
         {
             var rect = _replayImage.rectTransform;
             rect.anchorMin = new Vector2(viewport.xMin, viewport.yMin);
             rect.anchorMax = new Vector2(viewport.xMax, viewport.yMax);
             rect.offsetMin = rect.offsetMax = Vector2.zero;
+            _replayImage.uvRect = viewport;
         }
 
         private void EnsureDeathOverlay()
