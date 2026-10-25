@@ -6,25 +6,27 @@ using UnityEngine;
 namespace LoopRogue
 {
     /// <summary>4층 슬라임 킹 기믹(10-16 사용자, 예전 "졸개 흡수"를 대신함) - 체력 50% 아래에서 한 번.
-    /// 킹이 2x2로 작아지며 둘로 갈라지고, 떨어져 나간 분열체는 벽에 붙은 무적 포탑이 된다. 포탑은 벽을 따라 미끄러져 내 줄에 맞춘 뒤
-    /// 내 쪽 일직선 + 위아래 대각선 2줄(3줄) 점액 파동을 예고하고 쏜다. 킹은 점프 짓누르기(BossBrain.Jump)로 내 자리에 내려앉고
-    /// 내려앉은 칸에 점액을 남긴다 - 밟으면 한 턴 묶이고(점액은 떨어진다), 포탑 파동이 지나가면 지워진다.
-    /// 점액이 SlimePuddleLimit칸 쌓이면 바닥이 뒤덮여 즉사(보호막·부활 무시).</summary>
+    /// 킹이 2x2로 작아지며 둘로 갈라지고, 떨어져 나간 분열체는 방 둘레 장식 벽 위로 올라간 무적 포탑이 된다(10-25 사용자 - 예전엔 방 안 벽가에
+    /// 2x2로 붙어 한 벽만 미끄러지다 세 번 쏘면 다른 벽으로 순간이동). 포탑은 둘레 벽을 타고 모퉁이를 돌며 나를 따라다니다
+    /// 내 줄에 오면 방 안쪽으로 일직선(두 줄 폭) + 양옆 대각선 2줄 점액 파동을 예고하고 쏜다. 바닥 칸은 차지하지 않는다.
+    /// 킹은 점프 짓누르기(BossBrain.Jump)로 내 자리에 내려앉고 내려앉은 칸에 점액을 남긴다 - 밟으면 한 턴 묶이고(점액은 떨어진다),
+    /// 포탑 파동이 지나가면 지워진다. 점액이 SlimePuddleLimit칸 쌓이면 바닥이 뒤덮여 즉사(보호막·부활 무시).</summary>
     public partial class RoomController
     {
         public const int SlimePuddleLimit = 8; // 16 → 8(10-16 사용자 "점액 지우기가 생각보다 쉽다") - 점프 한 번에 4칸이라 안 씻으면 점프 두 번에 즉사
         public const int SlimeTurretCooldown = 1;   // 파동을 쏜 뒤 쉬는 턴
-        public const int SlimeTurretHopEvery = 3;   // 이만큼 쏘면 다른 벽으로 옮겨 붙는다
+        public const int SlimeTurretFarSteps = 3;   // 따라갈 자리가 이보다 멀면 한 턴에 두 칸씩 벽을 탄다
         public const float SlimeTurretDamageRate = 1f; // 킹 공격력 ×
         private static readonly Color SlimeTelegraphColor = new Color(1f, 0.45f, 0.75f, 0.42f); // 보스 예고(빨강)와 구분되는 분홍
         private static readonly Color SlimeColor = new Color(0.84f, 0.25f, 0.33f, 0.8f);      // 킹 그림(Boss4) 몸 색
 
         private readonly Dictionary<Vector2Int, GameObject> _slimePuddles = new Dictionary<Vector2Int, GameObject>();
         private EnemyActor _slimeTurret;
-        private Vector2Int _turretNormal;           // 포탑이 붙은 벽에서 방 안쪽 방향
+        private Vector2Int _turretNormal;           // 포탑이 앉은 벽에서 방 안쪽 방향
         private List<Vector2Int> _turretPending;    // 예고해 둔 파동 칸
         private int _turretCooldown;
-        private int _turretShots;
+        private readonly List<Vector2Int> _wallRing = new List<Vector2Int>(); // 방 둘레 장식 벽(시계 방향, 네 모서리 칸 제외)
+        private int _turretRing;                    // 포탑이 앉은 자리 - 고리 순서상 i·i+1 두 칸
 
         public IReadOnlyCollection<Vector2Int> SlimePuddles => _slimePuddles.Keys;
         public bool IsSlimePuddle(Vector2Int p) => _slimePuddles.ContainsKey(p);
@@ -54,80 +56,89 @@ namespace LoopRogue
             c.StepDelays.Add(BlobFlySeconds + 0.55f);
         }
 
-        // ---- 포탑은 2x2(10-16 사용자) - 기준점 a가 왼쪽 아래 칸, 몸은 a ~ a+(1,1). normal = 등진 벽에서 방 안쪽 방향.
-        private static readonly Vector2Int[] TurretDirs = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+        // ---- 포탑 자리 = 방 둘레 장식 벽(방 칸 바로 바깥 한 줄, 이동 판정 없음) 위의 같은 변 이웃 두 칸. 바닥 칸을 차지하지 않는다.
+        private static int Dot2(Vector2Int a, Vector2Int b) => a.x * b.x + a.y * b.y;
         private static Vector2Int TangentOf(Vector2Int n) => new Vector2Int(Mathf.Abs(n.y), Mathf.Abs(n.x)); // 벽을 따라가는 축(+쪽)
 
-        private static IEnumerable<Vector2Int> TurretBody(Vector2Int a)
+        private void BuildWallRing()
         {
-            for (var dx = 0; dx <= 1; dx++)
-            for (var dy = 0; dy <= 1; dy++)
-                yield return a + new Vector2Int(dx, dy);
+            _wallRing.Clear();
+            int w = Map.Width, h = Map.Height;
+            for (var x = 0; x < w; x++) _wallRing.Add(new Vector2Int(x, -1));      // 아래 변
+            for (var y = 0; y < h; y++) _wallRing.Add(new Vector2Int(w, y));       // 오른쪽 변
+            for (var x = w - 1; x >= 0; x--) _wallRing.Add(new Vector2Int(x, h));  // 위 변
+            for (var y = h - 1; y >= 0; y--) _wallRing.Add(new Vector2Int(-1, y)); // 왼쪽 변
         }
 
-        /// <summary>몸 중 벽 쪽(뒤) 두 칸 / 방 안쪽(앞) 두 칸.</summary>
-        private static IEnumerable<Vector2Int> TurretSide(Vector2Int a, Vector2Int n, bool back)
+        private Vector2Int Ring(int i) => _wallRing[((i % _wallRing.Count) + _wallRing.Count) % _wallRing.Count];
+
+        private Vector2Int InwardOf(Vector2Int c) =>
+            c.y < 0 ? Vector2Int.up : c.x >= Map.Width ? Vector2Int.left : c.y >= Map.Height ? Vector2Int.down : Vector2Int.right;
+
+        /// <summary>고리 i·i+1이 같은 변이면 포탑이 앉을 수 있다(모퉁이를 걸치면 안 됨). a = 벽을 따라 작은 쪽 칸, n = 방 안쪽.</summary>
+        private bool RingSpot(int i, out Vector2Int a, out Vector2Int n)
         {
-            var towardBack = back ? -n : n;
-            return TurretBody(a).Where(c => !TurretBody(a).Contains(c + towardBack));
+            var c0 = Ring(i);
+            var c1 = Ring(i + 1);
+            n = InwardOf(c0);
+            var t = TangentOf(n);
+            a = Dot2(c0, t) <= Dot2(c1, t) ? c0 : c1;
+            return InwardOf(c1) == n && Mathf.Abs(Dot2(c1 - c0, t)) == 1;
         }
 
-        /// <summary>2x2 몸이 a에 들어가고(벽·출구·다른 몹 없음), 뒤 두 칸이 모두 벽을 등지는지.</summary>
-        private bool TurretFits(Vector2Int a, Vector2Int n, GridActor self)
+        /// <summary>포탑 몸(벽 위 두 칸) 기준으로 내가 벽을 따라 몇 칸째에 있나 - 0·1이면 일직선 두 줄 안.</summary>
+        private static int AlongOf(Vector2Int a, Vector2Int n, Vector2Int p) => Dot2(p - a, TangentOf(n));
+
+        private int RingDistance(int from, int to)
         {
-            foreach (var c in TurretBody(a))
-            {
-                if (!Map.IsInBounds(c) || Map.IsWall(c) || c == ExitPosition)
-                    return false;
-                var who = Map.GetActorAt(c);
-                if (who != null && who != self)
-                    return false;
-            }
-            return TurretSide(a, n, back: true).All(b => !Map.IsInBounds(b - n) || Map.IsWall(b - n));
+            var d = ((to - from) % _wallRing.Count + _wallRing.Count) % _wallRing.Count;
+            return Mathf.Min(d, _wallRing.Count - d);
         }
 
-        private List<(Vector2Int A, Vector2Int N)> TurretSpots(GridActor self, System.Func<Vector2Int, Vector2Int, bool> extra)
+        private int DistanceToPlayer(int i)
         {
-            var spots = new List<(Vector2Int, Vector2Int)>();
-            for (var x = 0; x < Map.Width - 1; x++)
-            for (var y = 0; y < Map.Height - 1; y++)
-            {
-                var a = new Vector2Int(x, y);
-                foreach (var n in TurretDirs)
-                    if (TurretFits(a, n, self) && extra(a, n))
-                        spots.Add((a, n));
-            }
-            return spots;
+            RingSpot(i, out var a, out var n);
+            var t = TangentOf(n);
+            return Mathf.Min(Mathf.Abs((a + n).x - _player.GridPos.x) + Mathf.Abs((a + n).y - _player.GridPos.y),
+                             Mathf.Abs((a + t + n).x - _player.GridPos.x) + Mathf.Abs((a + t + n).y - _player.GridPos.y));
         }
 
-        private int DistanceToPlayer(Vector2Int a) =>
-            TurretBody(a).Min(c => Mathf.Abs(c.x - _player.GridPos.x) + Mathf.Abs(c.y - _player.GridPos.y));
+        /// <summary>포탑을 고리 i 자리에 앉힌다 - 지도 칸은 차지하지 않고(GridPos만), 그림은 두 벽 칸 사이 가운데.</summary>
+        private void SeatSlimeTurret(EnemyActor turret, int i)
+        {
+            RingSpot(i, out var a, out var n);
+            _turretRing = i;
+            _turretNormal = n;
+            var t = TangentOf(n);
+            turret.WallVisualOffset = new Vector3(t.x, t.y, 0f) * (GridConstants.CellSize * 0.5f);
+            turret.Map = Map;
+            turret.GridPos = a;
+        }
 
         private bool SpawnSlimeTurret(EnemyActor boss)
         {
             if (_slimeTurret != null)
                 return false;
-            var spots = TurretSpots(null, (a, n) => TurretBody(a).All(c => GridMap.FootprintChebyshev(boss, c) >= 2));
+            BuildWallRing();
+            var spots = Enumerable.Range(0, _wallRing.Count).Where(i => RingSpot(i, out _, out _)).ToList();
             if (spots.Count == 0)
                 return false;
-            // 나에게서 먼 쪽 벽부터(바로 옆에 붙으면 첫 파동을 못 피한다)
-            var far = spots.OrderByDescending(sp => DistanceToPlayer(sp.A)).Take(Mathf.Max(1, spots.Count / 3)).ToList();
-            var (spot, normal) = far[Rng.Next(far.Count)];
+            // 나에게서 먼 쪽 벽부터(바로 옆에 앉으면 첫 파동을 못 피한다)
+            var far = spots.OrderByDescending(DistanceToPlayer).Take(Mathf.Max(1, spots.Count / 3)).ToList();
+            var spot = far[Rng.Next(far.Count)];
 
             var go = new GameObject("SlimeTurret");
             go.transform.SetParent(transform, false);
             var turret = go.AddComponent<EnemyActor>();
             turret.Initialize(boss.Stats.MaxHealth, boss.Stats.AttackPower * SlimeTurretDamageRate, isBoss: false, kind: EnemyKind.Melee);
             turret.MarkAsMinion();          // 보상 없음, 킹이 죽으면 같이 사라짐
-            turret.MarkAsSlimeTurret(boss); // 2x2 몸 + 칼이 안 통함 + 킹 그림
-            Map.PlaceActor(turret, spot);
+            turret.MarkAsSlimeTurret(boss); // 칼이 안 통함 + 킹 그림(2x2 크기)
+            SeatSlimeTurret(turret, spot);  // 벽 위 - 지도 칸은 차지하지 않는다
             turret.SyncTransform();
             _enemies.Add(turret);
             _slimeTurret = turret;
-            _turretNormal = normal;
             _turretPending = null;
             _turretCooldown = 1;
-            _turretShots = 0;
             return true;
         }
 
@@ -179,40 +190,54 @@ namespace LoopRogue
                 FireSlimeWave(turret, player);
                 return;
             }
-            // 내 줄에 맞춘다 - 몸 두 줄(벽을 따라 0·1번째) 안에 내가 들어오게 한 칸씩 미끄러진다
-            var t = TangentOf(_turretNormal);
-            int Along() => (player.GridPos.x - turret.GridPos.x) * t.x + (player.GridPos.y - turret.GridPos.y) * t.y;
             if (_turretCooldown > 0)
                 _turretCooldown--;
-            var along = Along();
-            if (along < 0 || along > 1)
-            {
-                var step = turret.GridPos + t * (along < 0 ? -1 : 1);
-                if (TurretFits(step, _turretNormal, turret))
-                {
-                    Map.MoveActor(turret, step);
-                    along = Along();
-                }
-            }
+            FollowAlongWall(turret, player.GridPos);
+            RingSpot(_turretRing, out var a, out var n);
+            var along = AlongOf(a, n, player.GridPos);
             if (_turretCooldown > 0 || along < -1 || along > 2)
-                return; // 아직 쉬는 중이거나 줄이 멀다 - 계속 미끄러진다
+                return; // 아직 쉬는 중이거나 줄이 멀다 - 계속 따라간다
             if (player.RootedTurns > 0)
                 return; // 점액에 묶여 다음 턴에 못 움직이면 예고해도 못 피한다 - 풀릴 때까지 미룬다
-            _turretPending = SlimeWaveTiles(turret.GridPos);
+            _turretPending = SlimeWaveTiles(a, n);
             ShowEnemyTelegraph(turret, _turretPending, SlimeTelegraphColor, "tel_slime"); // 흘러내리는 점액 예고(10-23)
         }
 
-        /// <summary>포탑 파동 - 앞 두 칸에서 방 안쪽으로 곧게(두 줄 폭) + 앞 모서리에서 바깥쪽 대각선 2줄, 벽이나 방 끝까지.</summary>
-        private List<Vector2Int> SlimeWaveTiles(Vector2Int a)
+        /// <summary>둘레 벽을 타고(모퉁이를 돌아) 내 줄과 맞는 가장 가까운 자리로 - 한 턴 한 칸, 멀면 두 칸.</summary>
+        private void FollowAlongWall(EnemyActor turret, Vector2Int target)
         {
-            var n = _turretNormal;
+            int? best = null;
+            for (var i = 0; i < _wallRing.Count; i++)
+            {
+                if (!RingSpot(i, out var a, out var n))
+                    continue;
+                var along = AlongOf(a, n, target);
+                if (along < 0 || along > 1)
+                    continue;
+                if (best == null || RingDistance(_turretRing, i) < RingDistance(_turretRing, best.Value))
+                    best = i;
+            }
+            if (best == null || best.Value == _turretRing)
+                return;
+            var forward = ((best.Value - _turretRing) % _wallRing.Count + _wallRing.Count) % _wallRing.Count;
+            var dir = forward <= _wallRing.Count - forward ? 1 : -1;
+            var steps = RingDistance(_turretRing, best.Value) > SlimeTurretFarSteps ? 2 : 1;
+            int Wrap(int i) => ((i % _wallRing.Count) + _wallRing.Count) % _wallRing.Count;
+            var i2 = _turretRing;
+            for (var k = 0; k < steps && i2 != best.Value; k++)
+            {
+                i2 = Wrap(i2 + dir);
+                if (!RingSpot(i2, out _, out _) && i2 != best.Value)
+                    i2 = Wrap(i2 + dir); // 모퉁이는 건너뛴다(두 변에 걸쳐 앉지 않게)
+            }
+            SeatSlimeTurret(turret, i2);
+        }
+
+        /// <summary>포탑 파동 - 벽 위 두 칸에서 방 안쪽으로 곧게(두 줄 폭) + 양 끝에서 바깥쪽 대각선 2줄, 벽이나 방 끝까지.</summary>
+        private List<Vector2Int> SlimeWaveTiles(Vector2Int a, Vector2Int n)
+        {
             var t = TangentOf(n);
-            var front = TurretSide(a, n, back: false).OrderBy(c => c.x * t.x + c.y * t.y).ToList(); // 벽을 따라 작은 쪽 → 큰 쪽
-            var rays = new List<(Vector2Int From, Vector2Int D)>();
-            foreach (var f in front)
-                rays.Add((f, n));
-            rays.Add((front[0], n - t));
-            rays.Add((front[front.Count - 1], n + t));
+            var rays = new List<(Vector2Int From, Vector2Int D)> { (a, n), (a + t, n), (a, n - t), (a + t, n + t) };
             var tiles = new List<Vector2Int>();
             foreach (var (from, d) in rays)
                 for (var p = from + d; Map.IsInBounds(p) && !Map.IsWall(p); p += d)
@@ -256,26 +281,7 @@ namespace LoopRogue
             if (washed.Count > 0)
                 ShowMessage(Loc.F("<color=#FF7088>파동이 점액 {0}칸을 씻어 냈다</color> (남은 점액 {1}/{2})", washed.Count, _slimePuddles.Count, SlimePuddleLimit));
             _turretCooldown = SlimeTurretCooldown;
-            if (++_turretShots % SlimeTurretHopEvery == 0)
-                HopSlimeTurret(turret);
             UpdateGimmickLabel();
-        }
-
-        /// <summary>다른 벽으로 옮겨 붙는다 - 지금 벽과 다른 방향 벽 중 나에게서 4칸 넘게 떨어진 자리.</summary>
-        private void HopSlimeTurret(EnemyActor turret)
-        {
-            var spots = TurretSpots(turret, (a, n) => n != _turretNormal && DistanceToPlayer(a) >= 4
-                                                     && (_gimmickBoss == null || TurretBody(a).All(c => !GridMap.Occupies(_gimmickBoss, c))));
-            if (spots.Count == 0)
-                return;
-            var (spot, normal) = spots[Rng.Next(spots.Count)];
-            Map.MoveActor(turret, spot);
-            if (turret.TryGetComponent<SpriteAnimator>(out var anim))
-                anim.SnapToGrid();
-            turret.SyncTransform();
-            _turretNormal = normal;
-            if (HitFeedback.Enabled)
-                HitFeedback.OnSummon(turret.transform.position);
         }
 
         // ------------------------------------------------------------------ 점액
@@ -323,7 +329,7 @@ namespace LoopRogue
             _slimeTurret = null;
             _turretPending = null;
             _turretCooldown = 0;
-            _turretShots = 0;
+            _wallRing.Clear();
         }
     }
 }

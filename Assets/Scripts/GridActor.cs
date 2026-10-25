@@ -23,8 +23,11 @@ namespace LoopRogue
         /// <summary>그림이 놓일 자리 - 짝수 몸(2x2)은 칸 사이 가운데.</summary>
         public Vector3 FootprintVisualOffset => new Vector3((FootprintMin + FootprintMax) * 0.5f * GridConstants.CellSize, (FootprintMin + FootprintMax) * 0.5f * GridConstants.CellSize, 0f);
 
+        /// <summary>그림을 GridPos 칸에서 얼마나 옮겨 그릴지 - 기본은 몸 가운데(FootprintVisualOffset). 4층 벽 포탑은 벽 위 두 칸 사이로 덮어쓴다.</summary>
+        public virtual Vector3 VisualOffset => FootprintVisualOffset;
+
         /// <summary>지금 격자 칸의 월드 위치(연출이 잠깐 위치를 흔든 뒤 돌아올 기준점).</summary>
-        public Vector3 GridWorldPosition => new Vector3(GridPos.x * GridConstants.CellSize, GridPos.y * GridConstants.CellSize, 0f) + FootprintVisualOffset;
+        public Vector3 GridWorldPosition => new Vector3(GridPos.x * GridConstants.CellSize, GridPos.y * GridConstants.CellSize, 0f) + VisualOffset;
 
         public void SyncTransform()
         {

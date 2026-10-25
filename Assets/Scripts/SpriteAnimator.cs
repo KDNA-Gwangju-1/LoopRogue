@@ -175,7 +175,7 @@ namespace LoopRogue
                 // 옆 칸으로 한 걸음일 때만 걸어서(밀려나기·순간이동은 그대로 툭)
                 if (Frames(_set.Walk).Length > 0 && Mathf.Abs(delta.x) + Mathf.Abs(delta.y) == 1)
                 {
-                    _stepFrom = new Vector3(_lastPos.x * GridConstants.CellSize, _lastPos.y * GridConstants.CellSize, 0f) + _actor.FootprintVisualOffset;
+                    _stepFrom = new Vector3(_lastPos.x * GridConstants.CellSize, _lastPos.y * GridConstants.CellSize, 0f) + _actor.VisualOffset;
                     _stepStart = Time.time;
                     _stepParity ^= 1;
                 }

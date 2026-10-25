@@ -188,12 +188,16 @@ namespace LoopRogue
             SyncTransform();
         }
 
-        /// <summary>4층 분열체(벽 포탑) - 칼이 안 통하고 움직이며 점액 파동만 쏜다(RoomController.SlimeTurretTurn).</summary>
+        /// <summary>4층 분열체(벽 포탑) - 방 둘레 장식 벽 위를 타고 다니며 점액 파동만 쏜다(RoomController.SlimeTurretTurn). 칼이 안 통하고,
+        /// 지도 칸을 차지하지 않는다(10-25 사용자 - 예전엔 방 안 벽가 2x2를 점유). 그림만 킹을 2x2 크기로.</summary>
         public bool IsSlimeTurret { get; private set; }
+        /// <summary>벽 포탑 그림 위치 - 벽 위 두 칸 사이 가운데(RoomController.SeatSlimeTurret이 정한다). 없으면 평소대로.</summary>
+        public Vector3? WallVisualOffset { get; set; }
+        public override Vector3 VisualOffset => WallVisualOffset ?? FootprintVisualOffset;
+
         public void MarkAsSlimeTurret(EnemyActor king)
         {
             IsSlimeTurret = true;
-            _slimeSmall = true; // 2x2(10-16 사용자) - 칸에 놓기 전에 정해야 2x2로 점유한다
             var first = SpriteAnimator.FirstFrame("Boss4");
             if (first == null)
                 return;
@@ -794,7 +798,7 @@ namespace LoopRogue
 
             if (IsSlimeTurret)
             {
-                room.SlimeTurretTurn(this, player); // 4층 벽 포탑 - 미끄러지며 점액 파동만
+                room.SlimeTurretTurn(this, player); // 4층 벽 포탑 - 둘레 벽을 타고 따라다니며 점액 파동만
                 return;
             }
 
