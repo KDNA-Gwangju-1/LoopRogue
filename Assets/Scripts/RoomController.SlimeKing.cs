@@ -9,11 +9,12 @@ namespace LoopRogue
     /// 킹이 2x2로 작아지며 둘로 갈라지고, 떨어져 나간 분열체는 방 둘레 장식 벽 위로 올라간 무적 포탑이 된다(10-25 사용자 - 예전엔 방 안 벽가에
     /// 2x2로 붙어 한 벽만 미끄러지다 세 번 쏘면 다른 벽으로 순간이동). 포탑은 둘레 벽을 타고 모퉁이를 돌며 나를 따라다니다
     /// 내 줄에 오면 방 안쪽으로 일직선(두 줄 폭) + 양옆 대각선 2줄 점액 파동을 예고하고 쏜다. 바닥 칸은 차지하지 않는다.
-    /// 킹은 점프 짓누르기(BossBrain.Jump)로 내 자리에 내려앉고 내려앉은 칸에 점액을 남긴다 - 밟으면 한 턴 묶이고(점액은 떨어진다),
+    /// 킹은 점프 짓누르기(BossBrain.Jump)로 내 자리에 내려앉고 내려앉은 몸 4칸 중 3칸에 점액을 남긴다 - 밟으면 한 턴 묶이고(점액은 떨어진다),
     /// 포탑 파동이 지나가면 지워진다. 점액이 SlimePuddleLimit칸 쌓이면 바닥이 뒤덮여 즉사(보호막·부활 무시).</summary>
     public partial class RoomController
     {
-        public const int SlimePuddleLimit = 8; // 16 → 8(10-16 사용자 "점액 지우기가 생각보다 쉽다") - 점프 한 번에 4칸이라 안 씻으면 점프 두 번에 즉사
+        public const int SlimePuddleLimit = 8; // 16 → 8(10-16 사용자 "점액 지우기가 생각보다 쉽다") - 점프 한 번에 3칸이라 안 씻으면 점프 세 번에 즉사
+        public const int SlimePuddlesPerJump = 3; // 킹이 내려앉을 때 몸 4칸 중 점액이 남는 칸(10-25 사용자 4 → 3)
         public const int SlimeTurretCooldown = 1;   // 파동을 쏜 뒤 쉬는 턴
         public const int SlimeTurretFarSteps = 3;   // 따라갈 자리가 이보다 멀면 한 턴에 두 칸씩 벽을 탄다
         public const float SlimeTurretDamageRate = 1f; // 킹 공격력 ×

@@ -748,7 +748,8 @@ namespace LoopRogue
                     CameraShake.Shake(0.25f, 0.45f);
                 }
                 if (landed && room.GimmickStage == 4)
-                    room.AddSlimePuddles(GridMap.CellsOf(_boss).ToList()); // 즉사면 몹 턴 루프가 사망 처리
+                    room.AddSlimePuddles(GridMap.CellsOf(_boss)  // 몸 4칸 중 무작위 SlimePuddlesPerJump칸(10-25 사용자 4 → 3) - 즉사면 몹 턴 루프가 사망 처리
+                        .Where(c => !room.IsSlimePuddle(c)).OrderBy(_ => Rng.Next()).Take(RoomController.SlimePuddlesPerJump).ToList());
             }
 
             if (type == BossPatternType.Slam && IsOgre && _crackPhase)
