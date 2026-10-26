@@ -720,14 +720,11 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 성공! 레벨업 카드 1장	Success! 1 level-up card
 여기선 스킬·아이템을 쓸 수 없다	Skills and items can't be used here
 시간 초과	Time's up
-잘 봐라!	Watch closely!
 {0} / {1}	{0} / {1}
 얼음 미끄럼	Ice Slide
 이동 횟수를 다 썼다	Out of moves
 함정 복도	Trap Corridor
 함정에 맞았다	Hit by a trap
-룬 순서	Rune Order
-순서가 틀렸다	Wrong order
 상자 밀기	Box Push
 전투 퍼즐	Combat Puzzle
 {0}턴 안에 몹을 전부 쓰러뜨려라.	Defeat every monster within {0} turns.
@@ -746,8 +743,6 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 버티기	Survival
 남은 시간 {0}:{1:00}	Time left {0}:{1:00}
 보물 상자를 눈으로 쫓아 부딪혀 열어라. 라운드를 전부 맞혀야 성공! 마지막 라운드엔 상자가 어두워진다.	Follow the treasure chest and bump it to open. Win every round! In the last round the chests go dark.
-라운드 {0} / {1}	Round {0} / {1}
-정답! 라운드 {0} / {1}	Correct! Round {0} / {1}
 점수 {0} / {1}   남은 턴 {2}	Score {0} / {1}   Turns left {2}
 폭탄 슬라임! 점수 -2	Bomb slime! Score -2
 황금 슬라임을 구석으로 몰아 부딪혀라({0}턴마다 숨을 고른다). 지나간 자리의 점액을 밟으면 발이 묶인다!	Corner the golden slime and bump into it (it rests every {0} turns). Stepping in its slime trail roots you!
@@ -770,9 +765,6 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 아직	not yet
 레버를 당겼다! 출구가 열렸다	Lever pulled! The exit is open
 출구가 잠겨 있다 - 파란 레버를 먼저 밟아라	The exit is locked - step on the blue lever first
-룬이 빛나는 순서대로 밟아라. 라운드마다 길어지고, 4층부터 마지막 라운드는 거꾸로 밟아야 한다!	Step on the runes in the order they light up. Each round is longer, and from floor 4 the last round must be done in reverse!
-거꾸로!	Reverse!
-이번엔 거꾸로 밟아라!	This time, in reverse!
 되돌리기 [Z]	Undo [Z]
 되돌릴 수가 없다	Nothing to undo
 머리 위 번호 순서대로 쓰러뜨려라. 다른 몹을 먼저 잡으면 실패! (회전 베기·폭탄 조심)	Defeat monsters in the order of the numbers above them. Kill another first and you fail! (Careful with Spin Slash and bombs)
@@ -1246,3 +1238,10 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 반격!	Counter!
 두 턴에 한 번 방패를 세워 반격 자세를 잡는다(몸에 방패 빛). 그때 때리면 피해를 거의 막고 공격력 2배로 되받아친다 - 일반 공격·대시·회전 베기 모두. 자세를 잡은 턴엔 한 칸 물러나거나 기다렸다가, 자세를 푼 틈에 때리자. 4층부터.	Every other turn it raises its shield into a counter stance (shield glow on its body). Hit it then and it blocks almost everything and strikes back for 2x attack - normal attacks, dashes and spins alike. On its stance turn, step back or wait, then strike when it lowers its guard. From floor 4.
 플레이어를 본 순간부터 머리 위 숫자를 세며 주문을 외운다({0}턴). 1이 되면 내 둘레 3x3을 예고하고, 0이 되면 그 칸이 폭발한다 - 맞으면 즉사급. 몸이 약하니 숫자가 끝나기 전에 뛰어가 잡거나, 대시로 빠지거나 보호막으로 막자. 6층부터, 방에 한 마리까지.	From the moment it sees you it chants, counting down the number above its head ({0} turns). At 1 it marks the 3x3 around you, and at 0 those tiles explode - a near-certain kill if it hits. It is frail - rush in and kill it before the count runs out, dash out, or block it with a shield. From floor 6, at most one per room.
+색 발판	Color Tiles
+바닥 보석의 색을 벽에 걸린 석판과 똑같이 맞춰라. 발판 위에서 [Space]로 대기하면 발판이 작동한다 - 어느 칸이 바뀌는지는 직접 알아내라.	Match the gems on the floor to the stone tablet on the wall. Wait on a tile with [Space] to trigger it - figure out for yourself which tiles change.
+일치 {0} / {1}	Match {0} / {1}
+발판 작동 [Space]	Trigger tile [Space]
+잘 봐라!	Watch closely!
+라운드 {0} / {1}	Round {0} / {1}
+정답! 라운드 {0} / {1}	Correct! Round {0} / {1}

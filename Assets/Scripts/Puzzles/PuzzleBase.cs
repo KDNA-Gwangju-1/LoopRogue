@@ -10,7 +10,7 @@ namespace LoopRogue
     {
         IceSlide,        // 얼음 미끄럼
         TrapCorridor,    // 함정 복도
-        RuneOrder,       // 룬 순서
+        ColorTiles,      // 색 발판(10-26 룬 순서 대신 - 같은 자리)
         BoxPush,         // 상자 밀기
         CombatChallenge, // 전투 퍼즐
         ShellGame,       // 상자 섞기
@@ -33,7 +33,7 @@ namespace LoopRogue
         {
             PuzzleType.IceSlide => new IceSlidePuzzle(),
             PuzzleType.TrapCorridor => new TrapCorridorPuzzle(),
-            PuzzleType.RuneOrder => new RuneOrderPuzzle(),
+            PuzzleType.ColorTiles => new ColorTilesPuzzle(),
             PuzzleType.BoxPush => new BoxPushPuzzle(),
             PuzzleType.CombatChallenge => new CombatChallengePuzzle(),
             PuzzleType.ShellGame => new ShellGameMiniGame(),
@@ -56,10 +56,10 @@ namespace LoopRogue
         public static bool GivesPotions(PuzzleType type) =>
             type == PuzzleType.CombatChallenge || type == PuzzleType.Survival || type == PuzzleType.TrapCorridor || type == PuzzleType.GoldenChase;
 
-        /// <summary>치명타 영약 1개 - 얼음 미끄럼·룬 순서·두더지 잡기·황금 고블린. 치명타 영약이 아직 안 열렸으면(3스테이지 전,
+        /// <summary>치명타 영약 1개 - 얼음 미끄럼·색 발판·두더지 잡기·황금 고블린. 치명타 영약이 아직 안 열렸으면(3스테이지 전,
         /// 상점에서도 비공개) 대신 공격력 영약 1개.</summary>
         public static bool GivesCriticalPotion(PuzzleType type) =>
-            type == PuzzleType.IceSlide || type == PuzzleType.RuneOrder || type == PuzzleType.WhackSlime || type == PuzzleType.GoldenChase;
+            type == PuzzleType.IceSlide || type == PuzzleType.ColorTiles || type == PuzzleType.WhackSlime || type == PuzzleType.GoldenChase;
 
         /// <summary>에디터 메뉴 "퍼즐 테스트 모드"(EditorPrefs) - 켜져 있으면 일반 방마다 퍼즐이 1번부터 차례로 나온다(확률 무시).</summary>
         public const string TestModePrefKey = "LoopRogue_PuzzleTestMode";
@@ -254,7 +254,7 @@ namespace LoopRogue
             _hud = null;
         }
 
-        // ---- 시작 연출(룬 순서 보여주기, 상자 섞기) - 그동안 입력을 잠근다 ----
+        // ---- 시작 연출(상자 섞기 등) - 그동안 입력을 잠근다 ----
 
         protected bool InIntro => _intro != null;
 

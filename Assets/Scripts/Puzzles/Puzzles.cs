@@ -465,177 +465,267 @@ namespace LoopRogue
         }
     }
 
-    /// <summary>룬 순서 - 룬들이 하나씩 빛나는 순서를 보여주면 같은 순서로 밟는다. 라운드를 전부(1~6층 2라운드, 7층부터 3라운드)
-    /// 맞혀야 성공 - 라운드마다 순서가 길어지고(같은 룬이 다시 나올 수 있다) 빨라진다. 4층부터 마지막 라운드는 "거꾸로" 밟아야 한다.
-    /// 틀린 룬을 밟으면 실패.</summary>
-    public class RuneOrderPuzzle : PuzzleBase
+    /// <summary>색 발판(10-26 사용자, 룬 순서 대신) - 발판에 박힌 보석의 색을 벽의 정답 석판과 똑같이 맞춘다.
+    /// 1~3층 2x2·2색(루비 ↔ 에메랄드), 4~6층 3x3·3색(루비 → 토파즈 → 에메랄드), 7층부터 4x4·4색(루비 → 사파이어 → 토파즈 → 에메랄드).
+    /// 보석은 색마다 모양도 달라서(루비 사각·토파즈 삼각·사파이어 팔각·에메랄드 육각) 색을 구분하기 어려워도 모양으로 알아볼 수 있다.
+    /// 발판 위에서 대기([Space])를 하면 그 발판에 정해진 효과가 작동해 몇몇 칸의 보석이 다음 색으로 넘어간다 - 밟은 칸이 아니라 다른 칸·줄·전체일
+    /// 수도 있고, 어느 칸이 바뀌는지는 알려 주지 않는다(바뀐 칸만 번쩍인다). 걸어 다니기만 해서는 아무것도 안 바뀐다.
+    /// 정답에서 발판 몇 개의 효과를 거꾸로 걸어 섞어 내므로 언제든 풀 수 있다(모든 효과는 색 수만큼 쓰면 제자리).</summary>
+    public class ColorTilesPuzzle : PuzzleBase
     {
-        public override string Title => Loc.T("룬 순서");
-        public override string Rule => Loc.T("룬이 빛나는 순서대로 밟아라. 라운드마다 길어지고, 4층부터 마지막 라운드는 거꾸로 밟아야 한다!");
-        public override string Status
-        {
-            get
-            {
-                var round = Loc.F("라운드 {0} / {1}", _round + 1, _rounds);
-                if (InIntro)
-                    return round + "   " + Loc.T("잘 봐라!");
-                return round + "   " + (Reversed ? Loc.T("거꾸로!") + "   " : "") + Loc.F("{0} / {1}", _progress, _order.Count);
-            }
-        }
+        public override string Title => Loc.T("색 발판");
+        public override string Rule => Loc.T("바닥 보석의 색을 벽에 걸린 석판과 똑같이 맞춰라. 발판 위에서 [Space]로 대기하면 발판이 작동한다 - 어느 칸이 바뀌는지는 직접 알아내라.");
+        public override string Status => Loc.F("일치 {0} / {1}", Matches(), _n * _n);
 
-        private static readonly Color[] Palette =
+        // 보석 - 색 순환 순서는 층마다 이 중 일부(GemsFor)
+        private enum Gem { Ruby, Sapphire, Topaz, Emerald }
+        private static readonly Color[] FallbackColor =
         {
-            new Color(1f, 0.35f, 0.35f), new Color(0.35f, 0.7f, 1f), new Color(0.4f, 1f, 0.45f), new Color(1f, 0.85f, 0.3f),
-            new Color(0.85f, 0.45f, 1f), new Color(1f, 0.6f, 0.2f), new Color(0.4f, 1f, 0.95f),
+            new Color(0.92f, 0.28f, 0.28f), new Color(0.3f, 0.55f, 1f), new Color(1f, 0.85f, 0.25f), new Color(0.35f, 0.85f, 0.4f),
         };
 
-        private const int Size = 9;
-        private readonly List<Vector2Int> _runes = new List<Vector2Int>();
-        private readonly List<int> _order = new List<int>();
-        private readonly List<SpriteRenderer> _renderers = new List<SpriteRenderer>();
-        private int _rounds, _round, _progress;
+        private const float MuralPixel = 1f / 32f; // 석판 그림 1px = 1/32칸
+        private const float SocketSpacing = 13f;   // 석판 보석 홈 간격(px, colortiles_gems.py)
 
-        private bool Reversed => Stage >= 4 && _round == _rounds - 1;
+        private int _n;
+        private Gem[] _gems;          // 색 번호 → 보석
+        private Vector2Int _origin;   // 발판 왼쪽 아래 칸
+        private int _width, _height;
+        private int[] _target, _state;
+        private List<int>[] _effects;
+        private SpriteRenderer[] _tiles;
+        private Vector3[] _baseScales; // 보석 원래 크기 - 연달아 작동해 튀는 중에 또 튀어도 크기가 줄어든 채 굳지 않게
+
+        private int Colors => _gems.Length;
+        private int Index(int x, int y) => y * _n + x;
+        private Vector2Int Cell(int i) => _origin + new Vector2Int(i % _n, i / _n);
+
+        private int Matches()
+        {
+            var n = 0;
+            for (var i = 0; i < _n * _n; i++)
+                if (_state[i] == _target[i])
+                    n++;
+            return n;
+        }
 
         public override RoomLayout BuildLayout()
         {
-            var start = new Vector2Int(Size / 2, 0);
-            var count = Mathf.Min(4 + (Stage - 1) / 3, Palette.Length);
-            _rounds = Stage >= 7 ? 3 : 2;
-            var cells = new List<Vector2Int>();
-            for (var x = 0; x < Size; x++)
-            for (var y = 1; y < Size; y++)
-                cells.Add(new Vector2Int(x, y));
-            Shuffle(cells);
-            foreach (var c in cells)
+            (_n, _gems) = Stage <= 3 ? (2, new[] { Gem.Ruby, Gem.Emerald })
+                : Stage <= 6 ? (3, new[] { Gem.Ruby, Gem.Topaz, Gem.Emerald })
+                : (4, new[] { Gem.Ruby, Gem.Sapphire, Gem.Topaz, Gem.Emerald });
+            _origin = new Vector2Int(2, 1);
+            _width = _n + 4;
+            _height = _n + 5;
+            _target = new int[_n * _n];
+            _state = new int[_n * _n];
+            _effects = new List<int>[_n * _n];
+            _tiles = new SpriteRenderer[_n * _n];
+            _baseScales = new Vector3[_n * _n];
+
+            var layout = new RoomLayout { Width = _width, Height = _height, PlayerStart = new Vector2Int(0, 0) };
+            // 위쪽 두 줄 가운데는 정답 석판이 걸린 벽(못 들어감)
+            for (var x = _origin.x; x < _origin.x + _n; x++)
+            for (var y = _height - 2; y < _height; y++)
+                layout.Walls.Add(new Vector2Int(x, y));
+
+            for (var i = 0; i < _n * _n; i++)
             {
-                if (_runes.Count >= count)
-                    break;
-                if (_runes.Any(r => Mathf.Max(Mathf.Abs(r.x - c.x), Mathf.Abs(r.y - c.y)) <= 1))
-                    continue; // 룬끼리 붙지 않게
-                _runes.Add(c);
+                _target[i] = Rng.Next(Colors);
+                _effects[i] = MakeEffect(i);
             }
-            return new RoomLayout { Width = Size, Height = Size, PlayerStart = start };
+            // 정답에서 발판 k개의 효과를 거꾸로 걸어 섞는다 - 그 k개를 한 번씩 작동하면 풀린다(다른 길도 있을 수 있다)
+            var k = _n == 2 ? 2 : _n == 3 ? 3 : 5;
+            System.Array.Copy(_target, _state, _target.Length);
+            var order = Enumerable.Range(0, _n * _n).ToList();
+            Shuffle(order);
+            foreach (var t in order.Take(k))
+                Apply(t, -1);
+            for (var extra = k; Matches() == _n * _n && extra < order.Count; extra++) // 효과끼리 상쇄돼 처음부터 정답이면 더 섞는다
+                Apply(order[extra], -1);
+            return layout;
+        }
+
+        private void Apply(int tile, int step)
+        {
+            foreach (var c in _effects[tile])
+                _state[c] = ((_state[c] + step) % Colors + Colors) % Colors;
+        }
+
+        /// <summary>발판 하나의 효과(바뀌는 칸 목록) - 판이 작을수록 단순한 모양만.</summary>
+        private List<int> MakeEffect(int i)
+        {
+            int x = i % _n, y = i / _n;
+            var cells = new HashSet<int>();
+            var kinds = _n == 2 ? 5 : _n == 3 ? 7 : 9;
+            switch (Rng.Next(kinds))
+            {
+                case 0: // 자기 칸
+                    cells.Add(i);
+                    break;
+                case 1: // 다른 한 칸
+                    var other = Rng.Next(_n * _n - 1);
+                    cells.Add(other >= i ? other + 1 : other);
+                    break;
+                case 2: // 가로줄
+                    for (var xx = 0; xx < _n; xx++) cells.Add(Index(xx, y));
+                    break;
+                case 3: // 세로줄
+                    for (var yy = 0; yy < _n; yy++) cells.Add(Index(x, yy));
+                    break;
+                case 4: // 십자(자기 + 상하좌우)
+                    cells.Add(i);
+                    foreach (var d in new[] { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right })
+                        if (x + d.x >= 0 && x + d.x < _n && y + d.y >= 0 && y + d.y < _n)
+                            cells.Add(Index(x + d.x, y + d.y));
+                    break;
+                case 5: // 자기 + 점대칭 칸
+                    cells.Add(i);
+                    cells.Add(Index(_n - 1 - x, _n - 1 - y));
+                    break;
+                case 6: // 2x2 묶음
+                    var bx = Mathf.Min(x, _n - 2);
+                    var by = Mathf.Min(y, _n - 2);
+                    for (var dx = 0; dx < 2; dx++)
+                    for (var dy = 0; dy < 2; dy++)
+                        cells.Add(Index(bx + dx, by + dy));
+                    break;
+                case 7: // 대각선(X)
+                    for (var s = -_n; s <= _n; s++)
+                    {
+                        if (x + s >= 0 && x + s < _n && y + s >= 0 && y + s < _n) cells.Add(Index(x + s, y + s));
+                        if (x + s >= 0 && x + s < _n && y - s >= 0 && y - s < _n) cells.Add(Index(x + s, y - s));
+                    }
+                    break;
+                default: // 전체
+                    for (var c = 0; c < _n * _n; c++) cells.Add(c);
+                    break;
+            }
+            return cells.ToList();
+        }
+
+        private static Sprite GemArt(Gem gem) => PuzzleArt("Gem_" + gem);
+
+        /// <summary>보석 그림을 renderer에 - 그림이 없으면 예전 색 칸(흰 사각형에 색).</summary>
+        private void SetGem(SpriteRenderer renderer, int color)
+        {
+            var art = GemArt(_gems[color]);
+            if (art != null)
+            {
+                renderer.sprite = art;
+                renderer.color = Color.white;
+            }
+            else
+                renderer.color = FallbackColor[(int)_gems[color]];
         }
 
         protected override void OnBegin()
         {
-            for (var i = 0; i < _runes.Count; i++)
-                _renderers.Add(ArtTile(_runes[i], "Rune_" + (i % 7), 0.8f, Dim(i), Dim(i), 0.8f, -7, "Rune")); // 룬마다 다른 글자
-            StartRound();
-        }
-
-        /// <summary>새 순서 - 첫 라운드는 룬마다 한 번씩, 다음 라운드부터는 한 개씩 더 길고 같은 룬이 다시 나올 수 있다(바로 연달아는 안 나옴).</summary>
-        private void StartRound()
-        {
-            _order.Clear();
-            _progress = 0;
-            if (_round == 0)
+            var plate = PuzzleArt("ColorPlate");
+            var hasGemArt = GemArt(Gem.Ruby) != null;
+            for (var i = 0; i < _n * _n; i++)
             {
-                for (var i = 0; i < _runes.Count; i++)
-                    _order.Add(i);
-                Shuffle(_order);
-            }
-            else
-            {
-                var length = _runes.Count + _round;
-                while (_order.Count < length)
+                if (plate == null || !hasGemArt)
+                    _tiles[i] = Square(Cell(i), Color.white, 0.86f, -9, "ColorTile");
+                else
                 {
-                    var next = Rng.Next(_runes.Count);
-                    if (_order.Count > 0 && _order[_order.Count - 1] == next)
-                        continue;
-                    _order.Add(next);
+                    SpriteAt(World(Cell(i)), plate, 1f, -9, "ColorPlate");
+                    _tiles[i] = SpriteAt(World(Cell(i)), GemArt(_gems[_state[i]]), 1f, -8, "ColorGem");
                 }
+                SetGem(_tiles[i], _state[i]);
+                _baseScales[i] = _tiles[i].transform.localScale;
             }
-            RunIntro(ShowOrder());
+            DrawMural();
+            RefreshHud();
         }
 
-        private Color Dim(int i) => Color.Lerp(new Color(0.15f, 0.15f, 0.18f), Palette[i], 0.3f);
-
-        private IEnumerator ShowOrder()
+        /// <summary>위쪽 벽에 걸린 정답 석판(Puzzle_ColorMural_{N}) - 홈마다 정답 보석. 그림이 없으면 단색 액자.</summary>
+        private void DrawMural()
         {
-            var on = Mathf.Max(0.25f, 0.6f - Stage * 0.03f - _round * 0.08f);
-            yield return new WaitForSecondsRealtime(0.8f);
-            if (Reversed)
+            var mural = PuzzleArt("ColorMural_" + _n);
+            var center = new Vector3((_origin.x + _n / 2f - 0.5f) * GridConstants.CellSize, (_height - 1.5f) * GridConstants.CellSize, 0f);
+            if (mural != null && GemArt(Gem.Ruby) != null)
             {
-                Room.ShowMessage(Loc.T("이번엔 거꾸로 밟아라!"));
-                yield return new WaitForSecondsRealtime(0.6f);
+                var w = mural.rect.width;
+                var h = mural.rect.height;
+                var px = MuralPixel * GridConstants.CellSize;
+                var muralCenter = center + new Vector3(0f, GridConstants.CellSize * 0.15f, 0f);
+                SpriteAt(muralCenter, mural, w * MuralPixel, -7, "ColorMural");
+                // 홈 격자 가운데 = 그림 (w/2, 10 + (h-10)/2) px(위가 0) - 그림 가운데 (w/2, h/2) 기준 아래로
+                var gridCenter = muralCenter + new Vector3(0f, (h / 2f - (10f + (h - 10f) / 2f)) * px, 0f);
+                for (var i = 0; i < _n * _n; i++)
+                {
+                    var offset = new Vector3((i % _n - (_n - 1) / 2f) * SocketSpacing * px, (i / _n - (_n - 1) / 2f) * SocketSpacing * px, 0f);
+                    SpriteAt(gridCenter + offset, GemArt(_gems[_target[i]]), 0.5f, -6, "MuralGem");
+                }
+                return;
             }
-            foreach (var i in _order)
+            var size = _n * 0.5f * GridConstants.CellSize;
+            var frame = new GameObject("MuralFrame");
+            frame.transform.SetParent(Room.transform, false);
+            VisualUtil.CreateSquareVisual(frame, new Color(0.45f, 0.32f, 0.16f), size * 1.12f, -7);
+            frame.transform.position = center;
+            Track(frame);
+            var cell = size / _n;
+            for (var i = 0; i < _n * _n; i++)
             {
-                _renderers[i].color = Palette[i];
-                _renderers[i].transform.localScale = Vector3.one * GridConstants.CellSize * 0.95f;
-                SfxPlayer.Play(Sfx.Appear);
-                yield return new WaitForSecondsRealtime(on);
-                _renderers[i].color = Dim(i);
-                _renderers[i].transform.localScale = Vector3.one * GridConstants.CellSize * 0.8f;
-                yield return new WaitForSecondsRealtime(0.15f);
+                var go = new GameObject("MuralCell");
+                go.transform.SetParent(Room.transform, false);
+                VisualUtil.CreateSquareVisual(go, FallbackColor[(int)_gems[_target[i]]], cell * 0.86f, -5);
+                go.transform.position = center + new Vector3((i % _n - (_n - 1) / 2f) * cell, (i / _n - (_n - 1) / 2f) * cell, 0f);
+                Track(go);
             }
         }
 
-        protected override void OnPlayerMoved(Vector2Int pos)
+        public override string ExtraKeyLabel => Loc.T("발판 작동 [Space]");
+        public override Key ExtraKey => Key.Space;
+
+        public override bool HandleKeys()
         {
-            var index = _runes.IndexOf(pos);
-            if (index < 0 || InIntro)
-                return;
-            var expected = Reversed ? _order[_order.Count - 1 - _progress] : _order[_progress];
-            if (expected != index)
-            {
-                _renderers[index].color = new Color(0.5f, 0.1f, 0.1f);
-                Fail(Loc.T("순서가 틀렸다"));
-                return;
-            }
-            _progress++;
-            Room.StartCoroutine(Flash(index));
+            if (!GameInput.Down(Key.Space) || InIntro)
+                return false;
+            var local = Player.GridPos - _origin;
+            if (local.x < 0 || local.x >= _n || local.y < 0 || local.y >= _n)
+                return false; // 발판 밖에선 평소 대기
+            var i = Index(local.x, local.y);
+            Apply(i, +1);
+            foreach (var c in _effects[i])
+                Room.StartCoroutine(Pop(c));
             SfxPlayer.Play(Sfx.Appear);
-            if (_progress < _order.Count)
-                return;
-            _round++;
-            if (_round >= _rounds)
-            {
+            RefreshHud();
+            if (Matches() == _n * _n)
                 Succeed();
-                return;
-            }
-            Room.ShowMessage(Loc.F("정답! 라운드 {0} / {1}", _round + 1, _rounds));
-            MovePlayerToCenter(); // 마지막 룬 위에 선 채로 다음 순서를 보면 그 룬이 밟힌 것처럼 헷갈렸다 - 가운데 빈 칸으로 옮긴다(10-20 사용자)
-            StartRound();
+            return true;
         }
 
-        /// <summary>방 가운데에서 가장 가까운, 룬이 아닌 빈 칸으로 플레이어를 옮긴다.</summary>
-        private void MovePlayerToCenter()
+        /// <summary>바뀐 칸 - 보석이 쏙 들어갔다가(작아짐) 새 보석으로 톡 튀어나온다 + 반짝.</summary>
+        private IEnumerator Pop(int i)
         {
-            var center = new Vector2Int(Size / 2, Size / 2);
-            Vector2Int? best = null;
-            var bestDist = int.MaxValue;
-            for (var x = 0; x < Size; x++)
-            for (var y = 0; y < Size; y++)
+            var renderer = _tiles[i];
+            if (renderer == null)
+                yield break;
+            var baseScale = _baseScales[i];
+            Fx.Play("hit_spark", World(Cell(i)), 0.7f, fps: 20f);
+            for (var t = 0f; t < 0.1f; t += Time.unscaledDeltaTime)
             {
-                var c = new Vector2Int(x, y);
-                if (_runes.Contains(c) || (!Map.IsWalkable(c) && c != Player.GridPos))
-                    continue;
-                var dist = Mathf.Abs(c.x - center.x) + Mathf.Abs(c.y - center.y);
-                if (dist < bestDist)
-                {
-                    bestDist = dist;
-                    best = c;
-                }
+                if (renderer == null)
+                    yield break;
+                renderer.transform.localScale = baseScale * (1f - 0.6f * t / 0.1f);
+                yield return null;
             }
-            if (!best.HasValue || best.Value == Player.GridPos)
-                return;
-            Map.MoveActor(Player, best.Value);
-            if (Player.TryGetComponent<SpriteAnimator>(out var anim))
-                anim.SnapToGrid(); // 걸어가는 모션 대신 바로 그 자리에
-            Fx.Play("hit_spark", World(best.Value), 0.6f, fps: 18f);
-        }
-
-        /// <summary>맞게 밟은 룬을 잠깐 밝힌다(같은 룬을 다시 밟을 수 있어서 계속 켜두지 않는다).</summary>
-        private IEnumerator Flash(int index)
-        {
-            var renderer = _renderers[index];
-            renderer.color = Palette[index];
-            yield return new WaitForSecondsRealtime(0.35f);
-            if (renderer != null && !InIntro)
-                renderer.color = Dim(index);
+            if (renderer == null)
+                yield break;
+            SetGem(renderer, _state[i]);
+            for (var t = 0f; t < 0.18f; t += Time.unscaledDeltaTime)
+            {
+                if (renderer == null)
+                    yield break;
+                var k = t / 0.18f;
+                renderer.transform.localScale = baseScale * Mathf.Lerp(0.4f, 1f, k) * (1f + 0.2f * Mathf.Sin(k * Mathf.PI));
+                yield return null;
+            }
+            if (renderer != null)
+                renderer.transform.localScale = baseScale;
         }
     }
 

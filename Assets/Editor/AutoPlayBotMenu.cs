@@ -110,7 +110,7 @@ namespace LoopRogue.EditorTools
         private const string PuzzleMenu = "LoopRogue/퍼즐·미니게임 체험 (끝나면 저장 되돌림)/";
         [MenuItem(PuzzleMenu + "퍼즐 1. 얼음 미끄럼")] private static void Puzzle1() => StartPuzzleTrial(PuzzleType.IceSlide);
         [MenuItem(PuzzleMenu + "퍼즐 2. 함정 복도")] private static void Puzzle2() => StartPuzzleTrial(PuzzleType.TrapCorridor);
-        [MenuItem(PuzzleMenu + "퍼즐 3. 룬 순서")] private static void Puzzle3() => StartPuzzleTrial(PuzzleType.RuneOrder);
+        [MenuItem(PuzzleMenu + "퍼즐 3. 색 발판")] private static void Puzzle3() => StartPuzzleTrial(PuzzleType.ColorTiles);
         [MenuItem(PuzzleMenu + "퍼즐 4. 상자 밀기")] private static void Puzzle4() => StartPuzzleTrial(PuzzleType.BoxPush);
         [MenuItem(PuzzleMenu + "퍼즐 5. 전투 퍼즐")] private static void Puzzle5() => StartPuzzleTrial(PuzzleType.CombatChallenge);
         [MenuItem(PuzzleMenu + "미니게임 1. 상자 섞기")] private static void Mini1() => StartPuzzleTrial(PuzzleType.ShellGame);
