@@ -93,6 +93,7 @@ namespace LoopRogue
                 case 5:
                     AddClock("spore", "Spore", Loc.F("포자 감염까지 {0}턴 · 감염 {1}/{2}", _infectionClock, _infection, InfectionLimit), _infectionClock, 3,
                         InfectionEveryTurns);
+                    AddCount("Infect", Loc.F("감염 {0}/{1}", _infection, InfectionLimit), _infection, InfectionLimit, 1); // 10-26 사용자 - 감염 상태 따로
                     break;
                 case 6 when SoulTargetActive:
                     AddClock("soul", "Target", Loc.F("과녁 {0} · {1}턴", _soulTargets.Count, _soulTargetTurnsLeft), _soulTargetTurnsLeft, 10, SoulTargetTurns);

@@ -130,6 +130,7 @@ namespace LoopRogue
         }
 
         /// <summary>5층 환각(감염 1부터, 예고가 거꾸로 보임) / 혼란(감염 2부터, 방향키 반대) - HUD 표시용.</summary>
+        public int Infection => _room != null ? _room.PlayerInfection : 0;
         public bool IsHallucinating => _room != null && _room.PlayerHallucinating;
         public bool IsConfused => _room != null && _room.PlayerConfused;
 
@@ -528,13 +529,28 @@ namespace LoopRogue
                 TryAct(direction);
         }
 
+        // 5층 감염 - 몸이 보랏빛으로 물들어 천천히 숨쉬듯(1단계 옅게, 2단계 짙게). 맞아서 번쩍이는 중(다른 색)이면 건드리지 않는다.
+        private static readonly Color InfectTint1 = new Color(0.86f, 0.66f, 1f);
+        private static readonly Color InfectTint2 = new Color(0.74f, 0.52f, 1f);
+
         /// <summary>연막 중이면 반투명 - 맞아서 번쩍이는 색(ActorJuice)이 덮어써도 투명도만은 매 프레임 다시 맞춘다.</summary>
         private void LateUpdate()
         {
             if (_renderer == null)
                 return;
-            var alpha = InSmoke ? SmokeAlpha : 1f;
             var color = _renderer.color;
+            if (!ActorJuice.IsFlashingNow(this))
+            {
+                var infection = Infection;
+                var tint = infection <= 0 ? Color.white
+                    : Color.Lerp(Color.white, infection == 1 ? InfectTint1 : InfectTint2, 0.8f + 0.2f * Mathf.Sin(Time.time * 3f));
+                if (color.r != tint.r || color.g != tint.g || color.b != tint.b)
+                {
+                    color = new Color(tint.r, tint.g, tint.b, color.a);
+                    _renderer.color = color;
+                }
+            }
+            var alpha = InSmoke ? SmokeAlpha : 1f;
             if (!Mathf.Approximately(color.a, alpha))
             {
                 color.a = alpha;

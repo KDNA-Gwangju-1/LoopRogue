@@ -31,6 +31,8 @@ namespace LoopRogue
             icons.Add("status_shield", () => player.Stats != null && player.Stats.BlockNextHit, 0f, 1.25f);
             icons.Add("status_reflect", () => player.ReflectTurns > 0, 0f, 1.4f);
             icons.Add("status_immune", () => player.WebImmuneTurns > 0, -0.42f, 1.2f, sortingOrder: 0);
+            icons.Add("status_infect", () => player.Infection == 1, 0f, 1f); // 5층 감염 1단계 - 몸 둘레로 포자(10-26)
+            icons.Add("status_infect2", () => player.Infection >= 2, 0f, 1f); // 2단계 - 더 짙게 + 머리 위 포자 고리
             icons.Add("status_might", () => RoomController.OgreMightActive, -0.44f, 1.25f, sortingOrder: 0); // 2층 대지의 기세(발밑 고리)
         }
 

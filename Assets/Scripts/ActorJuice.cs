@@ -52,6 +52,13 @@ namespace LoopRogue
             return renderer != null ? renderer.color : Color.white;
         }
 
+        /// <summary>맞아서 번쩍이는 중인지 - 플레이어 감염 물들이기(PlayerActor)가 그동안은 색을 건드리지 않게.</summary>
+        public static bool IsFlashingNow(GridActor actor)
+        {
+            var juice = actor.GetComponent<ActorJuice>();
+            return juice != null && juice._flashing;
+        }
+
         public void Flash(Color color)
         {
             if (_renderer == null)

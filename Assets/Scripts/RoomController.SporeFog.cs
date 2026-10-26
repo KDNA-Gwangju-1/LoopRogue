@@ -26,6 +26,8 @@ namespace LoopRogue
         public const int HallucinationInfection = 1;
         public const int ConfusionInfection = 2;
         private bool SporeActive => _gimmickStage == 5 && _gimmickBoss != null && !_gimmickBoss.Stats.IsDead;
+        /// <summary>5층 감염 수(포자 안개가 걷혔으면 0) - 플레이어 감염 연출(PlayerActor·StatusIcons)용.</summary>
+        public int PlayerInfection => SporeActive ? _infection : 0;
         public bool PlayerHallucinating => SporeActive && _infection >= HallucinationInfection;
         public bool PlayerConfused => SporeActive && _infection >= ConfusionInfection;
 
