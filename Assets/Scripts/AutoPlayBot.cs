@@ -22,7 +22,7 @@ namespace LoopRogue
     {
         public const string EnabledPrefKey = "LoopRogue_AutoPlayBot_Enabled";
 
-        private const int RunsPerSession = 500;
+        private const int RunsPerSession = 100;
 
         /// <summary>"층별 순수 난이도 측정" 모드(EditorPrefs ModePrefKey = StageTestMode) - 일반 모드가 남긴 기준 상태
         /// (BotLogs/reference_snapshots.tsv, 층마다 "그 층에 들어갈 때 전체 저장 상태"의 중앙값 판)를 불러와서 각 층만
@@ -1448,7 +1448,7 @@ namespace LoopRogue
                 return false;
             }
 
-            if (_player.SpinCooldown == 0 && _player.CountSpinTargets() >= 2 && _player.BotSpin())
+            if (_player.SpinCooldown == 0 && _player.CountSpinTargets() >= 2 && !_player.SpinHitsGuard() && _player.BotSpin())
             {
                 _run.Spins++;
                 _lastDecision = "회전 베기";
@@ -1497,6 +1497,11 @@ namespace LoopRogue
             }
 
             if (_player.RootedTurns > 0 && danger.Contains(start) && Use(ItemType.Cleanse, null, "묶인 채 예고 칸"))
+                return true;
+            // 주문술사 폭발(즉사급) 예고 칸 안인데 걸어서도 대시로도 못 빠지면 보호막으로 막는다
+            if (!_player.Stats.BlockNextHit && _room.Enemies.Any(e => e != null && e.CasterBlastCovers(start))
+                && !Directions.Any(d => map.IsWalkable(start + d) && !danger.Contains(start + d)) && _player.DashCooldown > 0
+                && Use(ItemType.Barrier, null, "주문 폭발"))
                 return true;
             if (boss != null && !_player.Stats.BlockNextHit && Use(ItemType.Barrier, null, "보스전"))
                 return true;
@@ -1549,7 +1554,7 @@ namespace LoopRogue
             var start = _player.GridPos;
             var best = Directions
                 .Select(d => (Dir: d, Enemy: map.GetActorAt(start + d) as EnemyActor))
-                .Where(t => t.Enemy != null && !t.Enemy.Stats.IsDead)
+                .Where(t => t.Enemy != null && !t.Enemy.Stats.IsDead && !t.Enemy.IsGuarding) // 반격 자세면 묶인 채 기다린다
                 .OrderBy(t => t.Enemy.IsShieldFront(start) ? 1 : 0)
                 .ThenBy(t => t.Enemy.Stats.CurrentHealth)
                 .FirstOrDefault();
@@ -1649,13 +1654,15 @@ namespace LoopRogue
             {
                 if (!(map.GetActorAt(start + d) is EnemyActor e) || e.Stats.IsDead || e.IsBladeProof || e.IsGuarding)
                     continue; // 칼이 안 통하는 분신·거울상은 때려 봐야 턴만 버린다, 반격 자세인 반격병은 되받아친다
-                // 우선순위: 방패 정면이 아닌 몹 > 치유사(살려두면 다른 몹을 고친다) > 체력 낮은 몹
+                // 우선순위: 방패 정면이 아닌 몹 > 주문술사(두면 즉사급 폭발) > 치유사(살려두면 다른 몹을 고친다) > 체력 낮은 몹
                 var front = e.IsShieldFront(start);
                 bool better;
                 if (target == null)
                     better = true;
                 else if (front != targetFront)
                     better = targetFront;
+                else if ((e.Kind == EnemyKind.Caster) != (target.Kind == EnemyKind.Caster))
+                    better = e.Kind == EnemyKind.Caster;
                 else if ((e.Kind == EnemyKind.Healer) != (target.Kind == EnemyKind.Healer))
                     better = e.Kind == EnemyKind.Healer;
                 else
@@ -1681,6 +1688,24 @@ namespace LoopRogue
             {
                 _lastDecision = targetFront ? "공격(방패 정면)" : "공격";
                 return targetDir;
+            }
+            // 붙은 몹이 전부 반격 자세인 반격병이면 한 턴 기다린다(다음 몹 턴에 자세를 풀고 때리러 온다). 진척 없이 오래 끌리면 그만 기다린다.
+            if (_turnsSinceProgress < CrossfireGiveUpTurns
+                && Directions.Any(d => map.GetActorAt(start + d) is EnemyActor g && !g.Stats.IsDead && g.IsGuarding))
+            {
+                _lastDecision = "반격 자세 대기";
+                return null;
+            }
+            // 주문을 외우는 주문술사가 있으면 그쪽부터 잡으러 간다
+            var caster = _turnsSinceProgress < CrossfireGiveUpTurns ? _room.Enemies.FirstOrDefault(e => e != null && e.IsChanting) : null;
+            if (caster != null) // 길이 막혀 오래 못 닿으면(봇 100판: 갇힌 주문술사 앞에서 왔다 갔다) 평소 목표로
+            {
+                var toCaster = FirstStepTo(c => c != caster.GridPos && Directions.Any(d => c + d == caster.GridPos), walkableSafe);
+                if (toCaster.HasValue)
+                {
+                    _lastDecision = "주문술사로";
+                    return toCaster.Value;
+                }
             }
 
             // 이벤트 칸 - 옆에 적이 없을 때만, 그리고 이 방에서 EventGiveUpTurns턴 안에 못 밟으면 포기
@@ -1761,6 +1786,18 @@ namespace LoopRogue
             }
             if (toEnemy.HasValue)
                 return toEnemy.Value;
+
+            // 예고 칸이 유일한 길을 오래 막고 있으면(봇 100판: 연막에 멈춘 돌진병의 예고 줄이 통로를 3000턴 막음) 예고 칸도 지나간다 -
+            // 연막 속 몹은 움직이지 않아 그 예고는 지금 터지지 않는다. 지금 서 있는 칸·바로 옆이 예고 칸이면 이 길은 안 쓴다.
+            if (_turnsSinceProgress >= CrossfireGiveUpTurns && _player.InSmoke)
+            {
+                var through = FirstStepTo(isEnemyAdjacentAny, c => map.IsWalkable(c) && !_room.IsSlimePuddle(c));
+                if (through.HasValue)
+                {
+                    _lastDecision = "연막 속 예고 칸 통과";
+                    return through.Value;
+                }
+            }
 
             // 갈 길이 없으면 예고 칸이 아닌 아무 빈 칸으로, 그것도 없으면 대기.
             foreach (var d in Directions)

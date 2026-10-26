@@ -781,6 +781,11 @@ namespace LoopRogue
             if (Stats.IsDead)
                 return;
             _turnRoom = room;
+            // 반격 자세는 한 몹 턴만 - 기절·연막으로 이번 턴을 못 움직여도 자세는 풀린다(봇 100판: 연막 속에서 자세를 영영 안 풀어
+            // 봇이 끝없이 기다렸다)
+            _guardedLastTurn = IsGuarding;
+            if (IsGuarding)
+                SetGuard(false);
 
             if (VulnerableTurns > 0)
                 VulnerableTurns--;
@@ -1080,12 +1085,13 @@ namespace LoopRogue
         public static int SentinelCounterCount, CasterBlastCount, CasterBlastHitCount;
 
         /// <summary>반격병: 자세를 잡고 있었으면 풀고 평소처럼 다가가 때린다. 아니면 가까울 때 자세를 잡고 그 턴은 끝(두 턴에 한 번).</summary>
+        private bool _guardedLastTurn;
+
         private void TakeSentinelTurn(HashSet<Vector2Int> claimedSlots, PlayerActor player)
         {
-            if (IsGuarding)
+            if (_guardedLastTurn)
             {
-                SetGuard(false);
-                TakeMeleeTurn(player, claimedSlots);
+                TakeMeleeTurn(player, claimedSlots); // 자세를 푼 턴 - 다가와 때린다(자세는 TakeTurn 맨 앞에서 풀림)
                 return;
             }
             if (Distance(GridPos, _tp) <= SentinelGuardRange)
@@ -1117,6 +1123,10 @@ namespace LoopRogue
         /// 보호막 아이템·반사 부적·대시로 피하기·불굴 같은 "막는 수단"으로만 산다.</summary>
         public const float CasterBlastMaxHealthRate = 1.5f;
         private int _chant = -1;                 // 남은 주문 턴 - -1이면 아직 플레이어를 못 봤다
+
+        /// <summary>봇용 - 주문을 외우는 중인지(플레이어를 본 뒤), 폭발 예고 칸이 이 칸을 덮는지.</summary>
+        public bool IsChanting => Kind == EnemyKind.Caster && _chant >= 0 && !Stats.IsDead;
+        public bool CasterBlastCovers(Vector2Int pos) => _casterBlastTiles != null && _casterBlastTiles.Contains(pos);
         private List<Vector2Int> _casterBlastTiles;
         private TextMesh _chantLabel;
         private ChantCircle _chantCircle;

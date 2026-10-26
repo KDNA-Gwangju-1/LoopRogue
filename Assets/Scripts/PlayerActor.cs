@@ -1128,6 +1128,15 @@ namespace LoopRogue
         }
 
         /// <summary>회전 베기 대상 수(주변 8칸의 살아있는 몹) - 봇 판단용.</summary>
+        /// <summary>봇용 - 회전 베기 범위(주변 8칸)에 반격 자세인 반격병이 있는지(맞히면 되받아친다).</summary>
+        public bool SpinHitsGuard()
+        {
+            foreach (var offset in SpinOffsets)
+                if (Map.GetActorAt(GridPos + offset) is EnemyActor e && !e.Stats.IsDead && e.IsGuarding)
+                    return true;
+            return false;
+        }
+
         public int CountSpinTargets()
         {
             var seen = new HashSet<EnemyActor>(); // 3x3 보스는 여러 칸이 걸쳐도 한 마리
