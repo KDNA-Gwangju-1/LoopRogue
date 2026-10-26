@@ -121,6 +121,9 @@ namespace LoopRogue
             EnterRoom(); // 방 1을 골랐어도 다시 깐다 - 퍼즐방 확률을 여기서 굴린다(고르기 창 뒤에 깔아둔 방은 자리 표시용)
         }
 
+        /// <summary>지금 방이 이 층(보스 러시면 러시 전체)의 마지막 방인지 - 트레일러 F9 건너뛰기가 끝을 넘지 않게.</summary>
+        public bool IsLastRoom => _roomIndex >= _rooms.Count - 1;
+
         public void AdvanceToNextRoom()
         {
             if (TutorialStage.Active && _roomIndex + 1 >= _rooms.Count)
@@ -140,7 +143,7 @@ namespace LoopRogue
         private void EnterRoom()
         {
             var def = _rooms[_roomIndex];
-            var puzzleAllowed = !def.IsBossRoom && !def.IsTestRoom && !def.IsTutorialRoom && !def.HasEvent && !TestMap.Active;
+            var puzzleAllowed = !def.IsBossRoom && !def.IsTestRoom && !def.IsTutorialRoom && !def.HasEvent && !TestMap.Active && !BossRush.Active; // 트레일러 잡몹 방엔 퍼즐 없음
             if (puzzleAllowed && !GameHUD.AutoPlayActive && PuzzleBase.TestModeNext(out var testType))
                 _roomController.LoadPuzzle(def, testType);
             else if (puzzleAllowed && RollPuzzleOnce(def.RoomNumber))
@@ -274,6 +277,8 @@ namespace LoopRogue
             StageProgress.AdvanceStage();
             if (_stage >= StageProgress.MaxStage)
                 Achievements.Unlock("ACH_CLEAR_10");
+            if (_roomController.NoDamageThisRoom && !BossRush.Active && !TestMap.Active)
+                Achievements.Unlock("ACH_NOHIT_" + _stage); // 층 보스 무피격
             Achievements.Check(); // 층 도달 업적
             // 보스를 처음 잡았으면 유물부터 고른다(보스 전용 1 + 일반 2) → 고른 뒤 스테이지 클리어 창.
             var offer = Relics.MakeOffer(_stage);

@@ -17,9 +17,13 @@ namespace LoopRogue
         /// <summary>러시가 시작하는 층(1~10) - 메뉴 "보스 기믹 체험/N층부터".</summary>
         public static int FirstStage { get; private set; } = 1;
 
+        /// <summary>트레일러 촬영 모드(10-26) - 보스 러시에 층마다 잡몹 방을 끼우고, 죽지 않으며, 촬영용 키(TrailerControls)를 켠다.</summary>
+        public static bool Trailer { get; private set; }
+
 #if UNITY_EDITOR
         public const string PrefKey = "LoopRogue_BossRush";
         public const string FirstStagePrefKey = "LoopRogue_BossRush_First";
+        public const string TrailerPrefKey = "LoopRogue_BossRush_Trailer";
 
         /// <summary>Play 시작 - 메뉴로 켰으면 바로 Main으로. 한 번 쓰면 꺼서 다음 Play는 평소처럼.</summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -28,8 +32,12 @@ namespace LoopRogue
             Active = UnityEditor.EditorPrefs.GetBool(PrefKey, false);
             UnityEditor.EditorPrefs.SetBool(PrefKey, false);
             FirstStage = Mathf.Clamp(UnityEditor.EditorPrefs.GetInt(FirstStagePrefKey, 1), 1, LastStage);
+            Trailer = Active && UnityEditor.EditorPrefs.GetBool(TrailerPrefKey, false);
+            UnityEditor.EditorPrefs.SetBool(TrailerPrefKey, false);
             if (!Active)
                 return;
+            if (Trailer)
+                TrailerControls.Create();
             Debug.Log("[보스 러시] 시작 - Main으로 바로 이동");
             if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != "Main")
                 UnityEngine.SceneManagement.SceneManager.LoadScene("Main");

@@ -297,7 +297,13 @@ namespace LoopRogue.EditorTools
         [MenuItem(RushMenu + "9층부터")] private static void Rush9() => StartBossRush(9);
         [MenuItem(RushMenu + "10층만")] private static void Rush10() => StartBossRush(10);
 
-        private static void StartBossRush(int firstStage)
+        // ---- 트레일러 촬영 모드(10-26) - 보스 러시에 층마다 잡몹 방 하나를 끼운다. 죽지 않고, F9 다음 방 / F10 화면 글자·UI 숨기기 / F8 느리게.
+        private const string TrailerMenu = "LoopRogue/트레일러 촬영 모드 (끝나면 저장 되돌림)/";
+        [MenuItem(TrailerMenu + "1층부터")] private static void Trailer1() => StartBossRush(1, trailer: true);
+        [MenuItem(TrailerMenu + "4층부터")] private static void Trailer4() => StartBossRush(4, trailer: true);
+        [MenuItem(TrailerMenu + "7층부터")] private static void Trailer7() => StartBossRush(7, trailer: true);
+
+        private static void StartBossRush(int firstStage, bool trailer = false)
         {
             if (EditorApplication.isPlaying)
                 return;
@@ -339,6 +345,7 @@ namespace LoopRogue.EditorTools
             UnityEngine.PlayerPrefs.Save();
             EditorPrefs.SetBool(LoopRogue.BossRush.PrefKey, true);
             EditorPrefs.SetInt(LoopRogue.BossRush.FirstStagePrefKey, firstStage);
+            EditorPrefs.SetBool(LoopRogue.BossRush.TrailerPrefKey, trailer);
             UnityEngine.Debug.Log($"[보스 기믹 체험] {firstStage}~{LoopRogue.BossRush.LastStage}층 보스 연속(기믹 체력으로 시작) - 보스방마다 그 층 기준 스펙(봇 중간값)으로. Play를 멈추면 저장 되돌림");
             EditorSceneManagerOpenMain();
             EditorApplication.isPlaying = true;

@@ -174,6 +174,7 @@ namespace LoopRogue
             }
             _crushInset[side]--;
             RefreshCrushWallFaces();
+            TrailerControls.Cue(TrailerCue.WallBreak);
             _crushInterval = Mathf.Min(CrushStartInterval, _crushInterval + CrushSlowdown);
             _crushCountdown += CrushSlowdown;
             if (_crushCountdown > CrushWarnTurns)

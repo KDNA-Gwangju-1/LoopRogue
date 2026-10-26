@@ -61,6 +61,7 @@ namespace LoopRogue
         {
             if (_gimmickBoss == null)
                 return 0;
+            TrailerControls.Cue(TrailerCue.DoomOrbs);
             var free = new List<Vector2Int>();
             for (var x = 0; x < Map.Width; x++)
             for (var y = 0; y < Map.Height; y++)

@@ -23,6 +23,8 @@ namespace LoopRogue
         public List<BossPatternType> BossPatterns = new List<BossPatternType>();
         /// <summary>보스 러시(BossRush) - 이 보스방의 층(보스 종류·기믹). 0이면 지금 층.</summary>
         public int BossStage;
+        /// <summary>트레일러 촬영 모드의 잡몹 방 - 이 방의 층(그림·기준 스펙). BossStage와 달리 기믹 컷신은 없다. 0이면 지금 층.</summary>
+        public int SpecStage;
 
         /// <summary>이번 시도에 이 방에 이벤트 칸이 있는지 - LoopManager가 시도마다 스테이지당 한 방만 켠다.</summary>
         public bool HasEvent;
@@ -375,12 +377,20 @@ namespace LoopRogue
             finally { if (!nested) LoadRoomWatch.Stop(); }
         }
 
+        /// <summary>이 방에 들어온 뒤 플레이어가 받은 피해가 없는지 - 층 보스 무피격 업적(LoopManager.OnBossDefeated).</summary>
+        public bool NoDamageThisRoom => CharacterStats.IncomingDamageTotal <= _roomDamageStart;
+        private double _roomDamageStart;
+
         private void LoadRoomCore(RoomDefinition def)
         {
             _current = def;
+            _roomDamageStart = CharacterStats.IncomingDamageTotal;
+            TrailerControls.OnRoomLoaded();
             ClearRoom();
             if (def.BossStage > 0)
                 _stage = def.BossStage; // 보스 러시 - 보스 그림·패턴·기믹이 이 층 것으로
+            else if (def.SpecStage > 0)
+                _stage = def.SpecStage; // 트레일러 잡몹 방 - 그 층 바닥·몹 그림
             if (def.IsBossRoom && !_loadCleared)
                 MusicPlayer.Play(MusicPlayer.Boss(_stage)); // 층별 보스 배경음악(파일이 없으면 조용히)
             else
@@ -414,7 +424,7 @@ namespace LoopRogue
             }
 
             // 히든 몹 기사 - 방을 깔 때 굴리고, 나오는 건 방을 비운 순간(FinishRoomCleared). 기사를 잡아야 출구·NPC가 나온다.
-            _knightPending = !_loadCleared && !glitch && MemoryKnight.ShouldSpawn(def, _stage, Rng);
+            _knightPending = !_loadCleared && !glitch && !BossRush.Active && MemoryKnight.ShouldSpawn(def, _stage, Rng);
 
             if (def.HasEvent && layout.EventPosition.HasValue && !_loadCleared)
                 SpawnEvent(layout.EventPosition.Value, def.EventType);
@@ -427,8 +437,8 @@ namespace LoopRogue
             _thornsKills.Clear();
             _challengeEnemies.Clear();
             _roomCleared = false;
-            if (def.BossStage > 0)
-                BossRush.ApplyStageSpec(def.BossStage, _player); // 보스 러시 - 그 층 기준 스펙으로(보호막 계산 전에)
+            if (def.BossStage > 0 || def.SpecStage > 0)
+                BossRush.ApplyStageSpec(def.BossStage > 0 ? def.BossStage : def.SpecStage, _player); // 보스 러시 - 그 층 기준 스펙으로(보호막 계산 전에)
             _player.OnRoomEntered(); // 갑옷 효과(보호막/불굴/응급 처치) 방마다 다시 채움
             IsInputLocked = false;
             if (def.BossStage > 0 && !_loadCleared)
@@ -1599,6 +1609,8 @@ namespace LoopRogue
             // 터진 수정과 같은 물결에 떨어진 바위는 전부 깨진다(가려져 있어도) - 이번 폭발은 막아 주지만 다음 물결엔 그 물결 바위를 찾아야 한다.
             // 다른 물결 바위는 남는다(10-15 사용자 - 처음엔 방 전체 바위를 깼더니 앞 물결 수정이 다음 물결 바위까지 없앴다).
             var killed = exploding.Any(c => CrystalBlastTiles(c).Contains(_player.GridPos));
+            if (exploding.Count > 0)
+                TrailerControls.Cue(TrailerCue.CrystalBlast);
             var waves = new HashSet<int>(exploding.Select(c => _crystalWave.TryGetValue(c, out var w) ? w : 0));
             foreach (var c in exploding)
             {
@@ -1941,6 +1953,8 @@ namespace LoopRogue
         /// <summary>기믹 실패 즉사 - TakeIncomingDamage를 안 거쳐 보호막·불굴·부활·피해 무효가 안 걸린다. 사망 처리(OnPlayerDied)는 호출부가.</summary>
         private void KillPlayerInstantly()
         {
+            if (BossRush.Trailer)
+                return; // 트레일러 촬영 - 기믹을 놓쳐도 죽지 않고 그대로 이어서 찍는다
             PlayLog.InstantKill($"{_stage}층 기믹");
             _player.Stats.Shield = 0f;
             _player.Stats.TakeDamage(_player.Stats.CurrentHealth);
@@ -2566,16 +2580,20 @@ namespace LoopRogue
                 _roomCleared = true; // 보스 러시 - 스테이지 클리어 대신 다음 보스로(마지막이면 끝)
                 if (BossRush.IsLast(_current))
                 {
-                    ShowMessage(Loc.F("<color=#FFD24A>보스 러시 완료!</color> {0}~{1}층 보스를 모두 쓰러뜨렸다", BossRush.FirstStage, BossRush.LastStage));
+                    if (!BossRush.Trailer)
+                        ShowMessage(Loc.F("<color=#FFD24A>보스 러시 완료!</color> {0}~{1}층 보스를 모두 쓰러뜨렸다", BossRush.FirstStage, BossRush.LastStage));
                     return;
                 }
                 _player.Stats.FullHeal();
                 HitFeedback.OnHeal(_player);
                 SpawnExit();
-                ShowMessage(Loc.F("{0}층 보스 격파! 체력을 회복했다 - 출구로 가면 {1}층 보스", _current.BossStage, _current.BossStage + 1));
+                if (!BossRush.Trailer) // 트레일러 화면엔 안내 글자를 띄우지 않는다
+                    ShowMessage(Loc.F("{0}층 보스 격파! 체력을 회복했다 - 출구로 가면 {1}층 보스", _current.BossStage, _current.BossStage + 1));
                 return;
             }
             _roomCleared = true;
+            if (!_current.IsBossRoom)
+                TrailerControls.Cue(TrailerCue.MobsCleared);
             RoomClearCount++;
             PlayLog.RoomCleared(_player, false);
             LastClearedRoom = _current.RoomName;

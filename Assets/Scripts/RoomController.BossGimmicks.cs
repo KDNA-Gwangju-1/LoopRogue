@@ -202,6 +202,7 @@ namespace LoopRogue
             }
             if (hit.Count == 0)
                 return;
+            TrailerControls.Cue(TrailerCue.Candle);
             if (_candles.Count == 0)
             {
                 OnGimmickBroken();
@@ -267,6 +268,7 @@ namespace LoopRogue
             if (_mirrorFakes.Count == 0)
             {
                 OnGimmickBroken();
+                TrailerControls.Cue(TrailerCue.MirrorFakes);
             }
             UpdateGimmickLabel();
         }
@@ -356,6 +358,7 @@ namespace LoopRogue
                     if (_mushrooms.ContainsKey(_player.GridPos))
                     {
                         RemoveFloorProp(_mushrooms, _player.GridPos, new Color(0.6f, 1f, 0.75f));
+                        TrailerControls.Cue(TrailerCue.Mushroom);
                         _infection = 0;
                         _gimmickBoss.RefreshHallucinatedTelegraph(this); // 환각으로 반대로 그려진 파동 예고를 진짜로
                         AddCleanAir(_player.GridPos); // 둘레 3x3 안전지대(10-16 사용자)

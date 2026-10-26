@@ -658,6 +658,16 @@ namespace LoopRogue
             KillPlayerInstantly();
         }
 
+        /// <summary>트레일러 마지막 장면 - 거울상을 다 깨면 바로 기사가 산산조각 나며 쓰러진다(발악은 건너뜀).</summary>
+        public void TrailerFinishMirrorKnight()
+        {
+            if (_gimmickBoss != null && !_gimmickBoss.Stats.IsDead)
+            {
+                _gimmickBoss.Stats.HealthFloor = 0f;
+                FinishLastStand();
+            }
+        }
+
         /// <summary>발악을 버텼다 - 기사가 쓰러진다(처치 처리까지). 방이 넘어갔으면 true.</summary>
         private bool FinishLastStand()
         {

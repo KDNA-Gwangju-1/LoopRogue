@@ -617,6 +617,8 @@ namespace LoopRogue
         {
             if (_stage >= MirrorStage && _room != null && _room.MirrorPhase == 2 && _room.MirrorPhaseActive)
                 return NextReflectionPattern();
+            if (BossRush.Trailer && IsOgre && _patterns.Contains(BossPatternType.TripleWave))
+                return BossPatternType.TripleWave; // 트레일러 - 오우거는 바로 3색 파동을 보여 준다
             if (_stage < MirrorStage || _patterns.Count < 2)
             {
                 var next = _patterns[_patternIndex];
@@ -709,7 +711,10 @@ namespace LoopRogue
                 var crashed = DoChargeMove(room);
                 _stunTurns = crashed ? BoarCrashStunTurns : ChargeStunTurns;
                 if (crashed && IsBoar)
+                {
                     BoarCrashCount++;
+                    TrailerControls.Cue(TrailerCue.BoarCrash);
+                }
                 if (!crashed)
                     room.ShowMessage(Loc.T("보스가 돌진 후 비틀거린다!"));
                 else if (!IsBoar)
@@ -761,6 +766,7 @@ namespace LoopRogue
             if (type == BossPatternType.Encircle)
                 _turnsSinceEncircle = 0;
             PatternResolveCount++;
+            TrailerControls.Cue(type == BossPatternType.TripleWave ? TrailerCue.TripleWave : TrailerCue.Pattern);
             HitFeedback.OnBossPatternResolved(player, playerHit, type, _pendingTiles, type == BossPatternType.SoulOrbs ? _orbCenters : null,
                 _stage >= MirrorStage ? MorphStage(type) : _stage); // 10층은 변신한 보스의 그림
             if (playerHit && room.MirrorLastStand)

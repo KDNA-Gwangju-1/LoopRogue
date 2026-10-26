@@ -276,6 +276,7 @@ namespace LoopRogue
                 }
             }
             BossBrain.PatternResolveCount++;
+            TrailerControls.Cue(TrailerCue.TurretWave);
             var washed = _slimePuddles.Keys.Where(set.Contains).ToList();
             foreach (var p in washed)
                 RemoveFloorProp(_slimePuddles, p, SlimeColor);
