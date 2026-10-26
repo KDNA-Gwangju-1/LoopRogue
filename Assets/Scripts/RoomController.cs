@@ -390,6 +390,7 @@ namespace LoopRogue
             if (def.BossStage > 0)
                 _stage = def.BossStage; // 보스 러시 - 보스 그림·패턴·기믹이 이 층 것으로
             else if (def.SpecStage > 0)
+            BossRush.TrailerFinal = BossRush.Trailer && def.BossStage >= BossRush.LastStage;
                 _stage = def.SpecStage; // 트레일러 잡몹 방 - 그 층 바닥·몹 그림
             if (def.IsBossRoom && !_loadCleared)
                 MusicPlayer.Play(MusicPlayer.Boss(_stage)); // 층별 보스 배경음악(파일이 없으면 조용히)
@@ -1953,8 +1954,8 @@ namespace LoopRogue
         /// <summary>기믹 실패 즉사 - TakeIncomingDamage를 안 거쳐 보호막·불굴·부활·피해 무효가 안 걸린다. 사망 처리(OnPlayerDied)는 호출부가.</summary>
         private void KillPlayerInstantly()
         {
-            if (BossRush.Trailer)
-                return; // 트레일러 촬영 - 기믹을 놓쳐도 죽지 않고 그대로 이어서 찍는다
+            if (BossRush.TrailerInvincible)
+                return; // 트레일러 촬영 - 기믹을 놓쳐도 죽지 않고 그대로 이어서 찍는다(10층은 예외 - 죽어서 끝)
             PlayLog.InstantKill($"{_stage}층 기믹");
             _player.Stats.Shield = 0f;
             _player.Stats.TakeDamage(_player.Stats.CurrentHealth);
@@ -2065,6 +2066,7 @@ namespace LoopRogue
                 Fx.Play("hole_fill", new Vector3(p.x * GridConstants.CellSize, p.y * GridConstants.CellSize, 0f), 1.5f, fps: 14f, sortingOrder: -6);
             RemoveWallObject(p); // 구멍 목록에서도 빠지고 바닥 타일이 다시 깔린다
             ShowMessage(Loc.F("<color=#FFD070>대지의 기세 {0}단계!</color> 오우거에게 주는 피해 +{1:0}% ({2}턴)",
+            TrailerControls.Cue(TrailerCue.HoleFilled);
                 _ogreMightStacks, (OgreMightMultiplier - 1f) * 100f, OgreMightTurns));
             if (HitFeedback.Enabled) // 발밑이 갈라지며 흙덩이가 몸으로 빨려 들고 금빛 기운이 솟는다(Effects/earth_might, 플레이어 그림과 같은 1.25칸)
                 Fx.Play("earth_might", _player.transform.position, 1.25f, fps: 14f, sortingOrder: 8);

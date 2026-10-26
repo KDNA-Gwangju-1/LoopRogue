@@ -205,6 +205,8 @@ namespace LoopRogue
         /// 않고 판단할 틈을 준다. 입력은 그 선택 전까지 잠가둔다.</summary>
         public void OnPlayerDied()
         {
+            if (BossRush.TrailerInvincible && !_player.Stats.IsDead)
+                return; // 트레일러 촬영 - 기믹 즉사(수정 폭발 등)는 죽이지 않으니 사망 처리도 없이 그대로 다음 장면으로(10-26 사용자)
             _roomController.IsInputLocked = true;
             LoopRecord.AddDeath(); // 누적 회차 - NPC 대사가 바뀐다
             var penalty = ApplyDeathGoldPenalty();

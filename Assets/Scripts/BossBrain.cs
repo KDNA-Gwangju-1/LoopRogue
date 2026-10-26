@@ -766,7 +766,7 @@ namespace LoopRogue
             if (type == BossPatternType.Encircle)
                 _turnsSinceEncircle = 0;
             PatternResolveCount++;
-            TrailerControls.Cue(type == BossPatternType.TripleWave ? TrailerCue.TripleWave : TrailerCue.Pattern);
+            TrailerControls.Cue(type == BossPatternType.TripleWave ? TrailerCue.TripleWave : TrailerCue.Pattern, playerHit);
             HitFeedback.OnBossPatternResolved(player, playerHit, type, _pendingTiles, type == BossPatternType.SoulOrbs ? _orbCenters : null,
                 _stage >= MirrorStage ? MorphStage(type) : _stage); // 10층은 변신한 보스의 그림
             if (playerHit && room.MirrorLastStand)

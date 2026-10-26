@@ -114,7 +114,7 @@ namespace LoopRogue
         /// <summary>메인 씬에서 한 번(LoopManager.Initialize) - 이미 있으면 참조만 바꾼다.</summary>
         public static void Attach(RoomController room, PlayerActor player, GameHUD hud)
         {
-            if (GameHUD.AutoPlayActive || TestMap.Active || BossRush.Active) // 보스 러시·트레일러 촬영엔 첫 판 안내를 안 띄운다
+            if (GameHUD.AutoPlayActive || TestMap.Active || (BossRush.Active && !TutorialStage.Active)) // 보스 러시엔 첫 판 안내를 안 띄운다(트레일러의 튜토리얼 방은 띄움)
                 return;
             if (_instance == null)
             {

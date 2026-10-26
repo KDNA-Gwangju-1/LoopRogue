@@ -119,7 +119,8 @@ namespace LoopRogue
             var hud = hudGo.AddComponent<GameHUD>();
             hud.Initialize(player);
 
-            var rooms = BossRush.Active ? BuildBossRushRooms()
+            var rooms = TutorialStage.TryBeginForTrailer() ? TutorialStage.BuildRooms() // 트레일러 촬영 - 튜토리얼 7방부터, 끝나면 보스 러시
+                : BossRush.Active ? BuildBossRushRooms()
                 : TutorialStage.TryBegin() ? TutorialStage.BuildRooms() : BuildStageRooms(stage); // 처음 온 사람·타이틀 [튜토리얼]
             if (TestMap.Active)
                 rooms = TestMap.BuildRooms(rooms); // 에디터 메뉴 "테스트 맵" - [이벤트 전부 깐 방, 이 층 보스방]
@@ -237,8 +238,6 @@ namespace LoopRogue
             var rooms = new List<RoomDefinition>();
             for (var s = BossRush.FirstStage; s <= BossRush.LastStage; s++)
             {
-                if (BossRush.Trailer && s == BossRush.FirstStage)
-                    rooms.Add(TrailerMobRoom(s)); // 트레일러 - 첫 보스 앞에 그 층 잡몹 방 하나
                 var size = Mathf.Min(12 + (s - 1) / 2, 18);
                 var (hp, atk) = BossStats(s);
                 var room = MakeRoom($"Boss Rush {s}", size, size, 1, enemyHp: hp, enemyAtk: atk, isBossRoom: true);
@@ -247,23 +246,6 @@ namespace LoopRogue
                 rooms.Add(room);
             }
             return rooms;
-        }
-
-        /// <summary>트레일러 촬영 모드(10-26 사용자 "잡몹 4마리 잡고 1층부터 층마다 보스 기믹 한 장면씩") - 그 층 방 7을 바탕으로 몹을
-        /// TrailerMobCount마리만, 종류가 겹치지 않는 것부터 골라 그 층에 나오는 몹을 고루 보여 준다.</summary>
-        private const int TrailerMobCount = 4;
-        private const int TrailerMobRoomNumber = 7;
-
-        private static RoomDefinition TrailerMobRoom(int stage)
-        {
-            var room = BuildStageRooms(stage)[TrailerMobRoomNumber - 1];
-            var kinds = room.EnemyKinds.Count > 0 ? room.EnemyKinds : new List<EnemyKind> { EnemyKind.Melee };
-            var picked = kinds.Distinct().Concat(kinds).Take(Mathf.Min(TrailerMobCount, room.EnemyCount)).ToList();
-            room.EnemyCount = picked.Count;
-            room.EnemyKinds = picked;
-            room.RoomName = $"Trailer {stage}";
-            room.SpecStage = stage;
-            return room;
         }
 
         /// <summary>궁수 배치 - 스테이지 1은 방 6부터 딱 1마리(첫 스테이지가 제일 어려운 벽이 되지 않게 - 봇 30판에서

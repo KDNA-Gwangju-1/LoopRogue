@@ -201,6 +201,18 @@ namespace LoopRogue
             return true;
         }
 
+        /// <summary>트레일러 촬영 모드 - 첫 Main은 튜토리얼 7방으로(안내 상자 포함). 끝나면 로비로 가고, 로비에서 던전에 들어가면 보스 러시.</summary>
+        public static bool TryBeginForTrailer()
+        {
+            if (!BossRush.Trailer || BossRush.TrailerTutorialStarted)
+                return false;
+            BossRush.TrailerTutorialStarted = true;
+            _fromTitle = false;
+            Active = true;
+            Tutorial.ResetAll();
+            return true;
+        }
+
         /// <summary>마지막 방 출구를 밟았다(LoopManager.AdvanceToNextRoom) - "튜토리얼 완료" 알림 + 처음이면 골드, 잠깐 보여준 뒤 넘어간다.</summary>
         public static void Complete(RoomController room)
         {
@@ -214,7 +226,8 @@ namespace LoopRogue
             room.ShowMessage(firstReward
                 ? Loc.F("<color=#FFD966>튜토리얼 완료!</color>  골드 +{0}", RewardGold)
                 : Loc.T("<color=#FFD966>튜토리얼 완료!</color>"));
-            room.ShowMessage(_fromTitle ? Loc.T("잠시 후 타이틀로 돌아갑니다") : Loc.T("이제 진짜 던전으로 내려갑니다..."));
+            if (!BossRush.Trailer)
+                room.ShowMessage(_fromTitle ? Loc.T("잠시 후 타이틀로 돌아갑니다") : Loc.T("이제 진짜 던전으로 내려갑니다..."));
             if (room.Player != null)
                 HitFeedback.OnBonusReward(room.Player);
             room.StartCoroutine(FinishAfterDelay());
@@ -230,7 +243,9 @@ namespace LoopRogue
         {
             Active = false;
             Inventory.LoseAll();
-            if (_fromTitle)
+            if (BossRush.Trailer)
+                UnityEngine.SceneManagement.SceneManager.LoadScene("Lobby"); // 트레일러 - 튜토리얼 다음은 로비, 던전에 들어가면 보스 러시
+            else if (_fromTitle)
                 UnityEngine.SceneManagement.SceneManager.LoadScene("Title");
             else
                 GameBootstrap.RebuildInPlace(); // 같은 Main 씬에서 진짜 1층을 새로 짓는다

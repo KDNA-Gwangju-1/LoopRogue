@@ -48,8 +48,8 @@ namespace LoopRogue
                 PlayerStart = Vector2Int.zero,
             };
 
-            // 보스는 시작 칸 반대편 구석 근처 - 입장하자마자 붙어 있지 않게.
-            var bossPos = new Vector2Int(layout.Width - 2, layout.Height - 2);
+            // 보스는 시작 칸 반대편 구석 근처 - 입장하자마자 붙어 있지 않게. 트레일러 촬영은 화면 가운데에 서도록 방 한가운데(10-26 사용자).
+            var bossPos = BossRush.Trailer ? new Vector2Int(layout.Width / 2, layout.Height / 2) : new Vector2Int(layout.Width - 2, layout.Height - 2);
 
             // 벽을 깔면 안 되는 칸: 시작 칸 주변(반경 1), 보스 자리 주변(보스 몸 3x3 + 처음 움직일 둘레 한 줄)
             var reserved = new HashSet<Vector2Int>();

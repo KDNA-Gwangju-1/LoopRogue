@@ -61,7 +61,6 @@ namespace LoopRogue
         {
             if (_gimmickBoss == null)
                 return 0;
-            TrailerControls.Cue(TrailerCue.DoomOrbs);
             var free = new List<Vector2Int>();
             for (var x = 0; x < Map.Width; x++)
             for (var y = 0; y < Map.Height; y++)
@@ -211,6 +210,7 @@ namespace LoopRogue
             var at = CellWorld(orb.Pos);
             RemoveDoomOrb(orb);
             _doomAbsorbed++;
+            TrailerControls.Cue(TrailerCue.DoomOrbs); // 트레일러 - 구체를 리치에게 먹이면 성공
             if (HitFeedback.Enabled)
             {
                 Fx.Play("soul_orb", at, 1.5f, fps: 18f, sortingOrder: 7);

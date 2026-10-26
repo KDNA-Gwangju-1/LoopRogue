@@ -347,15 +347,20 @@ namespace LoopRogue.EditorTools
             EditorPrefs.SetInt(LoopRogue.BossRush.FirstStagePrefKey, firstStage);
             EditorPrefs.SetBool(LoopRogue.BossRush.TrailerPrefKey, trailer);
             UnityEngine.Debug.Log($"[보스 기믹 체험] {firstStage}~{LoopRogue.BossRush.LastStage}층 보스 연속(기믹 체력으로 시작) - 보스방마다 그 층 기준 스펙(봇 중간값)으로. Play를 멈추면 저장 되돌림");
-            EditorSceneManagerOpenMain();
+            if (trailer)
+                OpenSceneInEditor("Assets/Scenes/Title.unity"); // 트레일러는 타이틀부터(Main을 먼저 열면 튜토리얼이 한 프레임 먼저 시작돼 버린다)
+            else
+                EditorSceneManagerOpenMain();
             EditorApplication.isPlaying = true;
         }
 
         /// <summary>Main 씬에서 바로 시작(타이틀·로비를 거치지 않게).</summary>
-        private static void EditorSceneManagerOpenMain()
+        private static void EditorSceneManagerOpenMain() => OpenSceneInEditor("Assets/Scenes/Main.unity");
+
+        private static void OpenSceneInEditor(string path)
         {
             if (UnityEditor.SceneManagement.EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
-                UnityEditor.SceneManagement.EditorSceneManager.OpenScene("Assets/Scenes/Main.unity");
+                UnityEditor.SceneManagement.EditorSceneManager.OpenScene(path);
         }
 
         private static void StartHandoff(int stage)

@@ -153,9 +153,9 @@ namespace LoopRogue
             var toHealth = damage - absorbed;
             if (TutorialStage.Active && toHealth >= CurrentHealth)
                 toHealth = Mathf.Max(0f, CurrentHealth - 1f); // 튜토리얼 스테이지 - 죽지 않는다
-            if (BossRush.Trailer && toHealth >= CurrentHealth - MaxHealth * 0.3f)
+            if (BossRush.TrailerInvincible && toHealth >= CurrentHealth - MaxHealth * 0.3f)
             {
-                toHealth = 0f; // 트레일러 촬영 - 맞는 연출은 그대로, 체력이 30% 밑으로는 안 내려가게(죽지 않는다)
+                toHealth = 0f; // 트레일러 촬영 - 맞는 연출은 그대로, 체력이 30% 밑으로는 안 내려가게(죽지 않는다, 10층은 예외)
                 CurrentHealth = MaxHealth;
             }
 

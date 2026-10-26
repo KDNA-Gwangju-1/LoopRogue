@@ -17,8 +17,17 @@ namespace LoopRogue
         /// <summary>러시가 시작하는 층(1~10) - 메뉴 "보스 기믹 체험/N층부터".</summary>
         public static int FirstStage { get; private set; } = 1;
 
-        /// <summary>트레일러 촬영 모드(10-26) - 보스 러시에 층마다 잡몹 방을 끼우고, 죽지 않으며, 촬영용 키(TrailerControls)를 켠다.</summary>
+        /// <summary>트레일러 촬영 모드(10-26) - 튜토리얼 7방 → 1~10층 보스. 9층까지는 죽지 않고, 촬영용 키(TrailerControls)를 켠다.</summary>
         public static bool Trailer { get; private set; }
+
+        /// <summary>트레일러 마지막 장면(10층 보스방) - 무적을 풀어 실제로 죽고 사망 연출(리플레이 → 되감기)로 끝난다(10-26 사용자).</summary>
+        public static bool TrailerFinal { get; set; }
+
+        /// <summary>지금 죽지 않게 지켜 줄지 - 트레일러이고 아직 마지막 장면이 아닐 때.</summary>
+        public static bool TrailerInvincible => Trailer && !TrailerFinal;
+
+        /// <summary>트레일러 튜토리얼을 이미 시작했는지 - 튜토리얼이 끝나 같은 씬을 다시 지을 때 보스 러시로 넘어가게.</summary>
+        public static bool TrailerTutorialStarted { get; set; }
 
 #if UNITY_EDITOR
         public const string PrefKey = "LoopRogue_BossRush";
@@ -33,14 +42,18 @@ namespace LoopRogue
             UnityEditor.EditorPrefs.SetBool(PrefKey, false);
             FirstStage = Mathf.Clamp(UnityEditor.EditorPrefs.GetInt(FirstStagePrefKey, 1), 1, LastStage);
             Trailer = Active && UnityEditor.EditorPrefs.GetBool(TrailerPrefKey, false);
+            TrailerTutorialStarted = false;
+            TrailerFinal = false;
             UnityEditor.EditorPrefs.SetBool(TrailerPrefKey, false);
             if (!Active)
                 return;
             if (Trailer)
                 TrailerControls.Create();
-            Debug.Log("[보스 러시] 시작 - Main으로 바로 이동");
-            if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != "Main")
-                UnityEngine.SceneManagement.SceneManager.LoadScene("Main");
+            // 트레일러는 타이틀부터(10-26 사용자: 타이틀 → 튜토리얼 → 로비 → 던전 입장 → 1~10층 보스)
+            var first = Trailer ? "Title" : "Main";
+            Debug.Log($"[보스 러시] 시작 - {first}(으)로 바로 이동");
+            if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != first)
+                UnityEngine.SceneManagement.SceneManager.LoadScene(first);
         }
 #endif
 

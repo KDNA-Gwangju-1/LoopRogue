@@ -96,7 +96,8 @@ namespace LoopRogue
             }
         }
 
-        private static void StartGame() => SceneManager.LoadScene(LobbySceneName);
+        // 트레일러 촬영 모드는 시작을 누르면 튜토리얼부터(끝나면 로비로)
+        private static void StartGame() => SceneManager.LoadScene(BossRush.Trailer && !BossRush.TrailerTutorialStarted ? "Main" : LobbySceneName);
 
         private static void StartTutorial()
         {
