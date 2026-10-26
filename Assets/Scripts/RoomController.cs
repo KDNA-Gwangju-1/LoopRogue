@@ -667,6 +667,7 @@ namespace LoopRogue
         public const int ChallengeGoldRooms = 6;   // 도전 성공 골드 = 방 클리어 골드 × 이 값(+ 레벨업 카드 1장)
         private readonly HashSet<EnemyActor> _challengeEnemies = new HashSet<EnemyActor>();
         private bool _roomCleared;
+        public bool IsRoomCleared => _roomCleared;
 
         /// <summary>미믹 - 상자 자리(곧 플레이어가 들어갈 칸) 옆 빈 칸에서 튀어나온다.</summary>
         public void SpawnMimic(Vector2Int chestPos)

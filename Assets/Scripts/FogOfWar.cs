@@ -26,6 +26,12 @@ namespace LoopRogue
         private SpriteRenderer _exitTracked;
         private bool _exitSeen;
 
+        /// <summary>방을 클리어하면 안개가 이 시간(초) 동안 ClearedAlpha까지 옅어져 방 전체 지형이 반투명하게 보인다(사용자 결정 10-26).
+        /// 몹은 계속 시야 안에서만 보인다(클리어 뒤 나온 정예·미믹도).</summary>
+        private const float ClearRevealSeconds = 0.6f;
+        private const float ClearedAlpha = 0.5f;
+        private float _clearReveal; // 0 = 평소 안개, 1 = ClearedAlpha까지 옅어짐
+
         /// <summary>방을 깔 때마다 새로 만든다(덮개 오브젝트는 방 오브젝트 목록에 넣어 방과 같이 지워지게).</summary>
         public static FogOfWar Create(RoomController room, PlayerActor player, RoomLayout layout, List<GameObject> roomObjects)
         {
@@ -69,12 +75,15 @@ namespace LoopRogue
             foreach (var torch in _room.Torches)
                 ComputeVisible(_room.Map, torch, ItemInfo.TorchRadius); // 횃불 주변도 밝게
             var danger = _room.DangerTiles;
+            if (_room.IsRoomCleared && _clearReveal < 1f)
+                _clearReveal = Mathf.Min(1f, _clearReveal + Time.deltaTime / ClearRevealSeconds);
+            var revealed = _clearReveal >= 1f;
 
             for (var x = 0; x < _width; x++)
             for (var y = 0; y < _height; y++)
             {
                 var p = new Vector2Int(x, y);
-                var alpha = _visible.Contains(p) ? 0f : UnseenAlpha;
+                var alpha = _visible.Contains(p) ? 0f : Mathf.Lerp(UnseenAlpha, ClearedAlpha, _clearReveal);
                 if (danger.Contains(p))
                     alpha = Mathf.Min(alpha, DangerMaxAlpha);
                 _cells[x, y].color = new Color(0f, 0f, 0f, alpha);
@@ -89,7 +98,7 @@ namespace LoopRogue
             }
             if (exit != null && _room.ExitPosition.HasValue)
             {
-                if (_visible.Contains(_room.ExitPosition.Value))
+                if (revealed || _visible.Contains(_room.ExitPosition.Value))
                     _exitSeen = true;
                 exit.enabled = _exitSeen || Relics.Has(RelicType.HunterEye);
             }
