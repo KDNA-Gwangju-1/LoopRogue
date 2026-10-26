@@ -98,8 +98,13 @@ namespace LoopRogue
         /// <summary>에디터 테스트 - 다음 Main 진입을 그 층 보스방에서 바로 시작(한 번만).</summary>
         public const string BossDirectPrefKey = "LoopRogue_Test_BossDirect";
 
+        /// <summary>봇 "N층 보스방 반복" 모드 - 켜져 있는 동안 Main에 들어갈 때마다 보스방에서 시작한다(AutoPlayBot이 켜고 끈다).</summary>
+        public static bool BotStartAtBoss;
+
         private static bool ConsumeBossDirect()
         {
+            if (BotStartAtBoss)
+                return true;
 #if UNITY_EDITOR
             if (GameHUD.AutoPlayActive || !UnityEditor.EditorPrefs.GetBool(BossDirectPrefKey, false))
                 return false;

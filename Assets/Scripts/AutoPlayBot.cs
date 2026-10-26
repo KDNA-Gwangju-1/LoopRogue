@@ -66,10 +66,18 @@ namespace LoopRogue
 
         private bool _sweep;
         private const int TrialsPerStage = 30;
+
+        /// <summary>"N층 보스방 반복" 모드(10-26 사용자) - 기준 상태(그 층을 막 깬 판 = N+1층 입장 상태, 없으면 N층 입장 상태)로 N층 보스방에서
+        /// 바로 시작해 목숨 하나로 싸운다. 죽으면 실패, 보스를 잡으면 성공으로 그 회차를 끝내고 BossTrialRuns번 반복해 몇 번 깨는지 잰다.</summary>
+        public const string BossTrialMode = "boss_trial";
+        public const string BossTrialStagePrefKey = "LoopRogue_AutoPlayBot_BossTrialStage";
+        private const int BossTrialRuns = 50;
+        private bool _bossTrial;
+        private int _bossTrialStage;
         private const string ReferenceFileName = "reference_snapshots.tsv";
 
         private bool _stageTest;
-        private int TrialsPerCase => _sweep ? SweepTrials : TrialsPerStage;
+        private int TrialsPerCase => _bossTrial ? BossTrialRuns : _sweep ? SweepTrials : TrialsPerStage;
         private int SessionRuns => _stageTest ? _testCases.Count * TrialsPerCase : _handoff ? 1 : RunsPerSession;
 
         /// <summary>각 층을 "몇 층 입장 상태로" 시험할지 - 0 = 그 층 입장 상태, -1 = 한 층 앞 입장 상태.
@@ -128,6 +136,8 @@ namespace LoopRogue
             public int TestStage;            // 층 테스트 모드에서 이 시도가 측정한 층
             public int TestPower;            // 층 테스트 모드 - 몇 층 입장 상태로 시작했는지
             public float TestScale = 1f;     // 보스 배율 찾기 모드 - 보스 세기에 곱한 값
+            public float BossHpAtDeath = -1f; // 보스방 반복 모드 - 죽을 때 보스 남은 체력 비율(못 죽었으면 -1)
+            public int BossTurns;            // 보스방 반복 모드 - 보스방에서 보낸 턴
             public int TestBossDeaths;       // 층 테스트 모드 - 그중 보스방 사망
             public string EndReason;
             public bool Completed;
@@ -321,7 +331,10 @@ namespace LoopRogue
             var path = Path.GetFullPath(Path.Combine(dir, $"bot_{DateTime.Now:yyyyMMdd_HHmmss}.txt"));
             var mode = UnityEditor.EditorPrefs.GetString(ModePrefKey, "");
             _sweep = mode == BossSweepMode;
-            _stageTest = mode == StageTestMode || _sweep;
+            _bossTrial = mode == BossTrialMode;
+            _bossTrialStage = Mathf.Clamp(UnityEditor.EditorPrefs.GetInt(BossTrialStagePrefKey, 1), 1, StageProgress.MaxStage);
+            _stageTest = mode == StageTestMode || _sweep || _bossTrial;
+            LoopManager.BotStartAtBoss = _bossTrial;
             _handoff = mode == HandoffMode;
             _handoffStage = Mathf.Clamp(UnityEditor.EditorPrefs.GetInt(HandoffStagePrefKey, 1), 1, StageProgress.MaxStage);
             if (_handoff)
@@ -355,7 +368,8 @@ namespace LoopRogue
 
             _sessionStartTime = Time.realtimeSinceStartup;
             Log(_stageTest
-                ? $"=== {(_sweep ? "보스 배율 찾기" : "층별 순수 난이도 측정")}: {_testCases.Count}조합 × {TrialsPerCase}회 (기준 상태에서 시작, 그 층 보스를 잡으면 종료) ==="
+                ? _bossTrial ? $"=== {_bossTrialStage}층 보스방 반복: {TrialsPerCase}회 ({_testCases[0].Power}층 입장 기준 상태로 보스방에서 시작, 목숨 하나) ==="
+                : $"=== {(_sweep ? "보스 배율 찾기" : "층별 순수 난이도 측정")}: {_testCases.Count}조합 × {TrialsPerCase}회 (기준 상태에서 시작, 그 층 보스를 잡으면 종료) ==="
                 : _handoff ? $"=== {_handoffStage}층 보스방 앞까지 자동 진행 후 인계 ==="
                 : $"=== 자동 플레이 {RunsPerSession}판 연속 시작 ===");
             BeginRun();
@@ -367,6 +381,7 @@ namespace LoopRogue
             Loc.ForceKorean = false;
             GameHUD.AutoPlayActive = false;
             LoopManager.SkipLobbyAfterStageClear = false;
+            LoopManager.BotStartAtBoss = false;
             SceneManager.sceneLoaded -= OnSceneLoaded;
             PlayerActor.EnemyKilled -= OnEnemyKilled;
             _log?.Dispose();
@@ -631,6 +646,13 @@ namespace LoopRogue
                 d[parts[1]] = parts[2] == "f"
                     ? (object)float.Parse(parts[3], CultureInfo.InvariantCulture)
                     : int.Parse(parts[3], CultureInfo.InvariantCulture);
+            }
+            if (_bossTrial)
+            {
+                var power = _reference.ContainsKey(_bossTrialStage + 1) ? _bossTrialStage + 1 : _bossTrialStage;
+                if (_reference.ContainsKey(power))
+                    _testCases.Add((_bossTrialStage, power, 1f));
+                return _testCases.Count > 0;
             }
             foreach (var stage in _reference.Keys.OrderBy(k => k))
             {
@@ -1315,6 +1337,14 @@ namespace LoopRogue
             Detail($"[사망 #{_stageDeaths}] {_room.RoomName} ({_attemptTurns}턴){bossInfo} | 데스 패널티 골드 -{_hud.LastDeathGoldPenalty} | {StatLine()}");
             LogDeathMaps();
 
+            if (_bossTrial)
+            {
+                _run.BossHpAtDeath = bossHp.HasValue && bossMaxHp > 0f ? bossHp.Value / bossMaxHp.Value : -1f;
+                _run.BossTurns = _roomTurns;
+                EndRun(_room.IsBossRoom ? "보스방 사망" : "보스방 밖에서 사망", false);
+                return;
+            }
+
             if (_stageDeaths >= MaxDeathsPerStage)
             {
                 EndRun($"스테이지 {_room.Stage}에서 {MaxDeathsPerStage}번 사망 - 넘기 힘든 벽", false);
@@ -1365,6 +1395,7 @@ namespace LoopRogue
 
             if (_stageTest)
             {
+                _run.BossTurns = _roomTurns;
                 EndRun($"{stage}층 보스 격파", true);
                 return;
             }
@@ -2756,6 +2787,27 @@ namespace LoopRogue
             }
         }
 
+        private void LogBossTrialSummary()
+        {
+            var n = _results.Count;
+            if (n == 0)
+                return;
+            var wins = _results.Count(r => r.Completed);
+            var deaths = _results.Where(r => !r.Completed && r.BossHpAtDeath >= 0f).ToList();
+            var gimmick = _results.Count(r => !r.Completed && r.GimmickKills[_bossTrialStage] > 0);
+            var power = _results[0].TestPower;
+            Log($"--- {_bossTrialStage}층 보스방 반복 ({power}층 입장 기준 상태, 목숨 하나) ---");
+            Log($"클리어 {wins}/{n} ({wins * 100f / n:0}%) | 사망 {n - wins}회 (그중 기믹 즉사 {gimmick}회)");
+            if (wins > 0)
+                Log($"클리어한 판 보스전 턴: 평균 {_results.Where(r => r.Completed).Average(r => r.BossTurns):0} / 중앙값 {Percentile(_results.Where(r => r.Completed).Select(r => (float)r.BossTurns).ToList(), 0.5f):0}");
+            if (deaths.Count > 0)
+            {
+                Log($"죽은 판 보스전 턴: 평균 {deaths.Average(r => r.BossTurns):0} / 중앙값 {Percentile(deaths.Select(r => (float)r.BossTurns).ToList(), 0.5f):0}");
+                int Band(float lo, float hi) => deaths.Count(r => r.BossHpAtDeath >= lo && r.BossHpAtDeath < hi);
+                Log($"죽을 때 보스 남은 체력: 75% 이상 {Band(0.75f, 2f)} / 50~75% {Band(0.5f, 0.75f)} / 25~50% {Band(0.25f, 0.5f)} / 25% 미만 {Band(0f, 0.25f)}");
+            }
+        }
+
         private void LogSweepRecommendation()
         {
             Log("");
@@ -2804,7 +2856,11 @@ namespace LoopRogue
             Log($"================ 종료: {reason} ({n}판) ================");
             if (_stageTest)
             {
-                LogStageTestSummary();
+                if (_bossTrial)
+                    LogBossTrialSummary();
+                else
+                    LogStageTestSummary();
+                LoopManager.BotStartAtBoss = false;
                 if (_sweep)
                     LogSweepRecommendation();
                 GameBootstrap.BossScaleForBotTest = 1f;

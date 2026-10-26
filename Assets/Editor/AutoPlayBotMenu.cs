@@ -178,6 +178,29 @@ namespace LoopRogue.EditorTools
             EditorApplication.isPlaying = true;
         }
 
+        // ---- N층 보스방 반복(10-26) - 기준 상태로 N층 보스방에서 바로 시작, 목숨 하나로 50번 싸워 몇 번 깨는지(BotLogs/stagetest_*.txt 맨 아래) ----
+        private const string BossTrialMenu = "LoopRogue/봇으로 N층 보스방 50번 (저장 백업 후 초기화)/";
+        [MenuItem(BossTrialMenu + "1층")] private static void BossTrial1() => StartBossTrial(1);
+        [MenuItem(BossTrialMenu + "2층")] private static void BossTrial2() => StartBossTrial(2);
+        [MenuItem(BossTrialMenu + "3층")] private static void BossTrial3() => StartBossTrial(3);
+        [MenuItem(BossTrialMenu + "4층")] private static void BossTrial4() => StartBossTrial(4);
+        [MenuItem(BossTrialMenu + "5층")] private static void BossTrial5() => StartBossTrial(5);
+        [MenuItem(BossTrialMenu + "6층")] private static void BossTrial6() => StartBossTrial(6);
+        [MenuItem(BossTrialMenu + "7층")] private static void BossTrial7() => StartBossTrial(7);
+        [MenuItem(BossTrialMenu + "8층")] private static void BossTrial8() => StartBossTrial(8);
+        [MenuItem(BossTrialMenu + "9층")] private static void BossTrial9() => StartBossTrial(9);
+        [MenuItem(BossTrialMenu + "10층")] private static void BossTrial10() => StartBossTrial(10);
+
+        private static void StartBossTrial(int stage)
+        {
+            if (EditorApplication.isPlaying || !BackupBeforeBot())
+                return;
+            EditorPrefs.SetBool(AutoPlayBot.EnabledPrefKey, true);
+            EditorPrefs.SetString(AutoPlayBot.ModePrefKey, AutoPlayBot.BossTrialMode);
+            EditorPrefs.SetInt(AutoPlayBot.BossTrialStagePrefKey, stage);
+            EditorApplication.isPlaying = true;
+        }
+
         // ---- N층 보스방 앞까지 봇이 진행 → 사람에게 인계 ----
         // 새 저장으로 시작하므로(봇 공통) 시작 전에 지금 저장을 BotLogs/save_backup.reg로 백업한다 - "봇 전 저장 되돌리기"로 복구.
         private const string HandoffMenu = "LoopRogue/봇으로 N층 보스방 앞까지 (저장 백업 후 초기화)/";
