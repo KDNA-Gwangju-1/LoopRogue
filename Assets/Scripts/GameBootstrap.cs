@@ -285,11 +285,13 @@ namespace LoopRogue
             var chargerCount = Share(6, 6);
             var splitterCount = Share(7, 8);
             var assassinCount = Share(8, 8);
+            var sentinelCount = Share(4, 8);                // 반격병 4층부터(10-26 사용자 "중반부터")
+            var casterCount = Mathf.Min(1, Share(6, 99));    // 주문술사 6층부터, 방에 1마리까지(폭발이 겹치면 피할 데가 없다)
 
             // 근접이 최소 1마리는 남게 줄인다(궁수는 안 줄임). 2마리 이상인 종류 중 제일 많은 것부터 하나씩 - 한 종류를 통째로
             // 지우면 그 층 몹 구성이 단조로워진다(16마리 방에서 도적이 0마리가 됐다). 전부 1마리 이하면 새 몹부터
             // (도적 → 분열체 → 돌진병 → 치유사 → 폭발병 → 거미 → 방패병) 뺀다. 같은 수면 돌진병·거미·폭발병·분열체·도적·방패병 순으로 먼저 줄인다.
-            var trimmable = new[] { chargerCount, spiderCount, bomberCount, splitterCount, assassinCount, shieldCount, healerCount };
+            var trimmable = new[] { chargerCount, spiderCount, bomberCount, splitterCount, assassinCount, shieldCount, healerCount, sentinelCount, casterCount };
             int Special() { var sum = rangedCount; foreach (var c in trimmable) sum += c; return sum; }
             while (Special() > enemyCount - 1)
             {
@@ -302,7 +304,7 @@ namespace LoopRogue
                     trimmable[most]--;
                     continue;
                 }
-                var dropOrder = new[] { 4, 3, 0, 6, 2, 1, 5 }; // 도적, 분열체, 돌진병, 치유사, 폭발병, 거미, 방패병
+                var dropOrder = new[] { 8, 7, 4, 3, 0, 6, 2, 1, 5 }; // 주문술사, 반격병, 도적, 분열체, 돌진병, 치유사, 폭발병, 거미, 방패병
                 var dropped = false;
                 foreach (var k in dropOrder)
                 {
@@ -322,11 +324,14 @@ namespace LoopRogue
             assassinCount = trimmable[4];
             shieldCount = trimmable[5];
             healerCount = trimmable[6];
+            sentinelCount = trimmable[7];
+            casterCount = trimmable[8];
             var meleeCount = Mathf.Max(0, enemyCount - Special());
 
             // 몹 위치는 플레이어에게서 가까운 순 - 방패병이 맨 앞, 그다음 근접·분열체·돌진병·도적·폭발병, 거미, 치유사, 궁수가 맨 뒤.
             var kinds = new List<EnemyKind>(enemyCount);
             for (var i = 0; i < shieldCount; i++) kinds.Add(EnemyKind.Shield);
+            for (var i = 0; i < sentinelCount; i++) kinds.Add(EnemyKind.Sentinel); // 앞줄 - 자세를 보고 때릴 때를 고르게
             for (var i = 0; i < meleeCount; i++) kinds.Add(EnemyKind.Melee);
             for (var i = 0; i < splitterCount; i++) kinds.Add(EnemyKind.Splitter);
             for (var i = 0; i < chargerCount; i++) kinds.Add(EnemyKind.Charger);
@@ -334,6 +339,7 @@ namespace LoopRogue
             for (var i = 0; i < bomberCount; i++) kinds.Add(EnemyKind.Bomber);
             for (var i = 0; i < spiderCount; i++) kinds.Add(EnemyKind.Spider);
             for (var i = 0; i < healerCount; i++) kinds.Add(EnemyKind.Healer);
+            for (var i = 0; i < casterCount; i++) kinds.Add(EnemyKind.Caster); // 뒤쪽 - 뚫고 가서 잡을지 막을지 고르게
             while (kinds.Count < enemyCount) kinds.Add(EnemyKind.Ranged);
             return kinds;
         }

@@ -131,7 +131,7 @@ namespace LoopRogue
         }
 
         /// <summary>브레젠험 직선 - 시작/끝 칸을 뺀 중간 칸에 벽이 있으면 가림.</summary>
-        private static bool HasLineOfSight(GridMap map, Vector2Int from, Vector2Int to)
+        public static bool HasLineOfSight(GridMap map, Vector2Int from, Vector2Int to)
         {
             int x0 = from.x, y0 = from.y, x1 = to.x, y1 = to.y;
             int dx = Mathf.Abs(x1 - x0), dy = -Mathf.Abs(y1 - y0);

@@ -83,6 +83,10 @@ namespace LoopRogue
                 Loc.T("튼튼한 젤리. 쓰러뜨리면 작은 조각 둘로 갈라진다. 조각은 약하고 갓 갈라진 턴엔 굳어 있지만 골드와 경험치를 주지 않는다. 회전 베기로 한꺼번에 치우자. 7층부터."));
             AddMonster(list, "Assassin", Loc.T("그림자 도적"), EnemyActor.NewKindVisual(EnemyKind.Assassin).Set, EnemyActor.NewKindVisual(EnemyKind.Assassin).Color,
                 Loc.T("조금 떨어져 있으면 연기와 함께 플레이어 등 뒤로 순간이동한다. 순간이동 직후 첫 공격은 1.5배로 아프다. 나타나면 바로 때려서 기습 전에 잡자. 8층부터."));
+            AddMonster(list, "Sentinel", Loc.T("반격병"), EnemyActor.NewKindVisual(EnemyKind.Sentinel).Set, EnemyActor.NewKindVisual(EnemyKind.Sentinel).Color,
+                Loc.T("두 턴에 한 번 방패를 세워 반격 자세를 잡는다(몸에 방패 빛). 그때 때리면 피해를 거의 막고 공격력 2배로 되받아친다 - 일반 공격·대시·회전 베기 모두. 자세를 잡은 턴엔 한 칸 물러나거나 기다렸다가, 자세를 푼 틈에 때리자. 4층부터."));
+            AddMonster(list, "Caster", Loc.T("주문술사"), EnemyActor.NewKindVisual(EnemyKind.Caster).Set, EnemyActor.NewKindVisual(EnemyKind.Caster).Color,
+                Loc.F("플레이어를 본 순간부터 머리 위 숫자를 세며 주문을 외운다({0}턴). 1이 되면 내 둘레 3x3을 예고하고, 0이 되면 그 칸이 폭발한다 - 맞으면 즉사급. 몸이 약하니 숫자가 끝나기 전에 뛰어가 잡거나, 대시로 빠지거나 보호막으로 막자. 6층부터, 방에 한 마리까지.", EnemyActor.CasterChantTurns));
             AddMonster(list, "Mimic", Loc.T("미믹"), "Mimic", new Color(0.65f, 0.45f, 0.25f),
                 Loc.T("보물상자인 척하는 상자 괴물. 밟으면 튀어나온다. 튼튼하고 아프게 물지만, 잡으면 보물상자보다 훨씬 많은 골드와 아이템을 뱉는다."));
             // 기억하는 기사·층 보스 설명은 공략 대신 스토리 떡밥(10-26 사용자 - 기믹 규칙은 직접 부딪혀 알아내게, 남기는 건 기믹 게이지 UI뿐)

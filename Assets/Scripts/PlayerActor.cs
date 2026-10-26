@@ -917,6 +917,12 @@ namespace LoopRogue
                 damage *= EnemyActor.ShieldFrontDamageRate;
                 ShieldBlockCount++;
             }
+            var countered = enemy.IsGuarding; // 반격병 반격 자세 - 일반 공격·대시·회전 베기 모두 막고 되받아친다
+            if (countered)
+            {
+                damage *= EnemyActor.SentinelGuardDamageRate;
+                blocked = true;
+            }
             enemy.Stats.TakeDamage(damage);
             DamagePopup.Spawn(enemy.transform.position, damage, blocked ? new Color(0.6f, 0.65f, 0.75f) : Color.white, isCritical && !blocked);
             HitFeedback.OnPlayerHitEnemy(this, enemy, direction, isCritical, blocked);
@@ -925,6 +931,8 @@ namespace LoopRogue
             if (!isSkill)
                 Stats.Heal(damage * Stats.EffectiveLifeSteal); // 흡혈 카드(최대 50%)
 
+            if (countered)
+                enemy.CounterAttack(this, _room);
             if (!enemy.Stats.IsDead)
                 return false;
 

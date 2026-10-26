@@ -17,6 +17,8 @@ namespace LoopRogue
         Charger,
         Splitter,
         Assassin,
+        Sentinel, // 반격병(10-26) - 두 턴에 한 번 반격 자세, 그때 때리면 막고 강하게 되받아친다
+        Caster,   // 주문술사(10-26) - 플레이어를 본 순간부터 8턴 주문, 0이 되면 플레이어 둘레 3x3 폭발
     }
 
     /// <summary>일반 몹/보스 공통 - 턴제라 실시간 이동 대신 TurnManager 역할을 하는
@@ -267,6 +269,8 @@ namespace LoopRogue
             EnemyKind.Charger => Loc.T("돌진병"),
             EnemyKind.Splitter => Loc.T("분열체"),
             EnemyKind.Assassin => Loc.T("도적"),
+            EnemyKind.Sentinel => Loc.T("반격병"),
+            EnemyKind.Caster => Loc.T("주문술사"),
             _ => Loc.T("몬스터"),
         };
 
@@ -647,6 +651,8 @@ namespace LoopRogue
             EnemyKind.Healer => ("Shaman", new Color(0.35f, 0.9f, 0.55f)),
             EnemyKind.Charger => ("OrcCharger", new Color(0.8f, 0.4f, 0.25f)),
             EnemyKind.Splitter => ("Jelly", new Color(0.35f, 0.6f, 1f)),
+            EnemyKind.Sentinel => ("Sentinel", new Color(0.45f, 0.5f, 0.6f)), // 강철 갑옷 + 해 문양 방패(sentinel2.py, lit_ = 반격 자세)
+            EnemyKind.Caster => ("Chanter", new Color(0.5f, 0.25f, 0.55f)),    // 자줏빛 두건 로브 + 떠 있는 마도서(chanter2.py)
             _ => ("Rogue", new Color(0.5f, 0.4f, 0.7f)),
         };
 
@@ -831,6 +837,10 @@ namespace LoopRogue
                 TakeChargerTurn(player, claimedSlots, room);
             else if (Kind == EnemyKind.Assassin)
                 TakeAssassinTurn(player, claimedSlots, room);
+            else if (Kind == EnemyKind.Sentinel)
+                TakeSentinelTurn(claimedSlots, player);
+            else if (Kind == EnemyKind.Caster)
+                TakeCasterTurn(player, room);
             else
                 TakeMeleeTurn(player, claimedSlots); // 분열체도 걷는 건 근접 몹과 같다
         }
@@ -1047,6 +1057,273 @@ namespace LoopRogue
             }
 
             TakeMeleeTurn(player, claimedSlots);
+        }
+
+        // ---- 반격병(Sentinel, 10-26 사용자) - 스킬 쿨타임을 기다리며 일반 공격만 누르는 걸 막는다 ----
+        public const float SentinelGuardDamageRate = 0.1f; // 반격 자세일 때 받는 피해
+        public const float SentinelCounterRate = 2f;       // 반격 = 공격력 × 이 값
+        private const int SentinelGuardRange = 2;          // 이 거리 안에 들어와야 자세를 잡는다(멀면 그냥 다가온다)
+
+        /// <summary>반격 자세 - 몹 턴에 잡고 다음 몹 턴에 푼다. 그 사이(플레이어 턴)에 때리면 막고 되받아친다.</summary>
+        public bool IsGuarding { get; private set; }
+
+        /// <summary>반격 자세 그림(lit_ - 방패를 세우고 금빛)이 있어 몸으로 보여 주는지 - 없으면 StatusIcons가 방패 빛을 대신 띄운다.</summary>
+        public bool ShowsGuardPose { get; private set; }
+
+        private void SetGuard(bool on)
+        {
+            IsGuarding = on;
+            ShowsGuardPose = TryGetComponent<SpriteAnimator>(out var anim) && anim.SetLit(on);
+        }
+
+        /// <summary>봇 통계용 - 반격 횟수, 주문 폭발 횟수와 그중 플레이어 적중.</summary>
+        public static int SentinelCounterCount, CasterBlastCount, CasterBlastHitCount;
+
+        /// <summary>반격병: 자세를 잡고 있었으면 풀고 평소처럼 다가가 때린다. 아니면 가까울 때 자세를 잡고 그 턴은 끝(두 턴에 한 번).</summary>
+        private void TakeSentinelTurn(HashSet<Vector2Int> claimedSlots, PlayerActor player)
+        {
+            if (IsGuarding)
+            {
+                SetGuard(false);
+                TakeMeleeTurn(player, claimedSlots);
+                return;
+            }
+            if (Distance(GridPos, _tp) <= SentinelGuardRange)
+            {
+                if (TryGetComponent<SpriteAnimator>(out var anim))
+                    anim.Face(_tp - GridPos);
+                SetGuard(true);
+                return;
+            }
+            TakeMeleeTurn(player, claimedSlots);
+        }
+
+        /// <summary>반격 자세에 맞았다(PlayerActor.StrikeEnemy) - 공격한 플레이어를 강하게 되받아친다. 거리와 상관없이(대시로 와서 때려도).</summary>
+        public void CounterAttack(PlayerActor player, RoomController room)
+        {
+            if (Stats.IsDead || player == null || player.Stats.IsDead)
+                return;
+            _turnRoom = room;
+            SentinelCounterCount++;
+            DamagePopup.SpawnText(transform.position, Loc.T("반격!"), new Color(1f, 0.8f, 0.35f));
+            if (TryGetComponent<SpriteAnimator>(out var anim))
+                anim.PlayAttack(player.GridPos - GridPos);
+            HitPlayer(player, melee: true, rate: SentinelCounterRate);
+        }
+
+        // ---- 주문술사(Caster, 10-26 사용자) - "3턴 안에 잡을 것인가, 막아낼 것인가" ----
+        public const int CasterChantTurns = 8;   // 플레이어를 본 순간부터 이만큼 몹 턴 뒤 폭발(사용자 8턴)
+        /// <summary>폭발 피해 = 플레이어 최대 체력 × 이 값 - 즉사급(10-26 사용자). 받는 피해 감소(최대 30%)로도 못 버티고,
+        /// 보호막 아이템·반사 부적·대시로 피하기·불굴 같은 "막는 수단"으로만 산다.</summary>
+        public const float CasterBlastMaxHealthRate = 1.5f;
+        private int _chant = -1;                 // 남은 주문 턴 - -1이면 아직 플레이어를 못 봤다
+        private List<Vector2Int> _casterBlastTiles;
+        private TextMesh _chantLabel;
+        private ChantCircle _chantCircle;
+
+        /// <summary>주문술사: 플레이어가 시야(플레이어 기준 시야 반경 + 벽에 안 가림)에 들어온 순간 주문을 시작해 그 자리에서 외운다.
+        /// 남은 턴이 1이 되면 그때 플레이어 둘레 3x3을 예고하고, 0이 되면 그 칸에 폭발. 그 뒤 다시 처음부터 외운다.</summary>
+        private void TakeCasterTurn(PlayerActor player, RoomController room)
+        {
+            if (_chant < 0)
+            {
+                if (!CasterSeesPlayer(room, player))
+                    return;
+                _chant = CasterChantTurns;
+                UpdateChantLabel();
+                return;
+            }
+            _chant--;
+            if (_chant == 1)
+            {
+                _casterBlastTiles = CasterBlastArea(room.Map, player.GridPos);
+                room.ShowEnemyTelegraph(this, _casterBlastTiles, new Color(0.85f, 0.25f, 0.8f, 0.55f));
+                HitFeedback.OnTelegraph();
+                LaunchFireball(player.GridPos);
+            }
+            else if (_chant <= 0)
+            {
+                ResolveCasterBlast(player, room);
+                _chant = CasterChantTurns;
+            }
+            if (TryGetComponent<SpriteAnimator>(out var anim))
+                anim.Face(player.GridPos - GridPos);
+            UpdateChantLabel();
+        }
+
+        private bool CasterSeesPlayer(RoomController room, PlayerActor player)
+        {
+            var d = player.GridPos - GridPos;
+            var radius = Relics.VisionRadius;
+            return d.x * d.x + d.y * d.y <= radius * radius && FogOfWar.HasLineOfSight(room.Map, player.GridPos, GridPos);
+        }
+
+        private static List<Vector2Int> CasterBlastArea(GridMap map, Vector2Int center)
+        {
+            var tiles = new List<Vector2Int>();
+            for (var dx = -1; dx <= 1; dx++)
+            for (var dy = -1; dy <= 1; dy++)
+            {
+                var c = center + new Vector2Int(dx, dy);
+                if (map.IsInBounds(c) && !map.IsWall(c))
+                    tiles.Add(c);
+            }
+            return tiles;
+        }
+
+        private void ResolveCasterBlast(PlayerActor player, RoomController room)
+        {
+            var tiles = _casterBlastTiles ?? CasterBlastArea(room.Map, player.GridPos);
+            _casterBlastTiles = null;
+            room.ClearEnemyTelegraph(this);
+            CasterBlastCount++;
+            if (TryGetComponent<SpriteAnimator>(out var anim))
+                anim.PlayAttack(player.GridPos - GridPos);
+            if (HitFeedback.Enabled)
+            {
+                // 떠 있던 불덩이가 예고 칸 한가운데로 내리꽂히며 자홍빛 폭발(떠 있던 불덩이는 _casterBlastTiles가 비면서 KeepAlive로 사라진다)
+                var center = _fireballTarget;
+                Fx.Play("chant_fireball", center + Vector3.up * GridConstants.CellSize * 0.6f, 1.6f, angle: -90f, fps: 20f);
+                Fx.Play("chant_circle", center, 3.6f, tint: new Color(1f, 0.45f, 0.95f), fps: 14f, sortingOrder: -2); // 바닥에 큰 마법진이 번쩍
+                Fx.Play("chant_blast", center + Vector3.up * GridConstants.CellSize * 0.3f, 3.8f, fps: 14f, sortingOrder: 8);
+                DeathBurst.Spawn(center, new Color(0.95f, 0.35f, 0.85f), count: 24, speed: 9f, size: 0.25f);
+                DeathBurst.Spawn(center, new Color(1f, 0.9f, 0.6f), count: 12, speed: 12f, size: 0.12f);
+                ScreenFlash.Play(new Color(0.95f, 0.35f, 0.9f), 0.35f, 0.45f);
+                CameraShake.Shake(0.5f, 0.55f);
+                SfxPlayer.Play(Sfx.Explosion);
+            }
+            if (!tiles.Contains(player.GridPos))
+                return;
+            CasterBlastHitCount++;
+            if (player.ReflectInto(this, room))
+                return; // 반사 부적 - 막고 되돌린다
+            var dealt = player.Stats.TakeIncomingDamage(player.Stats.MaxHealth * CasterBlastMaxHealthRate);
+            PlayLog.PlayerHit($"{PlayLog.EnemyLabel(this)} 주문 폭발", dealt, player.Stats);
+            DamagePopup.Spawn(player.transform.position, dealt, new Color(0.95f, 0.4f, 0.85f), isCritical: true);
+            HitFeedback.OnPlayerHurt(player, this);
+        }
+
+        private Vector3 _fireballTarget;
+        private const float FireballFlightSeconds = 0.45f;
+
+        /// <summary>날아가는 불덩이 뒤로 작은 불꽃이 남는다 - 불덩이와 같은 길을 따라 짧게 타고 사라지는 작은 불덩이.</summary>
+        private System.Collections.IEnumerator FireballTrail(Vector3 from, Vector3 to, float seconds)
+        {
+            for (var t = 0f; t < seconds; t += 0.04f)
+            {
+                var p = Vector3.Lerp(from, to, t / seconds);
+                var delta = to - from;
+                Fx.Play("chant_fireball", p, 0.6f, angle: Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg, fps: 30f, sortingOrder: 5,
+                    tint: new Color(1f, 0.6f, 0.95f, 0.7f));
+                yield return new WaitForSeconds(0.04f);
+            }
+        }
+
+        /// <summary>마법진이 완성되는 턴(남은 1) - 마법진이 번쩍이고 불덩이가 날아가 예고 칸 위에 떠서 이글거린다(10-26 사용자 "플레이어 쪽으로 불덩이").
+        /// 폭발 턴에 날리면 그 한 방에 죽을 때 사망 연출(슬로모션 → 정지)에 불덩이가 공중에 멈춘 채 찍혀서, 한 턴 먼저 날려 띄워 둔다.</summary>
+        private void LaunchFireball(Vector2Int target)
+        {
+            _fireballTarget = new Vector3(target.x * GridConstants.CellSize, target.y * GridConstants.CellSize, 0f);
+            if (!HitFeedback.Enabled)
+                return;
+            _chantCircle?.Flash();
+            var from = _chantCircle != null ? _chantCircle.transform.position : transform.position + Vector3.up * GridConstants.CellSize;
+            var hover = _fireballTarget + Vector3.up * GridConstants.CellSize * 1.4f;
+            SfxPlayer.Play(Sfx.Slam);
+            DeathBurst.Spawn(from, new Color(1f, 0.55f, 0.95f), count: 16, speed: 6f, size: 0.14f); // 완성된 마법진에서 룬 파편이 흩날림
+            StartCoroutine(FireballTrail(from, hover, FireballFlightSeconds));
+            Fx.Projectile("chant_fireball", from, hover, 1.3f, FireballFlightSeconds, () =>
+            {
+                if (_casterBlastTiles == null || Stats.IsDead)
+                    return; // 그새 주문술사가 쓰러졌다
+                var fx = Fx.Play("chant_fireball", hover, 1.3f, angle: -90f, fps: 12f, loop: true, sortingOrder: 7);
+                if (fx != null)
+                    fx.KeepAlive = () => this != null && _casterBlastTiles != null && !Stats.IsDead;
+            });
+        }
+
+        /// <summary>머리 위 남은 주문 턴 숫자(3 이하면 빨갛게) - 봇 실행 중엔 안 만든다.</summary>
+        private void UpdateChantLabel()
+        {
+            if (DamagePopup.Suppressed)
+                return;
+            if (_chantLabel == null)
+            {
+                var go = new GameObject("ChantLabel");
+                go.transform.SetParent(transform, false);
+                go.transform.localPosition = new Vector3(0f, GridConstants.CellSize * 1.5f, -1f); // 머리 위 마법진보다 위
+                _chantLabel = go.AddComponent<TextMesh>();
+                _chantLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                _chantLabel.fontSize = 48;
+                _chantLabel.characterSize = 0.08f;
+                _chantLabel.anchor = TextAnchor.LowerCenter;
+                _chantLabel.alignment = TextAlignment.Center;
+                _chantLabel.fontStyle = FontStyle.Bold;
+                var meshRenderer = go.GetComponent<MeshRenderer>();
+                meshRenderer.material = _chantLabel.font.material;
+                meshRenderer.sortingOrder = 30;
+            }
+            _chantLabel.text = _chant.ToString();
+            _chantLabel.color = _chant <= 3 ? new Color(1f, 0.3f, 0.3f) : new Color(0.95f, 0.75f, 1f);
+
+            // 머리 위 마법진(10-26 사용자 "머리 위에서") - 인식한 턴(8)엔 작고 희미하게, 턴마다 커지고 또렷해지다 마지막 2턴은 붉게 맥박
+            if (_chantCircle == null)
+            {
+                var go = new GameObject("ChantCircle");
+                go.transform.SetParent(transform, false);
+                _chantCircle = go.AddComponent<ChantCircle>();
+            }
+            var progress = 1f - (_chant - 1) / (float)(CasterChantTurns - 1); // 8 → 0, 1 → 1
+            _chantCircle.SetTarget(Mathf.Lerp(0.5f, 1.5f, progress), Mathf.Lerp(0.15f, 0.95f, progress), danger: _chant <= 2);
+        }
+
+        /// <summary>주문술사 머리 위 마법진(Effects/chant_circle) - 크기·투명도를 목표값으로 부드럽게 옮기며 천천히 돈다. 위험(마지막 2턴)이면 붉게 맥박.</summary>
+        private sealed class ChantCircle : MonoBehaviour
+        {
+            private static readonly Color Purple = new Color(0.92f, 0.43f, 0.9f);
+            private static readonly Color Red = new Color(1f, 0.27f, 0.27f);
+            private SpriteRenderer _renderer;
+            private Sprite[] _frames;
+            private float _size = 0.5f, _alpha, _targetSize = 0.5f, _targetAlpha;
+            private bool _danger;
+
+            /// <summary>마법진 완성 - 하얗게 번쩍이며 한껏 부풀었다가 목표 크기로 돌아온다.</summary>
+            public void Flash() => _flash = 1f;
+
+            private float _flash;
+
+            public void SetTarget(float sizeCells, float alpha, bool danger)
+            {
+                _targetSize = sizeCells;
+                _targetAlpha = alpha;
+                _danger = danger;
+            }
+
+            private void Awake()
+            {
+                _frames = Fx.Frames("chant_circle");
+                _renderer = gameObject.AddComponent<SpriteRenderer>();
+                _renderer.sortingOrder = 6; // 몸 위(머리 위 후광처럼), 숫자(30) 아래
+                transform.localPosition = new Vector3(0f, GridConstants.CellSize * 0.95f, -0.5f);
+                if (_frames.Length == 0)
+                    enabled = false;
+            }
+
+            private void Update()
+            {
+                var dt = Time.deltaTime;
+                _size = Mathf.MoveTowards(_size, _targetSize, dt * 2f);
+                _alpha = Mathf.MoveTowards(_alpha, _targetAlpha, dt * 1.5f);
+                _renderer.sprite = _frames[(int)(Time.time * 8f) % _frames.Length];
+                var pulse = _danger ? 0.8f + 0.2f * Mathf.Sin(Time.time * 9f) : 1f;
+                var c = Color.Lerp(_danger ? Red : Purple, Color.white, _flash);
+                c.a = Mathf.Max(_alpha * pulse, _flash);
+                _renderer.color = c;
+                var world = GridConstants.CellSize * _size * (1f + 0.35f * _flash) / Mathf.Max(0.01f, _renderer.sprite.bounds.size.x);
+                _flash = Mathf.Max(0f, _flash - dt * 2.5f);
+                var parent = transform.parent != null ? transform.parent.lossyScale.x : 1f;
+                transform.localScale = Vector3.one * world / Mathf.Max(0.01f, parent);
+            }
         }
 
         /// <summary>방패병: 플레이어와 붙어 있는 동안은 방향을 못 돌리고 그냥 때린다 - 옆/뒤로 돌아 붙으면 계속 옆을 때릴 수 있다

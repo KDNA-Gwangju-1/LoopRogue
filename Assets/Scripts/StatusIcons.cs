@@ -43,6 +43,7 @@ namespace LoopRogue
             // 별 3개가 머리 위를 도는 8프레임(10-14 새로 그림, 40x20) - 보스 패턴 기절(돌진 뒤·기둥 충돌)에도
             icons.Add("status_stun", () => enemy.IsStunned && !enemy.Stats.IsDead, head, enemy.IsBoss ? 1.5f : 0.9f);
             icons.Add("status_weak", () => enemy.IsVulnerable && !enemy.Stats.IsDead, head + 0.3f, 0.45f);
+            icons.Add("status_shield", () => enemy.IsGuarding && !enemy.ShowsGuardPose && !enemy.Stats.IsDead, 0f, 1.15f); // 반격병 반격 자세 - 자세 그림이 없을 때만
         }
 
         private void LateUpdate()

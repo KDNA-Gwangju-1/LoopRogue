@@ -67,6 +67,10 @@ namespace LoopRogue
         private const float SplitterAttackRatio = 0.9f;
         private const float AssassinHealthRatio = 0.7f;
         private const float AssassinAttackRatio = 1.1f;
+        private const float SentinelHealthRatio = 1.5f; // 반격병 - 튼튼하지만 자세를 피해 때리면 금방
+        private const float SentinelAttackRatio = 0.9f;
+        private const float CasterHealthRatio = 0.6f;   // 주문술사 - 8턴 안에 잡을 수 있게 약하게
+        private const float CasterAttackRatio = 1f;
 
         private const int GoldPerKill = 4;       // "쓸 곳은 많은데 수급이 부족하다" 피드백으로 전부 2배(2/20/5 → 4/40/10)
         private const int GoldPerBossKill = 40;
@@ -386,11 +390,11 @@ namespace LoopRogue
             _current = def;
             _roomDamageStart = CharacterStats.IncomingDamageTotal;
             TrailerControls.OnRoomLoaded();
+            BossRush.TrailerFinal = BossRush.Trailer && def.BossStage >= BossRush.LastStage;
             ClearRoom();
             if (def.BossStage > 0)
                 _stage = def.BossStage; // 보스 러시 - 보스 그림·패턴·기믹이 이 층 것으로
             else if (def.SpecStage > 0)
-            BossRush.TrailerFinal = BossRush.Trailer && def.BossStage >= BossRush.LastStage;
                 _stage = def.SpecStage; // 트레일러 잡몹 방 - 그 층 바닥·몹 그림
             if (def.IsBossRoom && !_loadCleared)
                 MusicPlayer.Play(MusicPlayer.Boss(_stage)); // 층별 보스 배경음악(파일이 없으면 조용히)
@@ -476,6 +480,8 @@ namespace LoopRogue
             EnemyKind.Charger => (ChargerHealthRatio, ChargerAttackRatio),
             EnemyKind.Splitter => (SplitterHealthRatio, SplitterAttackRatio),
             EnemyKind.Assassin => (AssassinHealthRatio, AssassinAttackRatio),
+            EnemyKind.Sentinel => (SentinelHealthRatio, SentinelAttackRatio),
+            EnemyKind.Caster => (CasterHealthRatio, CasterAttackRatio),
             _ => (1f, 1f),
         };
 
@@ -2060,13 +2066,13 @@ namespace LoopRogue
             if (!_ogreHoles.Contains(p))
                 return;
             OgreHoleFillCount++;
+            TrailerControls.Cue(TrailerCue.HoleFilled);
             _ogreMightStacks = Mathf.Min(OgreMightMaxStacks, _ogreMightStacks + 1);
             _ogreMightTurns = OgreMightTurns;
             if (HitFeedback.Enabled) // 구멍 자리에 흙이 쏟아져 차오르고 다져진다(Effects/hole_fill 48x48, 10-23) - 구멍 그림은 이 이펙트 첫 장에 들어 있다
                 Fx.Play("hole_fill", new Vector3(p.x * GridConstants.CellSize, p.y * GridConstants.CellSize, 0f), 1.5f, fps: 14f, sortingOrder: -6);
             RemoveWallObject(p); // 구멍 목록에서도 빠지고 바닥 타일이 다시 깔린다
             ShowMessage(Loc.F("<color=#FFD070>대지의 기세 {0}단계!</color> 오우거에게 주는 피해 +{1:0}% ({2}턴)",
-            TrailerControls.Cue(TrailerCue.HoleFilled);
                 _ogreMightStacks, (OgreMightMultiplier - 1f) * 100f, OgreMightTurns));
             if (HitFeedback.Enabled) // 발밑이 갈라지며 흙덩이가 몸으로 빨려 들고 금빛 기운이 솟는다(Effects/earth_might, 플레이어 그림과 같은 1.25칸)
                 Fx.Play("earth_might", _player.transform.position, 1.25f, fps: 14f, sortingOrder: 8);

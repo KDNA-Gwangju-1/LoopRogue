@@ -221,13 +221,14 @@ namespace LoopRogue
 
         /// <summary>처치 통계 분류 - 0~8은 EnemyKind 순서, 분열 조각/정예/미믹/졸개/보스는 따로 센다(한 마리는 한 칸에만).
         /// 폭발병이 스스로 터진 건 처치가 아니라 여기 안 들어간다(폭발 횟수는 따로 기록).</summary>
-        private static readonly string[] KillNames = { "근접", "궁수", "방패병", "거미", "폭발병", "치유사", "돌진병", "분열체", "도적", "분열 조각", "정예", "미믹", "졸개", "보스" };
+        private static readonly string[] KillNames = { "근접", "궁수", "방패병", "거미", "폭발병", "치유사", "돌진병", "분열체", "도적", "분열 조각", "정예", "미믹", "졸개", "보스", "반격병", "주문술사" };
         private static readonly string[] KillKeys = { "melee", "ranged", "shield", "spider", "bomber", "healer", "charger", "splitter", "assassin", "split_child", "elite", "mimic", "minion", "boss" };
 
         private static int KillIndex(EnemyActor e) =>
-            e.IsBoss ? 13 : e.IsMinion ? 12 : e.IsMimic ? 11 : e.IsElite ? 10 : e.IsSplitChild ? 9 : (int)e.Kind;
+            e.IsBoss ? 13 : e.IsMinion ? 12 : e.IsMimic ? 11 : e.IsElite ? 10 : e.IsSplitChild ? 9
+            : e.Kind == EnemyKind.Sentinel ? 14 : e.Kind == EnemyKind.Caster ? 15 : (int)e.Kind;
 
-        /// <summary>맵 기록 글자 - B 보스, m 졸개, A 궁수, S 방패병, W 거미, O 폭발병, H 치유사, C 돌진병, J 분열체(j 조각), R 도적, M 근접.</summary>
+        /// <summary>맵 기록 글자 - B 보스, m 졸개, A 궁수, S 방패병, W 거미, O 폭발병, H 치유사, C 돌진병, J 분열체(j 조각), R 도적, N 반격병, Q 주문술사, M 근접.</summary>
         private static char EnemyChar(EnemyActor e) =>
             e.IsBoss ? 'B' : e.IsMinion ? 'm' : e.IsSplitChild ? 'j' : e.Kind switch
             {
@@ -239,6 +240,8 @@ namespace LoopRogue
                 EnemyKind.Charger => 'C',
                 EnemyKind.Splitter => 'J',
                 EnemyKind.Assassin => 'R',
+                EnemyKind.Sentinel => 'N',
+                EnemyKind.Caster => 'Q',
                 _ => 'M',
             };
 
@@ -1462,7 +1465,7 @@ namespace LoopRogue
                 foreach (var d in Directions)
                 {
                     if (_player.PreviewDash(d, out var landing, out var hit) && hit != null && landing != start &&
-                        !danger.Contains(landing) && !hit.IsShieldFront(landing) && _player.BotDash(d))
+                        !danger.Contains(landing) && !hit.IsShieldFront(landing) && !hit.IsGuarding && _player.BotDash(d))
                     {
                         _run.DashStrikes++;
                         _lastDecision = "대시 공격";
@@ -1644,8 +1647,8 @@ namespace LoopRogue
             var targetFront = false;
             foreach (var d in Directions)
             {
-                if (!(map.GetActorAt(start + d) is EnemyActor e) || e.Stats.IsDead || e.IsBladeProof)
-                    continue; // 칼이 안 통하는 분신·거울상은 때려 봐야 턴만 버린다
+                if (!(map.GetActorAt(start + d) is EnemyActor e) || e.Stats.IsDead || e.IsBladeProof || e.IsGuarding)
+                    continue; // 칼이 안 통하는 분신·거울상은 때려 봐야 턴만 버린다, 반격 자세인 반격병은 되받아친다
                 // 우선순위: 방패 정면이 아닌 몹 > 치유사(살려두면 다른 몹을 고친다) > 체력 낮은 몹
                 var front = e.IsShieldFront(start);
                 bool better;
