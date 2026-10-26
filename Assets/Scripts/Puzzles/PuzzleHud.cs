@@ -79,7 +79,7 @@ namespace LoopRogue
             _bar = bar.gameObject;
             _bar.SetActive(false); // 퍼즐이 실제로 시작되면(ShowBar) 보인다
 
-            var buttons = _puzzle.ExtraKeyLabel != null ? 3 : 2;
+            var buttons = 2 + (_puzzle.ExtraKeyLabel != null ? 1 : 0) + (_puzzle.SecondKeyLabel != null ? 1 : 0);
             const float buttonWidth = 92f;
             _status = HudUi.CreateText(bar.transform, "Status", 14, TextAnchor.MiddleLeft);
             var statusRect = _status.rectTransform;
@@ -98,6 +98,8 @@ namespace LoopRogue
             BarButton(bar.transform, ref x, buttonWidth, Loc.T("설명 [H]"), Key.H, new Color(0.22f, 0.24f, 0.3f, 0.95f));
             if (_puzzle.ExtraKeyLabel != null)
                 BarButton(bar.transform, ref x, buttonWidth, _puzzle.ExtraKeyLabel, _puzzle.ExtraKey, new Color(0.18f, 0.3f, 0.45f, 0.95f));
+            if (_puzzle.SecondKeyLabel != null)
+                BarButton(bar.transform, ref x, buttonWidth, _puzzle.SecondKeyLabel, _puzzle.SecondKey, new Color(0.4f, 0.32f, 0.12f, 0.95f));
         }
 
         private void BarButton(Transform parent, ref float x, float width, string label, Key key, Color color)

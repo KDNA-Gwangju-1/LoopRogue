@@ -165,6 +165,12 @@ namespace LoopRogue
         public virtual bool HandleKeys() => false;
         public virtual string ExtraKeyLabel => null;
         public virtual UnityEngine.InputSystem.Key ExtraKey => UnityEngine.InputSystem.Key.None;
+        /// <summary>두 번째 전용 키 버튼(색 발판 [T] 힌트) - 처리는 같은 HandleKeys에서.</summary>
+        public virtual string SecondKeyLabel => null;
+        public virtual UnityEngine.InputSystem.Key SecondKey => UnityEngine.InputSystem.Key.None;
+
+        /// <summary>힌트를 썼으면 성공해도 골드·영약 보상이 없다(레벨업 카드는 그대로, RoomController.CompletePuzzle).</summary>
+        public bool UsedHint { get; protected set; }
 
         public void PlayerMoved(Vector2Int pos)
         {

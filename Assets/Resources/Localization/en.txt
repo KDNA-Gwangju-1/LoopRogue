@@ -1242,6 +1242,8 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 바닥 보석의 색을 벽에 걸린 석판과 똑같이 맞춰라. 발판 위에서 [Space]로 대기하면 발판이 작동한다 - 어느 칸이 바뀌는지는 직접 알아내라.	Match the gems on the floor to the stone tablet on the wall. Wait on a tile with [Space] to trigger it - figure out for yourself which tiles change.
 일치 {0} / {1}	Match {0} / {1}
 발판 작동 [Space]	Trigger tile [Space]
+힌트 [T]	Hint [T]
+힌트를 썼다 - 성공 보상에서 골드·영약이 빠진다	Hint used - no gold or elixirs from the reward
 잘 봐라!	Watch closely!
 라운드 {0} / {1}	Round {0} / {1}
 정답! 라운드 {0} / {1}	Correct! Round {0} / {1}

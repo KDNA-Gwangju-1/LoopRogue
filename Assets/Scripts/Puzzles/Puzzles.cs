@@ -495,6 +495,7 @@ namespace LoopRogue
         private List<int>[] _effects;
         private SpriteRenderer[] _tiles;
         private Vector3[] _baseScales; // 보석 원래 크기 - 연달아 작동해 튀는 중에 또 튀어도 크기가 줄어든 채 굳지 않게
+        private int[] _scrambled, _pressed; // 발판별 섞을 때 거꾸로 건 횟수·플레이어가 작동한 횟수 - 힌트가 남은 정답을 계산한다
 
         private int Colors => _gems.Length;
         private int Index(int x, int y) => y * _n + x;
@@ -522,6 +523,8 @@ namespace LoopRogue
             _effects = new List<int>[_n * _n];
             _tiles = new SpriteRenderer[_n * _n];
             _baseScales = new Vector3[_n * _n];
+            _scrambled = new int[_n * _n];
+            _pressed = new int[_n * _n];
 
             var layout = new RoomLayout { Width = _width, Height = _height, PlayerStart = new Vector2Int(0, 0) };
             // 위쪽 두 줄 가운데는 정답 석판이 걸린 벽(못 들어감)
@@ -540,11 +543,21 @@ namespace LoopRogue
             var order = Enumerable.Range(0, _n * _n).ToList();
             Shuffle(order);
             foreach (var t in order.Take(k))
-                Apply(t, -1);
+                Scramble(t);
             for (var extra = k; Matches() == _n * _n && extra < order.Count; extra++) // 효과끼리 상쇄돼 처음부터 정답이면 더 섞는다
-                Apply(order[extra], -1);
+                Scramble(order[extra]);
             return layout;
         }
+
+        private void Scramble(int tile)
+        {
+            Apply(tile, -1);
+            _scrambled[tile]++;
+        }
+
+        /// <summary>정답까지 발판 tile을 더 작동해야 하는 횟수 - 효과는 서로 순서와 상관없이 더해지기만 하므로
+        /// (섞은 횟수 - 작동한 횟수) mod 색 수. 플레이어가 아무 발판이나 눌러 놨어도 언제나 맞다.</summary>
+        private int Needed(int tile) => ((_scrambled[tile] - _pressed[tile]) % Colors + Colors) % Colors;
 
         private void Apply(int tile, int step)
         {
@@ -679,23 +692,78 @@ namespace LoopRogue
 
         public override string ExtraKeyLabel => Loc.T("발판 작동 [Space]");
         public override Key ExtraKey => Key.Space;
+        public override string SecondKeyLabel => Loc.T("힌트 [T]");
+        public override Key SecondKey => Key.T;
 
         public override bool HandleKeys()
         {
-            if (!GameInput.Down(Key.Space) || InIntro)
+            if (InIntro)
+                return false;
+            if (GameInput.Down(Key.T))
+            {
+                Hint();
+                return true;
+            }
+            if (!GameInput.Down(Key.Space))
                 return false;
             var local = Player.GridPos - _origin;
             if (local.x < 0 || local.x >= _n || local.y < 0 || local.y >= _n)
                 return false; // 발판 밖에선 평소 대기
-            var i = Index(local.x, local.y);
+            Activate(Index(local.x, local.y));
+            return true;
+        }
+
+        private void Activate(int i)
+        {
             Apply(i, +1);
+            _pressed[i]++;
             foreach (var c in _effects[i])
                 Room.StartCoroutine(Pop(c));
             SfxPlayer.Play(Sfx.Appear);
             RefreshHud();
             if (Matches() == _n * _n)
                 Succeed();
-            return true;
+        }
+
+        /// <summary>힌트(10-26 사용자 "정답 순서를 자동으로 한 칸씩") - 아직 더 작동해야 하는 발판 중 플레이어에게 가장 가까운 것을
+        /// 금빛으로 번쩍이며 대신 한 번 작동한다. 한 번이라도 쓰면 성공 보상의 골드·영약이 빠진다.</summary>
+        private void Hint()
+        {
+            var best = -1;
+            for (var i = 0; i < _n * _n; i++)
+            {
+                if (Needed(i) == 0)
+                    continue;
+                var d = Cell(i) - Player.GridPos;
+                var bd = best < 0 ? 0 : Mathf.Abs((Cell(best) - Player.GridPos).x) + Mathf.Abs((Cell(best) - Player.GridPos).y);
+                if (best < 0 || Mathf.Abs(d.x) + Mathf.Abs(d.y) < bd)
+                    best = i;
+            }
+            if (best < 0)
+                return;
+            if (!UsedHint)
+            {
+                UsedHint = true;
+                Room.ShowMessage(Loc.T("힌트를 썼다 - 성공 보상에서 골드·영약이 빠진다"));
+            }
+            Room.StartCoroutine(HintFlash(best));
+            Activate(best);
+        }
+
+        /// <summary>힌트로 작동한 발판 - 금빛 칸이 떠올랐다 사라진다.</summary>
+        private IEnumerator HintFlash(int i)
+        {
+            var glow = Square(Cell(i), new Color(1f, 0.85f, 0.3f, 0.55f), 1f, -7, "HintGlow");
+            Fx.Play("hit_spark", World(Cell(i)), 1f, fps: 20f);
+            for (var t = 0f; t < 0.5f; t += Time.unscaledDeltaTime)
+            {
+                if (glow == null)
+                    yield break;
+                glow.color = new Color(1f, 0.85f, 0.3f, 0.55f * (1f - t / 0.5f));
+                yield return null;
+            }
+            if (glow != null)
+                Untrack(glow.gameObject);
         }
 
         /// <summary>바뀐 칸 - 보석이 쏙 들어갔다가(작아짐) 새 보석으로 톡 튀어나온다 + 반짝.</summary>

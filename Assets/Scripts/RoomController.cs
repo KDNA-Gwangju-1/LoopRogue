@@ -262,7 +262,7 @@ namespace LoopRogue
             PlayLog.RoomCleared(_player, true);
             if (!_current.IsTestRoom)
                 StageProgress.MarkRoomCleared(_current.RoomNumber);
-            var rewards = GrantPuzzleRewards(puzzle.Type);
+            var rewards = puzzle.UsedHint ? new List<string>() : GrantPuzzleRewards(puzzle.Type); // 힌트를 쓰면 골드·영약 없음
             if (rewards.Count > 0)
                 HitFeedback.OnGold(_player.transform.position);
             ShowMessage(rewards.Count > 0
