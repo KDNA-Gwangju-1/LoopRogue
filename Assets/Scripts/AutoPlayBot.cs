@@ -1788,7 +1788,7 @@ namespace LoopRogue
                 return toEnemy.Value;
 
             // 예고 칸이 유일한 길을 오래 막고 있으면(봇 100판: 연막에 멈춘 돌진병의 예고 줄이 통로를 3000턴 막음) 예고 칸도 지나간다 -
-            // 연막 속 몹은 움직이지 않아 그 예고는 지금 터지지 않는다. 지금 서 있는 칸·바로 옆이 예고 칸이면 이 길은 안 쓴다.
+            // 연막 속 몹은 움직이지 않아 그 예고는 지금 터지지 않는다.
             if (_turnsSinceProgress >= CrossfireGiveUpTurns && _player.InSmoke)
             {
                 var through = FirstStepTo(isEnemyAdjacentAny, c => map.IsWalkable(c) && !_room.IsSlimePuddle(c));
