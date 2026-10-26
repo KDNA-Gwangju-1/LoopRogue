@@ -719,6 +719,7 @@ namespace LoopRogue
         private const float RewindSeconds = 1.0f;      // 녹화 전체를 거꾸로
         private const float RewindOutroSeconds = 0.35f;
         private const int RewindRingCount = 3;
+        private const float ClockRewindTurns = 3f; // 되감기 동안 분침이 거꾸로 도는 바퀴 수(그 뒤 사망 수 시각에 멈춤)
         private static readonly Color RewindGold = new Color(1f, 0.85f, 0.45f);
         private static readonly Color SepiaTint = new Color(1f, 0.86f, 0.66f);
         private DeathReplay _replay;
@@ -796,8 +797,13 @@ namespace LoopRogue
             }
 
             // 3) 되감기 - 녹화 전체를 거꾸로 빠르게 + 세피아 + 거꾸로 도는 시계
-            var minute = 0f;
-            var hour = 0f;
+            // 시계는 누적 사망 수를 가리킨다(10-26 사용자) - 한 번 죽을 때마다 1분: 75번이면 1시 15분. 되감기 동안 바늘이 거꾸로 돌다가
+            // 감속하며 그 시각에 멈춘다. 각도는 위(12시)가 0, 양수 = 반시계(거꾸로).
+            var deaths = LoopRecord.TotalDeaths;
+            var minuteTarget = -(deaths % 60) * 6f;
+            var hourTarget = -((deaths / 60) % 12 * 30f + (deaths % 60) * 0.5f);
+            var minute = minuteTarget;
+            var hour = hourTarget;
             var nextTick = 0.05f;
             var tick = 0;
             var total = RewindSeconds + RewindOutroSeconds;
@@ -823,9 +829,11 @@ namespace LoopRogue
                 _clockRect.localScale = new Vector3(s, s, 1f);
                 var a = appear * outro;
                 _rewindClock.color = new Color(1f, 1f, 1f, a);
-                var speed = Mathf.Lerp(300f, 1600f, k);
-                minute += speed * Time.unscaledDeltaTime;
-                hour += speed / 12f * Time.unscaledDeltaTime;
+                // 처음엔 빠르게 거꾸로, 끝에 갈수록 느려지며 사망 수 시각에 닿는다
+                var settle = 1f - Mathf.Clamp01(t / RewindSeconds);
+                settle = settle * settle * settle;
+                minute = minuteTarget - ClockRewindTurns * 360f * settle;
+                hour = hourTarget - ClockRewindTurns * 30f * settle;
                 _minuteHand.localEulerAngles = new Vector3(0f, 0f, minute); // 양수 = 반시계(거꾸로)
                 _hourHand.localEulerAngles = new Vector3(0f, 0f, hour);
                 _minuteHand.GetComponent<Image>().color = new Color(RewindGold.r, RewindGold.g, RewindGold.b, a);
@@ -957,7 +965,7 @@ namespace LoopRogue
                 ring.sprite = ringSprite;
                 var rr = ring.rectTransform;
                 rr.anchorMin = rr.anchorMax = new Vector2(0.5f, 0.5f);
-                rr.sizeDelta = new Vector2(128f, 128f);
+                rr.sizeDelta = new Vector2(192f, 192f); // 시계(192)와 같은 크기에서 빨려 든다
                 rr.anchoredPosition = new Vector2(0f, 20f);
                 ring.raycastTarget = false;
                 _rewindRings[i] = ring;
@@ -967,16 +975,16 @@ namespace LoopRogue
             _rewindClock.sprite = PixelUi.Get("UI/Common/RewindClock");
             _clockRect = _rewindClock.rectTransform;
             _clockRect.anchorMin = _clockRect.anchorMax = new Vector2(0.5f, 0.5f);
-            _clockRect.sizeDelta = new Vector2(128f, 128f); // 32px × 4
+            _clockRect.sizeDelta = new Vector2(192f, 192f); // 96px × 2(로마 숫자 시계, 10-26)
             _clockRect.anchoredPosition = new Vector2(0f, 20f);
-            _hourHand = CreateClockHand("HourHand", 6f, 30f);
-            _minuteHand = CreateClockHand("MinuteHand", 4f, 44f);
+            _hourHand = CreateClockHand("HourHand", 8f, 42f);
+            _minuteHand = CreateClockHand("MinuteHand", 6f, 60f);
 
             _deathTitle = HudUi.CreateText(_deathOverlay.transform, "Title", 22, TextAnchor.MiddleCenter);
             var title = _deathTitle.rectTransform;
             title.anchorMin = title.anchorMax = new Vector2(0.5f, 0.5f);
             title.sizeDelta = new Vector2(600f, 40f);
-            title.anchoredPosition = new Vector2(0f, -72f);
+            title.anchoredPosition = new Vector2(0f, -100f); // 커진 시계(192) 아래
             _deathTitle.text = Loc.T("시간이 되감긴다...");
             var outline = _deathTitle.gameObject.AddComponent<Outline>();
             outline.effectColor = new Color(0f, 0f, 0f, 0.85f);
