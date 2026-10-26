@@ -1216,3 +1216,28 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 죽음을 미뤄 온 마법사. 그의 낙인은 본래 다른 누군가의 몫이었다고 한다. 그 몫을 넘겨받은 자가 누구였는지, 리치는 끝내 말하지 않는다.\n<i>"끝을 미루는 법은 가르쳐 주었다. 끝내는 법은 나도 모른다."</i>	A sorcerer who kept putting off death. They say his brand was meant for someone else. Who took on that share, the lich will never say.\n<i>"I taught him how to put off the end. How to end it, even I do not know."</i>
 고리를 만든 자. 깨진 거울 가면에는 지금껏 쓰러뜨린 문지기들의 얼굴이 차례로 비친다. 가면 아래 얼굴을 본 자는 없다 - 아직은.\n<i>"낯익은 얼굴이군. 거울 속에서 매일 보던 얼굴이다."</i>	The one who made the loop. In the cracked mirror mask, the faces of every warden you have felled appear in turn. No one has seen the face beneath - not yet.\n<i>"A familiar face. The one I saw in the mirror every day."</i>
 {0}\n<color=#9AA0AA>{1}층 보스</color>	{0}\n<color=#9AA0AA>Floor {1} Boss</color>
+기둥 사이의 춤	Dance Between Pillars
+돌진을 흘린 자	Charge-Dodger
+균열 위의 발걸음	Steps Over the Cracks
+땅울림을 넘은 자	Quake-Strider
+금 가지 않는 몸	Unbroken Stone
+금 가지 않는 자	The Uncracked
+끈적임 없이	Not a Drop of Slime
+점액을 모르는 자	Slime-Untouched
+맑은 숨	Clear Breath
+포자를 모르는 자	Spore-Untouched
+빗나간 화살	Every Arrow Missed
+과녁이 되지 않는 자	Never the Target
+그림자보다 빠르게	Faster Than Shadow
+한 걸음 빠른 자	One Step Ahead
+미궁의 바깥	Outside the Labyrinth
+벽에 갇히지 않는 자	Unwalled
+미뤄진 끝	The End Postponed
+낙인 없는 자	The Unbranded
+비치지 않는 얼굴	A Face Unreflected
+거울에 비치지 않는 자	The Unmirrored
+{0}층 보스를 한 대도 맞지 않고 쓰러뜨린다	Defeat the floor {0} boss without taking a single hit
+   <size=12><color=#9AA0AA>{0}~{1} / {2} (휠·W/S로 넘기기)</color></size>	   <size=12><color=#9AA0AA>{0}-{1} / {2} (wheel or W/S to scroll)</color></size>
+흠 없는 고리	Flawless Loop
+1~10층 보스를 모두 한 대도 맞지 않고 쓰러뜨린다	Defeat every boss on floors 1-10 without taking a single hit
+고리에 닿지 않은 자	Untouched by the Loop

@@ -28,7 +28,9 @@ namespace LoopRogue
         private RectTransform _closeButton;
         private readonly List<(RectTransform Rect, Image Image, Text Text)> _rows = new List<(RectTransform, Image, Text)>();
         private int _cursor;
+        private int _scroll; // 맨 위에 보이는 업적 번호 - 업적이 한 화면(VisibleRows줄)을 넘으면 스크롤(10-26, 보스 무피격 10개 추가로 36개)
         private int _openedFrame = -1;
+        private int VisibleRows => _rows.Count;
 
         public static AchievementPanel Create()
         {
@@ -80,6 +82,14 @@ namespace LoopRogue
                     _cursor = (_cursor + 1) % count;
                 if (GameInput.Down(Key.Enter) || GameInput.Down(Key.Space))
                     ToggleEquip(_cursor);
+                // 휠 - 커서는 그대로 두고 목록만 굴린다
+                var wheel = Mouse.current != null ? Mouse.current.scroll.ReadValue().y : 0f;
+                if (wheel != 0f)
+                    _scroll = Mathf.Clamp(_scroll + (wheel > 0f ? -3 : 3), 0, Mathf.Max(0, count - VisibleRows));
+                else if (_cursor < _scroll)
+                    _scroll = _cursor;
+                else if (_cursor >= _scroll + VisibleRows)
+                    _scroll = _cursor - VisibleRows + 1;
             }
 
             var mouse = Pointer.current;
@@ -97,11 +107,11 @@ namespace LoopRogue
                     if (!RectTransformUtility.RectangleContainsScreenPoint(_rows[i].Rect, pos, null))
                         continue;
                     if (moved)
-                        _cursor = i;
+                        _cursor = _scroll + i;
                     if (GameInput.PointerDown)
                     {
-                        _cursor = i;
-                        ToggleEquip(i);
+                        _cursor = _scroll + i;
+                        ToggleEquip(_cursor);
                     }
                 }
             }
@@ -124,13 +134,17 @@ namespace LoopRogue
                            Loc.F("<size=14>장착: {0}</size>", (equipped != null ? $"<color=#FFD966>「{equipped.Title}」</color> ({equipped.EffectText})" : Loc.T("<color=#888888>없음</color>"))) +
                            (SteamBridge.Initialized ? Loc.T("   <size=12><color=#8FC8FF>스팀 연동됨</color></size>") : "");
 
+            var total = Achievements.All.Length;
+            if (total > VisibleRows)
+                _header.text += Loc.F("   <size=12><color=#9AA0AA>{0}~{1} / {2} (휠·W/S로 넘기기)</color></size>", _scroll + 1, _scroll + VisibleRows, total);
             for (var i = 0; i < _rows.Count; i++)
             {
-                var def = Achievements.All[i];
+                var index = _scroll + i;
+                var def = Achievements.All[index];
                 var unlocked = Achievements.IsUnlocked(def);
                 var isEquipped = equipped == def;
                 var (_, image, text) = _rows[i];
-                var color = i == _cursor ? RowCursor : isEquipped ? RowEquipped : unlocked ? RowUnlocked : RowLocked;
+                var color = index == _cursor ? RowCursor : isEquipped ? RowEquipped : unlocked ? RowUnlocked : RowLocked;
                 image.color = image.sprite != null ? PixelUi.Tint(color, 0.5f) : color;
 
                 var mark = isEquipped ? Loc.T("<color=#FFD966>[장착]</color>") : unlocked ? Loc.T("<color=#8CE08C>[달성]</color>") : "<color=#777777>[ - ]</color>";
@@ -149,11 +163,11 @@ namespace LoopRogue
 
         private void Build(Transform canvas)
         {
-            var count = Achievements.All.Length;
             const float header = 52f, footer = 34f, side = 20f;
-            // 업적이 늘어도 화면(높이 720)을 넘지 않게 - 줄 간격을 MaxPanelHeight 안에 맞춘다(히든 업적 추가로 25개)
-            var rowStep = Mathf.Min(RowHeight + RowGap, (MaxPanelHeight - header - footer) / Mathf.Max(1, count));
-            var rowHeight = rowStep - RowGap;
+            // 업적이 늘어도 화면(높이 720)을 넘지 않게 - 줄 높이는 그대로 두고, 들어가는 줄 수만 보여 주며 스크롤한다
+            var rowStep = RowHeight + RowGap;
+            var rowHeight = RowHeight;
+            var count = Mathf.Min(Achievements.All.Length, Mathf.FloorToInt((MaxPanelHeight - header - footer) / rowStep));
             var height = header + count * rowStep + footer;
 
             var panelImage = HudUi.CreateImage(canvas, "AchievementPanel", new Color(0.05f, 0.05f, 0.07f, 0.96f));

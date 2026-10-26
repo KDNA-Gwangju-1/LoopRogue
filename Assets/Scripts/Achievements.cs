@@ -112,6 +112,31 @@ namespace LoopRogue
                 Title = Loc.T("고리의 사서"), Effect = TitleEffect.Gold, Value = 0.05f, GachaTickets = 5,
                 Condition = () => Codex.FoundCount() >= Codex.TotalCount() },
 
+            // ---- 층 보스 무피격(10-26 사용자) - 보스방에 들어와 쓰러뜨릴 때까지 받은 피해가 0(보호막 아이템으로 막은 건 안 맞은 것) ----
+            new AchievementDef { SteamId = "ACH_NOHIT_1", Name = Loc.T("기둥 사이의 춤"), Description = Loc.F("{0}층 보스를 한 대도 맞지 않고 쓰러뜨린다", 1),
+                Title = Loc.T("돌진을 흘린 자"), Effect = TitleEffect.Exp, Value = 0.03f, GachaTickets = 2 },
+            new AchievementDef { SteamId = "ACH_NOHIT_2", Name = Loc.T("균열 위의 발걸음"), Description = Loc.F("{0}층 보스를 한 대도 맞지 않고 쓰러뜨린다", 2),
+                Title = Loc.T("땅울림을 넘은 자"), Effect = TitleEffect.Gold, Value = 0.03f, GachaTickets = 2 },
+            new AchievementDef { SteamId = "ACH_NOHIT_3", Name = Loc.T("금 가지 않는 몸"), Description = Loc.F("{0}층 보스를 한 대도 맞지 않고 쓰러뜨린다", 3),
+                Title = Loc.T("금 가지 않는 자"), Effect = TitleEffect.Health, Value = 10f, GachaTickets = 2 },
+            new AchievementDef { SteamId = "ACH_NOHIT_4", Name = Loc.T("끈적임 없이"), Description = Loc.F("{0}층 보스를 한 대도 맞지 않고 쓰러뜨린다", 4),
+                Title = Loc.T("점액을 모르는 자"), Effect = TitleEffect.Exp, Value = 0.04f, GachaTickets = 3 },
+            new AchievementDef { SteamId = "ACH_NOHIT_5", Name = Loc.T("맑은 숨"), Description = Loc.F("{0}층 보스를 한 대도 맞지 않고 쓰러뜨린다", 5),
+                Title = Loc.T("포자를 모르는 자"), Effect = TitleEffect.Gold, Value = 0.04f, GachaTickets = 3 },
+            new AchievementDef { SteamId = "ACH_NOHIT_6", Name = Loc.T("빗나간 화살"), Description = Loc.F("{0}층 보스를 한 대도 맞지 않고 쓰러뜨린다", 6),
+                Title = Loc.T("과녁이 되지 않는 자"), Effect = TitleEffect.Crit, Value = 0.02f, GachaTickets = 3 },
+            new AchievementDef { SteamId = "ACH_NOHIT_7", Name = Loc.T("그림자보다 빠르게"), Description = Loc.F("{0}층 보스를 한 대도 맞지 않고 쓰러뜨린다", 7),
+                Title = Loc.T("한 걸음 빠른 자"), Effect = TitleEffect.Crit, Value = 0.02f, GachaTickets = 4 },
+            new AchievementDef { SteamId = "ACH_NOHIT_8", Name = Loc.T("미궁의 바깥"), Description = Loc.F("{0}층 보스를 한 대도 맞지 않고 쓰러뜨린다", 8),
+                Title = Loc.T("벽에 갇히지 않는 자"), Effect = TitleEffect.Health, Value = 15f, GachaTickets = 4 },
+            new AchievementDef { SteamId = "ACH_NOHIT_9", Name = Loc.T("미뤄진 끝"), Description = Loc.F("{0}층 보스를 한 대도 맞지 않고 쓰러뜨린다", 9),
+                Title = Loc.T("낙인 없는 자"), Effect = TitleEffect.Attack, Value = 3f, GachaTickets = 5 },
+            new AchievementDef { SteamId = "ACH_NOHIT_10", Name = Loc.T("비치지 않는 얼굴"), Description = Loc.F("{0}층 보스를 한 대도 맞지 않고 쓰러뜨린다", 10),
+                Title = Loc.T("거울에 비치지 않는 자"), Effect = TitleEffect.Attack, Value = 5f, GachaTickets = 5 },
+            new AchievementDef { SteamId = "ACH_NOHIT_ALL", Name = Loc.T("흠 없는 고리"), Description = Loc.T("1~10층 보스를 모두 한 대도 맞지 않고 쓰러뜨린다"),
+                Title = Loc.T("고리에 닿지 않은 자"), Effect = TitleEffect.Attack, Value = 8f, SlotTickets = 10, GachaTickets = 10,
+                Condition = () => Enumerable.Range(1, StageProgress.MaxStage).All(st => UnlockedIds.Contains("ACH_NOHIT_" + st)) },
+
             // ---- 히든 업적(달성 전엔 가려짐) - 칭호 효과는 다른 업적과 같은 작은 값(칭호는 하나만 장착) ----
             new AchievementDef { SteamId = "ACH_GLITCH", Name = Loc.T("고리의 틈"), Description = Loc.T("오류방을 처음으로 바로잡는다"),
                 Title = Loc.T("틈을 본 자"), Effect = TitleEffect.Exp, Value = 0.03f, SlotTickets = 5, Hidden = true },
@@ -224,14 +249,6 @@ namespace LoopRogue
                 GachaSystem.AddTickets(def.GachaTickets);
             SteamBridge.UnlockAchievement(steamId);
             Unlocked?.Invoke(def);
-        }
-
-        /// <summary>스팀에는 있는데 여기 기록이 없는 업적(저장 초기화 후 등)을 되살린다 - 보상은 이미 받았던 것이라 다시 주지 않는다.</summary>
-        public static void RestoreFromSteam(string steamId)
-        {
-            EnsureLoaded();
-            if (All.Any(d => d.SteamId == steamId) && UnlockedIds.Add(steamId))
-                Save();
         }
 
         private static void Save()

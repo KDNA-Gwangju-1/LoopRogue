@@ -96,7 +96,9 @@ namespace LoopRogue
         }
 
 #if STEAMWORKS_NET && !DISABLESTEAMWORKS
-        /// <summary>연결 직후 한 번 - 오프라인으로 달성해 둔 업적은 스팀에 올리고, 스팀에만 있는 업적(저장 초기화 등)은 게임 쪽에 되살린다.</summary>
+        /// <summary>연결 직후 한 번 - 오프라인으로 달성해 둔 업적을 스팀에 올린다(한 방향만). 게임 안 업적은 저장마다 따로라(10-26 사용자 -
+        /// 저장을 초기화하면 게임 안 업적은 처음부터, 스팀에는 한 번 연 업적이 그대로 남는다) 스팀에만 있는 업적을 게임 쪽에 되살리지 않는다.
+        /// 그래서 이미 지나간 층의 보스 무피격처럼 놓친 업적은 새로 시작해서 다시 노릴 수 있다.</summary>
         private static void SyncAchievements()
         {
             var changed = false;
@@ -104,9 +106,7 @@ namespace LoopRogue
             {
                 if (!SteamUserStats.GetAchievement(def.SteamId, out var achieved))
                     continue; // 스팀에 등록 안 된 이름(테스트 앱 480 등)
-                if (achieved)
-                    Achievements.RestoreFromSteam(def.SteamId);
-                else if (Achievements.IsUnlocked(def))
+                if (!achieved && Achievements.IsUnlocked(def))
                     changed |= SteamUserStats.SetAchievement(def.SteamId);
             }
             if (changed)
