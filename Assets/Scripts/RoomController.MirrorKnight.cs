@@ -179,13 +179,11 @@ namespace LoopRogue
             }
             if (!last)
             {
-                ShowMessage(Loc.F("<color=#C8D8FF>기사의 공격이 거울 속 나에게 금을 냈다!</color> {0}/{1}", _reflectionHitCount, ReflectionHits));
                 UpdateGimmickLabel();
                 return;
             }
             Destroy(_reflection);
             _reflection = null;
-            ShowMessage(Loc.T("<color=#C8D8FF>거울 속 내가 산산조각 났다!</color> 거울 가면 기사가 비틀거린다"));
             OnGimmickBroken();
             UpdateGimmickLabel();
         }
@@ -623,7 +621,6 @@ namespace LoopRogue
 
         private void SolveLight()
         {
-            ShowMessage(Loc.T("<color=#FFE890>빛이 거울을 타고 기사를 꿰뚫었다!</color> 거울 갑옷이 깨져 기사가 비틀거린다"));
             if (HitFeedback.Enabled && _gimmickBoss != null)
             {
                 ActorJuice.Get(_gimmickBoss).Flash(new Color(1f, 0.95f, 0.6f));
@@ -731,7 +728,6 @@ namespace LoopRogue
                 if (!_lastStandWarned && _lastStandSeconds <= 6f)
                 {
                     _lastStandWarned = true;
-                    ShowMessage(Loc.T("<color=#FFD24A>거울 가면이 부서져 간다...</color> 조금만 더!"));
                 }
                 return false;
             }
@@ -746,8 +742,6 @@ namespace LoopRogue
                 MirrorPhaseKills[MirrorPhase]++;
                 return true;
             }
-            if (System.Array.IndexOf(GimmickWarnAt, _gimmickTurnsLeft) >= 0)
-                ShowMessage(Loc.F("<color=#FF6060>시간이 얼마 없다...</color> {0}턴!", _gimmickTurnsLeft));
             return false;
         }
 

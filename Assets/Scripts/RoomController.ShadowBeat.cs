@@ -184,7 +184,6 @@ namespace LoopRogue
                 return false;
             }
             ClearShadowBeat();
-            ShowMessage(Loc.T("<color=#B090D0>그림자 박자를 끝까지 버텼다!</color> 그림자 암살자가 모습을 드러내며 비틀거린다"));
             OnGimmickBroken();
             return false;
         }

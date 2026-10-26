@@ -175,7 +175,7 @@ namespace LoopRogue
                 if (cells.Count > 0)
                     SpawnFloorProp(_mushrooms, cells[Rng.Next(cells.Count)], "Glow_Mushroom", new Color(0.6f, 1f, 0.75f));
             }
-            if (!playerHit || !AddInfection(Loc.T("포자에 감염됐다!")))
+            if (!playerHit || !AddInfection())
                 return false;
             GimmickKills[5]++;
             GimmickDeathFx();
@@ -202,11 +202,10 @@ namespace LoopRogue
             }
             if (hit.Count == 0)
                 return;
-            ShowMessage(_candles.Count > 0
-                ? Loc.F("<color=#A0E0FF>화살이 촛불을 꺼뜨렸다!</color> 남은 촛불 {0}", _candles.Count)
-                : Loc.T("<color=#A0E0FF>촛불이 모두 꺼졌다!</color> 망령 궁수가 실체를 드러내며 비틀거린다"));
             if (_candles.Count == 0)
+            {
                 OnGimmickBroken();
+            }
             UpdateGimmickLabel();
         }
 
@@ -226,11 +225,10 @@ namespace LoopRogue
             }
             if (cut.Count == 0)
                 return;
-            ShowMessage(_clones.Count > 0
-                ? Loc.F("<color=#B090D0>암살자의 칼날이 분신을 베었다!</color> 남은 분신 {0}", _clones.Count)
-                : Loc.T("<color=#B090D0>분신이 모두 사라졌다!</color> 그림자 암살자가 비틀거린다"));
             if (_clones.Count == 0)
+            {
                 OnGimmickBroken();
+            }
             UpdateGimmickLabel();
         }
 
@@ -266,11 +264,10 @@ namespace LoopRogue
             }
             if (hit.Count == 0)
                 return;
-            ShowMessage(_mirrorFakes.Count > 0
-                ? Loc.F("<color=#C8D8FF>기사의 공격이 거울상을 깨뜨렸다!</color> 남은 가짜 {0}", _mirrorFakes.Count)
-                : Loc.T("<color=#C8D8FF>거울상이 모두 깨졌다!</color> 거울 가면 기사가 비틀거린다"));
             if (_mirrorFakes.Count == 0)
+            {
                 OnGimmickBroken();
+            }
             UpdateGimmickLabel();
         }
 
@@ -309,8 +306,6 @@ namespace LoopRogue
                 KillPlayerInstantly();
                 return true;
             }
-            if (placed > 0 && _lava.Count >= LavaEruptCount - 2)
-                ShowMessage(Loc.F("<color=#FF6060>바닥이 끓어오른다...</color> 균열 {0}/{1}", _lava.Count, LavaEruptCount));
             return false;
         }
 
@@ -328,7 +323,6 @@ namespace LoopRogue
                 RemoveWallObject(p);
             }
             // 기절은 BossBrain이 돌진 충돌 기절(BoarCrashStunTurns = LavaFallStunTurns)로 건다 - 여기서 또 걸면 두 배가 된다
-            ShowMessage(Loc.T("<color=#FF9040>미노타우로스가 용암 균열에 빠졌다!</color> 크게 다쳐 비틀거린다"));
             DamageGimmickBoss(boss.Stats.MaxHealth * LavaFallDamage, new Color(1f, 0.5f, 0.2f));
             UpdateGimmickLabel();
             return true;
@@ -362,9 +356,6 @@ namespace LoopRogue
                     if (_mushrooms.ContainsKey(_player.GridPos))
                     {
                         RemoveFloorProp(_mushrooms, _player.GridPos, new Color(0.6f, 1f, 0.75f));
-                        ShowMessage(_infection > 0
-                            ? Loc.F("<color=#80FFB0>빛버섯을 먹었다!</color> 감염이 씻겨 나가고 둘레 공기가 맑아졌다({0}턴)", CleanAirTurns)
-                            : Loc.F("<color=#80FFB0>빛버섯을 먹었다!</color> 둘레 공기가 맑아졌다({0}턴)", CleanAirTurns));
                         _infection = 0;
                         _gimmickBoss.RefreshHallucinatedTelegraph(this); // 환각으로 반대로 그려진 파동 예고를 진짜로
                         AddCleanAir(_player.GridPos); // 둘레 3x3 안전지대(10-16 사용자)
@@ -373,12 +364,10 @@ namespace LoopRogue
                     if (--_infectionClock <= 0)
                     {
                         _infectionClock = InfectionEveryTurns;
-                        if (InCleanAir(_player.GridPos))
-                            ShowMessage(Loc.T("<color=#80FFB0>맑은 공기 속이라 포자를 피했다</color>"));
-                        else
+                        if (!InCleanAir(_player.GridPos))
                         {
                             breathed = true;
-                            dead = AddInfection(Loc.T("독안개 속 포자를 들이마셨다!"));
+                            dead = AddInfection();
                         }
                     }
                     UpdateSporeFog(breathed); // 감염되는 턴이 가까울수록 짙어지고, 감염되는 순간 번쩍
@@ -404,8 +393,6 @@ namespace LoopRogue
                         ShowMessage(Loc.T("<color=#FF4040>죽음의 낙인이 타올랐다!</color>"));
                         dead = true;
                     }
-                    else if (System.Array.IndexOf(GimmickWarnAt, _doomTurnsLeft) >= 0)
-                        ShowMessage(Loc.F("<color=#FF6060>낙인이 뜨겁게 달아오른다...</color> {0}턴!", _doomTurnsLeft));
                     break;
                 case 6:
                 case 7:
@@ -432,8 +419,6 @@ namespace LoopRogue
                         });
                         dead = true;
                     }
-                    else if (System.Array.IndexOf(GimmickWarnAt, _gimmickTurnsLeft) >= 0)
-                        ShowMessage(Loc.F("<color=#FF6060>시간이 얼마 없다...</color> {0}턴!", _gimmickTurnsLeft));
                     break;
             }
             UpdateGimmickLabel();
@@ -450,14 +435,9 @@ namespace LoopRogue
         private static readonly int[] GimmickWarnAt = { 60, 30, 10, 5, 3, 2, 1 };
 
         /// <summary>감염 +1 - 한계에 닿았으면 true(즉사 처리는 호출부가).</summary>
-        private bool AddInfection(string reason)
+        private bool AddInfection()
         {
             _infection++;
-            if (_gimmickStage == 5 && _infection == HallucinationInfection)
-                ShowMessage(Loc.T("<color=#D9A0FF>환각 포자가 눈을 흐린다!</color> 예고 고리가 거꾸로 보인다(빨간 칸이 안전) - 빛버섯으로 해독"));
-            if (_gimmickStage == 5 && _infection == ConfusionInfection)
-                ShowMessage(Loc.T("<color=#D9A0FF>포자가 머릿속까지 번졌다!</color> 이제 방향키도 뒤집힌다 - 빛버섯을 서두르자"));
-            ShowMessage($"<color=#C080FF>{reason}</color> " + Loc.F("감염 {0}/{1}", _infection, InfectionLimit));
             if (HitFeedback.Enabled && _player != null)
                 ActorJuice.Get(_player).Flash(new Color(0.75f, 0.45f, 1f));
             UpdateGimmickLabel();

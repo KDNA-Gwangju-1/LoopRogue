@@ -85,7 +85,6 @@ namespace LoopRogue
                     if (!_crushWarned)
                     {
                         _crushWarned = true;
-                        ShowMessage(Loc.F("<color=#FFA040>벽이 조여 온다!</color> {0}턴 뒤 바깥 줄이 닫힌다 - 줄 밖(안쪽)으로 피하자", _crushCountdown));
                     }
                 }
                 return false;
@@ -151,7 +150,7 @@ namespace LoopRogue
                 return true;
             }
             if (CrushInnerWidth <= CrushMinRoom + 1 || CrushInnerHeight <= CrushMinRoom + 1)
-                ShowMessage(Loc.T("<color=#FF6060>방이 거의 닫혔다...</color> 도끼 충격파로 벽을 부수자!"));
+                ShowMessage(Loc.T("<color=#FF6060>방이 거의 닫혔다...</color>"));
             return false;
         }
 
@@ -184,7 +183,6 @@ namespace LoopRogue
             }
             else
                 ShowEnemyTelegraph(_gimmickBoss, NextCrushCells().ToList(), CrushTelegraphColor, "tel_crush"); // 벽돌 무늬(10-23)
-            ShowMessage(Loc.T("<color=#FFB060>도끼 충격파가 조여 오던 벽을 부쉈다!</color> 벽이 물러나고 조이는 속도가 느려진다"));
             if (HitFeedback.Enabled)
                 CameraShake.Shake(0.25f, 0.4f);
             UpdateGimmickLabel();

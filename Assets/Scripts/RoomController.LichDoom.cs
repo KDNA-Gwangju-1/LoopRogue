@@ -219,7 +219,6 @@ namespace LoopRogue
             }
             if (_doomAbsorbed < DoomAbsorbNeeded)
             {
-                ShowMessage(Loc.F("<color=#C090FF>영혼 구체가 리치에게 빨려 들었다!</color> {0}/{1}", _doomAbsorbed, DoomAbsorbNeeded));
                 UpdateGimmickLabel();
                 return;
             }
@@ -229,7 +228,6 @@ namespace LoopRogue
             foreach (var o in _doomOrbs.ToList())
                 RemoveDoomOrb(o);
             _doomTurnsLeft = 0;
-            ShowMessage(Loc.T("<color=#C090FF>죽음의 낙인이 리치에게 옮겨 갔다!</color> 리치가 비틀거린다"));
             OnGimmickBroken();
             if (boss != null)
                 DamageGimmickBoss(boss.Stats.MaxHealth * DoomBurstDamage, DoomColor);

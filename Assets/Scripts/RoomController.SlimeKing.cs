@@ -279,8 +279,6 @@ namespace LoopRogue
             var washed = _slimePuddles.Keys.Where(set.Contains).ToList();
             foreach (var p in washed)
                 RemoveFloorProp(_slimePuddles, p, SlimeColor);
-            if (washed.Count > 0)
-                ShowMessage(Loc.F("<color=#FF7088>파동이 점액 {0}칸을 씻어 냈다</color> (남은 점액 {1}/{2})", washed.Count, _slimePuddles.Count, SlimePuddleLimit));
             _turretCooldown = SlimeTurretCooldown;
             UpdateGimmickLabel();
         }
@@ -303,8 +301,6 @@ namespace LoopRogue
                 KillPlayerInstantly();
                 return true;
             }
-            if (_slimePuddles.Count >= SlimePuddleLimit - 4)
-                ShowMessage(Loc.F("<color=#FF6060>바닥이 점액으로 끈적해진다...</color> {0}/{1}", _slimePuddles.Count, SlimePuddleLimit));
             return false;
         }
 

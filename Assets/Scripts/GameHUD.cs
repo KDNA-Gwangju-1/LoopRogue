@@ -423,9 +423,9 @@ namespace LoopRogue
                 : _player.RootedTurns > 0
                 ? Loc.T("<color=#D9B3FF>거미줄에 묶임! 이동·대시 불가 (공격·E·Space 가능)</color>")
                 : _player.IsConfused
-                ? Loc.T("<color=#D9A0FF>[환각·혼란] 예고 고리가 거꾸로 보이고 방향키가 반대 - 빛버섯으로 해독</color>")
+                ? Loc.T("<color=#D9A0FF>[환각·혼란]</color>")
                 : _player.IsHallucinating
-                ? Loc.T("<color=#D9A0FF>[환각] 예고 고리가 거꾸로 보인다(빨간 칸이 안전) - 빛버섯으로 해독</color>")
+                ? Loc.T("<color=#D9A0FF>[환각]</color>")
                 : _player.IsAimingDash
                     ? Loc.T("<color=#7FD4FF>[Q] 대시 - 방향키로 방향 선택 (Q: 취소)</color>")
                     : string.Empty;

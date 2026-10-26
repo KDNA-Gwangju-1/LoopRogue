@@ -456,7 +456,6 @@ namespace LoopRogue
             {
                 _crackPhase = true;
                 room.ShowMessage(Loc.T("<color=#FFB060>오우거가 분노해 바닥을 부술 기세로 몽둥이를 쥔다!</color> 강타가 바닥에 균열을 남긴다"));
-                room.ShowMessage(Loc.T("균열은 오우거도 나도 빠뜨린다 - 균열 너머로 유도하되, 내가 밟지는 말자"));
             }
 
             if (!_enraged && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * EnrageHealthRatio)
@@ -487,7 +486,7 @@ namespace LoopRogue
                 _mirrorWaveNumber = 1;
                 room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber, type);
                 TryMorph(type, out var mirrorMessage);
-                room.ShowMessage(mirrorMessage + Loc.T(" - 빨강 → 주황 → 노랑 순서로 터진다!"));
+                room.ShowMessage(mirrorMessage);
                 return true;
             }
 
@@ -499,7 +498,7 @@ namespace LoopRogue
                 _pending = type;
                 _mirrorWaveNumber = 1;
                 room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber, type);
-                room.ShowMessage(Loc.T("<color=#FFB060>오우거가 땅을 연달아 내려친다!</color> 안쪽부터 빨강 → 주황 → 노랑 순서로 퍼진다"));
+                room.ShowMessage(Loc.T("<color=#FFB060>오우거가 땅을 연달아 내려친다!</color>"));
                 return true;
             }
 
@@ -513,7 +512,7 @@ namespace LoopRogue
                 room.ShowTelegraphWaves(_mirrorWaves, _mirrorWaveNumber, type);
                 room.ShowMessage(TryMorph(type, out var checkerMorph)
                     ? $"{checkerMorph} ({PatternName(type)})"
-                    : Loc.T("<color=#C090FF>리치가 바닥에 체스판 마법진을 그린다!</color> 빨강 → 주황 순서로 터진다"));
+                    : Loc.T("<color=#C090FF>리치가 바닥에 체스판 마법진을 그린다!</color>"));
                 return true;
             }
 
@@ -554,7 +553,7 @@ namespace LoopRogue
             if (TryMorph(type, out var message))
                 room.ShowMessage(message);
             if (type == BossPatternType.Encircle)
-                room.ShowMessage(Loc.T("<color=#FFA040>보스가 포위 폭발을 준비한다!</color> 걸어서는 못 빠져나간다 - 대시로 피하자"));
+                room.ShowMessage(Loc.T("<color=#FFA040>보스가 포위 폭발을 준비한다!</color>"));
             return true;
         }
 
@@ -717,10 +716,6 @@ namespace LoopRogue
                 {
                     // 8층 용암 - 메시지는 RoomController.TryLavaFall이
                 }
-                else if (room.BoarPillarCount > 0)
-                    room.ShowMessage(Loc.F("<color=#FFB060>멧돼지가 기둥에 박았다!</color> 크게 비틀거린다 (남은 기둥 {0})", room.BoarPillarCount));
-                else
-                    room.ShowMessage(Loc.T("<color=#FFB060>멧돼지가 마지막 기둥에 박았다!</color> 크게 비틀거린다")); // "모두 무너졌다"는 RoomController가
             }
 
             // 맞았는지는 점프로 밀려나기 전에 정한다

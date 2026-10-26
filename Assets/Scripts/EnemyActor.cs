@@ -516,7 +516,6 @@ namespace LoopRogue
                 CancelBossPattern(room);
             Stun(MirrorBreakStunTurns);
             HitFeedback.OnMirrorBroken(this);
-            room?.ShowMessage(Loc.F("거울이 깨졌다! {0}가 본모습으로 돌아와 {1}턴 동안 비틀거린다", BossBrain.BossName(BossBrain.MirrorStage), MirrorBreakStunTurns));
         }
 
         /// <summary>몸을 감싼 거울 방어막 - 금 간 정도(4단계). 본모습이거나 그림이 없거나 봇 중이면 숨긴다.</summary>
@@ -1213,7 +1212,7 @@ namespace LoopRogue
                 WarnKnightPattern(Loc.T("강타!"), new Color(1f, 0.4f, 0.35f));
                 if (KnightSlashCount % 3 == 1)
                     room.ShowMessage(MemoryKnight.Say(MemoryKnight.SlashLine()));
-                room.ShowMessage(Loc.T("<color=#FF7A70>기사의 강타!</color> 빨간 칸에서 한 칸 물러나세요"));
+                room.ShowMessage(Loc.T("<color=#FF7A70>기사의 강타!</color>"));
                 return;
             }
 
@@ -1269,8 +1268,8 @@ namespace LoopRogue
             WarnKnightPattern(Loc.T("기억 재현!"), new Color(0.45f, 0.95f, 0.88f));
             room.ShowMessage(MemoryKnight.Say(MemoryKnight.EchoLine(style)));
             room.ShowMessage(style == AttackStyle.Spin
-                ? Loc.T("<color=#7FE0D8>기억 재현 - 회전 베기!</color> 기사 주변 8칸에서 벗어나세요")
-                : Loc.T("<color=#7FE0D8>기억 재현 - 돌진!</color> 청록 줄에서 옆으로 비켜서세요"));
+                ? Loc.T("<color=#7FE0D8>기억 재현 - 회전 베기!</color>")
+                : Loc.T("<color=#7FE0D8>기억 재현 - 돌진!</color>"));
             return true;
         }
 

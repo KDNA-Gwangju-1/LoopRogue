@@ -63,7 +63,6 @@ namespace LoopRogue
                 ActorJuice.Get(_player).Flash(SoulTargetColor);
             if (_soulTargets.Count > 0)
             {
-                ShowMessage(Loc.F("<color=#FF8080>화살이 영혼 과녁을 꿰뚫었다!</color> 남은 과녁 {0}", _soulTargets.Count));
                 UpdateGimmickLabel();
                 return;
             }
@@ -79,8 +78,6 @@ namespace LoopRogue
         {
             if (--_soulTargetTurnsLeft > 0)
             {
-                if (System.Array.IndexOf(GimmickWarnAt, _soulTargetTurnsLeft) >= 0)
-                    ShowMessage(Loc.F("<color=#A0E0FF>조금만 더...</color> {0}턴!", _soulTargetTurnsLeft));
                 return;
             }
             _soulTargetActive = false;
@@ -92,7 +89,6 @@ namespace LoopRogue
                     Fx.Play("soul_target_return", _soulTargets[p].transform.position, 1.2f, fps: 14f, sortingOrder: 6);
                 RemoveFloorProp(_soulTargets, p, SoulTargetColor);
             }
-            ShowMessage(Loc.F("<color=#A0E0FF>영혼이 돌아왔다!</color> 지켜 낸 과녁 {0}개 - 망령 궁수가 받는 피해 +{1}%", left, Mathf.RoundToInt(_soulTargetBonus * 100f)));
             OnGimmickBroken();
         }
 

@@ -1865,7 +1865,6 @@ namespace LoopRogue
             enemy.Stun(OgreFallStunTurns);
             _ogreFallImmune = OgreFallStunTurns + OgreFallImmuneTurns;
             OgreFallCount++;
-            ShowMessage(Loc.T("<color=#FFB060>오우거가 균열에 빠졌다!</color> 다리가 걸려 꼼짝 못 한다 - 지금이다!"));
             if (HitFeedback.Enabled)
             {
                 CameraShake.Shake(0.3f, 0.35f);
@@ -1882,7 +1881,7 @@ namespace LoopRogue
             CollapseCrack(p);
             _player.ApplyRoot(PlayerCrackRootTurns);
             PlayerCrackCount++;
-            ShowMessage(Loc.T("<color=#FF8080>균열에 발이 빠졌다!</color> 한 턴 움직일 수 없다 (공격은 가능)"));
+            ShowMessage(Loc.T("<color=#FF8080>균열에 발이 빠졌다!</color> 한 턴 움직일 수 없다"));
             if (HitFeedback.Enabled)
                 CameraShake.Shake(0.12f, 0.15f);
             return true;
@@ -1922,8 +1921,6 @@ namespace LoopRogue
             UpdateBoarTimer();
             if (_boarTurnsLeft > 0)
             {
-                if (System.Array.IndexOf(BoarWarnAt, _boarTurnsLeft) >= 0)
-                    ShowMessage(Loc.F("<color=#FF6060>멧돼지가 씩씩거린다...</color> 기둥을 다 부수기까지 {0}턴!", _boarTurnsLeft));
                 return false;
             }
 
@@ -2039,8 +2036,6 @@ namespace LoopRogue
                 KillPlayerInstantly();
                 return true;
             }
-            if (placed > 0 && _ogreHoles.Count >= OgreHoleCollapseCount - 2)
-                ShowMessage(Loc.F("<color=#FF6060>바닥이 크게 갈라진다...</color> 구멍 {0}/{1} - 메우지 않으면 무너진다!", _ogreHoles.Count, OgreHoleCollapseCount));
             return false;
         }
 
@@ -2397,7 +2392,6 @@ namespace LoopRogue
                 if (_boarPillars.Count == 0)
                 {
                     HideBoarTimer();
-                    ShowMessage(Loc.T("<color=#FFB060>기둥이 모두 무너졌다!</color> 멧돼지의 단단함이 풀렸다!"));
                 }
                 else
                     UpdateBoarTimer();
