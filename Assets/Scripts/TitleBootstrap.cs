@@ -35,7 +35,6 @@ namespace LoopRogue
         // 테스트 배포용 버튼(오른쪽 아래) - 누르면 잠깐 안내 글로 바뀌었다가 돌아온다.
         private Text _surveyLabel;
         private Text _recordLabel;
-        private Text _logLabel;
         private float _playtestLabelUntil = -1f;
 
         private void Awake()
@@ -48,7 +47,7 @@ namespace LoopRogue
 
         private void Update()
         {
-            if (PauseMenu.BlocksInput || OptionsPanel.BlocksInput)
+            if (PauseMenu.BlocksInput || OptionsPanel.BlocksInput || Playtest.QuitPromptOpen)
                 return; // Esc 메뉴·설정 창이 열려 있으면 뒤의 타이틀 버튼은 안 눌리게.
 
             HandleMouseClick();
@@ -134,41 +133,22 @@ namespace LoopRogue
         private void OnSurveyClicked()
         {
             ResetPlaytestLabels();
-            _surveyLabel.text = Playtest.OpenSurvey() ? Loc.T("브라우저에서 열었어요") : Loc.T("설문 링크가 아직 없어요");
+            // 기록을 자동으로 복사한 뒤 설문을 연다(10-27 사용자 - 첫 칸에 Ctrl+V만)
+            _surveyLabel.text = Playtest.CopyAndOpenSurvey() ? Loc.T("기록 복사 + 설문 열기 완료") : Loc.T("설문 링크가 아직 없어요");
             _playtestLabelUntil = Time.unscaledTime + PlaytestLabelSeconds;
         }
 
         private void OnCopyRecordClicked()
         {
             ResetPlaytestLabels();
-            Playtest.CopyRecord();
-            _recordLabel.text = Loc.T("복사했어요! 설문에 붙여 넣기");
-            _playtestLabelUntil = Time.unscaledTime + PlaytestLabelSeconds;
-        }
-
-        /// <summary>PlayLog 파일이 있는 폴더를 탐색기로 연다 - 테스터가 설문과 함께 보내 줄 파일.</summary>
-        private void OnOpenLogClicked()
-        {
-            ResetPlaytestLabels();
-            try
-            {
-                var folder = PlayLog.Folder;
-                System.IO.Directory.CreateDirectory(folder);
-                Application.OpenURL("file:///" + folder.Replace('\\', '/'));
-                _logLabel.text = Loc.T("폴더를 열었어요");
-            }
-            catch (Exception)
-            {
-                _logLabel.text = Loc.T("폴더를 못 열었어요");
-            }
+            var count = Playtest.CopyRecord(); // 한 줄 기록 + 이 빌드의 플레이 기록 전체
+            _recordLabel.text = count > 0 ? Loc.F("기록 {0}개 복사! 설문에 붙여 넣기", count) : Loc.T("복사했어요! 설문에 붙여 넣기");
             _playtestLabelUntil = Time.unscaledTime + PlaytestLabelSeconds;
         }
 
         private void ResetPlaytestLabels()
         {
             _playtestLabelUntil = -1f;
-            if (_logLabel != null)
-                _logLabel.text = Loc.T("플레이 기록 폴더");
             _surveyLabel.text = Loc.T("설문 참여");
             _recordLabel.text = Loc.T("내 기록 복사");
         }
@@ -182,7 +162,14 @@ namespace LoopRogue
             rect.anchoredPosition = new Vector2(-24f, bottom);
         }
 
+        /// <summary>종료 - 테스트 빌드(설문 링크가 있음)면 한 번 설문을 권하는 창부터.</summary>
         private static void QuitGame()
+        {
+            if (!Playtest.TryAskSurveyBeforeQuit(QuitNow))
+                QuitNow();
+        }
+
+        private static void QuitNow()
         {
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;
@@ -219,7 +206,7 @@ namespace LoopRogue
             _resetImage = resetRect.GetComponent<Image>();
             _resetLabel = resetRect.GetComponentInChildren<Text>();
 
-            // 테스트 배포용 - 설문 링크 열기 / 설문에 붙여 넣을 기록 복사
+            // 테스트 배포용 - 설문 링크 열기 / 설문에 붙여 넣을 기록 복사(한 줄 기록 + 이 빌드의 플레이 기록 전체 - 예전 "플레이 기록 폴더" 버튼은 10-27에 뺌)
             var surveyRect = CreateButton(canvasGo.transform, "SurveyButton", ButtonColor, 0f, 240f, 40f,
                 Loc.T("설문 참여"), 16, OnSurveyClicked, "Reset", new Color(0.85f, 0.93f, 1f));
             PlaceBottomRight(surveyRect, 76f);
@@ -228,10 +215,6 @@ namespace LoopRogue
                 Loc.T("내 기록 복사"), 16, OnCopyRecordClicked, "Reset", new Color(0.85f, 0.93f, 1f));
             PlaceBottomRight(recordRect, 24f);
             _recordLabel = recordRect.GetComponentInChildren<Text>();
-            var logRect = CreateButton(canvasGo.transform, "PlayLogButton", ButtonColor, 0f, 240f, 40f,
-                Loc.T("플레이 기록 폴더"), 16, OnOpenLogClicked, "Reset", new Color(0.85f, 0.93f, 1f));
-            PlaceBottomRight(logRect, 128f);
-            _logLabel = logRect.GetComponentInChildren<Text>();
 
             // 튜토리얼 스테이지 다시 하기(왼쪽 아래) - 죽을 일 없는 방 4개, 끝나면 타이틀로
             var tutorialRect = CreateButton(canvasGo.transform, "TutorialButton", ButtonColor, 0f, 240f, 40f,

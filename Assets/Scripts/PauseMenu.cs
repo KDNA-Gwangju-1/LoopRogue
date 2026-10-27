@@ -53,7 +53,7 @@ namespace LoopRogue
 
         private void Update()
         {
-            if (_panel == null || OptionsPanel.BlocksInput)
+            if (_panel == null || OptionsPanel.BlocksInput || Playtest.QuitPromptOpen)
                 return; // 설정 창이 떠 있으면 그 창이 Esc·클릭을 받는다(닫히면 이 메뉴로 돌아옴)
 
             if (GameInput.Down(Key.Escape))
@@ -121,7 +121,14 @@ namespace LoopRogue
             _goToTitle?.Invoke();
         }
 
+        /// <summary>게임 종료 - 테스트 빌드(설문 링크가 있음)면 한 번 설문을 권하는 창부터.</summary>
         private static void QuitGame()
+        {
+            if (!Playtest.TryAskSurveyBeforeQuit(QuitNow))
+                QuitNow();
+        }
+
+        private static void QuitNow()
         {
 #if UNITY_EDITOR
             UnityEditor.EditorApplication.isPlaying = false;

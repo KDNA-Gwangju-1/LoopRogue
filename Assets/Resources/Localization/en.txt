@@ -876,6 +876,13 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 브라우저에서 열었어요	Opened in your browser
 설문 링크가 아직 없어요	No survey link yet
 복사했어요! 설문에 붙여 넣기	Copied! Paste it into the survey
+기록 복사 + 설문 열기 완료	Logs copied + survey opened
+설문에 참여해 주시겠어요?	Would you take our survey?
+이번 빌드에서 플레이한 기록이 자동으로 복사돼요.\n설문 첫 칸에 Ctrl+V로 붙여 넣기만 하면 돼요.	Your play logs from this build are copied automatically.\nJust paste them into the first field with Ctrl+V.
+설문 참여 후 종료  [Enter]	Take survey and quit  [Enter]
+그냥 종료	Just quit
+취소  [Esc]	Cancel  [Esc]
+기록 {0}개 복사! 설문에 붙여 넣기	Copied {0} logs! Paste into the survey
 플레이 기록 폴더	Play log folder
 폴더를 열었어요	Folder opened
 폴더를 못 열었어요	Couldn't open the folder
