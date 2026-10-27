@@ -275,7 +275,10 @@ Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}	Stage {0}/{1}   Room {2}/{3}   Atte
 던지면 최대 {0}칸 앞에 떨어져 다음 턴 3x3 폭발(공격력 {1:0}배, 벽도 부숨, 방패 무시)	Thrown up to {0} tiles ahead; explodes 3x3 next turn ({1:0}x ATK, breaks walls, ignores shields)
 옆 칸에 허수아비 - {0}턴 동안 몹들이 허수아비를 노린다	Scarecrow on adjacent tile - mobs target it for {0} turns
 주변 {0}칸 몹이 {1}턴 동안 플레이어를 못 찾는다(행동 못 함)	Mobs within {0} tiles can't find you for {1} turns (can't act)
-거미줄 즉시 해제 + {0}턴 동안 거미줄 무시	Instantly removes webs + ignore webs for {0} turns
+거미줄·점액 즉시 해제 + {0}턴 동안 달라붙지 않음. 주변 점액을 씻고 포자 감염을 1단계 낮춘다	Instantly frees you from webs and slime + nothing sticks for {0} turns. Washes away nearby slime and lowers spore infection by 1
+점액 {0}칸을 씻어 냈다	washed away {0} slime tiles
+감염이 한 단계 내려갔다	infection lowered by 1
+정화제! {0}	Purifier! {0}
 보스의 예고 공격 취소 + {0}턴 기절, 주변 몹 {1}턴 기절	Cancels boss telegraphed attack + {0}-turn stun; nearby mobs stunned {1} turns
 옆 칸에 설치 - 밟은 몹(보스 포함) {0}턴 기절	Place on adjacent tile - stuns the mob that steps on it (incl. bosses) for {0} turns
 {0}턴 안에 맞는 보스 예고 공격 1회를 되돌린다(보스 최대 체력 {1:0}%)	Reflects 1 boss telegraphed attack taken within {0} turns ({1:0}% of boss Max HP)
@@ -785,7 +788,7 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 1분 20초 안에 {0}점을 모아라!\n구멍 옆에 서서 구멍 쪽으로 방향키를 누르면 두더지를 때린다. 두더지는 저절로 튀어나왔다 숨는다.\n갈색 두더지 +1   금색 왕관 두더지 +3(금방 숨음)   폭탄을 인 두더지는 때리면 -2!	Collect {0} points in 1 min 20 sec!\nStand next to a hole and press toward it to whack the mole. Moles pop up and hide on their own.\nBrown mole +1   Gold crowned mole +3 (hides fast)   Mole carrying a bomb: -2 if hit!
 1분 20초 안에 {0}점을 모아라!\n구멍 옆에 서서 구멍 쪽으로 방향키를 누르면 슬라임을 때린다. 슬라임은 저절로 튀어나왔다 숨는다.\n초록 +1   금색 +3(금방 숨음)   빨간 폭탄 슬라임은 때리면 -2!	Collect {0} points in 1 min 20 sec!\nStand next to a hole and press toward it to whack the slime. Slimes pop up and hide on their own.\nGreen +1   Gold +3 (hides fast)   Red bomb slime: -2 if hit!
 황금 고블린을 구석으로 몰아 부딪혀라! 쉬지 않고 도망치지만 가끔 허둥댄다.\n고블린이 지나간 자리에 흘린 금화를 밟으면 줍느라 한 턴 멈춘다.	Corner the golden goblin and bump into it! It never stops running, but sometimes panics.\nStep on the gold coins it drops and you'll stop for a turn to pick them up.
-금화를 줍느라 발이 멈췄다! (Space로 한 턴 쉬기)	Stopped to pick up gold coins! (Space to rest a turn)
+금화를 줍느라 발이 멈췄다!	Stopped to pick up gold coins!
 성공! {0}, 레벨업 카드 1장	Success! {0}, 1 level-up card
 {0} 영약 +{1}	{0} Elixir +{1}
 (영구)	(permanent)

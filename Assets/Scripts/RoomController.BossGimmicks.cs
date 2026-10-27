@@ -437,6 +437,33 @@ namespace LoopRogue
 
         private static readonly int[] GimmickWarnAt = { 60, 30, 10, 5, 3, 2, 1 };
 
+        /// <summary>정화제(10-27 사용자) - 4층 슬라임 킹: 내 둘레 3x3 점액을 씻는다, 5층 버섯 군주: 감염 1단계 낮춤.
+        /// 바뀐 것을 메시지용으로 돌려준다(없으면 빈 목록). dryRun이면 바꾸지 않고 쓸 데가 있는지만 본다.</summary>
+        public List<string> CleanseGimmick(Vector2Int center, bool dryRun = false)
+        {
+            var parts = new List<string>();
+            if (_gimmickStage == 4)
+            {
+                var washed = _slimePuddles.Keys.Where(p => Mathf.Abs(p.x - center.x) <= 1 && Mathf.Abs(p.y - center.y) <= 1).ToList();
+                if (washed.Count > 0)
+                {
+                    if (!dryRun)
+                        foreach (var p in washed)
+                            RemoveFloorProp(_slimePuddles, p, SlimeColor);
+                    parts.Add(Loc.F("점액 {0}칸을 씻어 냈다", washed.Count));
+                }
+            }
+            if (_gimmickStage == 5 && _infection > 0)
+            {
+                if (!dryRun)
+                    _infection--;
+                parts.Add(Loc.T("감염이 한 단계 내려갔다"));
+            }
+            if (!dryRun && parts.Count > 0)
+                UpdateGimmickLabel();
+            return parts;
+        }
+
         /// <summary>감염 +1 - 한계에 닿았으면 true(즉사 처리는 호출부가).</summary>
         private bool AddInfection()
         {

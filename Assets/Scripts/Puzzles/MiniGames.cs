@@ -534,7 +534,7 @@ namespace LoopRogue
             Fx.Play("coin", World(pos), 0.5f, fps: 14f, riseCells: 0.6f);
             SfxPlayer.Play(Sfx.Appear);
             Player.ApplyRoot(1);
-            Room.ShowMessage(Loc.T("금화를 줍느라 발이 멈췄다! (Space로 한 턴 쉬기)"));
+            Room.ShowMessage(Loc.T("금화를 줍느라 발이 멈췄다!"));
         }
 
         protected override void OnTurnEnd()

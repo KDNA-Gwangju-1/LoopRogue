@@ -311,6 +311,11 @@ namespace LoopRogue
             if (!_slimePuddles.ContainsKey(_player.GridPos))
                 return;
             RemoveFloorProp(_slimePuddles, _player.GridPos, SlimeColor);
+            if (_player.WebImmuneTurns > 0) // 정화제 기운 - 안 붙고 밟은 점액만 지워진다
+            {
+                UpdateGimmickLabel();
+                return;
+            }
             _player.ApplyRoot(1);
             ShowMessage(Loc.T("<color=#FF7088>점액에 발이 붙었다!</color> 한 턴 움직일 수 없다"));
             if (HitFeedback.Enabled)

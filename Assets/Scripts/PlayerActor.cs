@@ -171,7 +171,7 @@ namespace LoopRogue
                 else if (!_room.CanPlaceAt(target))
                     return false;
             }
-            else if (type == ItemType.Cleanse && RootedTurns <= 0 && WebImmuneTurns > 0)
+            else if (type == ItemType.Cleanse && RootedTurns <= 0 && WebImmuneTurns > 0 && _room.CleanseGimmick(GridPos, dryRun: true).Count == 0)
             {
                 return false;
             }
@@ -236,9 +236,11 @@ namespace LoopRogue
                     _room.ShowMessage(Loc.T("연막! 공격하기 전까지 몹들이 플레이어를 못 찾는다"));
                     break;
                 case ItemType.Cleanse:
+                {
                     RootedTurns = 0;
                     WebImmuneTurns = ItemInfo.CleanseImmuneTurns;
-                    _room.ShowMessage(Loc.T("정화제! 거미줄이 풀렸다"));
+                    var cleansed = _room.CleanseGimmick(GridPos); // 4층 점액 씻기·5층 감염 -1
+                    _room.ShowMessage(cleansed.Count > 0 ? Loc.F("정화제! {0}", string.Join(", ", cleansed)) : Loc.T("정화제! 거미줄이 풀렸다"));
                     if (HitFeedback.Enabled)
                     {
                         // 초록 기운이 몸을 감쌌다가 퍼지며 풀려나간다
@@ -248,6 +250,7 @@ namespace LoopRogue
                         DeathBurst.Spawn(transform.position, new Color(0.55f, 1f, 0.6f), count: 16, speed: 5f, size: 0.14f);
                     }
                     break;
+                }
                 case ItemType.Flash:
                 {
                     var mirrorKept = false;
@@ -860,11 +863,19 @@ namespace LoopRogue
                 BeginAction();
                 Map.MoveActor(this, targetPos);
             }
-            else if (occupant == null)
+            else if (occupant == null || occupant is DecoyActor)
             {
                 BeginAction();
                 PlayLog.Act("이동");
-                Map.MoveActor(this, targetPos);
+                if (occupant is DecoyActor decoy) // 내 허수아비(미끼·망령의 깃발)는 자리를 바꿔 지나간다(10-27 사용자)
+                {
+                    var from = GridPos;
+                    Map.RemoveActor(decoy);
+                    Map.MoveActor(this, targetPos);
+                    Map.PlaceActor(decoy, from);
+                }
+                else
+                    Map.MoveActor(this, targetPos);
                 if (_room.TryUseExit(targetPos))
                     return; // 다음 방으로 넘어감 - 새 방 몹은 이번 턴에 안 움직인다
                 _room.CheckPlayerCrack(); // 2층 오우거 균열 - 밟으면 묶인다
@@ -1057,17 +1068,22 @@ namespace LoopRogue
         {
             landing = GridPos;
             hit = null;
+            var cursor = GridPos;
             for (var i = 0; i < DashRange; i++)
             {
-                var next = landing + dir;
+                var next = cursor + dir;
                 if (!Map.IsInBounds(next) || Map.IsWall(next))
                     break;
                 var occupant = Map.GetActorAt(next);
                 if (occupant is EnemyActor e && !e.Stats.IsDead)
                 {
-                    hit = e;
+                    if (cursor == landing) // 허수아비 바로 너머의 몹은 못 친다(내려설 칸이 몹 옆이 아니다)
+                        hit = e;
                     break;
                 }
+                cursor = next;
+                if (occupant is DecoyActor)
+                    continue; // 허수아비는 뛰어넘는다 - 그 칸엔 내려서지 않는다
                 if (occupant != null)
                     break;
                 landing = next;
