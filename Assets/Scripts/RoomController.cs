@@ -2825,6 +2825,7 @@ namespace LoopRogue
                 Destroy(ActiveDecoy.gameObject);
                 ActiveDecoy = null;
             }
+            _player?.TryPhantomBanner(); // 유물 "망령의 깃발" - 이번 몹 턴에 체력이 30% 아래로 떨어졌으면
 
             if (_playerBombs.Count == 0)
                 return;
@@ -2931,7 +2932,7 @@ namespace LoopRogue
             ShowMessage(Loc.F("{0}이(가) 덫에 걸렸다! ({1}턴 기절)", enemy.DisplayName, ItemInfo.TrapStunTurns));
         }
 
-        public void PlaceDecoy(Vector2Int pos)
+        public void PlaceDecoy(Vector2Int pos, int turns = ItemInfo.DecoyTurns)
         {
             if (ActiveDecoy != null)
             {
@@ -2941,7 +2942,7 @@ namespace LoopRogue
             var go = new GameObject("Decoy");
             go.transform.SetParent(transform, false);
             ActiveDecoy = go.AddComponent<DecoyActor>();
-            ActiveDecoy.Initialize(ItemInfo.DecoyTurns);
+            ActiveDecoy.Initialize(turns);
             Map.PlaceActor(ActiveDecoy, pos);
         }
 

@@ -166,6 +166,8 @@ namespace LoopRogue
                 OnArmorEffect?.Invoke(Loc.T("불굴! 체력 1로 버텼다"));
             }
             TakeDamage(toHealth);
+            if (Relics.Has(RelicType.IronSkin) && !IsDead && toHealth > 0f) // 유물 "철의 피부" - 받은 피해의 5% 회복
+                Heal(toHealth * Relics.IronSkinHealRate);
 
             if (IsDead && ReviveReady && !RevivesSuspended)
             {

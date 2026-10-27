@@ -46,6 +46,9 @@ namespace LoopRogue
         public const float ChargeHornDashDamage = 1.5f;
         public const float EarthHammerSplashRate = 0.2f;
         public const int PulseCoreStunTurns = 2; // 파동의 핵 - 회전 베기 기절(10-19 사용자 1 → 2)
+        /// <summary>망령의 깃발(10-27 테스터 제안, 사용자 7턴) - 방마다 1번, 체력이 이 비율 아래로 떨어지면 몹 옆에 허수아비가 생겨 몹들이 그것만 노린다.</summary>
+        public const float PhantomBannerHealthRatio = 0.3f;
+        public const int PhantomBannerTurns = 7;
         public const float PiercingRate = 0.3f;
         public const float TyrantLandingRate = 0.3f;
         /// <summary>사형 집행자 - 일반 몹(보스 아님)에게 주는 피해 배율(10-24 사용자, 예전엔 체력 15% 이하 일반 몹 한 방 처치).</summary>
@@ -58,6 +61,10 @@ namespace LoopRogue
         public const float ChainBlastRate = 0.2f;
         public const float SecondWindHealRate = 0.3f;
         public const float TreasureHunterDropBonus = 0.03f;
+        /// <summary>오래된 보물지도 - 보물상자(숨겨진 보물상자 포함)에서 나오는 골드만 배수(10-27 사용자 +100%, 골드 획득량 전체가 아님).</summary>
+        public const int TreasureHunterChestGold = 2;
+        /// <summary>첫 일격 - 방마다 첫 타격 피해 배율(10-27 사용자, 예전엔 치명타 확정 - 후반엔 치명타 확률이 100%를 넘어 의미가 없었다).</summary>
+        public const float FirstStrikeDamage = 1.5f;
         public const float SpinningBladeDamageRate = 1.2f;
         public const float HunterEyeVisionBonus = 2f;
         public const float GreedGoldBonus = 0.4f;
@@ -65,6 +72,7 @@ namespace LoopRogue
         public const int GaleDashCooldownReduction = 2;
         public const float RegenMossHealRate = 0.15f;
         public const float IronSkinDamageFactor = 0.9f;
+        public const float IronSkinHealRate = 0.05f; // 철의 피부 - 체력으로 받은 피해의 5%를 곧바로 회복(10-27 사용자)
         public const float BerserkerThreshold = 0.5f;
         public const float BerserkerBonus = 0.3f;
         public const float KnightMemoryReadChance = 0.12f;
@@ -74,7 +82,7 @@ namespace LoopRogue
             { RelicType.ChargeHorn, (Loc.T("돌진의 뿔"), Loc.T("대시 거리 3→4칸, 대시 공격 피해 +50%")) },
             { RelicType.EarthHammer, (Loc.T("대지의 망치"), Loc.T("일반 공격 시 대상 상하좌우 몹에게도 20% 피해")) },
             { RelicType.CrossCrest, (Loc.T("십자 문장"), Loc.T("회전 베기가 상하좌우 2칸까지 닿음")) },
-            { RelicType.PhantomBanner, (Loc.T("망령의 깃발"), Loc.T("방에 들어갈 때 옆에 허수아비가 생김")) },
+            { RelicType.PhantomBanner, (Loc.T("망령의 깃발"), Loc.F("방마다 1번, 체력이 {0:0}% 아래로 떨어지면 허수아비가 나타나 {1}턴 동안 몹들의 공격을 받아 낸다", PhantomBannerHealthRatio * 100f, PhantomBannerTurns)) },
             { RelicType.PulseCore, (Loc.T("파동의 핵"), Loc.F("회전 베기에 맞은 몹 {0}턴 기절", PulseCoreStunTurns)) },
             { RelicType.SniperEye, (Loc.T("저격수의 눈"), Loc.T("치명타 피해 +50%p")) },
             { RelicType.PiercingSeal, (Loc.T("관통의 인장"), Loc.T("일반 공격이 대상 뒤 1칸 몹에게도 30% 피해")) },
@@ -84,15 +92,15 @@ namespace LoopRogue
             { RelicType.BloodPact, (Loc.T("피의 계약"), Loc.T("최대체력(성장분) -20%, 흡혈 상한 50%→70%")) },
             { RelicType.ChainBlast, (Loc.T("연쇄 폭발"), Loc.T("일반 몹 처치 시 주변 8칸 몹에게 공격력 20% 피해")) },
             { RelicType.SecondWind, (Loc.T("두 번째 숨"), Loc.T("시도마다 1회, 죽으면 체력 30%로 부활")) },
-            { RelicType.TreasureHunter, (Loc.T("오래된 보물지도"), Loc.T("보물상자에서 아이템 2개, 몹 아이템 드롭 +3%p")) },
+            { RelicType.TreasureHunter, (Loc.T("오래된 보물지도"), Loc.T("보물상자 골드 2배, 보물상자에서 아이템 2개, 몹 아이템 드롭 +3%p")) },
             { RelicType.SpinningBlade, (Loc.T("회전 칼날"), Loc.T("회전 베기 피해 80%→120%")) },
             { RelicType.HunterEye, (Loc.T("사냥꾼의 눈"), Loc.T("시야 +2칸, 출구가 처음부터 보임")) },
             { RelicType.Greed, (Loc.T("탐욕"), Loc.T("골드 +40%, 데스 패널티 40%→60%")) },
             { RelicType.Gale, (Loc.T("질풍"), Loc.T("대시 쿨타임 -2턴(최소 1턴)")) },
             { RelicType.RegenMoss, (Loc.T("재생의 이끼"), Loc.T("방 클리어 시 체력 15% 추가 회복")) },
-            { RelicType.IronSkin, (Loc.T("철의 피부"), Loc.T("받는 피해 -10%(카드 피해 감소와 별도)")) },
+            { RelicType.IronSkin, (Loc.T("철의 피부"), Loc.T("받는 피해 -10%(카드 피해 감소와 별도), 받은 피해의 5%를 곧바로 회복")) },
             { RelicType.Berserker, (Loc.T("광전사"), Loc.T("체력 50% 이하일 때 주는 피해 +30%")) },
-            { RelicType.FirstStrike, (Loc.T("첫 일격"), Loc.T("방마다 첫 공격은 치명타 확정")) },
+            { RelicType.FirstStrike, (Loc.T("첫 일격"), Loc.T("방마다 첫 공격 피해 1.5배")) },
             { RelicType.KnightMemory, (Loc.T("기사의 기억"), Loc.T("몹·보스의 공격을 12% 확률로 간파해 피해를 받지 않음")) },
         });
 

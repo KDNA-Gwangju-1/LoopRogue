@@ -139,7 +139,7 @@ namespace LoopRogue
             {
                 case RoomEventType.TreasureChest:
                 {
-                    var gold = roomClearGold * TreasureGoldMultiplier;
+                    var gold = roomClearGold * TreasureGoldMultiplier * (Relics.Has(RelicType.TreasureHunter) ? Relics.TreasureHunterChestGold : 1); // 유물 "오래된 보물지도"
                     GoldWallet.Add(gold);
                     var item = Inventory.GiveRandomMissing(); // 없는 아이템 중 하나
                     var extra = Relics.Has(RelicType.TreasureHunter) ? Inventory.GiveRandomMissing() : null; // 유물 "오래된 보물지도"(TreasureHunter)
@@ -149,7 +149,7 @@ namespace LoopRogue
                 }
                 case RoomEventType.SecretChest:
                 {
-                    var gold = roomClearGold * SecretChestGoldMultiplier;
+                    var gold = roomClearGold * SecretChestGoldMultiplier * (Relics.Has(RelicType.TreasureHunter) ? Relics.TreasureHunterChestGold : 1);
                     GoldWallet.Add(gold);
                     var items = new[] { Inventory.GiveRandomMissing(), Inventory.GiveRandomMissing(),
                             Relics.Has(RelicType.TreasureHunter) ? Inventory.GiveRandomMissing() : null }

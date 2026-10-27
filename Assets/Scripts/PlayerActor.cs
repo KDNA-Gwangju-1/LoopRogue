@@ -459,17 +459,40 @@ namespace LoopRogue
             if (EquipmentEffects.HasMemorySet)
                 Stats.BlockNextHit = true; // Unknown 세트 "기억의 벼림" - 방마다 처음 받는 피해 1번 무효
 
-            if (Relics.Has(RelicType.PhantomBanner)) // 유물 "망령의 깃발" - 옆 빈 칸에 허수아비
+            _bannerReady = Relics.Has(RelicType.PhantomBanner); // 유물 "망령의 깃발" - 방마다 1번(TryPhantomBanner)
+        }
+
+        private bool _bannerReady;
+
+        /// <summary>유물 "망령의 깃발" - 몹 턴이 끝났을 때(RoomController.EndOfEnemyTurns) 체력이 30% 아래면 방마다 1번,
+        /// 내 둘레 8칸 중 몹에 가장 가까운 빈칸에 허수아비(7턴). 예전엔 방에 들어갈 때마다 옆에 생겨 길만 막았다(10-27 테스터 "선택할 이유가 없다").</summary>
+        public void TryPhantomBanner()
+        {
+            if (!_bannerReady || Stats.IsDead || Stats.CurrentHealth > Stats.MaxHealth * Relics.PhantomBannerHealthRatio
+                || _room.ActiveDecoy != null)
+                return;
+            var enemies = _room.Enemies.Where(e => e != null && !e.Stats.IsDead).ToList();
+            if (enemies.Count == 0)
+                return;
+            var best = (Vector2Int?)null;
+            var bestDist = int.MaxValue;
+            foreach (var d in Around8)
             {
-                foreach (var d in Around4)
+                var p = GridPos + d;
+                if (!_room.CanPlaceAt(p))
+                    continue;
+                var dist = enemies.Min(e => GridMap.FootprintDistance(e, p));
+                if (dist < bestDist)
                 {
-                    if (_room.CanPlaceAt(GridPos + d))
-                    {
-                        _room.PlaceDecoy(GridPos + d);
-                        break;
-                    }
+                    bestDist = dist;
+                    best = p;
                 }
             }
+            if (!best.HasValue)
+                return;
+            _bannerReady = false;
+            _room.PlaceDecoy(best.Value, Relics.PhantomBannerTurns);
+            _room.ShowMessage(Loc.F("망령의 깃발! 허수아비가 {0}턴 동안 공격을 받아 낸다", Relics.PhantomBannerTurns));
         }
 
         private bool _firstStrikeReady;
@@ -904,21 +927,18 @@ namespace LoopRogue
                 return false;
             }
             var raw = Stats.RollAttackDamage(out var isCritical);
-            if (_firstStrikeReady) // 유물 "첫 일격" - 방마다 첫 타격은 치명타 확정
+            var firstStrike = 1f;
+            if (_firstStrikeReady) // 유물 "첫 일격" - 방마다 첫 타격 피해 1.5배(치명타와 따로 곱한다)
             {
                 _firstStrikeReady = false;
-                if (!isCritical)
-                {
-                    isCritical = true;
-                    raw = Stats.AttackPower * Stats.CriticalDamageMultiplier;
-                }
+                firstStrike = Relics.FirstStrikeDamage;
             }
             if (isCritical && Relics.Has(RelicType.SniperEye)) // 유물 "저격수의 눈" - 치명타 피해 +50%p
                 raw *= (Stats.CriticalDamageMultiplier + Relics.SniperCritDamageBonus) / Stats.CriticalDamageMultiplier;
             var berserk = Relics.Has(RelicType.Berserker) && Stats.CurrentHealth <= Stats.MaxHealth * Relics.BerserkerThreshold
                 ? 1f + Relics.BerserkerBonus : 1f; // 유물 "광전사"
             var executioner = Relics.Has(RelicType.Executioner) && !enemy.IsBoss ? Relics.ExecutionerDamage : 1f; // 유물 "사형 집행자" - 일반 몹 피해 증가
-            var damage = raw * damageRate * enemy.DamageTakenMultiplier * berserk * executioner
+            var damage = raw * damageRate * enemy.DamageTakenMultiplier * berserk * executioner * firstStrike
                 * WeaponEffectMultiplier(enemy, countCombo: !isSkill)
                 * Curses.DamageDealtMultiplier // 저주 계약(분노·메마름)
                 * RunBuffs.DamageDealtMultiplier; // 방 이벤트(숫돌·피의 제단)

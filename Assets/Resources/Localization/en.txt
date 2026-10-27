@@ -581,7 +581,8 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 십자 문장	Cross Crest
 회전 베기가 상하좌우 2칸까지 닿음	Spin Slash reaches 2 tiles orthogonally
 망령의 깃발	Wraith Banner
-방에 들어갈 때 옆에 허수아비가 생김	A scarecrow appears beside you on entering a room
+방마다 1번, 체력이 {0:0}% 아래로 떨어지면 허수아비가 나타나 {1}턴 동안 몹들의 공격을 받아 낸다	Once per room, when HP drops below {0:0}%, a scarecrow appears and draws enemy attacks for {1} turns
+망령의 깃발! 허수아비가 {0}턴 동안 공격을 받아 낸다	Wraith Banner! A scarecrow draws attacks for {0} turns
 파동의 핵	Shockwave Core
 회전 베기에 맞은 몹 1턴 기절	Mobs hit by Spin Slash are stunned 1 turn
 저격수의 눈	Sniper's Eye
@@ -600,7 +601,7 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 두 번째 숨	Second Wind
 시도마다 1회, 죽으면 체력 30%로 부활	Once per attempt, revive with 30% HP on death
 오래된 보물지도	Old Treasure Map
-보물상자에서 아이템 2개, 몹 아이템 드롭 +3%p	2 items from treasure chests, mob item drop +3%p
+보물상자 골드 2배, 보물상자에서 아이템 2개, 몹 아이템 드롭 +3%p	Double gold from treasure chests, 2 items from treasure chests, mob item drop +3%p
 회전 칼날	Spinning Blades
 회전 베기 피해 80%→120%	Spin Slash damage 80%→120%
 사냥꾼의 눈	Hunter's Eye
@@ -612,11 +613,11 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 재생의 이끼	Moss of Renewal
 방 클리어 시 체력 15% 추가 회복	Heal an extra 15% HP on room clear
 철의 피부	Iron Skin
-받는 피해 -10%(카드 피해 감소와 별도)	Damage taken -10% (separate from card damage reduction)
+받는 피해 -10%(카드 피해 감소와 별도), 받은 피해의 5%를 곧바로 회복	Damage taken -10% (separate from card damage reduction), instantly recover 5% of damage taken
 광전사	Berserker
 체력 50% 이하일 때 주는 피해 +30%	Damage dealt +30% at 50% HP or less
 첫 일격	First Blow
-방마다 첫 공격은 치명타 확정	First attack in each room is a guaranteed crit
+방마다 첫 공격 피해 1.5배	First attack in each room deals 1.5x damage
 {0}이(가) 기다리고 있었다! (옆에서 F: 보고)	{0} was waiting! (adjacent F: report)
 {0}이(가) 나타났다! (옆에서 F: 대화)	{0} appeared! (adjacent F: talk)
 미믹 처치! 골드 +{0}{1}	Mimic slain! Gold +{0}{1}
