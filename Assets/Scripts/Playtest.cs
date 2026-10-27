@@ -13,8 +13,8 @@ namespace LoopRogue
         private const string PlayTimeKey = "LoopRogue_PlayTimeSeconds";
         private const float SaveEverySeconds = 30f;
 
-        /// <summary>이 빌드를 만든 날(기록에 같이 적어 어느 빌드로 했는지 구분).</summary>
-        public const string BuildLabel = "2026-10-13";
+        /// <summary>이 빌드를 만든 시각(기록에 같이 적어 어느 빌드로 했는지 구분) - 빌드할 때 자동으로 적힌다(SaveReset.BuildStamp). 에디터는 "editor".</summary>
+        public static string BuildLabel => SaveReset.BuildStamp ?? "editor";
 
         public static string SurveyUrl
         {

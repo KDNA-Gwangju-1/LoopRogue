@@ -1,5 +1,6 @@
 using System.Linq;
 using UnityEditor;
+using UnityEditor.Build;
 using UnityEditor.Build.Reporting;
 using UnityEngine;
 
@@ -27,6 +28,20 @@ namespace LoopRogue.EditorTools
             Debug.Log($"[BuildMenu] {summary.result} - {summary.outputPath} ({summary.totalSize / (1024 * 1024)}MB, {summary.totalTime.TotalSeconds:0}초, 에러 {summary.totalErrors})");
             if (Application.isBatchMode)
                 EditorApplication.Exit(summary.result == BuildResult.Succeeded ? 0 : 1);
+        }
+    }
+
+    /// <summary>모든 빌드(메뉴·빌드 설정 창 둘 다) 직전에 Resources/BuildStamp.txt에 빌드 시각을 적는다 - 실행 파일이 새 빌드인지 알아보고
+    /// 저장을 초기화하는 데(SaveReset.ResetOnNewBuild)와 플레이 기록의 빌드 표시(Playtest.BuildLabel)에 쓴다. 파일은 .gitignore.</summary>
+    public class BuildStampWriter : IPreprocessBuildWithReport
+    {
+        public int callbackOrder => 0;
+
+        public void OnPreprocessBuild(BuildReport report)
+        {
+            const string path = "Assets/Resources/BuildStamp.txt";
+            System.IO.File.WriteAllText(path, System.DateTime.Now.ToString("yyyy-MM-dd HH:mm"));
+            AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
         }
     }
 }

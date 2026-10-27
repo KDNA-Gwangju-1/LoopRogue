@@ -9,6 +9,9 @@ namespace LoopRogue
     {
         private const string DeathsKey = "LoopRogue_TotalDeaths";
         private const string MilestoneSeenKey = "LoopRogue_LoopMilestoneSeen";
+        /// <summary>회차를 넘어 쌓이는 사망 수 - 노인의 기억의 조각(LobbyGuide)만 쓴다. TotalDeaths는 회차마다 처음부터(10-27 사용자),
+        /// 이야기 조각은 도감처럼 회차를 넘어 남는다(SaveReset.KeptInts).</summary>
+        public const string LifetimeDeathsKey = "LoopRogue_LifetimeDeaths";
 
         /// <summary>노인의 특별한 말이 나오는 누적 사망 수.</summary>
         public static readonly int[] Milestones = { 1, 10, 30, 50, 100, 200 };
@@ -34,6 +37,9 @@ namespace LoopRogue
             _deaths = PlayerPrefs.GetInt(DeathsKey, 0);
             _milestoneSeen = PlayerPrefs.GetInt(MilestoneSeenKey, 0);
         }
+
+        /// <summary>예전 저장(평생 사망 키가 없을 때)은 이번 회차 사망 수에서 시작한다.</summary>
+        public static int LifetimeDeaths => Mathf.Max(PlayerPrefs.GetInt(LifetimeDeathsKey, 0), TotalDeaths);
 
         public static int TotalDeaths
         {
@@ -61,6 +67,7 @@ namespace LoopRogue
         public static void AddDeath()
         {
             EnsureLoaded();
+            PlayerPrefs.SetInt(LifetimeDeathsKey, LifetimeDeaths + 1);
             _deaths++;
             PlayerPrefs.SetInt(DeathsKey, _deaths);
             PlayerPrefs.Save();

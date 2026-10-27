@@ -219,7 +219,7 @@ namespace LoopRogue
             {
                 var count = 0;
                 foreach (var f in Fragments)
-                    if (LoopRecord.TotalDeaths >= f.Deaths)
+                    if (LoopRecord.LifetimeDeaths >= f.Deaths) // 이야기 조각은 회차를 넘어 남는다
                         count++;
                 return count;
             }
@@ -232,7 +232,7 @@ namespace LoopRogue
             index = Mathf.Clamp(index, 0, unlocked - 1);
             var text = Loc.F("<color=#B9A0FF>기억의 조각 {0}</color>\n{1}", index + 1, Fragments[index].Text);
             if (index == unlocked - 1 && unlocked < Fragments.Length)
-                text += Loc.F("\n<size=13><color=#9AA0AA>...나머지는 자네가 {0}번 더 돌아오면 이야기하지.</color></size>", Fragments[unlocked].Deaths - LoopRecord.TotalDeaths);
+                text += Loc.F("\n<size=13><color=#9AA0AA>...나머지는 자네가 {0}번 더 돌아오면 이야기하지.</color></size>", Fragments[unlocked].Deaths - LoopRecord.LifetimeDeaths);
 
             NpcDialogUI.Instance.Show(Name, text, new[]
             {

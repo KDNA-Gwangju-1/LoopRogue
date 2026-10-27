@@ -135,11 +135,11 @@ namespace LoopRogue
         public void Snare(int turns)
         {
             Stun(turns);
-            _snared = true;
+            _snareTurns = Mathf.Max(_snareTurns, turns);
         }
 
-        private bool _snared;
-        public bool IsSnared => _snared && StunTurns > 0;
+        private int _snareTurns; // 덫 기절 남은 턴 - 섬광탄·파동의 핵 기절은 올가미 대상이 아니다
+        public bool IsSnared => _snareTurns > 0 && StunTurns > 0;
         /// <summary>섬광탄·덫 같은 몹 기절 + 보스 패턴 기절(돌진 뒤 비틀거림, 기둥·용암 충돌) - 머리 위 기절 별 표시용.</summary>
         public bool IsStunned => StunTurns > 0 || (_brain != null && _brain.IsStunned);
 
@@ -812,6 +812,8 @@ namespace LoopRogue
             if (StunTurns > 0)
             {
                 StunTurns--; // 기절(섬광탄/덫) - 아무것도 안 함
+                if (_snareTurns > 0)
+                    _snareTurns--;
                 if (MirrorShardsActive)
                     _brain.TakePatternTurn(player, room); // 단, 이미 깔린 거울 파편은 기절해도 순서대로 계속 터진다
                 return;

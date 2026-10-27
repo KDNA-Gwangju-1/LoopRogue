@@ -238,6 +238,21 @@ namespace LoopRogue
             return offer.Count > 0 ? offer : null;
         }
 
+        /// <summary>테스트 메뉴용 - 플레이어 없이 저장에만 넣고 뺀다(피의 계약·끝의 왕관처럼 얻는 순간 스탯이 바뀌는 유물은 Acquire를 쓴다).</summary>
+        public static void GrantForTest(RelicType type)
+        {
+            EnsureLoaded();
+            if (Owned.Add(type))
+                Save();
+        }
+
+        public static void RemoveForTest(RelicType type)
+        {
+            EnsureLoaded();
+            if (Owned.Remove(type))
+                Save();
+        }
+
         /// <summary>엔딩 뒤 새 게임(SaveReset.ResetForNewGame) - 고른 유물 하나만 가진 채로 시작한다(10-27 사용자 "10층 클리어 후 유물 하나를 들고 간다").</summary>
         public static void KeepOnly(RelicType type)
         {

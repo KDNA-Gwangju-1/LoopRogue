@@ -84,3 +84,8 @@ crashlytics-build.properties
 # 로컬 빌드 결과물
 /Roop/
 /Roop.zip
+/build.zip
+
+# 빌드할 때마다 새로 적히는 빌드 시각(BuildMenu.BuildStampWriter)
+/Assets/Resources/BuildStamp.txt
+/Assets/Resources/BuildStamp.txt.meta

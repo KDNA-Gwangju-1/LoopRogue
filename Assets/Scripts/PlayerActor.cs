@@ -1277,8 +1277,8 @@ namespace LoopRogue
         {
             foreach (var (enemy, offset) in targets)
             {
-                if (enemy == null || enemy.Stats.IsDead || enemy.IsLarge || enemy.IsBoss)
-                    continue;
+                if (enemy == null || enemy.Stats.IsDead || enemy.IsLarge || enemy.IsBoss || enemy.IsBladeProof)
+                    continue; // 큰 몹·보스·기믹 몹(7층 분신·10층 거울상·4층 포탑)은 안 밀린다
                 var dir = new Vector2Int(System.Math.Sign(offset.x), System.Math.Sign(offset.y));
                 var to = enemy.GridPos + dir;
                 if (Map.IsWalkable(to) && to != _room.ExitPosition)

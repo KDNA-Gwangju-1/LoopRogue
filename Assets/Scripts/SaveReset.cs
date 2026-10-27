@@ -21,7 +21,7 @@ namespace LoopRogue
         private static readonly string[] KeptStrings = { "LoopRogue_Codex" };
         private static readonly string[] KeptInts =
         {
-            ClearsKey,
+            ClearsKey, LoopRecord.LifetimeDeathsKey, // 노인의 이야기 조각은 회차를 넘어
             // 마지막 업적(10층 클리어) 보상 이용권이 엔딩 직후 지워지던 문제 - 이용권은 남긴다.
             "LoopRogue_GachaTickets", "LoopRogue_SlotTickets",
             Tutorial.BasicsKey, Tutorial.HintsKey, TutorialStage.DoneKey, TutorialStage.RewardKey, // 첫 판 안내는 한 번 봤으면 엔딩 뒤에도 다시 안 띄운다
@@ -57,6 +57,35 @@ namespace LoopRogue
             ReloadAll();
             if (carried.HasValue)
                 Relics.KeepOnly(carried.Value); // 엔딩에서 고른 유물 하나는 다음 회차로
+        }
+
+        // ---- 새 빌드면 저장 초기화(10-27 사용자 "빌드 돌릴 때 자동으로 초기화") ----
+        /// <summary>빌드할 때 에디터(BuildMenu.BuildStampWriter)가 Resources/BuildStamp.txt에 빌드 시각을 적는다. 실행 파일이 처음 켜질 때
+        /// 저장된 시각과 다르면(새 빌드) 설정만 남기고 전부 지운다 - 테스트 빌드마다 예전 빌드의 저장이 섞이지 않게. 에디터 플레이는 건드리지 않는다.</summary>
+        private const string BuildStampKey = "LoopRogue_BuildStamp";
+
+        /// <summary>이 빌드를 만든 시각(Resources/BuildStamp.txt) - 에디터나 스탬프가 없으면 null.</summary>
+        public static string BuildStamp
+        {
+            get
+            {
+                var stamp = Resources.Load<TextAsset>("BuildStamp");
+                return stamp != null ? stamp.text.Trim() : null;
+            }
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void ResetOnNewBuild()
+        {
+            if (Application.isEditor)
+                return;
+            var stamp = BuildStamp;
+            if (string.IsNullOrEmpty(stamp) || PlayerPrefs.GetString(BuildStampKey, "") == stamp)
+                return;
+            ResetAll();
+            PlayerPrefs.SetString(BuildStampKey, stamp);
+            PlayerPrefs.Save();
+            Debug.Log($"[SaveReset] 새 빌드({stamp}) - 저장 초기화");
         }
 
         /// <summary>PlayerPrefs를 직접 바꾼 뒤 각 저장 클래스가 다시 읽게 한다(보스 러시가 층마다 기준 스펙을 써넣을 때도).</summary>
