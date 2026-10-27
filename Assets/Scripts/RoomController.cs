@@ -1279,6 +1279,7 @@ namespace LoopRogue
             if (tiles.Contains(_player.GridPos))
             {
                 BombPlayerHitCount++;
+                DeathCause.Set("bomber");
                 var dealt = _player.Stats.TakeIncomingDamage(damage);
                 PlayLog.PlayerHit($"{PlayLog.EnemyLabel(bomber)} 폭발", dealt, _player.Stats);
                 DamagePopup.Spawn(_player.transform.position, dealt, new Color(1f, 0.5f, 0.1f), isCritical: true);
@@ -1673,6 +1674,7 @@ namespace LoopRogue
             if (!killed)
                 return false;
             GolemBlastKillCount++;
+            DeathCause.Set("g3_crystal"); // 사망 대사
             ShowMessage(Loc.T("<color=#FF4040>수정이 폭발해 방 전체를 휩쓸었다!</color>"));
             KillPlayerInstantly();
             ClearAllTelegraphs();
@@ -1968,6 +1970,7 @@ namespace LoopRogue
 
             HideBoarTimer();
             BoarDeadlineKillCount++;
+            DeathCause.Set("g1_boar"); // 사망 대사
             ShowMessage(Loc.T("<color=#FF4040>멧돼지가 광폭해져 모든 것을 짓밟았다!</color>"));
             if (HitFeedback.Enabled)
             {
@@ -2071,6 +2074,7 @@ namespace LoopRogue
             {
                 HideOgreHoleLabel();
                 OgreCollapseKillCount++;
+                DeathCause.Set("g2_collapse"); // 사망 대사
                 ShowMessage(Loc.T("<color=#FF4040>바닥이 통째로 무너져 내렸다!</color>"));
                 if (HitFeedback.Enabled)
                 {

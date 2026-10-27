@@ -173,6 +173,7 @@ namespace LoopRogue
             }
             if (_player.GridPos != safe)
             {
+                DeathCause.Set("g7_beat"); // 사망 대사
                 ShowMessage(Loc.T("<color=#FF4040>그림자 칼날이 몸을 갈랐다!</color>"));
                 ClearShadowBeat();
                 return true;

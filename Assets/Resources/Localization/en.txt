@@ -1296,3 +1296,65 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 잘 봐라!	Watch closely!
 라운드 {0} / {1}	Round {0} / {1}
 정답! 라운드 {0} / {1}	Correct! Round {0} / {1}
+쓰러져 죽었다	Collapsed and died
+슬라임 점액에 기도가 막혀 죽었다	Choked to death on slime goo
+해골 방패병의 방패가 머리에 꽂혀 죽었다	Died with a skeleton's shield lodged in the skull
+분열체 속에 빨려 들어가 녹아 죽었다	Got sucked into a splitter and dissolved to death
+작은 조각들에게 조금씩 뜯어먹혀 죽었다	Nibbled to death by tiny fragments
+등 뒤에 나타난 도적에게 목이 베여 죽었다	Throat cut by a rogue from behind
+보물상자인 줄 알고 열었다가 먹혀 죽었다	Opened what looked like a treasure chest and got eaten
+주술사의 지팡이에 정수리를 맞아 죽었다	Clubbed on the head by a shaman's staff
+반격병의 창끝에 꿰뚫려 죽었다	Skewered on a sentinel's spear
+방패를 든 반격병을 때렸다가 되받아쳐져 죽었다	Hit a guarding sentinel and got countered to death
+해골 궁수의 화살이 이마에 꽂혀 죽었다	A skeleton archer's arrow found the forehead
+거미줄에 칭칭 감긴 채 말라 죽었다	Wrapped in webs and withered away
+오크의 돌진에 받혀 벽에 부딪혀 죽었다	Rammed into a wall by an orc's charge
+고블린 폭탄병과 함께 터져 죽었다	Blew up together with a goblin bomber
+8턴짜리 주문을 끝까지 들어 주다 불타 죽었다	Listened to the whole 8-turn spell and burned to death
+기사가 기억해 둔 내 버릇 그대로 베여 죽었다	Cut down exactly the way the knight remembered
+기사의 잔상이 지나가는 길목에서 베여 죽었다	Cut down in the path of the knight's afterimage
+멧돼지 엄니에 걸려 하늘을 날다 떨어져 죽었다	Flung skyward by a boar's tusk and fell to death
+오우거의 몽둥이에 바닥까지 박혀 죽었다	Hammered into the floor by an ogre's club
+골렘의 돌주먹에 종잇장처럼 납작해져 죽었다	Flattened like paper by a golem's stone fist
+슬라임 킹에게 깔려 숨이 막혀 죽었다	Smothered under the Slime King
+버섯 군주의 포자를 한가득 들이마셔 죽었다	Inhaled a lungful of the Mushroom Lord's spores
+망령 궁수의 손끝에 영혼이 빠져나가 죽었다	Soul slipped out at the Wraith Archer's touch
+그림자 암살자가 언제 왔는지도 모른 채 베여 죽었다	Cut down by the Shadow Assassin without ever seeing it
+미노타우로스의 도끼에 두 동강 나 죽었다	Split in two by the Minotaur's axe
+리치의 손짓 한 번에 생명이 빨려 죽었다	Life drained by a single wave of the Lich's hand
+거울 가면에 비친 내 얼굴을 보다 베여 죽었다	Cut down while staring at my own face in the mirror mask
+내려찍기에 바닥과 하나가 되어 죽었다	Slammed into becoming one with the floor
+달려오는 보스를 정면으로 받아 내다 죽었다	Tried to take a charging boss head-on
+십자 베기의 한가운데 서 있다가 베여 죽었다	Stood in the middle of a cross slash
+퍼져 나가는 파동에 휩쓸려 죽었다	Swept away by a spreading shockwave
+안전하다고 믿은 칸이 역파동에 터져 죽었다	The "safe" tile exploded in a reverse wave
+세 번째 파동까지 버티지 못하고 죽었다	Couldn't survive to the third wave
+저격 화살이 정확히 내 자리에 떨어져 죽었다	A sniper arrow landed exactly on my tile
+첫 화살은 피했는데 두 번째 화살에 맞아 죽었다	Dodged the first arrow, not the second
+X자 칼날이 교차하는 자리에서 베여 죽었다	Cut down where the X-shaped blades crossed
+사방이 한꺼번에 터져 빠져나가지 못하고 죽었다	Everything exploded at once with no way out
+지그재그 칼날이 꺾이는 자리에서 베여 죽었다	Cut down where the zigzag blade turned
+갈라지는 바닥과 함께 갈라져 죽었다	Split apart along with the splitting floor
+체스판의 틀린 색 칸을 밟아 죽었다	Stepped on the wrong color of the chessboard
+터지는 영혼 구체에 혼이 흩어져 죽었다	Soul scattered by a bursting soul orb
+하늘에서 떨어진 슬라임 킹에게 깔려 죽었다	Crushed by the Slime King falling from the sky
+쏟아지는 거울 파편에 수없이 찔려 죽었다	Pierced countless times by raining mirror shards
+보스의 졸개들에게 둘러싸여 맞아 죽었다	Surrounded and beaten by the boss's minions
+벽에 붙은 슬라임의 점액 파동에 휩쓸려 죽었다	Swept away by a slime wave from the wall
+낙인의 영혼 구체에 영혼이 꿰뚫려 죽었다	Soul pierced by an orb of the death mark
+광폭해진 멧돼지에게 짓밟혀 죽었다	Trampled by a rampaging boar
+무너진 바닥과 함께 던전 아래로 떨어져 죽었다	Fell into the depths with the collapsing floor
+공명 수정의 빛에 몸이 부서져 죽었다	Shattered by the resonance crystal's light
+바닥을 뒤덮은 점액에 통째로 삼켜져 죽었다	Swallowed whole by slime covering the floor
+온몸에 버섯이 피어 군주의 정원이 되어 죽었다	Sprouted mushrooms everywhere and became the Lord's garden
+쏟아지는 화살비에 고슴도치가 되어 죽었다	Turned into a pincushion by a rain of arrows
+영혼 과녁이 모두 꿰뚫리며 함께 꿰뚫려 죽었다	Pierced along with every soul target
+한꺼번에 덮친 그림자들에게 찢겨 죽었다	Torn apart by shadows pouncing all at once
+박자를 놓쳐 그림자 칼날에 갈려 죽었다	Missed the beat and was shredded by shadow blades
+분출한 용암에 녹아 죽었다	Melted by erupting lava
+조여 오는 벽 사이에 끼어 납작해져 죽었다	Squashed flat between closing walls
+맞붙은 사방의 벽에 짓눌려 죽었다	Crushed as the walls met from every side
+죽음의 낙인이 타올라 재가 되어 죽었다	The death mark flared and left only ashes
+기사의 마지막 일격을 받아 내지 못하고 죽었다	Couldn't withstand the knight's final strike
+어디서 다시 시작할까?	Where do you want to start again?
+[Enter/Space/클릭] 계속	[Enter/Space/Click] Continue

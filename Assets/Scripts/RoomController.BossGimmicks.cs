@@ -303,6 +303,7 @@ namespace LoopRogue
             if (_lava.Count >= LavaEruptCount)
             {
                 GimmickKills[8]++;
+                DeathCause.Set("g8_lava"); // 사망 대사
                 ShowMessage(Loc.T("<color=#FF4040>용암이 한꺼번에 분출했다!</color>"));
                 GimmickDeathFx();
                 KillPlayerInstantly();
@@ -393,6 +394,7 @@ namespace LoopRogue
                         break; // 이번 턴에 옮겼다
                     if (--_doomTurnsLeft <= 0)
                     {
+                        DeathCause.Set("g9_doom"); // 사망 대사
                         ShowMessage(Loc.T("<color=#FF4040>죽음의 낙인이 타올랐다!</color>"));
                         dead = true;
                     }
@@ -415,6 +417,7 @@ namespace LoopRogue
                         break; // 이미 다 없앴다
                     if (--_gimmickTurnsLeft <= 0)
                     {
+                        DeathCause.Set(_gimmickStage == 6 ? "g6_candles" : "g7_clones"); // 사망 대사
                         ShowMessage(_gimmickStage switch
                         {
                             6 => Loc.T("<color=#FF4040>망령 궁수의 화살비가 쏟아졌다!</color>"),
@@ -473,6 +476,7 @@ namespace LoopRogue
             UpdateGimmickLabel();
             if (_infection < InfectionLimit)
                 return false;
+            DeathCause.Set("g5_infect"); // 사망 대사
             ShowMessage(Loc.T("<color=#FF4040>포자가 온몸을 뒤덮었다!</color>"));
             return true;
         }

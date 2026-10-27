@@ -209,6 +209,7 @@ namespace LoopRogue
                 return; // 트레일러 촬영 - 기믹 즉사(수정 폭발 등)는 죽이지 않으니 사망 처리도 없이 그대로 다음 장면으로(10-26 사용자)
             _roomController.IsInputLocked = true;
             LoopRecord.AddDeath(); // 누적 회차 - NPC 대사가 바뀐다
+            PlayLog.Note($"사망 원인: {DeathCause.Line}");
             StageProgress.AddStageDeath(); // 유물 "되풀이의 각인"
             var penalty = ApplyDeathGoldPenalty();
             PlayLog.Death(_player, _roomController, penalty); // 잃는 아이템까지 적으려고 LoseAll 전에

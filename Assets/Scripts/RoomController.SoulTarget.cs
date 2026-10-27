@@ -66,6 +66,7 @@ namespace LoopRogue
                 UpdateGimmickLabel();
                 return;
             }
+            DeathCause.Set("g6_targets"); // 사망 대사
             ShowMessage(Loc.T("<color=#FF4040>영혼 과녁이 모두 꿰뚫렸다!</color>"));
             _soulTargetActive = false;
             GimmickKills[6]++;

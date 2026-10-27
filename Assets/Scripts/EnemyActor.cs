@@ -986,6 +986,7 @@ namespace LoopRogue
             if (!(hit is PlayerActor))
                 return;
             ChargeHitCount++;
+            DeathCause.Set("charger");
             var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower * ChargeDamageRate);
             PlayLog.PlayerHit($"{PlayLog.EnemyLabel(this)} 돌진", dealt, player.Stats);
             room.ApplyThorns(this, dealt);
@@ -1127,6 +1128,7 @@ namespace LoopRogue
             if (TryGetComponent<SpriteAnimator>(out var anim))
                 anim.PlayAttack(player.GridPos - GridPos);
             HitPlayer(player, melee: true, rate: SentinelCounterRate);
+            DeathCause.Set("sentinel_counter");
         }
 
         // ---- 주문술사(Caster, 10-26 사용자) - "3턴 안에 잡을 것인가, 막아낼 것인가" ----
@@ -1219,6 +1221,7 @@ namespace LoopRogue
             CasterBlastHitCount++;
             if (player.ReflectInto(this, room))
                 return; // 반사 부적 - 막고 되돌린다
+            DeathCause.Set("caster");
             var dealt = player.Stats.TakeIncomingDamage(player.Stats.MaxHealth * CasterBlastMaxHealthRate);
             PlayLog.PlayerHit($"{PlayLog.EnemyLabel(this)} 주문 폭발", dealt, player.Stats);
             DamagePopup.Spawn(player.transform.position, dealt, new Color(0.95f, 0.4f, 0.85f), isCritical: true);
@@ -1402,6 +1405,7 @@ namespace LoopRogue
                     _decoyTarget.TakeHit(this, Stats.AttackPower * WebDamageRate);
                     return;
                 }
+                DeathCause.Set("spider");
                 var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower * WebDamageRate);
                 PlayLog.PlayerHit($"{PlayLog.EnemyLabel(this)} 거미줄", dealt, player.Stats);
                 DamagePopup.Spawn(player.transform.position, dealt, new Color(0.85f, 0.7f, 1f));
@@ -1621,6 +1625,7 @@ namespace LoopRogue
                 return;
             KnightEchoHitCount++;
             KnightPatternLanded = true;
+            DeathCause.Set("knight_echo");
             var dealt = player.Stats.TakeIncomingDamage(damage);
             PlayLog.PlayerHit($"{PlayLog.EnemyLabel(this)} 잔상", dealt, player.Stats);
             room.ApplyThorns(this, dealt);
@@ -1648,6 +1653,7 @@ namespace LoopRogue
                 return;
             KnightSlashHitCount++;
             KnightPatternLanded = true;
+            DeathCause.Set("knight_slash");
             var dealt = player.Stats.TakeIncomingDamage(_knightPatternPower * MemoryKnight.SlashDamageRate);
             PlayLog.PlayerHit($"{PlayLog.EnemyLabel(this)} 베기", dealt, player.Stats);
             room.ApplyThorns(this, dealt);
@@ -1943,6 +1949,7 @@ namespace LoopRogue
         {
             if (IsBoss && player.ReflectInto(this, _turnRoom))
                 return; // 반사 부적 - 보스 평타도 막고 되돌린다(10-16 사용자)
+            DeathCause.SetEnemy(this, _turnRoom != null ? _turnRoom.Stage : 0); // 사망 대사 - 보스는 층별, 일반 몹은 종류별
             var dealt = player.Stats.TakeIncomingDamage(Stats.AttackPower * rate);
             PlayLog.PlayerHit($"{PlayLog.EnemyLabel(this)} {(melee ? "근접" : "원거리")}", dealt, player.Stats);
             if (melee)

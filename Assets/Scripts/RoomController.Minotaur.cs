@@ -141,11 +141,13 @@ namespace LoopRogue
             UpdateGimmickLabel();
             if (crushed)
             {
+                DeathCause.Set("g8_crush"); // 사망 대사
                 ShowMessage(Loc.T("<color=#FF4040>조여 온 벽에 끼어 버렸다!</color>"));
                 return true;
             }
             if (CrushInnerWidth < CrushMinRoom || CrushInnerHeight < CrushMinRoom)
             {
+                DeathCause.Set("g8_walls"); // 사망 대사
                 ShowMessage(Loc.T("<color=#FF4040>사방의 벽이 맞붙어 모든 것을 짓눌렀다!</color>"));
                 return true;
             }

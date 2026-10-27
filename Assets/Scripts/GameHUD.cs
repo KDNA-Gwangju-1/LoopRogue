@@ -131,6 +131,7 @@ namespace LoopRogue
             HandleStatPanelScroll();
             HandleUpgradeSelection();
             HandleRelicChoice();
+            HandleDeathCause();
             HandleDeathChoice();
             HandleRoomSelect();
             HandleStageClearChoice();
@@ -705,7 +706,8 @@ namespace LoopRogue
                 return;
             }
             // 죽는 순간 연출 뒤에 창을 연다(10-25 테스터 "사망 인지가 힘들다" - 예전엔 맞는 순간 창이 바로 떠서 뭐에 죽었는지 못 봤다)
-            StartCoroutine(DeathSequence(() => OpenDeathPanel(onContinue, onLobby, goldPenalty, rooms, defaultRoom, bossRoom)));
+            // 연출 → 사망 원인·데스 패널티 창 → 방 고르기(10-27 사용자 - 원인은 방 고르기와 분리)
+            StartCoroutine(DeathSequence(() => ShowDeathCause(goldPenalty, () => OpenDeathPanel(onContinue, onLobby, goldPenalty, rooms, defaultRoom, bossRoom))));
         }
 
         // ---- 사망 연출 "리플레이 → 시간 되감기"(10-25 사용자): 맞는 순간 붉은 번쩍임·흔들림·피 튀김 + 느린 화면(녹화는 이어서) →
@@ -731,6 +733,7 @@ namespace LoopRogue
         private RectTransform _clockRect, _minuteHand, _hourHand;
         private readonly Image[] _rewindRings = new Image[RewindRingCount];
         private Text _deathTitle;
+        private Text _deathTitleText; // 사망 창 제목(사망 원인 대사)
         private bool _deathSlowMo;
         private float _deathStartTime;
         private const float DeathSkipGuardSeconds = 0.4f; // 죽은 턴에 누른 키(Space 대기 등)가 곧바로 건너뛰기로 읽히지 않게
@@ -1008,16 +1011,70 @@ namespace LoopRogue
             bool bossRoom)
         {
             _mapChoiceOpenedFrame = Time.frameCount;
+            _deathTitleText.text = Loc.T("어디서 다시 시작할까?"); // 사망 원인·데스 패널티는 그 앞 창(ShowDeathCause)에서
             _deathTipText.text = Loc.F("<color=#C8B88A>시간지기 노인의 한마디</color>  \"{0}\"", LobbyGuide.DeathTip(bossRoom));
             _onContinueAfterDeath = onContinue;
             _roomCount = rooms.Count;
             _roomMap ??= new RoomMapView(_deathPanel.transform, rooms.Count);
             _roomMap.Show(_deathPanel.transform, new Vector2(0f, -18f + DeathTipHeight * 0.5f), rooms, defaultRoom); // 아래 조언 줄만큼 늘어난 패널 보정
             _onReturnToLobby = onLobby;
-            _deathPenaltyText.text = goldPenalty > 0
+            _deathPenaltyText.text = string.Empty;
+            _deathPanel.SetActive(true);
+        }
+
+        // ---- 사망 원인 창(10-27 사용자) - 사망 연출이 끝나면 먼저 "무엇에 죽었는지"와 데스 패널티를 보여 주고, 넘기면 방 고르기 ----
+        private GameObject _deathCausePanel;
+        private Text _deathCauseText, _deathCausePenalty;
+        private Action _afterDeathCause;
+        private int _deathCauseOpenedFrame = -1;
+
+        private void ShowDeathCause(int goldPenalty, Action next)
+        {
+            _deathCauseText.text = DeathCause.Line;
+            _deathCausePenalty.text = goldPenalty > 0
                 ? Loc.F("데스 패널티: 골드 -{0} (이번 시도 획득분의 {1:0}%)", goldPenalty, Relics.DeathPenaltyRate * 100f)
                 : Loc.T("데스 패널티: 이번 시도에 번 골드 없음");
-            _deathPanel.SetActive(true);
+            _afterDeathCause = next;
+            _deathCauseOpenedFrame = Time.frameCount;
+            _deathCausePanel.SetActive(_pendingOptions == null);
+        }
+
+        /// <summary>Enter·Space·클릭으로 넘긴다. 레벨업 카드가 같이 떠 있으면 카드부터(그동안 숨김).</summary>
+        private void HandleDeathCause()
+        {
+            if (_afterDeathCause == null)
+                return;
+            var visible = _pendingOptions == null;
+            if (visible && !_deathCausePanel.activeSelf)
+                _deathCauseOpenedFrame = Time.frameCount;
+            _deathCausePanel.SetActive(visible);
+            if (!visible || Time.frameCount <= _deathCauseOpenedFrame)
+                return;
+            if (!(GameInput.Down(Key.Enter) || GameInput.Down(Key.NumpadEnter) || GameInput.Down(Key.Space) || GameInput.PointerDown))
+                return;
+            var next = _afterDeathCause;
+            _afterDeathCause = null;
+            _deathCausePanel.SetActive(false);
+            next();
+            _mapChoiceOpenedFrame = Time.frameCount; // 넘긴 그 키가 방 고르기 확정으로 또 읽히지 않게
+        }
+
+        private void BuildDeathCausePanel(Transform parent)
+        {
+            _deathCausePanel = BuildOverlayPanel(parent, "DeathCausePanel", new Vector2(660f, 210f), active: false);
+            _deathCauseText = CreateLabel(_deathCausePanel.transform, string.Empty, new Vector2(20f, -110f), new Vector2(-20f, -28f));
+            _deathCauseText.alignment = TextAnchor.MiddleCenter;
+            _deathCauseText.fontSize = 24;
+            _deathCauseText.fontStyle = FontStyle.Bold;
+            _deathCauseText.color = new Color(1f, 0.82f, 0.78f);
+            _deathCausePenalty = CreateLabel(_deathCausePanel.transform, string.Empty, new Vector2(20f, -148f), new Vector2(-20f, -114f));
+            _deathCausePenalty.alignment = TextAnchor.MiddleCenter;
+            _deathCausePenalty.fontSize = 16;
+            _deathCausePenalty.color = new Color(1f, 0.6f, 0.4f);
+            var prompt = CreateLabel(_deathCausePanel.transform, Loc.T("[Enter/Space/클릭] 계속"), new Vector2(20f, -194f), new Vector2(-20f, -164f));
+            prompt.alignment = TextAnchor.MiddleCenter;
+            prompt.fontSize = 14;
+            prompt.color = new Color(0.7f, 0.72f, 0.78f);
         }
 
         /// <summary>가장 최근 사망 때 잃은 골드 - 자동 플레이 봇 통계용.</summary>
@@ -1104,6 +1161,7 @@ namespace LoopRogue
             BuildBanner(canvasGo.transform);
             BuildVictoryPanel(canvasGo.transform);
             BuildDeathPanel(canvasGo.transform);
+            BuildDeathCausePanel(canvasGo.transform);
             BuildRoomSelectPanel(canvasGo.transform);
             _relicPanel = BuildOverlayPanel(canvasGo.transform, "RelicPanel", new Vector2(500f, 330f), active: false);
             canvasGo.AddComponent<InventoryUI>().Build(canvasGo.transform, _player);
@@ -1589,11 +1647,12 @@ namespace LoopRogue
         {
             _deathPanel = BuildOverlayPanel(parent, "DeathPanel", new Vector2(700f, 330f + DeathTipHeight), active: false);
 
-            var title = CreateLabel(_deathPanel.transform, Loc.T("사망! (레벨/스탯/장비는 그대로 유지됩니다)"),
-                new Vector2(10f, -70f), new Vector2(-10f, -15f));
-            title.alignment = TextAnchor.MiddleCenter;
-            title.fontSize = 18;
-            title.fontStyle = FontStyle.Bold;
+            // 제목 = 사망 원인 대사(DeathCause, 열 때 채운다)
+            _deathTitleText = CreateLabel(_deathPanel.transform, string.Empty, new Vector2(10f, -70f), new Vector2(-10f, -15f));
+            _deathTitleText.alignment = TextAnchor.MiddleCenter;
+            _deathTitleText.fontSize = 18;
+            _deathTitleText.fontStyle = FontStyle.Bold;
+            _deathTitleText.supportRichText = true;
 
             _deathPenaltyText = CreateLabel(_deathPanel.transform, string.Empty, new Vector2(10f, -105f), new Vector2(-10f, -72f));
             _deathPenaltyText.alignment = TextAnchor.MiddleCenter;

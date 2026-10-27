@@ -244,6 +244,7 @@ namespace LoopRogue
             if (boss != null)
             {
                 var ironWall = EquipmentEffects.Has(ItemSlot.Armor, 5) ? 1f - EquipmentEffects.BossPatternReduction : 1f;
+                DeathCause.Set("doom_orb");
                 var dealt = _player.Stats.TakeIncomingDamage(boss.Stats.AttackPower * BossBrain.PatternDamageMultiplier * ironWall);
                 PlayLog.PlayerHit("영혼 구체", dealt, _player.Stats);
                 DamagePopup.Spawn(_player.transform.position, dealt, new Color(0.6f, 1f, 0.7f), isCritical: true);

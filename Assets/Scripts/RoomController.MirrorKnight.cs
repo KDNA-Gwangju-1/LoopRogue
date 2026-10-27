@@ -653,6 +653,7 @@ namespace LoopRogue
         {
             GimmickKills[BossBrain.MirrorStage]++;
             MirrorPhaseKills[4]++;
+            DeathCause.Set("g10_laststand"); // 사망 대사
             ShowMessage(Loc.T("<color=#FF4040>기사의 마지막 일격에 쓰러졌다!</color>"));
             GimmickDeathFx();
             KillPlayerInstantly();
