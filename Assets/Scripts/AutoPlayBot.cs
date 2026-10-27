@@ -1232,7 +1232,10 @@ namespace LoopRogue
             RelicType.SecondWind, RelicType.IronSkin, RelicType.TyrantPlate, RelicType.ChargeHorn, RelicType.Executioner,
             RelicType.SpinningBlade, RelicType.CrossCrest, RelicType.EarthHammer, RelicType.PiercingSeal, RelicType.ChainBlast,
             RelicType.Berserker, RelicType.SniperEye, RelicType.Gale, RelicType.PulseCore, RelicType.RegenMoss, RelicType.FirstStrike,
+            RelicType.RecurrenceMark, RelicType.BloodHunter, RelicType.StoppedWatch, RelicType.EchoBlade, RelicType.ShadowStep, RelicType.Whirlwind,
+            RelicType.EliteHunter, RelicType.SnareHunter, RelicType.PowderMaster, RelicType.AlchemistPouch, RelicType.ContractBrand,
             RelicType.BloodPact, RelicType.PhantomBanner, RelicType.CrownOfEnd, RelicType.Greed, RelicType.TreasureHunter, RelicType.HunterEye,
+            RelicType.PuzzleGlove, RelicType.MerchantSeal, // 10-27 추가 - 목록에 없으면 IndexOf -1이라 맨 앞으로 골라 버린다
         };
 
         private void PickRelic(IReadOnlyList<RelicType> options)

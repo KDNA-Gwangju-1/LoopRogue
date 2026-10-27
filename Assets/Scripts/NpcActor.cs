@@ -223,7 +223,7 @@ namespace LoopRogue
         private void ShowCurse()
         {
             var choices = _deals.Select(d => new NpcDialogUI.Choice(
-                Loc.F("<color=#C890FF>{0}</color>  <color=#FF8080>대가: {1}</color>  <color=#8CE08C>얻는 것: {2}</color>", d.Name, d.Cost, d.Gain),
+                Loc.F("<color=#C890FF>{0}</color>  <color=#FF8080>대가: {1}</color>  <color=#8CE08C>얻는 것: {2}</color>", d.Name, Curses.CostText(d), d.Gain),
                 () => TakeDeal(d))).ToList();
             choices.Add(new NpcDialogUI.Choice(Loc.T("거절한다"), null));
             NpcDialogUI.Instance.Show(DisplayName, $"{LoopLine(CurseGreetings)}\n{CurseTermsLine()}", choices);
@@ -342,7 +342,7 @@ namespace LoopRogue
             for (var i = 0; i < ItemInfo.Count; i++)
             {
                 var item = (ItemType)i;
-                if (Inventory.Has(item))
+                if (!Inventory.CanHold(item))
                     continue;
                 pool.Add(new StockEntry
                 {
@@ -350,11 +350,14 @@ namespace LoopRogue
                     Name = ItemInfo.Name(item),
                     Description = () => ItemInfo.Description(item),
                     Price = itemPrice,
-                    BlockedReason = () => Inventory.Has(item) ? Loc.T("이미 가지고 있음") : null,
+                    BlockedReason = () => Inventory.CanHold(item) ? null : Loc.T("이미 가지고 있음"),
                     Apply = () => Inventory.Give(item),
                 });
             }
 
+            if (Relics.Has(RelicType.MerchantSeal)) // 유물 "상인의 인장" - 던전 상인만
+                foreach (var e in pool)
+                    e.Price = Mathf.RoundToInt(e.Price * Relics.MerchantSealDiscount);
             _stock.AddRange(pool.OrderBy(_ => Rng.Next()).Take(StockCount));
         }
 

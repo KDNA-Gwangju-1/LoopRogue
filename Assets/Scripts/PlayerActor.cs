@@ -496,6 +496,7 @@ namespace LoopRogue
         }
 
         private bool _firstStrikeReady;
+        private int _echoCount; // 유물 "메아리 칼날" - 일반 공격 횟수
 
         /// <summary>새 시도(스테이지 입장, 사망 후 계속하기)마다 - 갑옷 "불굴"/"응급 처치"를 한 번씩 다시 채운다. 처음엔 방마다였는데
         /// 봇 측정에서 보스전 사망이 목표의 10~25%로 떨어져서 시도마다로 줄였다(사용자 결정 C안).</summary>
@@ -938,7 +939,10 @@ namespace LoopRogue
             var berserk = Relics.Has(RelicType.Berserker) && Stats.CurrentHealth <= Stats.MaxHealth * Relics.BerserkerThreshold
                 ? 1f + Relics.BerserkerBonus : 1f; // 유물 "광전사"
             var executioner = Relics.Has(RelicType.Executioner) && !enemy.IsBoss ? Relics.ExecutionerDamage : 1f; // 유물 "사형 집행자" - 일반 몹 피해 증가
-            var damage = raw * damageRate * enemy.DamageTakenMultiplier * berserk * executioner * firstStrike
+            var eliteHunter = Relics.Has(RelicType.EliteHunter) && (enemy.IsElite || enemy.IsMimic) ? Relics.EliteHunterDamage : 1f; // 유물 "정예 사냥꾼"
+            var snare = Relics.Has(RelicType.SnareHunter) && enemy.IsSnared ? Relics.SnareHunterDamage : 1f; // 유물 "사냥꾼의 올가미"
+            var damage = raw * damageRate * enemy.DamageTakenMultiplier * berserk * executioner * firstStrike * eliteHunter * snare
+                * Relics.StoppedWatchMultiplier // 유물 "멈춘 회중시계"
                 * WeaponEffectMultiplier(enemy, countCombo: !isSkill)
                 * Curses.DamageDealtMultiplier // 저주 계약(분노·메마름)
                 * RunBuffs.DamageDealtMultiplier; // 방 이벤트(숫돌·피의 제단)
@@ -990,6 +994,8 @@ namespace LoopRogue
                 _room.SpawnGlitchRevive(enemy); // 오류방 - 한 번 되살아난다(처치 처리 전에)
             Destroy(enemy.gameObject);
             Stats.Heal(Stats.MaxHealth * Stats.EffectiveKillHeal); // 처치 회복 카드(상한 36%)
+            if (Relics.Has(RelicType.BloodHunter) && !enemy.NoReward) // 유물 "피의 사냥꾼" - 졸개·분열 조각은 제외
+                Stats.Heal(Stats.MaxHealth * Relics.BloodHunterHealRate);
 
             // 경험치도 골드처럼 StageScaling 배율을 곱한다(몹은 스테이지마다 세지는데 경험치만
             // 고정이면 뒤로 갈수록 레벨이 안 오름). 보스 처치 경험치는 스테이지 클리어 화면보다
@@ -1055,6 +1061,12 @@ namespace LoopRogue
         {
             // 방금 때린 몹(3x3 보스면 그 몸 칸들이 주변에 걸쳐 있다) - 같은 몹을 추가타로 다시 때리지 않는다
             var primary = Map.GetActorAt(targetPos) as EnemyActor;
+            if (Relics.Has(RelicType.EchoBlade) && primary != null && !primary.Stats.IsDead && ++_echoCount % Relics.EchoBladeEvery == 0)
+            {
+                // 유물 "메아리 칼날" - 일반 공격 3번째마다 한 번 더(스킬 취급이라 흡혈 없음)
+                if (StrikeEnemy(primary, direction, Relics.EchoBladeRate, isSkill: true))
+                    return true;
+            }
             if (Relics.Has(RelicType.EarthHammer))
             {
                 var struck = new HashSet<EnemyActor>();
@@ -1084,8 +1096,40 @@ namespace LoopRogue
 
         /// <summary>대시 미리보기 - dir 방향으로 최대 DashRange칸, 벽/방 끝/이벤트 칸 앞에서 멈추고, 몹을 만나면 그 앞에서
         /// 멈춰 그 몹을 때린다. 한 칸도 못 가고 때릴 몹도 없으면 false(봇도 같은 계산을 쓴다).</summary>
-        public bool PreviewDash(Vector2Int dir, out Vector2Int landing, out EnemyActor hit)
+        public bool PreviewDash(Vector2Int dir, out Vector2Int landing, out EnemyActor hit) =>
+            PreviewDash(dir, out landing, out hit, out _);
+
+        /// <summary>passed = 유물 "그림자 걸음"일 때 뚫고 지나가며 벨 몹들(가는 길 순서, 첫 몹 = hit). 그림자 걸음이면 몹을 지나 방 끝/벽/다른 칸 앞까지
+        /// 가서 마지막 빈칸에 내려선다(몹 칸엔 안 내려섬).</summary>
+        public bool PreviewDash(Vector2Int dir, out Vector2Int landing, out EnemyActor hit, out List<EnemyActor> passed)
         {
+            passed = null;
+            if (Relics.Has(RelicType.ShadowStep))
+            {
+                landing = GridPos;
+                hit = null;
+                passed = new List<EnemyActor>();
+                var at = GridPos;
+                for (var i = 0; i < DashRange; i++)
+                {
+                    var next = at + dir;
+                    if (!Map.IsInBounds(next) || Map.IsWall(next))
+                        break;
+                    var occupant = Map.GetActorAt(next);
+                    if (occupant is EnemyActor e)
+                    {
+                        if (!e.Stats.IsDead && !passed.Contains(e))
+                            passed.Add(e);
+                    }
+                    else if (occupant != null && !(occupant is DecoyActor))
+                        break;
+                    at = next;
+                    if (occupant == null)
+                        landing = next;
+                }
+                hit = passed.Count > 0 ? passed[0] : null;
+                return landing != GridPos || hit != null;
+            }
             landing = GridPos;
             hit = null;
             var cursor = GridPos;
@@ -1118,7 +1162,7 @@ namespace LoopRogue
         /// <summary>Q 대시 - 한 턴에 최대 3칸 이동, 가는 길에 몹이 있으면 그 앞까지 가서 한 대. 쓸 수 없으면 false(턴 소모 없음).</summary>
         private bool TryDash(Vector2Int dir)
         {
-            if (DashCooldown > 0 || RootedTurns > 0 || !PreviewDash(dir, out var landing, out var hit))
+            if (DashCooldown > 0 || RootedTurns > 0 || !PreviewDash(dir, out var landing, out var hit, out var passed))
                 return false;
 
             BeginAction();
@@ -1141,8 +1185,13 @@ namespace LoopRogue
             {
                 PlayAttackFlash(dir);
                 var dashRate = Relics.Has(RelicType.ChargeHorn) ? Relics.ChargeHornDashDamage : 1f; // 유물 "돌진의 뿔"
-                if (StrikeEnemy(hit, dir, dashRate, isSkill: true, style: AttackStyle.Dash))
-                    return true;
+                foreach (var target in passed ?? new List<EnemyActor> { hit }) // 유물 "그림자 걸음"이면 지나친 몹 전부
+                {
+                    if (target == null || target.Stats.IsDead)
+                        continue;
+                    if (StrikeEnemy(target, dir, dashRate, isSkill: true, style: AttackStyle.Dash))
+                        return true;
+                }
             }
 
             if (Relics.Has(RelicType.TyrantPlate)) // 유물 "폭군의 갑주" - 내려선 자리 주변 8칸(같은 몹은 한 번만)
@@ -1209,6 +1258,8 @@ namespace LoopRogue
                 if (StrikeEnemy(enemy, offset, SpinDamageRate, ignoreShield: true, isSkill: true, style: AttackStyle.Spin))
                     return true; // 방 전환 - 남은 대상은 이미 정리됐다
             }
+            if (Relics.Has(RelicType.Whirlwind) && WhirlwindPush(targets))
+                return true;
             if (Relics.Has(RelicType.PulseCore)) // 유물 "파동의 핵" - 맞고 살아남은 몹 기절(10-19 사용자 1 → 2턴)
             {
                 foreach (var (enemy, _) in targets)
@@ -1218,6 +1269,27 @@ namespace LoopRogue
 
             EndTurn();
             return true;
+        }
+
+        /// <summary>유물 "소용돌이" - 회전 베기에 맞고 살아남은 몹을 나에게서 먼 쪽으로 1칸 민다. 벽·다른 몹·방 끝에 막히면 공격력 30% 추가 피해.
+        /// 큰 몹(보스)은 안 밀리고 추가 피해도 없다. 방이 넘어갔으면 true.</summary>
+        private bool WhirlwindPush(List<(EnemyActor Enemy, Vector2Int Offset)> targets)
+        {
+            foreach (var (enemy, offset) in targets)
+            {
+                if (enemy == null || enemy.Stats.IsDead || enemy.IsLarge || enemy.IsBoss)
+                    continue;
+                var dir = new Vector2Int(System.Math.Sign(offset.x), System.Math.Sign(offset.y));
+                var to = enemy.GridPos + dir;
+                if (Map.IsWalkable(to) && to != _room.ExitPosition)
+                {
+                    Map.MoveActor(enemy, to);
+                    continue;
+                }
+                if (StrikeEnemy(enemy, dir, Relics.WhirlwindWallRate, ignoreShield: true, isSkill: true))
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>행동 하나(이동/공격/대기/스킬)가 확정될 때 - 스킬 쿨타임과 거미줄 속박을 1 줄인다.</summary>

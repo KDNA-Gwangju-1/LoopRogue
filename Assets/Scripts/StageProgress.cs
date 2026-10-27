@@ -189,6 +189,7 @@ namespace LoopRogue
             EnsureLoaded();
             _stage = Mathf.Min(_stage + 1, MaxStage);
             _attempts = 0;
+            PlayerPrefs.DeleteKey(StageDeathsKey); // 되풀이의 각인 - 층마다 새로
             _roomsCleared = 0;
             _puzzleRooms.Clear();
             PlayerPrefs.SetInt(StageKey, _stage);
@@ -215,6 +216,13 @@ namespace LoopRogue
                 return Mathf.Max(1, _attempts);
             }
         }
+
+        private const string StageDeathsKey = "LoopRogue_StageDeaths";
+
+        /// <summary>지금 층에서 죽은 횟수(유물 "되풀이의 각인") - 다음 층으로 가면 0.</summary>
+        public static int DeathsThisStage => PlayerPrefs.GetInt(StageDeathsKey, 0);
+
+        public static void AddStageDeath() => PlayerPrefs.SetInt(StageDeathsKey, DeathsThisStage + 1);
 
         /// <summary>새 시도 시작(Main 입장 또는 사망 후 방1부터 재시작) - LoopManager가 부른다.</summary>
         public static void BeginAttempt()

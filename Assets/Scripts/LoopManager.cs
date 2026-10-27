@@ -209,6 +209,7 @@ namespace LoopRogue
                 return; // 트레일러 촬영 - 기믹 즉사(수정 폭발 등)는 죽이지 않으니 사망 처리도 없이 그대로 다음 장면으로(10-26 사용자)
             _roomController.IsInputLocked = true;
             LoopRecord.AddDeath(); // 누적 회차 - NPC 대사가 바뀐다
+            StageProgress.AddStageDeath(); // 유물 "되풀이의 각인"
             var penalty = ApplyDeathGoldPenalty();
             PlayLog.Death(_player, _roomController, penalty); // 잃는 아이템까지 적으려고 LoseAll 전에
             Inventory.LoseAll(); // 죽으면 들고 있던 아이템 전부 잃음(사용자 결정)
@@ -298,7 +299,7 @@ namespace LoopRogue
 
         private void ShowStageClear()
         {
-            // 마지막 층 - 엔딩을 보여주고 처음으로(도감·업적·칭호만 남김). 자동 플레이 봇은 예전처럼 클리어 창으로(봇이 판 종료로 센다).
+            // 마지막 층 - 엔딩을 보여주고 처음으로(도감·이용권·고른 유물 하나만 남김). 자동 플레이 봇은 예전처럼 클리어 창으로(봇이 판 종료로 센다).
             if (_stage >= StageProgress.MaxStage && !GameHUD.AutoPlayActive)
             {
                 var record = new EndingScreen.Record
@@ -310,9 +311,11 @@ namespace LoopRogue
                     CodexTotal = Codex.TotalCount(),
                 };
                 PlayLog.Ending(record.Clears);
-                EndingScreen.Show(record, () => !_player.Levels.IsChoosingUpgrade, () =>
+                EndingScreen.Show(record, () => !_player.Levels.IsChoosingUpgrade, carried =>
                 {
-                    SaveReset.ResetForNewGame();
+                    if (carried.HasValue)
+                        PlayLog.Note($"엔딩 - 다음 회차로 가져간 유물: {Relics.Name(carried.Value)}");
+                    SaveReset.ResetForNewGame(carried);
                     UnityEngine.SceneManagement.SceneManager.LoadScene("Title");
                 });
                 return;

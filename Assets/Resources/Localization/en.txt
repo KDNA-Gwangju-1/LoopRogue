@@ -156,8 +156,13 @@ X자 베기	X Slash
 하지만 던전은 다시 숨을 쉰다. 기록만이 남아 다음 모험가를 기다린다.	Yet the dungeon breathes again. Only the records remain, awaiting the next adventurer.
 고리를 끊었다	The Loop Is Broken
 {0}번째 클리어   ·   누적 사망 {1}회   ·   레벨 {2}   ·   도감 {3}/{4}	Clear #{0}   ·   Total deaths {1}   ·   Level {2}   ·   Codex {3}/{4}
-처음으로 돌아갑니다 - <color=#B9A0FF>도감·업적·칭호</color>는 남고, 골드·장비·유물·레벨은 처음부터.	Back to the beginning - <color=#B9A0FF>Codex·Achievements·Titles</color> remain; Gold·gear·Relics·levels reset.
+처음으로 돌아갑니다 - <color=#B9A0FF>도감</color>은 남고, 골드·장비·유물·레벨·업적·칭호는 처음부터.	Returning to the beginning - your <color=#B9A0FF>Codex</color> remains; gold, gear, relics, level, achievements and titles start over.
 [Enter] 처음으로	[Enter] Start Over
+처음으로 돌아갑니다 - <color=#B9A0FF>도감</color>과 <color=#FFD966>유물 하나</color>가 남고, 골드·장비·레벨·업적·칭호는 처음부터.	Returning to the beginning - your <color=#B9A0FF>Codex</color> and <color=#FFD966>one relic</color> remain; gold, gear, level, achievements and titles start over.
+[Enter] 가져갈 유물 고르기	[Enter] Choose a relic to keep
+다음 고리로 가져갈 유물 하나	One relic to carry into the next loop
+고른 유물만 새 모험에 남는다	Only the chosen relic stays for the new adventure
+[방향키·클릭] 고르기   [Enter] 결정	[Arrows/Click] Select   [Enter] Confirm
 졸개	Minion
 정예 	Elite 
 궁수	Archer
@@ -828,6 +833,39 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 {0} 처치! 골드 +{1}, 히든 유물 <color=#7FE0D8>「{2}」</color> 획득	{0} slain! Gold +{1}, hidden relic <color=#7FE0D8>"{2}"</color> obtained
 {0} 처치! 골드 +{1}	{0} slain! Gold +{1}
 기사의 기억	Knight's Memory
+그림자 걸음	Shadow Step
+대시가 몹을 뚫고 지나가며 길 위의 몹을 모두 벤다	Dash passes through enemies, slashing every enemy in its path
+소용돌이	Whirlwind
+회전 베기에 맞은 몹을 1칸 밀어낸다(막히면 공격력 30% 추가 피해, 보스는 안 밀림)	Spin Slash knocks enemies back 1 tile (if blocked, +30% ATK damage; bosses are not pushed)
+멈춘 회중시계	Stopped Pocket Watch
+누적 사망 1회마다 주는 피해 +0.5% (최대 +25%)	+0.5% damage dealt per total death (max +25%)
+되풀이의 각인	Mark of Recurrence
+지금 층에서 죽을 때마다 받는 피해 -2% (최대 -10%, 다음 층에서 초기화)	-2% damage taken per death on the current floor (max -10%, resets on the next floor)
+퍼즐 장인의 장갑	Puzzlemaster's Gloves
+퍼즐·미니게임 성공 보상(골드·영약) 2배	Double puzzle and minigame rewards (gold and elixirs)
+상인의 인장	Merchant's Seal
+던전 떠돌이 상인 가격 -20%	Wandering dungeon merchant prices -20%
+계약자의 낙인	Contractor's Brand
+저주 계약의 대가가 절반	Curse contract costs are halved
+피의 사냥꾼	Blood Hunter
+몹을 처치할 때마다 최대 체력의 2% 회복	Recover 2% max HP on each kill
+정예 사냥꾼	Elite Hunter
+정예 몹·미믹에게 주는 피해 +30%, 미믹·도전의 깃발 보상 골드 2배	+30% damage to elites and mimics, double gold from mimics and Challenge Flags
+메아리 칼날	Echo Blade
+일반 공격 3번째마다 같은 대상을 한 번 더 벤다(25% 피해, 흡혈 없음)	Every 3rd normal attack strikes the same target again (25% damage, no lifesteal)
+연금술사의 주머니	Alchemist's Pouch
+아이템을 종류마다 2개까지 가질 수 있다	Hold up to 2 of each item
+화약 장인	Powder Master
+폭탄 폭발 범위 3x3 → 5x5	Bomb blast area 3x3 → 5x5
+사냥꾼의 올가미	Hunter's Snare
+덫에 걸려 기절한 몹은 받는 피해 +50%	Enemies stunned by traps take +50% damage
+받는 피해 +7.5%	Damage taken +7.5%
+지금 체력 20% 잃음	Lose 20% of current HP
+골드 획득 -25%	Gold gain -25%
+방 클리어 회복 절반	Room clear healing halved
+지금 체력 12.5% 잃음	Lose 12.5% of current HP
+받는 피해 +10%	Damage taken +10%
+보유 ×{0}	Owned ×{0}
 몹·보스의 공격을 12% 확률로 간파해 피해를 받지 않음	12% chance to read a monster's or boss's attack and take no damage
 히든 유물 - 보스 보상으로는 나오지 않는다	Hidden relic - never offered as a boss reward
 어딘가에 고리를 기억하는 자가 있다고 한다	They say someone, somewhere, remembers the loop

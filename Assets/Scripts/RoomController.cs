@@ -289,7 +289,8 @@ namespace LoopRogue
         private List<string> GrantPuzzleRewards(PuzzleType type)
         {
             var parts = new List<string>();
-            var gold = PuzzleBase.BonusGold(type, _stage);
+            var glove = Relics.Has(RelicType.PuzzleGlove) ? Relics.PuzzleGloveRewardMultiplier : 1; // 유물 "퍼즐 장인의 장갑"
+            var gold = PuzzleBase.BonusGold(type, _stage) * glove;
             if (gold > 0)
             {
                 GoldWallet.Add(gold);
@@ -303,6 +304,8 @@ namespace LoopRogue
             }
             if (PuzzleBase.GivesCriticalPotion(type))
                 potions.Add(CriticalOrAttack());
+            if (glove > 1)
+                potions = Enumerable.Repeat(potions, glove).SelectMany(p => p).ToList();
             // 같은 영약이 두 번이면(치명타가 아직 안 열려 공격력으로 바뀐 경우) "+2"로 묶는다
             foreach (var group in potions.GroupBy(p => p))
             {
@@ -853,7 +856,7 @@ namespace LoopRogue
         {
             if (enemy.IsMimic)
             {
-                var gold = RoomClearGold * MimicGoldRooms;
+                var gold = RoomClearGold * MimicGoldRooms * (Relics.Has(RelicType.EliteHunter) ? Relics.EliteHunterGoldMultiplier : 1); // 유물 "정예 사냥꾼"
                 GoldWallet.Add(gold);
                 var item = Inventory.GiveRandomMissing();
                 ShowMessage(Loc.F("미믹 처치! 골드 +{0}{1}", gold, (item.HasValue ? Loc.F(", {0} 획득", ItemInfo.Name(item.Value)) : "")));
@@ -890,7 +893,7 @@ namespace LoopRogue
             }
             if (_challengeEnemies.Remove(enemy) && _challengeEnemies.Count == 0)
             {
-                var gold = RoomClearGold * ChallengeGoldRooms;
+                var gold = RoomClearGold * ChallengeGoldRooms * (Relics.Has(RelicType.EliteHunter) ? Relics.EliteHunterGoldMultiplier : 1);
                 GoldWallet.Add(gold);
                 _player.Levels.GrantBonusUpgrade();
                 ShowMessage(Loc.F("도전 성공! 골드 +{0}, 레벨업 카드 1장", gold));
@@ -2928,7 +2931,7 @@ namespace LoopRogue
             _traps.Remove(trapCell);
             if (go != null)
                 Destroy(go);
-            enemy.Stun(ItemInfo.TrapStunTurns);
+            enemy.Snare(ItemInfo.TrapStunTurns);
             ShowMessage(Loc.F("{0}이(가) 덫에 걸렸다! ({1}턴 기절)", enemy.DisplayName, ItemInfo.TrapStunTurns));
         }
 
@@ -2974,8 +2977,9 @@ namespace LoopRogue
 
         private IEnumerable<Vector2Int> BlastArea(Vector2Int center)
         {
-            for (var dx = -1; dx <= 1; dx++)
-            for (var dy = -1; dy <= 1; dy++)
+            var r = Relics.Has(RelicType.PowderMaster) ? Relics.PowderMasterRadius : 1; // 유물 "화약 장인" - 5x5
+            for (var dx = -r; dx <= r; dx++)
+            for (var dy = -r; dy <= r; dy++)
             {
                 var p = center + new Vector2Int(dx, dy);
                 if (Map.IsInBounds(p))

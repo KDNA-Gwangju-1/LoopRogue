@@ -34,6 +34,20 @@ namespace LoopRogue
         FirstStrike,
         // 히든(보스 보상 후보로 안 나온다 - 히든 몹·NPC가 준다)
         KnightMemory,   // 기억하는 기사 첫 처치
+        // 일반(10-27 추가) - 저장이 번호로 돼 있어서 KnightMemory 뒤에 붙인다(앞에 끼우면 기존 저장의 유물이 바뀐다)
+        ShadowStep,
+        Whirlwind,
+        StoppedWatch,
+        RecurrenceMark,
+        PuzzleGlove,
+        MerchantSeal,
+        ContractBrand,
+        BloodHunter,
+        EliteHunter,
+        EchoBlade,
+        AlchemistPouch,
+        PowderMaster,
+        SnareHunter,
     }
 
     public static class Relics
@@ -76,6 +90,22 @@ namespace LoopRogue
         public const float BerserkerThreshold = 0.5f;
         public const float BerserkerBonus = 0.3f;
         public const float KnightMemoryReadChance = 0.12f;
+        // ---- 10-27 추가 유물 ----
+        public const float WhirlwindWallRate = 0.3f;        // 소용돌이 - 밀려나다 막히면 공격력 ×
+        public const float StoppedWatchPerDeath = 0.005f;   // 멈춘 회중시계 - 누적 사망 1회당 주는 피해
+        public const float StoppedWatchMax = 0.25f;
+        public const float RecurrencePerDeath = 0.02f;      // 되풀이의 각인 - 이 층에서 죽은 1회당 받는 피해 감소(10-27 사용자 3 → 2%)
+        public const float RecurrenceMax = 0.1f;
+        public const int PuzzleGloveRewardMultiplier = 2;   // 퍼즐 장인의 장갑 - 퍼즐 성공 골드·영약
+        public const float MerchantSealDiscount = 0.8f;     // 상인의 인장 - 던전 상인만(로비 상점 제외)
+        public const float BloodHunterHealRate = 0.02f;     // 피의 사냥꾼 - 처치마다 최대 체력의
+        public const float EliteHunterDamage = 1.3f;        // 정예 사냥꾼 - 정예·미믹에게 주는 피해
+        public const int EliteHunterGoldMultiplier = 2;     // 정예 사냥꾼 - 미믹·도전의 깃발 보상 골드
+        public const int EchoBladeEvery = 3;                // 메아리 칼날 - 일반 공격 n번째마다
+        public const float EchoBladeRate = 0.25f;           // 메아리 칼날 - 추가 베기 피해(흡혈 없음, 10-27 사용자 50 → 25%)
+        public const int AlchemistPouchCapacity = 2;        // 연금술사의 주머니 - 아이템 종류마다
+        public const int PowderMasterRadius = 2;            // 화약 장인 - 폭탄 5x5
+        public const float SnareHunterDamage = 1.5f;        // 사냥꾼의 올가미 - 덫에 걸려 기절한 몹이 받는 피해
 
         private static readonly LocCache<Dictionary<RelicType, (string Name, string Description)>> InfoCache = new LocCache<Dictionary<RelicType, (string Name, string Description)>>(() => new Dictionary<RelicType, (string, string)>
         {
@@ -102,6 +132,19 @@ namespace LoopRogue
             { RelicType.Berserker, (Loc.T("광전사"), Loc.T("체력 50% 이하일 때 주는 피해 +30%")) },
             { RelicType.FirstStrike, (Loc.T("첫 일격"), Loc.T("방마다 첫 공격 피해 1.5배")) },
             { RelicType.KnightMemory, (Loc.T("기사의 기억"), Loc.T("몹·보스의 공격을 12% 확률로 간파해 피해를 받지 않음")) },
+            { RelicType.ShadowStep, (Loc.T("그림자 걸음"), Loc.T("대시가 몹을 뚫고 지나가며 길 위의 몹을 모두 벤다")) },
+            { RelicType.Whirlwind, (Loc.T("소용돌이"), Loc.T("회전 베기에 맞은 몹을 1칸 밀어낸다(막히면 공격력 30% 추가 피해, 보스는 안 밀림)")) },
+            { RelicType.StoppedWatch, (Loc.T("멈춘 회중시계"), Loc.T("누적 사망 1회마다 주는 피해 +0.5% (최대 +25%)")) },
+            { RelicType.RecurrenceMark, (Loc.T("되풀이의 각인"), Loc.T("지금 층에서 죽을 때마다 받는 피해 -2% (최대 -10%, 다음 층에서 초기화)")) },
+            { RelicType.PuzzleGlove, (Loc.T("퍼즐 장인의 장갑"), Loc.T("퍼즐·미니게임 성공 보상(골드·영약) 2배")) },
+            { RelicType.MerchantSeal, (Loc.T("상인의 인장"), Loc.T("던전 떠돌이 상인 가격 -20%")) },
+            { RelicType.ContractBrand, (Loc.T("계약자의 낙인"), Loc.T("저주 계약의 대가가 절반")) },
+            { RelicType.BloodHunter, (Loc.T("피의 사냥꾼"), Loc.T("몹을 처치할 때마다 최대 체력의 2% 회복")) },
+            { RelicType.EliteHunter, (Loc.T("정예 사냥꾼"), Loc.T("정예 몹·미믹에게 주는 피해 +30%, 미믹·도전의 깃발 보상 골드 2배")) },
+            { RelicType.EchoBlade, (Loc.T("메아리 칼날"), Loc.T("일반 공격 3번째마다 같은 대상을 한 번 더 벤다(25% 피해, 흡혈 없음)")) },
+            { RelicType.AlchemistPouch, (Loc.T("연금술사의 주머니"), Loc.T("아이템을 종류마다 2개까지 가질 수 있다")) },
+            { RelicType.PowderMaster, (Loc.T("화약 장인"), Loc.T("폭탄 폭발 범위 3x3 → 5x5")) },
+            { RelicType.SnareHunter, (Loc.T("사냥꾼의 올가미"), Loc.T("덫에 걸려 기절한 몹은 받는 피해 +50%")) },
         });
 
         private static Dictionary<RelicType, (string Name, string Description)> Info => InfoCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
@@ -165,7 +208,7 @@ namespace LoopRogue
         public static string Name(RelicType type) => Info[type].Name;
         public static string Description(RelicType type) => Info[type].Description;
         public static bool IsBossRelic(RelicType type) => (int)type < BossRelicCount;
-        public static bool IsHiddenRelic(RelicType type) => type >= RelicType.KnightMemory;
+        public static bool IsHiddenRelic(RelicType type) => type == RelicType.KnightMemory;
         public static RelicType BossRelic(int stage) => (RelicType)(Mathf.Clamp(stage, 1, BossRelicCount) - 1);
 
         /// <summary>그 스테이지 보스를 처음 잡았을 때만 후보 3개(보스 전용 1 + 일반 2). 이미 보상을 받은 스테이지면 null.
@@ -193,6 +236,15 @@ namespace LoopRogue
             foreach (var r in offer)
                 Codex.Discover(Codex.RelicKey(r)); // 후보로 본 유물도 도감에 기록(고르지 않아도)
             return offer.Count > 0 ? offer : null;
+        }
+
+        /// <summary>엔딩 뒤 새 게임(SaveReset.ResetForNewGame) - 고른 유물 하나만 가진 채로 시작한다(10-27 사용자 "10층 클리어 후 유물 하나를 들고 간다").</summary>
+        public static void KeepOnly(RelicType type)
+        {
+            EnsureLoaded();
+            Owned.Clear();
+            Owned.Add(type);
+            Save();
         }
 
         /// <summary>유물을 얻는다 - 한 번만 적용되는 효과(피의 계약 최대체력, 끝의 왕관 스탯)는 지금 플레이어에 바로 반영한다.</summary>
@@ -226,6 +278,13 @@ namespace LoopRogue
         public static float DeathPenaltyRate => Has(RelicType.Greed) ? GreedDeathPenaltyRate : LoopManager.DeathGoldPenaltyRate;
         public static float DropBonus => Has(RelicType.TreasureHunter) ? TreasureHunterDropBonus : 0f;
         public static float LifeStealCap => Has(RelicType.BloodPact) ? BloodPactLifeStealCap : CharacterStats.MaxLifeSteal;
+        /// <summary>멈춘 회중시계 - 누적 사망 수만큼 주는 피해 배율.</summary>
+        public static float StoppedWatchMultiplier => Has(RelicType.StoppedWatch)
+            ? 1f + Mathf.Min(StoppedWatchMax, LoopRecord.TotalDeaths * StoppedWatchPerDeath) : 1f;
+        /// <summary>되풀이의 각인 - 지금 층에서 죽은 횟수만큼 받는 피해 배율.</summary>
+        public static float RecurrenceMultiplier => Has(RelicType.RecurrenceMark)
+            ? 1f - Mathf.Min(RecurrenceMax, StageProgress.DeathsThisStage * RecurrencePerDeath) : 1f;
+        public static int ItemCapacity => Has(RelicType.AlchemistPouch) ? AlchemistPouchCapacity : 1;
         public static float VisionRadius => FogOfWar.VisionRadius + (Has(RelicType.HunterEye) ? HunterEyeVisionBonus : 0f);
     }
 }

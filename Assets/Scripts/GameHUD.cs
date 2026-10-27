@@ -510,7 +510,7 @@ namespace LoopRogue
                 foreach (var d in deals)
                 {
                     sb.AppendLine($"<color=#C890FF>{d.Name}</color>");
-                    sb.AppendLine(Loc.F("<size=12>   <color=#FF8080>대가: {0}</color>  <color=#8CE08C>얻은 것: {1}</color></size>", d.Cost, d.Gain));
+                    sb.AppendLine(Loc.F("<size=12>   <color=#FF8080>대가: {0}</color>  <color=#8CE08C>얻은 것: {1}</color></size>", Curses.CostText(d), d.Gain));
                 }
                 if (Relics.OwnedCount == 0)
                     return sb.ToString().TrimEnd();

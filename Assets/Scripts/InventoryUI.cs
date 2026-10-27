@@ -150,7 +150,8 @@ namespace LoopRogue
                 cell.Frame.color = selected ? HudSlot.FrameActive : owned ? HudSlot.FrameReady : HudSlot.FrameNormal;
                 cell.Fill.color = selected ? CellCursorFill : owned ? HudSlot.FillOwned : HudSlot.FillNormal;
                 cell.Key.text = quick >= 0 ? $"[{quick + 1}]" : string.Empty;
-                cell.Label.text = $"{ItemInfo.Name(type)}\n<size=11>{(owned ? Loc.T("보유") : "-")}</size>";
+                var count = Inventory.Count(type);
+                cell.Label.text = $"{ItemInfo.Name(type)}\n<size=11>{(count > 1 ? Loc.F("보유 ×{0}", count) : owned ? Loc.T("보유") : "-")}</size>";
                 cell.Label.color = owned ? Color.white : HudSlot.TextDim;
                 cell.Icon.color = owned ? Color.white : new Color(0.4f, 0.4f, 0.45f);
             }

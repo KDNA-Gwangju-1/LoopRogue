@@ -13,17 +13,17 @@ namespace LoopRogue
 
         public static int GameClears => PlayerPrefs.GetInt(ClearsKey, 0);
 
-        /// <summary>엔딩 후 처음으로 돌아갈 때 남기는 것(사용자 결정: 도감 + 업적·칭호) - 업적 진행용 누적 기록(누적 사망·상인 구매)과
-        /// 노인의 누적 사망 대사 기록도 업적과 같이 남긴다. 나머지(골드·층·장비·영약·유물·아이템·런·퀘스트·이용권)는 전부 처음부터.</summary>
         private const string PlayTimeKey = "LoopRogue_PlayTimeSeconds";
 
-        private static readonly string[] KeptStrings = { "LoopRogue_Codex", "LoopRogue_Achievements", "LoopRogue_Title" };
+        // 10-27 사용자: 업적·칭호·사망 수는 회차마다 따로 - 엔딩 뒤 새 회차에서 다시 깨면 보상도 다시 준다. 스팀 업적은 한 번 열리면
+        // 스팀에 남지만 게임 쪽으로 불러오지는 않는다(SteamBridge.SyncAchievements는 올리기만). 업적 진행(상인 구매·누적 처치·처치 보상
+        // 기록)과 회차 대사 기록도 같이 지운다. 도감만 회차를 넘어 남는다.
+        private static readonly string[] KeptStrings = { "LoopRogue_Codex" };
         private static readonly string[] KeptInts =
         {
-            "LoopRogue_MerchantBuys", "LoopRogue_TotalDeaths", "LoopRogue_LoopMilestoneSeen", ClearsKey,
-            // 마지막 업적(10층 클리어) 보상 이용권이 엔딩 직후 지워지던 문제 + 처치 업적 진행이 처음부터 다시 세지던 문제.
-            // 누적 처치를 남기면 이미 받은 처치 보상 기록도 같이 남겨야 같은 보상을 또 받지 않는다.
-            "LoopRogue_GachaTickets", "LoopRogue_SlotTickets", "LoopRogue_Quest_Kills", "LoopRogue_Quest_KillClaimed",
+            ClearsKey,
+            // 마지막 업적(10층 클리어) 보상 이용권이 엔딩 직후 지워지던 문제 - 이용권은 남긴다.
+            "LoopRogue_GachaTickets", "LoopRogue_SlotTickets",
             Tutorial.BasicsKey, Tutorial.HintsKey, TutorialStage.DoneKey, TutorialStage.RewardKey, // 첫 판 안내는 한 번 봤으면 엔딩 뒤에도 다시 안 띄운다
         };
 
@@ -33,8 +33,8 @@ namespace LoopRogue
             ReloadAll();
         }
 
-        /// <summary>10층 보스를 잡고 엔딩을 본 뒤 - 클리어 횟수를 하나 올리고, 도감·업적·칭호만 남기고 초기화한다.</summary>
-        public static void ResetForNewGame()
+        /// <summary>10층 보스를 잡고 엔딩을 본 뒤 - 클리어 횟수를 하나 올리고, 도감·이용권(+엔딩에서 고른 유물 하나)만 남기고 초기화한다.</summary>
+        public static void ResetForNewGame(RelicType? carried = null)
         {
             PlayerPrefs.SetInt(ClearsKey, GameClears + 1);
             var strings = new Dictionary<string, string>();
@@ -55,6 +55,8 @@ namespace LoopRogue
                 PlayerPrefs.SetInt(pair.Key, pair.Value);
             PlayerPrefs.Save();
             ReloadAll();
+            if (carried.HasValue)
+                Relics.KeepOnly(carried.Value); // 엔딩에서 고른 유물 하나는 다음 회차로
         }
 
         /// <summary>PlayerPrefs를 직접 바꾼 뒤 각 저장 클래스가 다시 읽게 한다(보스 러시가 층마다 기준 스펙을 써넣을 때도).</summary>

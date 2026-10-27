@@ -130,6 +130,16 @@ namespace LoopRogue
         public void Stun(int turns) => StunTurns = Mathf.Max(StunTurns, turns);
         /// <summary>10층 발악 시작 - 남은 기절을 없앤다(발악은 바로 시작).</summary>
         public void ClearStun() => StunTurns = 0;
+
+        /// <summary>덫에 걸려 기절 - 유물 "사냥꾼의 올가미"가 그 기절 동안 피해를 늘린다.</summary>
+        public void Snare(int turns)
+        {
+            Stun(turns);
+            _snared = true;
+        }
+
+        private bool _snared;
+        public bool IsSnared => _snared && StunTurns > 0;
         /// <summary>섬광탄·덫 같은 몹 기절 + 보스 패턴 기절(돌진 뒤 비틀거림, 기둥·용암 충돌) - 머리 위 기절 별 표시용.</summary>
         public bool IsStunned => StunTurns > 0 || (_brain != null && _brain.IsStunned);
 

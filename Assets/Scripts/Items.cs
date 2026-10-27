@@ -74,7 +74,7 @@ namespace LoopRogue
             type == ItemType.Torch || type == ItemType.Bomb || type == ItemType.Decoy || type == ItemType.Trap;
     }
 
-    /// <summary>인벤토리 - 종류마다 있음/없음(최대 1개) + 퀵슬롯 3칸(아이템 종류를 등록, 1/2/3 키). 사망·중도 포기 시 아이템은
+    /// <summary>인벤토리 - 종류마다 개수(최대 1개, 유물 "연금술사의 주머니"면 2개 - Relics.ItemCapacity) + 퀵슬롯 3칸(아이템 종류를 등록, 1/2/3 키). 사망·중도 포기 시 아이템은
     /// 전부 잃고 퀵슬롯 등록은 남는다(빈 칸으로 보임). PlayerPrefs에 저장해서 로비를 다녀와도 유지.</summary>
     public static class Inventory
     {
@@ -85,7 +85,7 @@ namespace LoopRogue
 
         private static readonly System.Random Rng = new System.Random();
         private static bool _loaded;
-        private static readonly bool[] Owned = new bool[ItemInfo.Count];
+        private static readonly int[] Owned = new int[ItemInfo.Count]; // 종류별 개수
         private static readonly int[] Quick = { -1, -1, -1 };
 
         /// <summary>자동 플레이 봇 통계용 - 얻은 횟수/쓴 횟수(종류별).</summary>
@@ -106,7 +106,7 @@ namespace LoopRogue
 
             var owned = PlayerPrefs.GetString(OwnedKey, "");
             for (var i = 0; i < ItemInfo.Count; i++)
-                Owned[i] = i < owned.Length && owned[i] == '1';
+                Owned[i] = i < owned.Length && owned[i] >= '0' && owned[i] <= '9' ? owned[i] - '0' : 0; // 예전 저장('0'/'1')도 그대로 읽힌다
 
             var quick = PlayerPrefs.GetString(QuickKey, "-1,-1,-1").Split(',');
             for (var i = 0; i < QuickSlotCount; i++)
@@ -115,21 +115,36 @@ namespace LoopRogue
 
         private static void Save()
         {
-            PlayerPrefs.SetString(OwnedKey, new string(Owned.Select(o => o ? '1' : '0').ToArray()));
+            PlayerPrefs.SetString(OwnedKey, new string(Owned.Select(o => (char)('0' + Mathf.Clamp(o, 0, 9))).ToArray()));
             PlayerPrefs.SetString(QuickKey, string.Join(",", Quick));
         }
 
         public static bool Has(ItemType type)
         {
             EnsureLoaded();
+            return Owned[(int)type] > 0;
+        }
+
+        public static int Count(ItemType type)
+        {
+            EnsureLoaded();
             return Owned[(int)type];
         }
 
-        /// <summary>없는 아이템 중 하나를 무작위로 준다. 다 있으면 null.</summary>
+        /// <summary>한 개 더 가질 수 있는지(연금술사의 주머니면 종류마다 2개).</summary>
+        public static bool CanHold(ItemType type)
+        {
+            EnsureLoaded();
+            return Owned[(int)type] < Relics.ItemCapacity;
+        }
+
+        /// <summary>없는 아이템 중 하나를 무작위로 준다 - 없는 게 없으면(주머니가 있을 때) 더 담을 수 있는 것 중에서. 다 차 있으면 null.</summary>
         public static ItemType? GiveRandomMissing()
         {
             EnsureLoaded();
-            var missing = Enumerable.Range(0, ItemInfo.Count).Where(i => !Owned[i]).ToList();
+            var missing = Enumerable.Range(0, ItemInfo.Count).Where(i => Owned[i] == 0).ToList();
+            if (missing.Count == 0)
+                missing = Enumerable.Range(0, ItemInfo.Count).Where(i => Owned[i] < Relics.ItemCapacity).ToList();
             if (missing.Count == 0)
                 return null;
             var type = (ItemType)missing[Rng.Next(missing.Count)];
@@ -141,13 +156,13 @@ namespace LoopRogue
         public static void Give(ItemType type)
         {
             EnsureLoaded();
-            Owned[(int)type] = true;
+            Owned[(int)type] = Mathf.Min(Relics.ItemCapacity, Owned[(int)type] + 1);
             ObtainedCount[(int)type]++;
             if (!Quick.Contains((int)type))
             {
                 for (var i = 0; i < QuickSlotCount; i++)
                 {
-                    if (Quick[i] < 0 || !Owned[Quick[i]])
+                    if (Quick[i] < 0 || Owned[Quick[i]] == 0)
                     {
                         Quick[i] = (int)type;
                         break;
@@ -160,7 +175,7 @@ namespace LoopRogue
         public static void Consume(ItemType type)
         {
             EnsureLoaded();
-            Owned[(int)type] = false;
+            Owned[(int)type] = Mathf.Max(0, Owned[(int)type] - 1);
             UsedCount[(int)type]++;
             Save();
         }
@@ -171,7 +186,7 @@ namespace LoopRogue
             EnsureLoaded();
             var keep = EquipmentEffects.Has(ItemSlot.Accessory, 5) ? Quick[0] : -1;
             for (var i = 0; i < ItemInfo.Count; i++)
-                Owned[i] = Owned[i] && i == keep;
+                Owned[i] = i == keep ? Owned[i] : 0;
             Save();
         }
 

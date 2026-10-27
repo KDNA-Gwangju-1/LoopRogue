@@ -12,6 +12,7 @@ namespace LoopRogue
         public string Id;
         public string Name;
         public string Cost;
+        public string CostHalved; // 유물 "계약자의 낙인"이 있을 때 보여 줄 대가
         public string Gain;
         public float DamageDealt = 1f; // 주는 피해 배율
         public float DamageTaken = 1f; // 받는 피해 배율
@@ -27,21 +28,21 @@ namespace LoopRogue
     {
         private static readonly LocCache<CurseDeal[]> AllCache = new LocCache<CurseDeal[]>(() => new CurseDeal[]
         {
-            new CurseDeal { Id = "Rage", Name = Loc.T("분노의 계약"), Cost = Loc.T("받는 피해 +15%"), Gain = Loc.T("주는 피해 +20%"),
+            new CurseDeal { Id = "Rage", Name = Loc.T("분노의 계약"), Cost = Loc.T("받는 피해 +15%"), CostHalved = Loc.T("받는 피해 +7.5%"), Gain = Loc.T("주는 피해 +20%"),
                 DamageTaken = 1.15f, DamageDealt = 1.2f }, // 10-24 사용자 받는 1.3·주는 1.4 → 1.15·1.2
-            new CurseDeal { Id = "Blood", Name = Loc.T("피의 계약"), Cost = Loc.T("지금 체력 40% 잃음"), Gain = Loc.T("레벨업 카드 1장"),
+            new CurseDeal { Id = "Blood", Name = Loc.T("피의 계약"), Cost = Loc.T("지금 체력 40% 잃음"), CostHalved = Loc.T("지금 체력 20% 잃음"), Gain = Loc.T("레벨업 카드 1장"),
                 HealthCost = 0.4f, Instant = (p, _) => { p.Levels.GrantBonusUpgrade(); return null; } },
-            new CurseDeal { Id = "Gold", Name = Loc.T("황금의 저주"), Cost = Loc.T("골드 획득 -50%"), Gain = Loc.T("지금 골드 대량 획득"),
+            new CurseDeal { Id = "Gold", Name = Loc.T("황금의 저주"), Cost = Loc.T("골드 획득 -50%"), CostHalved = Loc.T("골드 획득 -25%"), Gain = Loc.T("지금 골드 대량 획득"),
                 GoldGain = 0.5f, Instant = (_, roomGold) => { var g = roomGold * GoldDealRooms; GoldWallet.Add(g); return Loc.F("골드 +{0}", g); } },
-            new CurseDeal { Id = "Dry", Name = Loc.T("메마른 저주"), Cost = Loc.T("방 클리어 회복 없음"), Gain = Loc.T("주는 피해 +10%"),
+            new CurseDeal { Id = "Dry", Name = Loc.T("메마른 저주"), Cost = Loc.T("방 클리어 회복 없음"), CostHalved = Loc.T("방 클리어 회복 절반"), Gain = Loc.T("주는 피해 +10%"),
                 RoomHeal = 0f, DamageDealt = 1.1f }, // 10-24 사용자 1.25 → 1.1
-            new CurseDeal { Id = "Glutton", Name = Loc.T("탐식의 계약"), Cost = Loc.T("지금 체력 25% 잃음"), Gain = Loc.T("없는 아이템 2개"),
+            new CurseDeal { Id = "Glutton", Name = Loc.T("탐식의 계약"), Cost = Loc.T("지금 체력 25% 잃음"), CostHalved = Loc.T("지금 체력 12.5% 잃음"), Gain = Loc.T("없는 아이템 2개"),
                 HealthCost = 0.25f, Instant = (_, __) =>
                 {
                     var got = new[] { Inventory.GiveRandomMissing(), Inventory.GiveRandomMissing() }.Where(i => i.HasValue).Select(i => ItemInfo.Name(i.Value)).ToList();
                     return got.Count > 0 ? string.Join(", ", got) + Loc.T(" 획득") : Loc.T("아이템이 이미 가득하다");
                 } },
-            new CurseDeal { Id = "Reckless", Name = Loc.T("무모한 계약"), Cost = Loc.T("받는 피해 +20%"), Gain = Loc.T("골드 획득 +60%"),
+            new CurseDeal { Id = "Reckless", Name = Loc.T("무모한 계약"), Cost = Loc.T("받는 피해 +20%"), CostHalved = Loc.T("받는 피해 +10%"), Gain = Loc.T("골드 획득 +60%"),
                 DamageTaken = 1.2f, GoldGain = 1.6f },
         });
         public static CurseDeal[] All => AllCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
@@ -64,7 +65,7 @@ namespace LoopRogue
         public static string Take(CurseDeal deal, PlayerActor player, int roomClearGold)
         {
             if (deal.HealthCost > 0f)
-                player.Stats.LoseCurrentHealthPercent(deal.HealthCost);
+                player.Stats.LoseCurrentHealthPercent(deal.HealthCost * (Branded ? 0.5f : 1f)); // 유물 "계약자의 낙인"
             var result = deal.Instant?.Invoke(player, roomClearGold);
             Active.Add(deal);
             PlayLog.Note($"저주 계약: {deal.Name}");
@@ -79,10 +80,17 @@ namespace LoopRogue
             return m;
         }
 
+        /// <summary>유물 "계약자의 낙인" - 대가 쪽 배율만 1에 절반만큼 가깝게(받는 피해 1.2 → 1.1, 골드 0.5 → 0.75, 방 회복 0 → 0.5).</summary>
+        private static bool Branded => Relics.Has(RelicType.ContractBrand);
+        private static float HalfCost(float m, bool costAbove) => Branded && (costAbove ? m > 1f : m < 1f) ? 1f + (m - 1f) * 0.5f : m;
+
         public static float DamageDealtMultiplier => Product(d => d.DamageDealt);
-        public static float DamageTakenMultiplier => Product(d => d.DamageTaken);
-        public static float GoldMultiplier => Product(d => d.GoldGain);
-        public static float RoomHealMultiplier => Product(d => d.RoomHeal);
+        public static float DamageTakenMultiplier => Product(d => HalfCost(d.DamageTaken, costAbove: true));
+        public static float GoldMultiplier => Product(d => HalfCost(d.GoldGain, costAbove: false));
+        public static float RoomHealMultiplier => Product(d => HalfCost(d.RoomHeal, costAbove: false));
+
+        /// <summary>표시용 대가 문구 - 낙인이 있으면 줄어든 값으로.</summary>
+        public static string CostText(CurseDeal d) => Branded && d.CostHalved != null ? d.CostHalved : d.Cost;
 
         /// <summary>GameHUD 왼쪽 위 의뢰 줄 아래 - 받은 저주 요약. 없으면 null.</summary>
         public static string TrackerText =>

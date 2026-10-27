@@ -1,5 +1,7 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UI;
@@ -35,13 +37,13 @@ namespace LoopRogue
         private static string[] StoryLines => StoryLinesCache.Value; // 언어가 바뀌면 다시 만든다(LocCache)
 
         private Func<bool> _canShow;
-        private Action _onDone;
+        private Action<RelicType?> _onDone; // 다음 회차로 가져갈 유물(없으면 null)
         private Record _record;
         private bool _ready;
         private bool _done;
         private Text _prompt;
 
-        public static void Show(Record record, Func<bool> canShow, Action onDone)
+        public static void Show(Record record, Func<bool> canShow, Action<RelicType?> onDone)
         {
             var go = new GameObject("EndingScreen");
             var screen = go.AddComponent<EndingScreen>();
@@ -107,11 +109,15 @@ namespace LoopRogue
             var r = _record;
             var stats = Loc.F("{0}번째 클리어   ·   누적 사망 {1}회   ·   레벨 {2}   ·   도감 {3}/{4}", r.Clears, r.TotalDeaths, r.Level, r.CodexFound, r.CodexTotal);
             yield return FadeIn(Label(canvasGo.transform, stats, 20, new Vector2(0f, -110f), new Color(1f, 0.85f, 0.45f)));
+            _relics = Relics.OwnedRelics().ToList();
             yield return FadeIn(Label(canvasGo.transform,
-                Loc.T("처음으로 돌아갑니다 - <color=#B9A0FF>도감·업적·칭호</color>는 남고, 골드·장비·유물·레벨은 처음부터."),
+                _relics.Count > 0
+                    ? Loc.T("처음으로 돌아갑니다 - <color=#B9A0FF>도감</color>과 <color=#FFD966>유물 하나</color>가 남고, 골드·장비·레벨·업적·칭호는 처음부터.")
+                    : Loc.T("처음으로 돌아갑니다 - <color=#B9A0FF>도감</color>은 남고, 골드·장비·유물·레벨·업적·칭호는 처음부터."),
                 16, new Vector2(0f, -160f), new Color(0.75f, 0.77f, 0.85f)));
 
-            _prompt = Label(canvasGo.transform, Loc.T("[Enter] 처음으로"), 22, new Vector2(0f, -250f), Color.white);
+            _canvas = canvasGo.transform;
+            _prompt = Label(canvasGo.transform, _relics.Count > 0 ? Loc.T("[Enter] 가져갈 유물 고르기") : Loc.T("[Enter] 처음으로"), 22, new Vector2(0f, -250f), Color.white);
             _prompt.fontStyle = FontStyle.Bold;
             _ready = true;
         }
@@ -121,10 +127,123 @@ namespace LoopRogue
             if (!_ready || _done)
                 return;
             _prompt.color = new Color(1f, 1f, 1f, 0.55f + 0.45f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 2.5f)));
+            if (_picking)
+            {
+                UpdatePick();
+                return;
+            }
             if (!(GameInput.Down(Key.Enter) || GameInput.Down(Key.NumpadEnter)))
                 return;
+            if (_relics.Count > 0)
+            {
+                BuildPick();
+                return;
+            }
             _done = true;
-            _onDone?.Invoke();
+            _onDone?.Invoke(null);
+        }
+
+        // ---- 다음 회차로 가져갈 유물 고르기(10-27 사용자) - 가진 유물을 4줄 격자로, 방향키·클릭으로 고르고 Enter로 결정 ----
+        private const int PickColumns = 4;
+        private List<RelicType> _relics = new List<RelicType>();
+        private Transform _canvas;
+        private bool _picking;
+        private int _cursor;
+        private readonly List<(RectTransform Rect, Image Image)> _cells = new List<(RectTransform, Image)>();
+        private Text _pickDetail;
+        private static readonly Color CellColor = new Color(0.16f, 0.14f, 0.22f, 0.95f);
+        private static readonly Color CellActive = new Color(0.55f, 0.42f, 0.18f, 0.95f);
+
+        private void BuildPick()
+        {
+            _picking = true;
+            var page = HudUi.CreateImage(_canvas, "RelicPick", new Color(0.03f, 0.02f, 0.05f, 0.97f));
+            HudUi.Stretch(page.rectTransform, 0f);
+            var title = Label(page.transform, Loc.T("다음 고리로 가져갈 유물 하나"), 32, new Vector2(0f, 280f), new Color(1f, 0.85f, 0.45f));
+            title.fontStyle = FontStyle.Bold;
+            title.color = new Color(1f, 0.85f, 0.45f, 1f);
+            var sub = Label(page.transform, Loc.T("고른 유물만 새 모험에 남는다"), 17, new Vector2(0f, 238f), new Color(0.75f, 0.77f, 0.85f));
+            sub.color = new Color(0.75f, 0.77f, 0.85f, 1f);
+
+            const float w = 270f, h = 62f, gap = 10f;
+            var rows = (_relics.Count + PickColumns - 1) / PickColumns;
+            for (var i = 0; i < _relics.Count; i++)
+            {
+                var col = i % PickColumns;
+                var row = i / PickColumns;
+                var inRow = Mathf.Min(PickColumns, _relics.Count - row * PickColumns);
+                var x = (col - (inRow - 1) * 0.5f) * (w + gap);
+                var y = 150f - row * (h + gap) - (3 - Mathf.Min(rows, 3)) * (h + gap) * 0.5f;
+                var cell = HudUi.CreateImage(page.transform, "Relic", CellColor);
+                cell.rectTransform.sizeDelta = new Vector2(w, h);
+                cell.rectTransform.anchoredPosition = new Vector2(x, y);
+                var sprite = PixelUi.Get($"UI/Relics/Relic_{_relics[i]}");
+                if (sprite != null)
+                {
+                    var icon = HudUi.CreateImage(cell.transform, "Icon", Color.white);
+                    icon.sprite = sprite;
+                    icon.rectTransform.anchorMin = icon.rectTransform.anchorMax = icon.rectTransform.pivot = new Vector2(0f, 0.5f);
+                    icon.rectTransform.sizeDelta = new Vector2(44f, 44f);
+                    icon.rectTransform.anchoredPosition = new Vector2(10f, 0f);
+                }
+                var name = HudUi.CreateText(cell.transform, "Name", 16, TextAnchor.MiddleLeft);
+                name.text = Relics.Name(_relics[i]);
+                name.color = Color.white;
+                HudUi.Stretch(name.rectTransform, 0f);
+                name.rectTransform.offsetMin = new Vector2(62f, 0f);
+                _cells.Add((cell.rectTransform, cell));
+            }
+
+            _pickDetail = Label(page.transform, string.Empty, 18, new Vector2(0f, -150f), Color.white);
+            _pickDetail.color = new Color(0.9f, 0.92f, 1f, 1f);
+            _pickDetail.rectTransform.sizeDelta = new Vector2(1200f, 64f); // 이름 + 설명 두 줄
+            _prompt.transform.SetParent(page.transform, false);
+            _prompt.text = Loc.T("[방향키·클릭] 고르기   [Enter] 결정");
+            RefreshPick();
+        }
+
+        private void UpdatePick()
+        {
+            var move = GameInput.Down(Key.RightArrow) || GameInput.Down(Key.D) ? 1
+                : GameInput.Down(Key.LeftArrow) || GameInput.Down(Key.A) ? -1
+                : GameInput.Down(Key.DownArrow) || GameInput.Down(Key.S) ? PickColumns
+                : GameInput.Down(Key.UpArrow) || GameInput.Down(Key.W) ? -PickColumns : 0;
+            if (move != 0)
+            {
+                var next = _cursor + move;
+                if (next >= 0 && next < _relics.Count)
+                    _cursor = next;
+                RefreshPick();
+            }
+            var pos = GameInput.PointerPosition;
+            for (var i = 0; i < _cells.Count; i++)
+            {
+                if (!RectTransformUtility.RectangleContainsScreenPoint(_cells[i].Rect, pos, null) || !GameInput.PointerDown)
+                    continue;
+                if (_cursor == i)
+                {
+                    Confirm(); // 이미 고른 칸을 한 번 더 누르면 결정
+                    return;
+                }
+                _cursor = i;
+                RefreshPick();
+            }
+            if (GameInput.Down(Key.Enter) || GameInput.Down(Key.NumpadEnter))
+                Confirm();
+        }
+
+        private void RefreshPick()
+        {
+            for (var i = 0; i < _cells.Count; i++)
+                _cells[i].Image.color = i == _cursor ? CellActive : CellColor;
+            var r = _relics[_cursor];
+            _pickDetail.text = $"<color=#FFD966>{Relics.Name(r)}</color>\n{Relics.Description(r)}";
+        }
+
+        private void Confirm()
+        {
+            _done = true;
+            _onDone?.Invoke(_relics[_cursor]);
         }
 
         private static Text Label(Transform parent, string text, int fontSize, Vector2 pos, Color color)
