@@ -497,6 +497,7 @@ namespace LoopRogue
 
         private bool _firstStrikeReady;
         private int _echoCount; // 유물 "메아리 칼날" - 일반 공격 횟수
+        private bool _echoReady; // 3번째 공격으로 대상이 죽어 아직 못 쓴 추가타 - 다음 일반 공격에
 
         /// <summary>새 시도(스테이지 입장, 사망 후 계속하기)마다 - 갑옷 "불굴"/"응급 처치"를 한 번씩 다시 채운다. 처음엔 방마다였는데
         /// 봇 측정에서 보스전 사망이 목표의 10~25%로 떨어져서 시도마다로 줄였다(사용자 결정 C안).</summary>
@@ -1061,11 +1062,18 @@ namespace LoopRogue
         {
             // 방금 때린 몹(3x3 보스면 그 몸 칸들이 주변에 걸쳐 있다) - 같은 몹을 추가타로 다시 때리지 않는다
             var primary = Map.GetActorAt(targetPos) as EnemyActor;
-            if (Relics.Has(RelicType.EchoBlade) && primary != null && !primary.Stats.IsDead && ++_echoCount % Relics.EchoBladeEvery == 0)
+            if (Relics.Has(RelicType.EchoBlade))
             {
-                // 유물 "메아리 칼날" - 일반 공격 3번째마다 한 번 더(스킬 취급이라 흡혈 없음)
-                if (StrikeEnemy(primary, direction, Relics.EchoBladeRate, isSkill: true))
-                    return true;
+                // 유물 "메아리 칼날" - 일반 공격 3번째마다 한 번 더(스킬 취급이라 흡혈 없음). 죽인 공격도 센다(10-27 사용자 - 예전엔 살아남은
+                // 공격만 세서 몹이 잘 죽는 일반 방에선 거의 안 터졌다). 3번째 공격으로 대상이 죽었으면 추가타를 다음 일반 공격에 붙인다.
+                if (++_echoCount % Relics.EchoBladeEvery == 0)
+                    _echoReady = true;
+                if (_echoReady && primary != null && !primary.Stats.IsDead)
+                {
+                    _echoReady = false;
+                    if (StrikeEnemy(primary, direction, Relics.EchoBladeRate, isSkill: true))
+                        return true;
+                }
             }
             if (Relics.Has(RelicType.EarthHammer))
             {
