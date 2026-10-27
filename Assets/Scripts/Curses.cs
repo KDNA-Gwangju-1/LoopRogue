@@ -64,6 +64,8 @@ namespace LoopRogue
         /// <summary>계약 - 체력 대가를 치르고 즉시 효과를 준 뒤 배율 효과를 이번 시도에 붙인다. 결과 문구를 돌려준다.</summary>
         public static string Take(CurseDeal deal, PlayerActor player, int roomClearGold)
         {
+            if (deal.HealthCost > 0f && Branded)
+                Relics.Mark(RelicType.ContractBrand);
             if (deal.HealthCost > 0f)
                 player.Stats.LoseCurrentHealthPercent(deal.HealthCost * (Branded ? 0.5f : 1f)); // 유물 "계약자의 낙인"
             var result = deal.Instant?.Invoke(player, roomClearGold);
@@ -82,7 +84,13 @@ namespace LoopRogue
 
         /// <summary>유물 "계약자의 낙인" - 대가 쪽 배율만 1에 절반만큼 가깝게(받는 피해 1.2 → 1.1, 골드 0.5 → 0.75, 방 회복 0 → 0.5).</summary>
         private static bool Branded => Relics.Has(RelicType.ContractBrand);
-        private static float HalfCost(float m, bool costAbove) => Branded && (costAbove ? m > 1f : m < 1f) ? 1f + (m - 1f) * 0.5f : m;
+        private static float HalfCost(float m, bool costAbove)
+        {
+            if (!Branded || !(costAbove ? m > 1f : m < 1f))
+                return m;
+            Relics.Mark(RelicType.ContractBrand);
+            return 1f + (m - 1f) * 0.5f;
+        }
 
         public static float DamageDealtMultiplier => Product(d => d.DamageDealt);
         public static float DamageTakenMultiplier => Product(d => HalfCost(d.DamageTaken, costAbove: true));

@@ -491,11 +491,19 @@ namespace LoopRogue
             if (!best.HasValue)
                 return;
             _bannerReady = false;
+            Relics.Mark(RelicType.PhantomBanner);
             _room.PlaceDecoy(best.Value, Relics.PhantomBannerTurns);
             _room.ShowMessage(Loc.F("망령의 깃발! 허수아비가 {0}턴 동안 공격을 받아 낸다", Relics.PhantomBannerTurns));
         }
 
         private bool _firstStrikeReady;
+
+        /// <summary>유물 발동 표시 - && 사슬 안에서 쓰려고 늘 true.</summary>
+        private static bool Mark(RelicType type)
+        {
+            Relics.Mark(type);
+            return true;
+        }
         private int _echoCount; // 유물 "메아리 칼날" - 일반 공격 횟수
         private bool _echoReady; // 3번째 공격으로 대상이 죽어 아직 못 쓴 추가타 - 다음 일반 공격에
 
@@ -936,12 +944,20 @@ namespace LoopRogue
                 firstStrike = Relics.FirstStrikeDamage;
             }
             if (isCritical && Relics.Has(RelicType.SniperEye)) // 유물 "저격수의 눈" - 치명타 피해 +50%p
+            {
+                Relics.Mark(RelicType.SniperEye);
                 raw *= (Stats.CriticalDamageMultiplier + Relics.SniperCritDamageBonus) / Stats.CriticalDamageMultiplier;
+            }
             var berserk = Relics.Has(RelicType.Berserker) && Stats.CurrentHealth <= Stats.MaxHealth * Relics.BerserkerThreshold
                 ? 1f + Relics.BerserkerBonus : 1f; // 유물 "광전사"
             var executioner = Relics.Has(RelicType.Executioner) && !enemy.IsBoss ? Relics.ExecutionerDamage : 1f; // 유물 "사형 집행자" - 일반 몹 피해 증가
             var eliteHunter = Relics.Has(RelicType.EliteHunter) && (enemy.IsElite || enemy.IsMimic) ? Relics.EliteHunterDamage : 1f; // 유물 "정예 사냥꾼"
             var snare = Relics.Has(RelicType.SnareHunter) && enemy.IsSnared ? Relics.SnareHunterDamage : 1f; // 유물 "사냥꾼의 올가미"
+            if (berserk > 1f) Relics.Mark(RelicType.Berserker);
+            if (executioner > 1f) Relics.Mark(RelicType.Executioner);
+            if (eliteHunter > 1f) Relics.Mark(RelicType.EliteHunter);
+            if (snare > 1f) Relics.Mark(RelicType.SnareHunter);
+            if (firstStrike > 1f) Relics.Mark(RelicType.FirstStrike);
             var damage = raw * damageRate * enemy.DamageTakenMultiplier * berserk * executioner * firstStrike * eliteHunter * snare
                 * Relics.StoppedWatchMultiplier // 유물 "멈춘 회중시계"
                 * WeaponEffectMultiplier(enemy, countCombo: !isSkill)
@@ -995,7 +1011,7 @@ namespace LoopRogue
                 _room.SpawnGlitchRevive(enemy); // 오류방 - 한 번 되살아난다(처치 처리 전에)
             Destroy(enemy.gameObject);
             Stats.Heal(Stats.MaxHealth * Stats.EffectiveKillHeal); // 처치 회복 카드(상한 36%)
-            if (Relics.Has(RelicType.BloodHunter) && !enemy.NoReward) // 유물 "피의 사냥꾼" - 졸개·분열 조각은 제외
+            if (Relics.Has(RelicType.BloodHunter) && !enemy.NoReward && Mark(RelicType.BloodHunter)) // 유물 "피의 사냥꾼" - 졸개·분열 조각은 제외
                 Stats.Heal(Stats.MaxHealth * Relics.BloodHunterHealRate);
 
             // 경험치도 골드처럼 StageScaling 배율을 곱한다(몹은 스테이지마다 세지는데 경험치만
@@ -1044,6 +1060,7 @@ namespace LoopRogue
                     var damage = Stats.AttackPower * Relics.ChainBlastRate * e.DamageTakenMultiplier;
                     if (damage <= 0f)
                         continue;
+                    Relics.Mark(RelicType.ChainBlast);
                     e.Stats.TakeDamage(damage);
                     DamagePopup.Spawn(e.transform.position, damage, new Color(1f, 0.6f, 0.2f));
                     if (e.Stats.IsDead && ClaimKill(e))
@@ -1071,6 +1088,7 @@ namespace LoopRogue
                 if (_echoReady && primary != null && !primary.Stats.IsDead)
                 {
                     _echoReady = false;
+                    Relics.Mark(RelicType.EchoBlade);
                     if (StrikeEnemy(primary, direction, Relics.EchoBladeRate, isSkill: true))
                         return true;
                 }
@@ -1085,6 +1103,7 @@ namespace LoopRogue
                     var p = targetPos + d;
                     if (p == GridPos || !(Map.GetActorAt(p) is EnemyActor e) || e.Stats.IsDead || !struck.Add(e))
                         continue;
+                    Relics.Mark(RelicType.EarthHammer);
                     if (StrikeEnemy(e, d, Relics.EarthHammerSplashRate, ignoreShield: true, isSkill: true))
                         return true;
                 }
@@ -1095,7 +1114,7 @@ namespace LoopRogue
                 var behindPos = targetPos + direction;
                 while (primary != null && GridMap.Occupies(primary, behindPos))
                     behindPos += direction;
-                if (Map.GetActorAt(behindPos) is EnemyActor behind && behind != primary && !behind.Stats.IsDead &&
+                if (Map.GetActorAt(behindPos) is EnemyActor behind && behind != primary && !behind.Stats.IsDead && Mark(RelicType.PiercingSeal) &&
                     StrikeEnemy(behind, direction, Relics.PiercingRate, ignoreShield: true, isSkill: true))
                     return true;
             }
@@ -1175,6 +1194,7 @@ namespace LoopRogue
 
             BeginAction();
             PlayLog.Act("대시");
+            if (Relics.Has(RelicType.Gale)) Relics.Mark(RelicType.Gale);
             DashCooldown = DashCooldownMax;
             var from = transform.position;
             var startPos = GridPos;
@@ -1193,6 +1213,8 @@ namespace LoopRogue
             {
                 PlayAttackFlash(dir);
                 var dashRate = Relics.Has(RelicType.ChargeHorn) ? Relics.ChargeHornDashDamage : 1f; // 유물 "돌진의 뿔"
+                if (Relics.Has(RelicType.ChargeHorn)) Relics.Mark(RelicType.ChargeHorn);
+                if (passed != null && passed.Count > 1) Relics.Mark(RelicType.ShadowStep); // 둘 이상 뚫고 지나감
                 foreach (var target in passed ?? new List<EnemyActor> { hit }) // 유물 "그림자 걸음"이면 지나친 몹 전부
                 {
                     if (target == null || target.Stats.IsDead)
@@ -1211,6 +1233,7 @@ namespace LoopRogue
                 {
                     if (!(Map.GetActorAt(GridPos + d) is EnemyActor e) || e.Stats.IsDead || !struck.Add(e))
                         continue;
+                    Relics.Mark(RelicType.TyrantPlate);
                     if (StrikeEnemy(e, d, Relics.TyrantLandingRate, ignoreShield: true, isSkill: true))
                         return true;
                 }
@@ -1254,6 +1277,8 @@ namespace LoopRogue
 
             BeginAction();
             PlayLog.Act("회전베기");
+            if (Relics.Has(RelicType.CrossCrest)) Relics.Mark(RelicType.CrossCrest);
+            if (Relics.Has(RelicType.SpinningBlade)) Relics.Mark(RelicType.SpinningBlade);
             SpinCooldown = SpinCooldownTurns - EquipmentEffects.SkillCooldownReduction;
             LastSkill = AttackStyle.Spin;
             PlayAttackFlash();
@@ -1273,7 +1298,10 @@ namespace LoopRogue
             {
                 foreach (var (enemy, _) in targets)
                     if (enemy != null && !enemy.Stats.IsDead)
+                    {
+                        Relics.Mark(RelicType.PulseCore);
                         enemy.Stun(Relics.PulseCoreStunTurns);
+                    }
             }
 
             if (_whirlwindWait > 0f && HitFeedback.Enabled)
@@ -1372,6 +1400,8 @@ namespace LoopRogue
             }
             finally
             {
+                for (var i = 0; i < pushed + crashed; i++)
+                    Relics.Mark(RelicType.Whirlwind);
                 if (pushed + crashed > 0)
                     PlayLog.Note($"소용돌이: {pushed}마리 밀어냄, {crashed}마리 막혀서 추가 피해");
             }

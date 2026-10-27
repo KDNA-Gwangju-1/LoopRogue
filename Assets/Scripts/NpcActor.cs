@@ -356,8 +356,11 @@ namespace LoopRogue
             }
 
             if (Relics.Has(RelicType.MerchantSeal)) // 유물 "상인의 인장" - 던전 상인만
+            {
+                Relics.Mark(RelicType.MerchantSeal);
                 foreach (var e in pool)
                     e.Price = Mathf.RoundToInt(e.Price * Relics.MerchantSealDiscount);
+            }
             _stock.AddRange(pool.OrderBy(_ => Rng.Next()).Take(StockCount));
         }
 

@@ -76,8 +76,21 @@ namespace LoopRogue
         private int _bossTrialStage;
         private const string ReferenceFileName = "reference_snapshots.tsv";
 
+        /// <summary>"유물 테스트" 모드(10-27 사용자) - 유물 36개를 하나씩(맨 앞은 유물 없음 = 비교 기준) 그것 하나만 가진 채 RelicTestStage층 기준 상태로
+        /// RelicTrials번씩 돈다. 유물마다 실제 발동 횟수(Relics.Triggered), 에러(예외) 수, 클리어·사망·턴을 표로 남긴다 - "발동 0"이면 버그거나 상황이 안 나온 것.
+        /// 상황을 만들려고: 방 이벤트는 보물상자 + 도전의 깃발·미믹(LoopManager.ForceTestEvents), 방을 비우면 상인·그림자 거래상이 번갈아(RoomController.ForceNpcForTest),
+        /// 아이템은 가질 수 있는 만큼 채우고, 누적 사망 20·이 층 사망 3으로 시작(멈춘 회중시계·되풀이의 각인).</summary>
+        public const string RelicTestMode = "relic_test";
+        private const int RelicTestStage = 6;
+        private const int RelicTrials = 5; // 3회는 사망·턴 차이가 운에 너무 흔들렸다(10-27 첫 실행)
+        private bool _relicTest;
+        private readonly List<RelicType?> _relicCases = new List<RelicType?>();
+        private int[] _relicMarkStart;
+        private int _errorCount;
+        private readonly Dictionary<string, string> _firstErrorByCase = new Dictionary<string, string>();
+
         private bool _stageTest;
-        private int TrialsPerCase => _bossTrial ? BossTrialRuns : _sweep ? SweepTrials : TrialsPerStage;
+        private int TrialsPerCase => _relicTest ? RelicTrials : _bossTrial ? BossTrialRuns : _sweep ? SweepTrials : TrialsPerStage;
         private int SessionRuns => _stageTest ? _testCases.Count * TrialsPerCase : _handoff ? 1 : RunsPerSession;
 
         /// <summary>각 층을 "몇 층 입장 상태로" 시험할지 - 0 = 그 층 입장 상태, -1 = 한 층 앞 입장 상태.
@@ -134,6 +147,9 @@ namespace LoopRogue
         {
             public int Index;
             public int TestStage;            // 층 테스트 모드에서 이 시도가 측정한 층
+            public RelicType? TestRelic;     // 유물 테스트 모드 - 이 시도가 가진 유물(null = 유물 없음, 비교 기준)
+            public int RelicTriggers;        // 유물 테스트 모드 - 그 유물이 발동한 횟수
+            public int Errors, ErrorsAtStart; // 유물 테스트 모드 - 이 시도 동안 난 에러(예외) 수
             public int TestPower;            // 층 테스트 모드 - 몇 층 입장 상태로 시작했는지
             public float TestScale = 1f;     // 보스 배율 찾기 모드 - 보스 세기에 곱한 값
             public float BossHpAtDeath = -1f; // 보스방 반복 모드 - 죽을 때 보스 남은 체력 비율(못 죽었으면 -1)
@@ -335,8 +351,13 @@ namespace LoopRogue
             var mode = UnityEditor.EditorPrefs.GetString(ModePrefKey, "");
             _sweep = mode == BossSweepMode;
             _bossTrial = mode == BossTrialMode;
+            _relicTest = mode == RelicTestMode;
+            LoopManager.ForceTestEvents = _relicTest;
+            RoomController.ForceNpcForTest = _relicTest;
+            if (_relicTest)
+                Application.logMessageReceived += OnLogMessage;
             _bossTrialStage = Mathf.Clamp(UnityEditor.EditorPrefs.GetInt(BossTrialStagePrefKey, 1), 1, StageProgress.MaxStage);
-            _stageTest = mode == StageTestMode || _sweep || _bossTrial;
+            _stageTest = mode == StageTestMode || _sweep || _bossTrial || _relicTest;
             LoopManager.BotStartAtBoss = _bossTrial;
             _handoff = mode == HandoffMode;
             _handoffStage = Mathf.Clamp(UnityEditor.EditorPrefs.GetInt(HandoffStagePrefKey, 1), 1, StageProgress.MaxStage);
@@ -344,7 +365,7 @@ namespace LoopRogue
                 path = Path.Combine(Path.GetDirectoryName(path), "handoff_" + Path.GetFileName(path).Substring(4));
             if (_stageTest)
             {
-                path = Path.Combine(Path.GetDirectoryName(path), (_sweep ? "bosssweep_" : "stagetest_") + Path.GetFileName(path).Substring(4));
+                path = Path.Combine(Path.GetDirectoryName(path), (_relicTest ? "relictest_" : _sweep ? "bosssweep_" : "stagetest_") + Path.GetFileName(path).Substring(4));
                 if (!LoadReference(Path.Combine(dir, ReferenceFileName)))
                 {
                     Debug.LogError($"[AutoPlayBot] 기준 상태 파일({ReferenceFileName})이 없습니다 - 일반 모드 봇을 먼저 한 번 돌리세요.");
@@ -371,7 +392,8 @@ namespace LoopRogue
 
             _sessionStartTime = Time.realtimeSinceStartup;
             Log(_stageTest
-                ? _bossTrial ? $"=== {_bossTrialStage}층 보스방 반복: {TrialsPerCase}회 ({_testCases[0].Power}층 입장 기준 상태로 보스방에서 시작, 목숨 하나) ==="
+                ? _relicTest ? $"=== 유물 테스트: 유물 없음 + {_relicCases.Count - 1}개 × {TrialsPerCase}회 ({_testCases[0].Stage}층, {_testCases[0].Power}층 입장 기준 상태, 그 층 보스를 잡으면 끝) ==="
+                : _bossTrial ? $"=== {_bossTrialStage}층 보스방 반복: {TrialsPerCase}회 ({_testCases[0].Power}층 입장 기준 상태로 보스방에서 시작, 목숨 하나) ==="
                 : $"=== {(_sweep ? "보스 배율 찾기" : "층별 순수 난이도 측정")}: {_testCases.Count}조합 × {TrialsPerCase}회 (기준 상태에서 시작, 그 층 보스를 잡으면 종료) ==="
                 : _handoff ? $"=== {_handoffStage}층 보스방 앞까지 자동 진행 후 인계 ==="
                 : $"=== 자동 플레이 {RunsPerSession}판 연속 시작 ===");
@@ -385,6 +407,9 @@ namespace LoopRogue
             GameHUD.AutoPlayActive = false;
             LoopManager.SkipLobbyAfterStageClear = false;
             LoopManager.BotStartAtBoss = false;
+            LoopManager.ForceTestEvents = false;
+            RoomController.ForceNpcForTest = false;
+            Application.logMessageReceived -= OnLogMessage;
             SceneManager.sceneLoaded -= OnSceneLoaded;
             PlayerActor.EnemyKilled -= OnEnemyKilled;
             _log?.Dispose();
@@ -526,6 +551,8 @@ namespace LoopRogue
                 _run.TestScale = testCase.Scale;
                 GameBootstrap.BossScaleForBotTest = testCase.Scale;
                 ApplyPrefs(_reference[testCase.Power], testCase.Stage);
+                if (_relicTest)
+                    PrepareRelicTrial(_relicCases[Mathf.Min(_results.Count / TrialsPerCase, _relicCases.Count - 1)]);
                 _enteredStage = StageProgress.CurrentStage;
                 _lastGold = GoldWallet.Gold;
                 if (_results.Count > 0)
@@ -540,6 +567,38 @@ namespace LoopRogue
             {
                 _lastScene = null;
                 SceneManager.LoadScene("Title");
+            }
+        }
+
+        /// <summary>유물 테스트 한 시도 준비 - 그 유물 하나만, 아이템은 가질 수 있는 만큼, 누적 사망 20·이 층 사망 3.</summary>
+        private void PrepareRelicTrial(RelicType? relic)
+        {
+            _run.TestRelic = relic;
+            PlayerPrefs.SetInt("LoopRogue_TotalDeaths", 20);
+            PlayerPrefs.SetInt("LoopRogue_StageDeaths", 3);
+            PlayerPrefs.Save();
+            LoopRecord.Reload();
+            if (relic.HasValue)
+                Relics.GrantForTest(relic.Value);
+            Inventory.Reload();
+            for (var i = 0; i < ItemInfo.Count; i++)
+                while (Inventory.CanHold((ItemType)i))
+                    Inventory.Give((ItemType)i);
+            _relicMarkStart = (int[])Relics.Triggered.Clone();
+            _run.ErrorsAtStart = _errorCount;
+        }
+
+        /// <summary>유물 테스트 - 에러·예외를 센다(시도별로 나눠 결과표에, 경우마다 첫 메시지 하나).</summary>
+        private void OnLogMessage(string message, string stackTrace, LogType type)
+        {
+            if (type != LogType.Error && type != LogType.Exception)
+                return;
+            _errorCount++;
+            var key = _run?.TestRelic?.ToString() ?? "(유물 없음)";
+            if (!_firstErrorByCase.ContainsKey(key))
+            {
+                var where = stackTrace?.Split('\n').FirstOrDefault(l => l.Contains("LoopRogue")) ?? "";
+                _firstErrorByCase[key] = (message.Length > 160 ? message.Substring(0, 160) : message) + " @ " + where.Trim();
             }
         }
 
@@ -649,6 +708,18 @@ namespace LoopRogue
                 d[parts[1]] = parts[2] == "f"
                     ? (object)float.Parse(parts[3], CultureInfo.InvariantCulture)
                     : int.Parse(parts[3], CultureInfo.InvariantCulture);
+            }
+            if (_relicTest)
+            {
+                var stage = _reference.ContainsKey(RelicTestStage) ? RelicTestStage : _reference.Keys.Where(k => k <= RelicTestStage).DefaultIfEmpty(0).Max();
+                if (stage <= 0)
+                    return false;
+                _relicCases.Add(null); // 유물 없음 - 비교 기준
+                foreach (RelicType r in Enum.GetValues(typeof(RelicType)))
+                    _relicCases.Add(r);
+                foreach (var _ in _relicCases)
+                    _testCases.Add((stage, stage, 1f));
+                return true;
             }
             if (_bossTrial)
             {
@@ -1545,6 +1616,22 @@ namespace LoopRogue
                     var d = Mathf.Abs(diff.x) >= Mathf.Abs(diff.y) ? new Vector2Int(System.Math.Sign(diff.x), 0) : new Vector2Int(0, System.Math.Sign(diff.y));
                     if (_room.CanPlaceAt(start + d) && Use(ItemType.Trap, d, "보스 길목"))
                         return true;
+                }
+            }
+            // 유물 테스트 - 일반 방에서도 다가오는 몹 길목에 덫(사냥꾼의 올가미가 발동할 상황). 6층 보스(망령 궁수)는 거의 안 움직여서 보스 덫만으론 안 걸렸다.
+            if (_relicTest && boss == null && Inventory.Has(ItemType.Trap))
+            {
+                foreach (var e in _room.Enemies.Where(e => e != null && !e.Stats.IsDead && !e.IsLarge && e.Kind != EnemyKind.Ranged)
+                             .OrderBy(e => GridMap.FootprintDistance(e, start)))
+                {
+                    var dist = GridMap.FootprintDistance(e, start);
+                    if (dist < 2 || dist > 4)
+                        continue;
+                    var diff = e.GridPos - start;
+                    var d = Mathf.Abs(diff.x) >= Mathf.Abs(diff.y) ? new Vector2Int(System.Math.Sign(diff.x), 0) : new Vector2Int(0, System.Math.Sign(diff.y));
+                    if (_room.CanPlaceAt(start + d) && Use(ItemType.Trap, d, "몹 길목(유물 테스트)"))
+                        return true;
+                    break;
                 }
             }
             return false;
@@ -2719,6 +2806,12 @@ namespace LoopRogue
             _run.FinalLevel = _lastKnownLevel;
             _run.Seconds = Time.realtimeSinceStartup - _runStartTime;
             CollectFinalState(_run);
+            if (_relicTest)
+            {
+                _run.RelicTriggers = _run.TestRelic.HasValue && _relicMarkStart != null
+                    ? Relics.Triggered[(int)_run.TestRelic.Value] - _relicMarkStart[(int)_run.TestRelic.Value] : 0;
+                _run.Errors = _errorCount - _run.ErrorsAtStart;
+            }
             _results.Add(_run);
             Ev("run_end", ("reason", reason), ("completed", completed), ("deaths", _run.TotalDeaths),
                 ("gold_earned", _run.GoldEarned), ("seconds", _run.Seconds), ("kills", KillDict(_run.Kills)));
@@ -2830,6 +2923,43 @@ namespace LoopRogue
             }
         }
 
+        private void LogRelicTestSummary()
+        {
+            var baseline = _results.Where(r => !r.TestRelic.HasValue).ToList();
+            var baseTurns = baseline.Count > 0 ? baseline.Average(r => r.TotalTurns) : 0.0;
+            var baseDeaths = baseline.Count > 0 ? baseline.Average(r => r.TotalDeaths) : 0.0;
+            Log($"--- 유물 테스트 결과 (유물마다 {TrialsPerCase}회) - 기준(유물 없음): 사망 평균 {baseDeaths:0.0}, 턴 평균 {baseTurns:0} ---");
+            Log("유물 | 발동 합계 | 판당 발동 | 에러 | 클리어 | 사망 평균 | 턴 평균(기준 대비) | 확인할 것");
+            var flagged = new List<string>();
+            foreach (var group in _results.GroupBy(r => r.TestRelic))
+            {
+                var list = group.ToList();
+                var name = group.Key.HasValue ? Relics.Name(group.Key.Value) : "(유물 없음)";
+                var triggers = list.Sum(r => r.RelicTriggers);
+                var errors = list.Sum(r => r.Errors);
+                var turns = list.Average(r => r.TotalTurns);
+                var delta = baseTurns > 0 ? (turns - baseTurns) / baseTurns * 100.0 : 0.0;
+                var notes = new List<string>();
+                if (group.Key.HasValue && triggers == 0)
+                    notes.Add("발동 0");
+                if (errors > 0)
+                    notes.Add($"에러 {errors}");
+                var stuck = list.Count(r => !r.Completed);
+                if (stuck > 0)
+                    notes.Add($"못 깸 {stuck}({string.Join(",", list.Where(r => !r.Completed).Select(r => r.EndReason).Distinct())})");
+                Log($"{name} | {triggers} | {triggers / (float)list.Count:0.0} | {errors} | {list.Count(r => r.Completed)}/{list.Count} | " +
+                    $"{list.Average(r => r.TotalDeaths):0.0} | {turns:0} ({delta:+0;-0;0}%) | {string.Join(" / ", notes)}");
+                if (notes.Count > 0)
+                    flagged.Add($"{name}: {string.Join(" / ", notes)}");
+            }
+            Log("");
+            Log(flagged.Count == 0 ? "확인할 것 없음 - 모든 유물이 발동했고 에러가 없었다." : $"확인할 것 {flagged.Count}개:");
+            foreach (var f in flagged)
+                Log("  - " + f);
+            foreach (var pair in _firstErrorByCase)
+                Log($"  에러 예시 [{pair.Key}] {pair.Value}");
+        }
+
         private void LogBossTrialSummary()
         {
             var n = _results.Count;
@@ -2899,10 +3029,14 @@ namespace LoopRogue
             Log($"================ 종료: {reason} ({n}판) ================");
             if (_stageTest)
             {
-                if (_bossTrial)
+                if (_relicTest)
+                    LogRelicTestSummary();
+                else if (_bossTrial)
                     LogBossTrialSummary();
                 else
                     LogStageTestSummary();
+                LoopManager.ForceTestEvents = false;
+                RoomController.ForceNpcForTest = false;
                 LoopManager.BotStartAtBoss = false;
                 if (_sweep)
                     LogSweepRecommendation();

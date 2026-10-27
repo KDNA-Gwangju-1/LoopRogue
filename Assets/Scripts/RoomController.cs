@@ -290,6 +290,7 @@ namespace LoopRogue
         {
             var parts = new List<string>();
             var glove = Relics.Has(RelicType.PuzzleGlove) ? Relics.PuzzleGloveRewardMultiplier : 1; // 유물 "퍼즐 장인의 장갑"
+            if (glove > 1) Relics.Mark(RelicType.PuzzleGlove);
             var gold = PuzzleBase.BonusGold(type, _stage) * glove;
             if (gold > 0)
             {
@@ -551,6 +552,8 @@ namespace LoopRogue
         /// 모험가가 안 나오면 상인을 MerchantChance로 굴린다.</summary>
         private const float MerchantChance = 0.1f;
         private const float WandererChance = 0.33f;
+        /// <summary>유물 테스트 봇 - 방을 비우면 상인·그림자 거래상이 번갈아 반드시(상인의 인장·계약자의 낙인이 발동할 상황).</summary>
+        public static bool ForceNpcForTest;
         private const float CurseChance = 0.07f; // 상인도 안 나오면 그림자 거래상
 
         /// <summary>일반 방을 비운 직후(출구가 생긴 뒤) - 확률로 NPC를 플레이어 근처에 세운다. 봇도 걸어가서 말을 건다(AutoPlayBot).</summary>
@@ -562,7 +565,9 @@ namespace LoopRogue
             var room = _current.RoomNumber;
             var report = RunQuest.Active && room == RunQuest.ReportRoom;
             NpcType type;
-            if (!report && LoopRogue.Blacksmith.ShouldAppear(Rng))
+            if (ForceNpcForTest && !report)
+                type = room % 2 == 0 ? NpcType.Merchant : NpcType.Curse;
+            else if (!report && LoopRogue.Blacksmith.ShouldAppear(Rng))
                 type = NpcType.Blacksmith; // 히든 - 조각을 들고 있으면 반드시
             else if (report || (!RunQuest.Active && room == RunQuest.AcceptRoom && Rng.NextDouble() < WandererChance))
                 type = NpcType.Wanderer;
@@ -869,6 +874,7 @@ namespace LoopRogue
         {
             if (enemy.IsMimic)
             {
+                if (Relics.Has(RelicType.EliteHunter)) Relics.Mark(RelicType.EliteHunter);
                 var gold = RoomClearGold * MimicGoldRooms * (Relics.Has(RelicType.EliteHunter) ? Relics.EliteHunterGoldMultiplier : 1); // 유물 "정예 사냥꾼"
                 GoldWallet.Add(gold);
                 var item = Inventory.GiveRandomMissing();
@@ -2642,6 +2648,7 @@ namespace LoopRogue
             {
                 var goldBonus = GoldBonus;
                 GoldWallet.Add(Mathf.RoundToInt(GoldPerRoomClear * StageScaling.RewardMultiplier(_stage) * goldBonus * StageProgress.RepeatRewardMultiplier));
+                if (Relics.Has(RelicType.RegenMoss)) Relics.Mark(RelicType.RegenMoss);
                 _player.Stats.Heal(_player.Stats.MaxHealth * (RoomClearHealRate + (Relics.Has(RelicType.RegenMoss) ? Relics.RegenMossHealRate : 0f)) // + 유물 "재생의 이끼"
                                    * Curses.RoomHealMultiplier); // × 저주 "메마른 저주"
                 HitFeedback.OnHeal(_player);
@@ -3003,6 +3010,7 @@ namespace LoopRogue
         private IEnumerable<Vector2Int> BlastArea(Vector2Int center)
         {
             var r = Relics.Has(RelicType.PowderMaster) ? Relics.PowderMasterRadius : 1; // 유물 "화약 장인" - 5x5
+            if (r > 1) Relics.Mark(RelicType.PowderMaster);
             for (var dx = -r; dx <= r; dx++)
             for (var dy = -r; dy <= r; dy++)
             {

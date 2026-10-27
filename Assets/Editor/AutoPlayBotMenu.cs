@@ -201,6 +201,17 @@ namespace LoopRogue.EditorTools
             EditorApplication.isPlaying = true;
         }
 
+        // ---- 유물 테스트(10-27) - 유물 36개를 하나씩 가진 채 6층을 돌아 발동 횟수·에러를 표로(BotLogs/relictest_*.txt 맨 아래) ----
+        [MenuItem("LoopRogue/유물 테스트 (봇, 저장 백업 후 초기화)")]
+        private static void StartRelicTest()
+        {
+            if (EditorApplication.isPlaying || !BackupBeforeBot())
+                return;
+            EditorPrefs.SetBool(AutoPlayBot.EnabledPrefKey, true);
+            EditorPrefs.SetString(AutoPlayBot.ModePrefKey, AutoPlayBot.RelicTestMode);
+            EditorApplication.isPlaying = true;
+        }
+
         // ---- N층 보스방 앞까지 봇이 진행 → 사람에게 인계 ----
         // 새 저장으로 시작하므로(봇 공통) 시작 전에 지금 저장을 BotLogs/save_backup.reg로 백업한다 - "봇 전 저장 되돌리기"로 복구.
         private const string HandoffMenu = "LoopRogue/봇으로 N층 보스방 앞까지 (저장 백업 후 초기화)/";

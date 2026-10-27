@@ -156,6 +156,8 @@ namespace LoopRogue
         public static void Give(ItemType type)
         {
             EnsureLoaded();
+            if (Owned[(int)type] >= 1 && Relics.ItemCapacity > 1)
+                Relics.Mark(RelicType.AlchemistPouch); // 두 번째 개수를 받음
             Owned[(int)type] = Mathf.Min(Relics.ItemCapacity, Owned[(int)type] + 1);
             ObtainedCount[(int)type]++;
             if (!Quick.Contains((int)type))

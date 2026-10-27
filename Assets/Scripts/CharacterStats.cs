@@ -138,13 +138,17 @@ namespace LoopRogue
             if (Relics.Has(RelicType.KnightMemory) && ReadRng.NextDouble() < Relics.KnightMemoryReadChance)
             {
                 KnightMemoryReadCount++;
+                Relics.Mark(RelicType.KnightMemory);
                 OnArmorEffect?.Invoke(Loc.T("간파! 공격을 읽고 피했다"));
                 return 0f; // 히든 유물 "기사의 기억"
             }
             var reduction = Mathf.Clamp(DamageReductionRate, -MaxDamageReduction, MaxDamageReduction);
             var damage = rawDamage * (1f - reduction);
             if (Relics.Has(RelicType.IronSkin)) // 유물 "철의 피부" - 카드 피해 감소(상한 30%)와 별도로 곱한다
+            {
+                Relics.Mark(RelicType.IronSkin);
                 damage *= Relics.IronSkinDamageFactor;
+            }
             damage *= Relics.RecurrenceMultiplier; // 유물 "되풀이의 각인"
             damage *= Curses.DamageTakenMultiplier; // 저주 계약(분노·무모) - 플레이어만 이 함수로 맞는다
             damage *= RunBuffs.DamageTakenMultiplier; // 방 이벤트 "모루"
@@ -173,6 +177,7 @@ namespace LoopRogue
             if (IsDead && ReviveReady && !RevivesSuspended)
             {
                 ReviveReady = false;
+                Relics.Mark(RelicType.SecondWind);
                 CurrentHealth = MaxHealth * Relics.SecondWindHealRate;
                 OnArmorEffect?.Invoke(Loc.T("두 번째 숨! 다시 일어섰다"));
                 OnRevived?.Invoke();

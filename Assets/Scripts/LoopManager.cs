@@ -101,6 +101,9 @@ namespace LoopRogue
         /// <summary>봇 "N층 보스방 반복" 모드 - 켜져 있는 동안 Main에 들어갈 때마다 보스방에서 시작한다(AutoPlayBot이 켜고 끈다).</summary>
         public static bool BotStartAtBoss;
 
+        /// <summary>유물 테스트 봇 - 방 이벤트를 보물상자 + 도전의 깃발·미믹으로(정예 사냥꾼·오래된 보물지도가 발동할 상황을 만든다).</summary>
+        public static bool ForceTestEvents;
+
         private static bool ConsumeBossDirect()
         {
             if (BotStartAtBoss)
@@ -370,7 +373,9 @@ namespace LoopRogue
             for (var i = 0; i < slots.Count; i++)
             {
                 _rooms[slots[i]].HasEvent = true;
-                _rooms[slots[i]].EventType = i == chestSlot ? RoomEventType.TreasureChest : RoomEventActor.RollNonChestType();
+                _rooms[slots[i]].EventType = i == chestSlot ? RoomEventType.TreasureChest
+                    : ForceTestEvents ? (i % 2 == 0 ? RoomEventType.ChallengeFlag : RoomEventType.Mimic) // 유물 테스트 봇
+                    : RoomEventActor.RollNonChestType();
             }
         }
 

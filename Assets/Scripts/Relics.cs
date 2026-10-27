@@ -239,6 +239,18 @@ namespace LoopRogue
             return offer.Count > 0 ? offer : null;
         }
 
+        /// <summary>유물 효과가 실제로 발동한 횟수(종류별) - 유물 테스트 봇(AutoPlayBot "relic_test")이 "발동 0 = 버그거나 상황이 안 나옴"을 찾는 데 쓴다.
+        /// 효과가 들어가는 자리마다 Mark를 부른다. 늘 켜져 있어도 정수 하나 더하는 것뿐이라 비용은 없다.</summary>
+        public static readonly int[] Triggered = new int[System.Enum.GetValues(typeof(RelicType)).Length];
+
+        public static void Mark(RelicType type) => Triggered[(int)type]++;
+
+        private static float Mark(RelicType type, float value)
+        {
+            Triggered[(int)type]++;
+            return value;
+        }
+
         /// <summary>테스트 메뉴용 - 플레이어 없이 저장에만 넣고 뺀다(피의 계약·끝의 왕관처럼 얻는 순간 스탯이 바뀌는 유물은 Acquire를 쓴다).</summary>
         public static void GrantForTest(RelicType type)
         {
@@ -288,19 +300,19 @@ namespace LoopRogue
         }
 
         // ---- 자주 쓰는 계산 ----
-        public static float PermanentAttack => Has(RelicType.CrownOfEnd) ? CrownAttack : 0f;
+        public static float PermanentAttack => Has(RelicType.CrownOfEnd) ? Mark(RelicType.CrownOfEnd, CrownAttack) : 0f;
         public static float PermanentHealth => Has(RelicType.CrownOfEnd) ? CrownHealth : 0f;
-        public static float ExtraGoldBonus => Has(RelicType.Greed) ? GreedGoldBonus : 0f;
+        public static float ExtraGoldBonus => Has(RelicType.Greed) ? Mark(RelicType.Greed, GreedGoldBonus) : 0f;
         public static float DeathPenaltyRate => Has(RelicType.Greed) ? GreedDeathPenaltyRate : LoopManager.DeathGoldPenaltyRate;
-        public static float DropBonus => Has(RelicType.TreasureHunter) ? TreasureHunterDropBonus : 0f;
-        public static float LifeStealCap => Has(RelicType.BloodPact) ? BloodPactLifeStealCap : CharacterStats.MaxLifeSteal;
+        public static float DropBonus => Has(RelicType.TreasureHunter) ? Mark(RelicType.TreasureHunter, TreasureHunterDropBonus) : 0f;
+        public static float LifeStealCap => Has(RelicType.BloodPact) ? Mark(RelicType.BloodPact, BloodPactLifeStealCap) : CharacterStats.MaxLifeSteal;
         /// <summary>멈춘 회중시계 - 누적 사망 수만큼 주는 피해 배율.</summary>
-        public static float StoppedWatchMultiplier => Has(RelicType.StoppedWatch)
-            ? 1f + Mathf.Min(StoppedWatchMax, LoopRecord.TotalDeaths * StoppedWatchPerDeath) : 1f;
+        public static float StoppedWatchMultiplier => Has(RelicType.StoppedWatch) && LoopRecord.TotalDeaths > 0
+            ? Mark(RelicType.StoppedWatch, 1f + Mathf.Min(StoppedWatchMax, LoopRecord.TotalDeaths * StoppedWatchPerDeath)) : 1f;
         /// <summary>되풀이의 각인 - 지금 층에서 죽은 횟수만큼 받는 피해 배율.</summary>
-        public static float RecurrenceMultiplier => Has(RelicType.RecurrenceMark)
-            ? 1f - Mathf.Min(RecurrenceMax, StageProgress.DeathsThisStage * RecurrencePerDeath) : 1f;
+        public static float RecurrenceMultiplier => Has(RelicType.RecurrenceMark) && StageProgress.DeathsThisStage > 0
+            ? Mark(RelicType.RecurrenceMark, 1f - Mathf.Min(RecurrenceMax, StageProgress.DeathsThisStage * RecurrencePerDeath)) : 1f;
         public static int ItemCapacity => Has(RelicType.AlchemistPouch) ? AlchemistPouchCapacity : 1;
-        public static float VisionRadius => FogOfWar.VisionRadius + (Has(RelicType.HunterEye) ? HunterEyeVisionBonus : 0f);
+        public static float VisionRadius => FogOfWar.VisionRadius + (Has(RelicType.HunterEye) ? Mark(RelicType.HunterEye, HunterEyeVisionBonus) : 0f);
     }
 }
