@@ -92,6 +92,7 @@ namespace LoopRogue
         public const float KnightMemoryReadChance = 0.12f;
         // ---- 10-27 추가 유물 ----
         public const float WhirlwindWallRate = 0.3f;        // 소용돌이 - 밀려나다 막히면 공격력 ×
+        public const int WhirlwindPushCells = 2;            // 소용돌이 - 밀어내는 칸 수(10-27 사용자 1 → 2)
         public const float StoppedWatchPerDeath = 0.005f;   // 멈춘 회중시계 - 누적 사망 1회당 주는 피해
         public const float StoppedWatchMax = 0.25f;
         public const float RecurrencePerDeath = 0.02f;      // 되풀이의 각인 - 이 층에서 죽은 1회당 받는 피해 감소(10-27 사용자 3 → 2%)
@@ -133,7 +134,7 @@ namespace LoopRogue
             { RelicType.FirstStrike, (Loc.T("첫 일격"), Loc.T("방마다 첫 공격 피해 1.5배")) },
             { RelicType.KnightMemory, (Loc.T("기사의 기억"), Loc.T("몹·보스의 공격을 12% 확률로 간파해 피해를 받지 않음")) },
             { RelicType.ShadowStep, (Loc.T("그림자 걸음"), Loc.T("대시가 몹을 뚫고 지나가며 길 위의 몹을 모두 벤다")) },
-            { RelicType.Whirlwind, (Loc.T("소용돌이"), Loc.T("회전 베기에 맞은 몹을 1칸 밀어낸다(막히면 공격력 30% 추가 피해, 보스는 안 밀림)")) },
+            { RelicType.Whirlwind, (Loc.T("소용돌이"), Loc.T("회전 베기에 맞은 몹을 2칸 밀어낸다(막히면 공격력 30% 추가 피해, 보스는 안 밀림)")) },
             { RelicType.StoppedWatch, (Loc.T("멈춘 회중시계"), Loc.T("누적 사망 1회마다 주는 피해 +0.5% (최대 +25%)")) },
             { RelicType.RecurrenceMark, (Loc.T("되풀이의 각인"), Loc.T("지금 층에서 죽을 때마다 받는 피해 -2% (최대 -10%, 다음 층에서 초기화)")) },
             { RelicType.PuzzleGlove, (Loc.T("퍼즐 장인의 장갑"), Loc.T("퍼즐·미니게임 성공 보상(골드·영약) 2배")) },

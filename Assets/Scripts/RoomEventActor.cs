@@ -89,7 +89,9 @@ namespace LoopRogue
 
             // 도트 그림(제자리에서 반짝이는 반복) - 미믹은 보물상자 그림 그대로.
             var look = type == RoomEventType.Mimic || type == RoomEventType.SecretChest || type == RoomEventType.MuralChest ? RoomEventType.TreasureChest : type;
-            var fx = Fx.Play($"event_{look}", transform.position, 0.95f, fps: 6f, loop: true, sortingOrder: 0, parent: transform);
+            // 벽화의 상자는 낡은 상자 그림(event_MuralChest, 10-27 사용자 - 녹슨 청동·금·이끼·거미줄, 푸른 먼지) - 없으면 보물상자 그림
+            var fx = (type == RoomEventType.MuralChest ? Fx.Play("event_MuralChest", transform.position, 0.95f, fps: 4f, loop: true, sortingOrder: 0, parent: transform) : null)
+                     ?? Fx.Play($"event_{look}", transform.position, 0.95f, fps: 6f, loop: true, sortingOrder: 0, parent: transform);
             if (fx != null)
                 return;
 

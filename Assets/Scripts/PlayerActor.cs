@@ -1258,6 +1258,7 @@ namespace LoopRogue
                 if (StrikeEnemy(enemy, offset, SpinDamageRate, ignoreShield: true, isSkill: true, style: AttackStyle.Spin))
                     return true; // 방 전환 - 남은 대상은 이미 정리됐다
             }
+            _whirlwindWait = 0f;
             if (Relics.Has(RelicType.Whirlwind) && WhirlwindPush(targets))
                 return true;
             if (Relics.Has(RelicType.PulseCore)) // 유물 "파동의 핵" - 맞고 살아남은 몹 기절(10-19 사용자 1 → 2턴)
@@ -1267,29 +1268,105 @@ namespace LoopRogue
                         enemy.Stun(Relics.PulseCoreStunTurns);
             }
 
-            EndTurn();
+            if (_whirlwindWait > 0f && HitFeedback.Enabled)
+                StartCoroutine(EndTurnAfter(_whirlwindWait)); // 유물 "소용돌이" - 밀려난 몹 그림이 다 보이고 나서 몹 턴
+            else
+                EndTurn();
             return true;
         }
 
-        /// <summary>유물 "소용돌이" - 회전 베기에 맞고 살아남은 몹을 나에게서 먼 쪽으로 1칸 민다. 벽·다른 몹·방 끝에 막히면 공격력 30% 추가 피해.
+        /// <summary>유물 "소용돌이" - 회전 베기에 맞고 살아남은 몹을 나에게서 먼 쪽으로 2칸까지 민다(10-27 사용자 1 → 2). 가다가 벽·다른 몹·방 끝에 막히면 거기서 멈추고 공격력 30% 추가 피해.
         /// 큰 몹(보스)은 안 밀리고 추가 피해도 없다. 방이 넘어갔으면 true.</summary>
+        private const float WhirlwindSlideSeconds = 0.2f; // 튕겨 날아가는 시간
+        private const float KnockClipSeconds = 0.45f;     // 밀려남 그림 4장
+        private const float CrashClipSeconds = 0.8f;      // 충돌 그림 6장
+        private float _whirlwindWait;                     // 이번 회전 베기 뒤 몹 턴을 미룰 시간(그림이 다 보이게)
+
+        private static System.Collections.IEnumerator PlayClipLater(SpriteAnimator anim, string clip, float seconds, float delay)
+        {
+            if (delay > 0f)
+                yield return new WaitForSeconds(delay);
+            if (anim != null)
+                anim.PlayClip(clip, seconds, 0.1f);
+        }
+
+        /// <summary>몹 턴을 seconds초 뒤에 - 그동안 입력을 잠근다(밀려남·충돌 그림이 몹이 다시 걸어오기 전에 다 보이게).</summary>
+        private System.Collections.IEnumerator EndTurnAfter(float seconds)
+        {
+            _room.IsInputLocked = true;
+            yield return new WaitForSeconds(seconds);
+            _room.IsInputLocked = false;
+            EndTurn();
+        }
+
         private bool WhirlwindPush(List<(EnemyActor Enemy, Vector2Int Offset)> targets)
         {
-            foreach (var (enemy, offset) in targets)
+            int pushed = 0, crashed = 0;
+            try
             {
-                if (enemy == null || enemy.Stats.IsDead || enemy.IsLarge || enemy.IsBoss || enemy.IsBladeProof)
-                    continue; // 큰 몹·보스·기믹 몹(7층 분신·10층 거울상·4층 포탑)은 안 밀린다
-                var dir = new Vector2Int(System.Math.Sign(offset.x), System.Math.Sign(offset.y));
-                var to = enemy.GridPos + dir;
-                if (Map.IsWalkable(to) && to != _room.ExitPosition)
+                // 바깥쪽(십자 문장의 2칸 거리) 몹부터 - 안쪽 몹이 밀려날 자리를 먼저 비워 준다
+                foreach (var (enemy, offset) in targets.OrderByDescending(t => Mathf.Abs(t.Offset.x) + Mathf.Abs(t.Offset.y)))
                 {
-                    Map.MoveActor(enemy, to);
-                    continue;
+                    if (enemy == null || enemy.Stats.IsDead || enemy.IsLarge || enemy.IsBoss || enemy.IsBladeProof)
+                        continue; // 큰 몹·보스·기믹 몹(7층 분신·10층 거울상·4층 포탑)은 안 밀린다
+                    var dir = new Vector2Int(System.Math.Sign(offset.x), System.Math.Sign(offset.y));
+                    // 최대 WhirlwindPushCells칸 - 가다가 벽·다른 몹·방 끝·출구에 막히면 거기서 멈추고 부딪힌 피해(한 칸도 못 갔어도)
+                    var to = enemy.GridPos;
+                    var pushedFrom = enemy.GridPos;
+                    var blocked = false;
+                    for (var i = 0; i < Relics.WhirlwindPushCells; i++)
+                    {
+                        var next = to + dir;
+                        if (!Map.IsWalkable(next) || next == _room.ExitPosition)
+                        {
+                            blocked = true;
+                            break;
+                        }
+                        to = next;
+                    }
+                    if (to != enemy.GridPos)
+                    {
+                        var from = enemy.transform.position;
+                        Map.MoveActor(enemy, to);
+                        pushed++;
+                        if (HitFeedback.Enabled)
+                        {
+                            // 걷기 모션(뒤돌아 한 걸음)이 아니라 튕겨 나가는 모습으로 - 그림 방향은 그대로, 낮게 미끄러지듯 날아가 착지
+                            if (enemy.TryGetComponent<SpriteAnimator>(out var anim))
+                                anim.SnapToGrid();
+                            ActorJuice.Get(enemy).Hop(from, 0.15f, WhirlwindSlideSeconds, stretch: 0f, landSquish: 0.35f);
+                            Fx.Play("crush_dust", enemy.GridWorldPosition, 0.9f, fps: 18f);
+                        }
+                    }
+                    // 밀려남·부딪힘 그림(Sprites/{세트}/knock_south_·crash_south_ - 지금은 슬라임만, 없으면 튕겨 나가는 연출만)
+                    if (HitFeedback.Enabled && enemy.TryGetComponent<SpriteAnimator>(out var reaction))
+                    {
+                        // 잘 보이게 길게(10-27 사용자 "너무 짧아 안 보인다") - 몹 턴은 그동안 기다린다(TrySpin → EndTurnAfter)
+                        if (blocked)
+                        {
+                            var delay = to != enemy.GridPos || pushedFrom != enemy.GridPos ? WhirlwindSlideSeconds : 0f; // 날아가다 막혔으면 닿은 뒤에 철퍽
+                            StartCoroutine(PlayClipLater(reaction, "crash", CrashClipSeconds, delay));
+                            _whirlwindWait = Mathf.Max(_whirlwindWait, delay + CrashClipSeconds * 0.75f);
+                        }
+                        else
+                        {
+                            reaction.PlayClip("knock", KnockClipSeconds, 0.1f);
+                            _whirlwindWait = Mathf.Max(_whirlwindWait, KnockClipSeconds);
+                        }
+                    }
+                    if (!blocked)
+                        continue;
+                    crashed++;
+                    if (StrikeEnemy(enemy, dir, Relics.WhirlwindWallRate, ignoreShield: true, isSkill: true))
+                        return true;
                 }
-                if (StrikeEnemy(enemy, dir, Relics.WhirlwindWallRate, ignoreShield: true, isSkill: true))
-                    return true;
+                return false;
             }
-            return false;
+            finally
+            {
+                if (pushed + crashed > 0)
+                    PlayLog.Note($"소용돌이: {pushed}마리 밀어냄, {crashed}마리 막혀서 추가 피해");
+            }
         }
 
         /// <summary>행동 하나(이동/공격/대기/스킬)가 확정될 때 - 스킬 쿨타임과 거미줄 속박을 1 줄인다.</summary>

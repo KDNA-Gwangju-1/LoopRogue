@@ -836,7 +836,7 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 그림자 걸음	Shadow Step
 대시가 몹을 뚫고 지나가며 길 위의 몹을 모두 벤다	Dash passes through enemies, slashing every enemy in its path
 소용돌이	Whirlwind
-회전 베기에 맞은 몹을 1칸 밀어낸다(막히면 공격력 30% 추가 피해, 보스는 안 밀림)	Spin Slash knocks enemies back 1 tile (if blocked, +30% ATK damage; bosses are not pushed)
+회전 베기에 맞은 몹을 2칸 밀어낸다(막히면 공격력 30% 추가 피해, 보스는 안 밀림)	Spin Slash knocks enemies back 2 tiles (if blocked, +30% ATK damage; bosses are not pushed)
 멈춘 회중시계	Stopped Pocket Watch
 누적 사망 1회마다 주는 피해 +0.5% (최대 +25%)	+0.5% damage dealt per total death (max +25%)
 되풀이의 각인	Mark of Recurrence
