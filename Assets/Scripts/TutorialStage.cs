@@ -121,6 +121,12 @@ namespace LoopRogue
                 room.ShowMessage(Loc.F("<color=#FFB060>먼저 아이템을 써 봐요:</color> {0}", PendingList()));
                 return true;
             }
+            // ⑤~⑦ 아이템 방 - 아이템을 다 써 보기 전엔 걷지도 않게(10-27 사용자, 대기는 된다). ④는 빨간 칸 피하기를 배우는 방이라 이동은 그대로.
+            if (PendingItems.Count > 0 && act == Tutorial.Act.Move && RoomItems.ContainsKey(Step(room)))
+            {
+                room.ShowMessage(Loc.F("<color=#FFB060>먼저 아이템을 써 봐요:</color> {0}", PendingList()));
+                return true;
+            }
             return act switch
             {
                 Tutorial.Act.Dash or Tutorial.Act.Spin => BlocksSkill(room),

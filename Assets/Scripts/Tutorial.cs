@@ -90,9 +90,10 @@ namespace LoopRogue
             var allowed = b.Value switch
             {
                 Basic.Move => act == Act.Move, // 걸어 보는 것만
-                Basic.Attack => act == Act.Attack || act == Act.Move, // 몹에게 다가가야 한다
-                Basic.Dash => act == Act.Dash || act == Act.Move,
-                Basic.Spin => act == Act.Spin || act == Act.Move,
+                // 행동 전엔 이동도 막는다(10-27 사용자) - 단, 공격·회전 베기는 몹이 옆에 없을 때만 다가가는 걸음을 허락한다
+                Basic.Attack => act == Act.Attack || act == Act.Move && !_instance.EnemyNext(diagonal: false),
+                Basic.Dash => act == Act.Dash, // 대시는 제자리에서 바로 쓸 수 있다
+                Basic.Spin => act == Act.Spin || act == Act.Move && !_instance.EnemyNext(diagonal: true),
                 Basic.Wait => act == Act.Wait, // 대기하라는데 걸어가지 않게(10-20 사용자)
                 Basic.Stats => act == Act.Stats,
                 _ => false,
@@ -101,6 +102,26 @@ namespace LoopRogue
                 return false;
             why = Loc.F("<color=#FFB060>먼저 안내대로 해 보세요</color> - 지금은 「{0}」 차례예요", BasicName(b.Value));
             return true;
+        }
+
+        /// <summary>플레이어 바로 옆에 살아 있는 몹이 있는지 - 공격은 상하좌우, 회전 베기는 주변 8칸.</summary>
+        private bool EnemyNext(bool diagonal)
+        {
+            if (_player == null || _room == null)
+                return false;
+            foreach (var e in _room.Enemies)
+            {
+                if (e == null || e.Stats.IsDead)
+                    continue;
+                if (GridMap.FootprintDistance(e, _player.GridPos) == 1)
+                    return true;
+                if (!diagonal)
+                    continue;
+                foreach (var c in GridMap.CellsOf(e)) // 대각선 칸(회전 베기는 주변 8칸)
+                    if (Mathf.Max(Mathf.Abs(c.x - _player.GridPos.x), Mathf.Abs(c.y - _player.GridPos.y)) == 1)
+                        return true;
+            }
+            return false;
         }
 
         /// <summary>설정 "튜토리얼 다시 보기" - 기본 조작과 상황 안내를 처음부터.</summary>
