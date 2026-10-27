@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -118,6 +119,35 @@ namespace LoopRogue
         /// <summary>세트의 대기(남쪽) 첫 프레임 - 없으면 null(그림 파일이 아직 없으면 호출부가 예전 사각형으로).</summary>
         /// <summary>그림 묶음을 미리 읽어 둔다(처음 쓸 때 한 프레임에 백 장 가까이 읽느라 멈추지 않게 - 10층 기사 변신).</summary>
         public static void Preload(string setName) => Load(setName);
+
+        /// <summary>Preload의 나눠 읽기판 - 한 장씩 Resources.LoadAsync로 읽어 프레임을 멈추지 않는다(AssetWarmup이 타이틀·로비에서 돌린다).
+        /// 도중에 누가 Load로 먼저 읽었으면 그쪽을 그대로 쓴다.</summary>
+        public static IEnumerator WarmupAsync(string setName)
+        {
+            if (Cache.ContainsKey(setName))
+                yield break;
+            var set = new FrameSet();
+            var kinds = new[] { ("idle", set.Idle), ("attack", set.Attack), ("walk", set.Walk), ("lit", set.Lit), ("jump", set.Jump) };
+            for (var d = 0; d < DirNames.Length; d++)
+            {
+                foreach (var (kind, target) in kinds)
+                {
+                    var list = new List<Sprite>();
+                    for (var i = 0; ; i++)
+                    {
+                        var req = Resources.LoadAsync<Sprite>($"Sprites/{setName}/{kind}_{DirNames[d]}_{i}");
+                        yield return req;
+                        if (!(req.asset is Sprite sprite))
+                            break;
+                        list.Add(sprite);
+                    }
+                    target[d] = list.ToArray();
+                    if (Cache.ContainsKey(setName))
+                        yield break;
+                }
+            }
+            Cache[setName] = set;
+        }
 
         public static Sprite FirstFrame(string setName)
         {
@@ -290,6 +320,88 @@ namespace LoopRogue
                 list.Add(sprite);
             }
             return list.ToArray();
+        }
+    }
+
+    /// <summary>그림 미리 읽기(10-27 사용자 "처음 던전 입장·주문술사 때 렉") - 게임을 켜면 뒤에서 몹 그림 세트·이펙트·바닥 타일을
+    /// Resources.LoadAsync로 한 장씩(세트 4개씩 나란히) 읽어 캐시에 넣어 둔다. 타이틀·로비에 있는 동안 끝나서, 던전에 들어가거나
+    /// 주문술사가 마법진을 펼칠 때 그 자리에서 백 장 가까이 한꺼번에 읽느라 멈추던 게 사라진다. 다 못 읽었어도 남은 건 예전처럼 쓸 때 읽는다.
+    /// 자동 플레이 봇(그림을 안 씀)이 켜지면 멈춘다.</summary>
+    public class AssetWarmup : MonoBehaviour
+    {
+        private const int Parallel = 4;
+        private static readonly string[] Sets =
+        {
+            "Player", "Slime", "SkeletonArcher", "ShieldSoldier", "Spider", "Bomber", "Shaman", "OrcCharger", "Jelly", "Rogue",
+            "Sentinel", "Chanter", "Mimic", "GoldGoblin", "MemoryKnight",
+            "Boss1", "Boss2", "Boss3", "Boss4", "Boss5", "Boss6", "Boss7", "Boss8", "Boss9", "Boss10",
+        };
+        private static readonly string[] Effects = { "altar_ignite", "arrow", "axe_wave", "boss_charge", "boss_cross", "boss_diag", "boss_ring", "boss_slam", "boss_snipe", "bull_charge", "candle_light", "candle_out", "chant_blast", "chant_circle", "chant_fireball", "clone_vanish", "coin", "crush_dust", "crystal_float", "crystal_rise", "crystal_shatter", "dash", "death_smoke", "doom_mark", "doom_summon", "earth_might", "event_AdventurerRemains", "event_Anvil", "event_BlessingAltar", "event_BloodAltar", "event_ChallengeFlag", "event_CursedChest", "event_ElixirSpring", "event_FateDice", "event_HealingSpring", "event_Hourglass", "event_TreasureChest", "event_Whetstone", "event_WishingWell", "explosion", "ghost_volley", "heal", "hit_spark", "hole_fill", "item_cleanse", "item_flash", "item_place", "item_ring", "item_smoke", "knight_morph", "knight_smash", "lava_burst", "levelup", "lich_cross", "lich_wave", "mirror_crack", "morph", "mushroom_sprout", "npc_alert", "obj_bomb", "obj_decoy", "obj_torch", "obj_trap", "pillar_break", "pillar_rise", "rubble_break", "rubble_fall", "shadow_split", "slash", "slash_crit", "slime_splash", "slime_wave", "soul_orb", "soul_summon", "soul_target_break", "soul_target_return", "soul_target_rise", "soul_wisp", "spin", "spore_burst", "status_immune", "status_infect", "status_infect2", "status_might", "status_reflect", "status_shield", "status_stun", "status_weak", "success", "summon", "tel_axe", "tel_beat", "tel_beat_next", "tel_charge", "tel_checker", "tel_cross", "tel_crush", "tel_diag", "tel_encircle", "tel_jump", "tel_mirror", "tel_orb", "tel_ring", "tel_ring_inv", "tel_slam", "tel_slime", "tel_snipe", "tel_snipe2", "tel_wave", "tel_zigzag", "telegraph", "web_bind", "web_shot", };
+        private static readonly string[] TilePrefixes = { "Tiles/Floor_", "Tiles/FloorDecor_", "Tiles/WallTop_", "Tiles/WallFace_" };
+        private static readonly string[] TileSingles = { "Tiles/WallFace_Torch", "Tiles/Shadow_Top", "Tiles/Shadow_Left", "Tiles/Shadow_TopLeft", "Tiles/Shadow_Corner", "Backgrounds/Dungeon" };
+        private static readonly List<Object> Keep = new List<Object>(); // 타일은 DungeonTiles가 나중에 읽을 때까지 내려가지 않게 붙잡아 둔다
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void Begin()
+        {
+            if (Application.isBatchMode)
+                return;
+            var go = new GameObject("AssetWarmup");
+            DontDestroyOnLoad(go);
+            go.AddComponent<AssetWarmup>();
+        }
+
+        private IEnumerator Start()
+        {
+            yield return new WaitForSecondsRealtime(1f); // 타이틀이 다 뜬 다음부터
+            var jobs = new List<IEnumerator>();
+            foreach (var path in TileSingles)
+                jobs.Add(Single(path));
+            foreach (var prefix in TilePrefixes)
+                jobs.Add(Sequence(prefix));
+            foreach (var set in Sets)
+                jobs.Add(SpriteAnimator.WarmupAsync(set));
+            foreach (var fx in Effects)
+                jobs.Add(Fx.WarmupAsync(fx));
+            var next = 0;
+            var running = 0;
+            for (var i = 0; i < Parallel; i++)
+                StartCoroutine(Worker());
+            while (next < jobs.Count || running > 0)
+                yield return null;
+            Destroy(gameObject);
+
+            IEnumerator Worker()
+            {
+                running++;
+                while (next < jobs.Count)
+                {
+                    if (DamagePopup.Suppressed)
+                        break; // 봇 - 그림을 안 쓴다
+                    yield return StartCoroutine(jobs[next++]);
+                }
+                running--;
+            }
+        }
+
+        private static IEnumerator Single(string path)
+        {
+            var req = Resources.LoadAsync<Sprite>(path);
+            yield return req;
+            if (req.asset != null)
+                Keep.Add(req.asset);
+        }
+
+        private static IEnumerator Sequence(string prefix)
+        {
+            for (var i = 0; ; i++)
+            {
+                var req = Resources.LoadAsync<Sprite>(prefix + i);
+                yield return req;
+                if (req.asset == null)
+                    yield break;
+                Keep.Add(req.asset);
+            }
         }
     }
 }

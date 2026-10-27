@@ -93,6 +93,7 @@ namespace LoopRogue
                 var lit = Resources.Load<Sprite>("Sprites/Props/Altar_Lit");
                 if (lit != null)
                     r.sprite = lit;
+                AddCoolLight(altar.Value); // 불 붙은 제단의 푸른빛이 둘레를 밝힌다
             }
             if (HitFeedback.Enabled)
                 ScreenFlash.Play(new Color(0.5f, 0.75f, 1f), 0.3f, 0.5f);
@@ -128,6 +129,8 @@ namespace LoopRogue
             Map.AddWall(new Vector2Int(mid + 1, top));
             AddWallProp(new Vector2Int(mid - 3, top), "Altar_Lit", new Color(0.5f, 0.7f, 1f), "MuralAltar");
             AddWallProp(new Vector2Int(mid + 3, top), "Altar_Lit", new Color(0.5f, 0.7f, 1f), "MuralAltar");
+            // 가짜 빛 - 양옆 제단의 푸른 불이 둘레를 밝힌다(10-27 사용자)
+            CreateRoomLighting(layout, new System.Collections.Generic.List<Vector2> { new Vector2(mid - 3, top - 0.3f), new Vector2(mid + 3, top - 0.3f) });
 
             Map.PlaceActor(_player, layout.PlayerStart);
             if (_player.TryGetComponent<SpriteAnimator>(out var anim))

@@ -49,6 +49,9 @@ namespace LoopRogue
             return _torch != null && rng.NextDouble() < TorchChance ? _torch : Pick(_wallFace, rng);
         }
 
+        /// <summary>벽돌 횃불 그림인지 - 가짜 빛(RoomController.Lighting)이 그 자리를 주황빛으로 밝힌다.</summary>
+        public static bool IsTorch(Sprite sprite) => sprite != null && sprite == _torch;
+
         private static Sprite Pick(Sprite[] sprites, System.Random rng) => sprites[rng.Next(sprites.Length)];
 
         private static void Load()

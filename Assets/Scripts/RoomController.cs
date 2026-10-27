@@ -424,6 +424,7 @@ namespace LoopRogue
             PositionCamera(layout);
             if (!def.IsBossRoom && !def.IsTestRoom) // 보스방·테스트 방은 안개 없이 전부 보이게(사용자 결정 - 보스 패턴/소환 몹을 다 보고 싸우게)
                 FogOfWar.Create(this, _player, layout, _roomObjects);
+            CreateRoomLighting(layout); // 가짜 빛 - 방 전체를 조금 어둡게, 플레이어·횃불 둘레만 밝게
 
             for (var i = 0; i < layout.EnemyPositions.Count && !_loadCleared; i++)
             {
@@ -509,6 +510,8 @@ namespace LoopRogue
             Map.PlaceActor(enemy, pos);
             enemy.FaceToward(_player.GridPos); // 방패병은 입장한 플레이어 쪽을 보고 시작
             _enemies.Add(enemy);
+            if (kind == EnemyKind.Caster && !DamagePopup.Suppressed)
+                StartCoroutine(PreloadFx("chant_circle", "chant_fireball", "chant_blast")); // 주문술사 - 마법진을 펼치는 순간 읽느라 멈추지 않게
             return enemy;
         }
 
@@ -524,7 +527,17 @@ namespace LoopRogue
                 StartCoroutine(PreloadMimic());
         }
 
-        /// <summary>미믹이 있는 방 - 상자 괴물 그림(4방향 대기·걷기·공격, 200장 가까이)과 소환 이펙트를 방이 깔린 뒤 한 프레임에 한 묶음씩 미리 읽는다.
+        /// <summary>이펙트 묶음을 한 프레임에 하나씩 미리 읽는다(이미 읽었으면 바로 넘어간다).</summary>
+        private IEnumerator PreloadFx(params string[] names)
+        {
+            foreach (var name in names)
+            {
+                yield return null;
+                Fx.Frames(name);
+            }
+        }
+
+        /// <summary>미믹이 있는 방 - 상자 괴물 그림(4방향 대기·걷기·공격, 96장)과 소환 이펙트를 방이 깔린 뒤 한 프레임에 한 묶음씩 미리 읽는다.
         /// 예전엔 상자를 밟아 미믹이 튀어나오는 순간 한꺼번에 읽느라 화면이 멈췄다(10-20 사용자 "미믹 소환 때 렉"). 10층 기사 변신(PreloadMirrorForms)과 같은 방식.</summary>
         private IEnumerator PreloadMimic()
         {
@@ -1337,6 +1350,7 @@ namespace LoopRogue
         private void BuildTiledRoom(RoomLayout layout, bool isBossRoom)
         {
             _tileLayout = layout;
+            _torchWalls.Clear();
             _floorTint = isBossRoom ? new Color(1f, 0.58f, 0.55f) : Color.white;
             var floorGo = new GameObject("Floor");
             floorGo.transform.SetParent(transform, false);
@@ -1355,6 +1369,8 @@ namespace LoopRogue
             {
                 var go = CreateTile(transform, wall, DungeonTiles.Wall(ShowsWallFace(wall), _tileRng), -8, Color.white).gameObject;
                 go.name = "Wall";
+                if (DungeonTiles.IsTorch(go.GetComponent<SpriteRenderer>().sprite))
+                    _torchWalls.Add(wall);
                 _roomObjects.Add(go);
                 _wallObjects[wall] = go;
             }
@@ -1367,8 +1383,12 @@ namespace LoopRogue
                 if (x >= 0 && y >= 0 && x < layout.Width && y < layout.Height)
                     continue;
                 var cell = new Vector2Int(x, y);
-                _roomObjects.Add(CreateTile(transform, cell, DungeonTiles.Wall(ShowsWallFace(cell), _tileRng), -8, border).gameObject);
+                var tile = CreateTile(transform, cell, DungeonTiles.Wall(ShowsWallFace(cell), _tileRng), -8, border);
+                if (DungeonTiles.IsTorch(tile.sprite))
+                    _torchWalls.Add(cell);
+                _roomObjects.Add(tile.gameObject);
             }
+            BuildWallShadows(layout); // 벽 아래·오른쪽 바닥에 그림자(RoomController.Lighting)
         }
 
         // ---- 방 바깥 배경(10-19 사용자 "양옆이 빈다") - Backgrounds/Dungeon(128x128 = 4x4칸, 던전 벽돌·기둥·쇠사슬·횃불)을
@@ -2429,6 +2449,7 @@ namespace LoopRogue
             if (!_tiledRoom || _floorRoot == null)
                 return;
             CreateTile(_floorRoot, cell, DungeonTiles.Floor(_tileRng), -10, _floorTint);
+            RefreshShadowsAround(cell); // 부서진 벽이 드리우던 그림자를 걷고, 새 바닥 칸에도 그림자
             // 바로 위가 방 벽이면 벽돌 앞면으로 - 진짜 벽(이름 "Wall")만. 예전엔 위 칸이 구멍·바위·수정·용암·항아리·숨겨진 벽이어도
             // 그림을 벽으로 덮어써서, 오우거 구멍을 메우면 그 위 구멍이 벽처럼 보였다(10-15 사용자 제보).
             if (_wallObjects.TryGetValue(cell + Vector2Int.up, out var above) && above != null && above.name == "Wall"

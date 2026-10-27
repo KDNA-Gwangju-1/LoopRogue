@@ -39,6 +39,24 @@ namespace LoopRogue
         /// <summary>반복 이펙트를 언제까지 둘지(거미줄 묶임 등) - false가 되는 순간 사라진다.</summary>
         public Func<bool> KeepAlive;
 
+        /// <summary>Frames의 나눠 읽기판(AssetWarmup) - 한 장씩 Resources.LoadAsync.</summary>
+        public static System.Collections.IEnumerator WarmupAsync(string name)
+        {
+            if (Cache.ContainsKey(name))
+                yield break;
+            var list = new List<Sprite>();
+            for (var i = 0; ; i++)
+            {
+                var req = Resources.LoadAsync<Sprite>($"Effects/{name}/{i}");
+                yield return req;
+                if (!(req.asset is Sprite sprite))
+                    break;
+                list.Add(sprite);
+            }
+            if (!Cache.ContainsKey(name))
+                Cache[name] = list.ToArray();
+        }
+
         public static Sprite[] Frames(string name)
         {
             if (Cache.TryGetValue(name, out var frames))

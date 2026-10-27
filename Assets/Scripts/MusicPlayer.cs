@@ -50,9 +50,22 @@ namespace LoopRogue
                 return;
             var go = new GameObject("MusicPlayer");
             DontDestroyOnLoad(go);
+            EnsureListener();
+            UnityEngine.SceneManagement.SceneManager.sceneLoaded += (_, __) => EnsureListener();
             _instance = go.AddComponent<MusicPlayer>();
             _instance._a = _instance.NewSource();
             _instance._b = _instance.NewSource();
+        }
+
+        /// <summary>씬마다 AudioListener가 하나 있게 - Main 씬 카메라엔 없어서, 예전엔 첫 효과음(SfxPlayer)이 붙이기 전까지 배경음악이
+        /// "There are no audio listeners" 경고를 매 프레임 찍었다(에디터 로그 2천 줄+, 봇 실행 중엔 내내 - 에디터가 버벅이는 원인 중 하나).</summary>
+        private static void EnsureListener()
+        {
+            if (FindAnyObjectByType<AudioListener>() != null)
+                return;
+            var cam = Camera.main;
+            if (cam != null)
+                cam.gameObject.AddComponent<AudioListener>();
         }
 
         private AudioSource NewSource()
