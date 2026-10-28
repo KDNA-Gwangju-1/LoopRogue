@@ -161,6 +161,11 @@ namespace LoopRogue
         {
             _setName = setName;
             _set = Load(setName);
+            // 세트가 바뀌면 진행 중이던 점프·움츠림·연출 클립은 버린다 - 예전 세트 기준이라 새 세트엔 그 그림이 없을 수 있다
+            // (10-28 IndexOutOfRange: 10층 기사가 슬라임 킹 점프 중에 본모습으로 돌아오며 jump[5]를 찾았다)
+            _jumpUntil = -1f;
+            _crouch = false;
+            _clip = null;
             _smooth = true;
             _renderer = renderer;
             _actor = GetComponent<GridActor>();
@@ -230,6 +235,11 @@ namespace LoopRogue
             if (Time.time < _jumpUntil)
             {
                 var jump = Frames(_set.Jump);
+                if (jump.Length < 6)
+                {
+                    _jumpUntil = -1f; // 점프 도중 그림 세트가 바뀌었다(10층 기사가 슬라임 킹 모습에서 돌아옴 등) - 점프 그림 없이 평소대로
+                    return;
+                }
                 var t = Time.time - _jumpStart;
                 _renderer.sprite = t >= _jumpFlight ? jump[5] : jump[2 + Mathf.Min(2, (int)(t / _jumpFlight * 3f))];
                 return;
@@ -237,6 +247,11 @@ namespace LoopRogue
             if (_crouch)
             {
                 var jump = Frames(_set.Jump);
+                if (jump.Length < 2)
+                {
+                    _crouch = false;
+                    return;
+                }
                 _time += Time.deltaTime;
                 _renderer.sprite = _time % 0.6f < 0.12f ? jump[0] : jump[1]; // 깊이 움츠린 채 가끔 들썩
                 return;
