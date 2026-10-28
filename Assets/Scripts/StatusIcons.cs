@@ -52,6 +52,10 @@ namespace LoopRogue
                 return;
             foreach (var e in _entries)
             {
+                // 꺼지면 이펙트는 풀로 돌아가고(Fx.Recycle) 다른 이펙트로 다시 쓰일 수도 있다 - 그러면 잊고 다음에 켜질 때 새로 붙인다.
+                // 예전엔 null이 아니라서 계속 붙어 있는 줄 알아 두 번째 기절부터 별이 안 떴다(10-28 사용자).
+                if (e.Instance != null && (!e.Instance.IsLive || e.Instance.KeepAlive != e.IsOn))
+                    e.Instance = null;
                 if (e.Instance != null || e.Missing || !e.IsOn())
                     continue;
                 var pos = transform.position + Vector3.up * GridConstants.CellSize * e.OffsetCells;
