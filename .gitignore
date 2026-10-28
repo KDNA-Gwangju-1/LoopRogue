@@ -89,3 +89,7 @@ crashlytics-build.properties
 # 빌드할 때마다 새로 적히는 빌드 시각(BuildMenu.BuildStampWriter)
 /Assets/Resources/BuildStamp.txt
 /Assets/Resources/BuildStamp.txt.meta
+
+# 빌드 결과물(다른 이름으로 뽑은 빌드 폴더·압축)
+/RoopRPG/
+/RoopRPG.zip
