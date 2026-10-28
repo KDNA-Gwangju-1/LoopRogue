@@ -94,7 +94,7 @@ namespace LoopRogue
                     c.Steps.Add(() => SpawnReflection());
                     break;
                 case 3:
-                    if (!BuildLightPuzzle(boss))
+                    if (!BuildLightPuzzle(boss, awayFromWalls: true) && !BuildLightPuzzle(boss, awayFromWalls: false)) // 벽에 안 붙는 배치가 없을 때만 붙어도
                     {
                         // 방이 좁아 빛 길을 못 만들었다 - 이 단계는 건너뛴다(무적 없음)
                         SetMirrorFloor(boss, running: false);
@@ -228,8 +228,9 @@ namespace LoopRogue
         private static Vector2Int Reflect(Vector2Int d, bool slash) => slash ? new Vector2Int(d.y, d.x) : new Vector2Int(-d.y, -d.x);
 
         /// <summary>조력자 자리·방향과 거울 LightMirrorCount개를 정한다 - 정답대로 돌리면 빛이 거울을 차례로 거쳐 마지막에 4칸 이상 곧게 뻗는다.
-        /// 거울은 처음엔 적어도 2개가 틀린 방향. 못 만들면 false.</summary>
-        private bool BuildLightPuzzle(EnemyActor boss)
+        /// 거울은 처음엔 적어도 2개가 틀린 방향. 못 만들면 false.
+        /// awayFromWalls(10-28 사용자) - 거울 둘레 8칸에 벽·방 끝이 없게(벽에 딱 붙은 거울은 그쪽에서 밀 수가 없고 보기에도 답답하다).</summary>
+        private bool BuildLightPuzzle(EnemyActor boss, bool awayFromWalls)
         {
             ClearLightPuzzle();
             var dirs = new[] { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
@@ -279,7 +280,7 @@ namespace LoopRogue
                     }
                     var mirror = seg[seg.Count - 1];
                     if (!Map.IsWalkable(mirror) || mirror == _player.GridPos || mirror == ExitPosition || lit.Contains(mirror)
-                        || GridMap.FootprintChebyshev(boss, mirror) < 2)
+                        || GridMap.FootprintChebyshev(boss, mirror) < 2 || (awayFromWalls && TouchesWall(mirror)))
                     {
                         ok = false;
                         break;
@@ -366,6 +367,19 @@ namespace LoopRogue
         }
 
         private const int LightLayoutCandidates = 40;
+
+        /// <summary>둘레 8칸 중 방 밖이거나 벽인 칸이 있는지.</summary>
+        private bool TouchesWall(Vector2Int p)
+        {
+            for (var dx = -1; dx <= 1; dx++)
+            for (var dy = -1; dy <= 1; dy++)
+            {
+                var n = new Vector2Int(p.x + dx, p.y + dy);
+                if (n != p && (!Map.IsInBounds(n) || Map.IsWall(n)))
+                    return true;
+            }
+            return false;
+        }
 
         /// <summary>플레이어 자리에서 거울마다 옆 칸을 한 번씩 들르는 가장 짧은 걸음 수(순서는 전부 따져 봄). 벽·조력자·거울은 못 지나가고 몹은 무시.</summary>
         private int LightTourSteps()
