@@ -25,6 +25,13 @@ namespace LoopRogue.EditorTools
             Debug.Log($"[테스트] 아이템 {given}개 채움");
         }
 
+        /// <summary>Unknown 벼리기 연출만 미리 본다(10-28) - 저장은 안 바뀐다. Play 중에만.</summary>
+        [MenuItem("LoopRogue/테스트: Unknown 벼리기 연출 보기 (Play 중)")]
+        private static void PreviewUnknownForge() => GachaReveal.PlayUnknownForge(() => Debug.Log("[테스트] Unknown 벼리기 연출 끝"));
+
+        [MenuItem("LoopRogue/테스트: Unknown 벼리기 연출 보기 (Play 중)", true)]
+        private static bool PreviewUnknownForgeValid() => EditorApplication.isPlaying;
+
         // ---- 유물 테스트(10-27) - 36개 전부(보스·일반·히든 하위 메뉴), 누를 때마다 켜고 끄기(콘솔에 켬/끔이 찍힌다). Play 중에도 바로 적용된다. 진짜 저장에 남으니 테스트 맵처럼
         // "끝나면 저장 되돌림" 메뉴 안에서 쓰는 게 안전하다. ----
         private const string RelicMenu = "LoopRogue/테스트: 유물 켜고 끄기/";

@@ -17,6 +17,8 @@ namespace LoopRogue
         private PlayerActor _player;
 
         private Text _levelText;
+        private Text _goldText;
+        private int _shownGold = -1;
         private Text _progressText;
         private Text _skillText;
 
@@ -330,6 +332,7 @@ namespace LoopRogue
             if (!visible || Time.frameCount <= _mapChoiceOpenedFrame)
                 return;
 
+            ClickedCard(_deathButtons); // 마우스를 올린 버튼만 밝게(클릭은 RegisterTap이 키로 바꿔 준다)
             if (_roomMap.HandleInput())
                 ChooseDeathContinue(_roomMap.Selected);
             else if (GameInput.Down(Key.L))
@@ -417,6 +420,11 @@ namespace LoopRogue
             _levelText.text = title != null
                 ? $"Lv.{levels.Level} <size=12><color=#FFD966>「{title.Title}」</color></size>"
                 : $"Lv.{levels.Level}  (ATK {stats.AttackPower:0})";
+            if (_shownGold != GoldWallet.Gold)
+            {
+                _shownGold = GoldWallet.Gold;
+                _goldText.text = _shownGold.ToString("N0");
+            }
 
             // 상태 안내 한 줄(체력 막대 위) - 방향 고르는 중이거나 묶였을 때만.
             _skillText.text = _player.AimingItem.HasValue
@@ -442,7 +450,7 @@ namespace LoopRogue
 
         private void HandleStatPanelToggle()
         {
-            if (PauseMenu.BlocksInput || OptionsPanel.BlocksInput || NpcDialogUI.BlocksInput || InventoryUI.IsOpen)
+            if (PauseMenu.BlocksInput || OptionsPanel.BlocksInput || NpcDialogUI.BlocksInput || InventoryUI.IsOpen || GachaReveal.BlocksInput)
                 return; // 다른 창 뒤에서 능력치 창이 몰래 열리고 닫히지 않게
             var toggle = GameInput.Down(Key.Tab);
 
@@ -1237,7 +1245,7 @@ namespace LoopRogue
 
             // 조작 안내 - 대기 키(스페이스바)를 모르고 지나치지 않게. 오른쪽 [Tab] 스탯 버튼 바로 왼쪽.
             var controls = CreateBandText(band.transform, "Controls", 12, -560f - 130f, 560f, TextAnchor.MiddleRight);
-            controls.text = Loc.T("이동/공격: 방향키·WASD   대기: Space   대화: F   스탯: Tab   인벤토리: I   메뉴: Esc");
+            controls.text = Loc.T("이동/공격: 방향키·WASD   대기: Space   대화: NPC에게 부딪히기   스탯: Tab   인벤토리: I   메뉴: Esc");
             controls.color = new Color(0.62f, 0.64f, 0.7f);
             var controlsRect = controls.rectTransform;
             controlsRect.anchorMin = controlsRect.anchorMax = new Vector2(1f, 0.5f);
@@ -1368,7 +1376,14 @@ namespace LoopRogue
             lineRect.sizeDelta = new Vector2(700f, 22f);
             var outline = _skillText.gameObject.AddComponent<Outline>();
             outline.effectColor = new Color(0f, 0f, 0f, 0.9f);
+
+            BuildGoldBox(parent);
         }
+
+        /// <summary>보유 골드(10-28 테스터 의견) - 아래 띠 오른쪽 끝(가방 칸 오른쪽 빈자리, 게임 화면 밖). 코인 그림 + 숫자.
+        /// 터치 버튼(대화 x -250)보다 오른쪽이라 모바일에서도 안 겹친다.</summary>
+        private void BuildGoldBox(Transform parent) =>
+            _goldText = HudUi.CreateGoldBox(parent, new Vector2(1f, 0f), new Vector2(1f, 0.5f), new Vector2(-12f, ActionBarLayout.SlotCenterY));
 
         private void BuildStatPanel(Transform parent)
         {
@@ -1659,10 +1674,17 @@ namespace LoopRogue
             _deathPenaltyText.fontSize = 15;
             _deathPenaltyText.color = new Color(1f, 0.6f, 0.4f);
 
-            var prompt = CreateLabel(_deathPanel.transform, Loc.T("←/→ 또는 클릭: 시작 방 고르기   [Enter/Space] 계속하기   [L] 로비로 이동"),
-                new Vector2(10f, -315f), new Vector2(-10f, -275f));
+            var prompt = CreateLabel(_deathPanel.transform, Loc.T("←/→ 또는 클릭: 시작 방 고르기"),
+                new Vector2(10f, -216f), new Vector2(-10f, -194f));
             prompt.alignment = TextAnchor.MiddleCenter;
-            prompt.fontSize = 16;
+            prompt.fontSize = 13;
+            prompt.color = new Color(0.7f, 0.72f, 0.78f);
+
+            // 10-28 테스터: 계속하기만 누르다 로비(영약·장비)를 몰라 1층 보스에 18번 죽었다 - 로비 길을 글자 안내([L])가 아니라 버튼으로.
+            // 누르면 그 키를 누른 것과 같다(GameInput.RegisterTap) - Enter = 고른 방에서 계속, L = 로비.
+            _deathButtons.Clear();
+            _deathButtons.Add(CreateDeathButton(Loc.T("계속하기  [Enter]"), -115f, new Color(0.22f, 0.3f, 0.42f), Key.Enter));
+            _deathButtons.Add(CreateDeathButton(Loc.T("로비로 이동  [L]"), 115f, new Color(0.45f, 0.33f, 0.16f), Key.L));
 
             // 맨 아래 - 노인의 조언 한 줄(LobbyGuide.DeathTip). 패널을 그만큼 늘렸다.
             _deathTipText = CreateLabel(_deathPanel.transform, string.Empty, new Vector2(30f, -315f - DeathTipHeight), new Vector2(-30f, -318f));
@@ -1673,6 +1695,24 @@ namespace LoopRogue
         }
 
         private const float DeathTipHeight = 56f;
+        private readonly List<(RectTransform Rect, Image Image, Color Color)> _deathButtons = new List<(RectTransform, Image, Color)>();
+
+        private (RectTransform, Image, Color) CreateDeathButton(string label, float x, Color color, Key key)
+        {
+            var image = HudUi.CreateImage(_deathPanel.transform, "DeathButton_" + key, color);
+            PixelUi.Slice(image, "Button");
+            var rect = image.rectTransform;
+            rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 1f);
+            rect.pivot = new Vector2(0.5f, 1f);
+            rect.sizeDelta = new Vector2(210f, 38f);
+            rect.anchoredPosition = new Vector2(x, -240f); // 방 지도(문 아래 끝 약 -181)·안내 줄 아래, 노인의 조언 줄(-318~) 위
+            var text = HudUi.CreateText(rect, "Label", 16, TextAnchor.MiddleCenter);
+            text.text = label;
+            text.fontStyle = FontStyle.Bold;
+            HudUi.Stretch(text.rectTransform, 0f);
+            GameInput.RegisterTap(rect, key, () => IsDeathChoiceOpen);
+            return (rect, image, color);
+        }
         private Text _deathTipText;
 
         private void BuildRoomSelectPanel(Transform parent)

@@ -857,7 +857,7 @@ namespace LoopRogue
             else if (Kind == EnemyKind.Sentinel)
                 TakeSentinelTurn(claimedSlots, player);
             else if (Kind == EnemyKind.Caster)
-                TakeCasterTurn(player, room);
+                TakeCasterTurn(player, claimedSlots, room);
             else
                 TakeMeleeTurn(player, claimedSlots); // 분열체도 걷는 건 근접 몹과 같다
         }
@@ -1145,16 +1145,23 @@ namespace LoopRogue
         private TextMesh _chantLabel;
         private ChantCircle _chantCircle;
 
-        /// <summary>주문술사: 플레이어가 시야(플레이어 기준 시야 반경 + 벽에 안 가림)에 들어온 순간 주문을 시작해 그 자리에서 외운다.
-        /// 남은 턴이 1이 되면 그때 플레이어 둘레 3x3을 예고하고, 0이 되면 그 칸에 폭발. 그 뒤 다시 처음부터 외운다.</summary>
-        private void TakeCasterTurn(PlayerActor player, RoomController room)
+        /// <summary>주문술사: 플레이어를 보기 전엔 근접 몹처럼 걸어 다가오고(10-28 사용자), 시야(플레이어 기준 시야 반경 + 벽에 안 가림)에
+        /// 들어온 순간 멈춰 서서 그 자리에서 외운다. 남은 턴이 1이 되면 그때 플레이어 둘레 3x3을 예고하고, 0이 되면 그 칸에 폭발.
+        /// 그 뒤 다시 처음부터 외운다(외우기 시작한 뒤엔 다시 걷지 않는다).</summary>
+        private void TakeCasterTurn(PlayerActor player, HashSet<Vector2Int> claimedSlots, RoomController room)
         {
             if (_chant < 0)
             {
                 if (!CasterSeesPlayer(room, player))
-                    return;
+                {
+                    TakeMeleeTurn(player, claimedSlots); // 근접 몹처럼 다가온다(플레이어 옆까지 오면 이미 보고 있다 - 미끼 옆이면 미끼는 때린다)
+                    if (!CasterSeesPlayer(room, player))
+                        return;
+                }
                 _chant = CasterChantTurns;
                 UpdateChantLabel();
+                if (TryGetComponent<SpriteAnimator>(out var seen))
+                    seen.Face(player.GridPos - GridPos);
                 return;
             }
             _chant--;

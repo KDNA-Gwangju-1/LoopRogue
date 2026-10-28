@@ -253,7 +253,7 @@ Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}	Stage {0}/{1}   Room {2}/{3}   Atte
 <color=#C8B88A>시간지기 노인의 한마디</color>  "{0}"	<color=#C8B88A>Old Timekeeper says</color>  "{0}"
 데스 패널티: 골드 -{0} (이번 시도 획득분의 {1:0}%)	Death penalty: Gold -{0} ({1:0}% of this attempt's earnings)
 데스 패널티: 이번 시도에 번 골드 없음	Death penalty: no Gold earned this attempt
-이동/공격: 방향키·WASD   대기: Space   대화: F   스탯: Tab   인벤토리: I   메뉴: Esc	Move/Attack: Arrows·WASD   Wait: Space   Talk: F   Stats: Tab   Inventory: I   Menu: Esc
+이동/공격: 방향키·WASD   대기: Space   대화: NPC에게 부딪히기   스탯: Tab   인벤토리: I   메뉴: Esc	Move/Attack: Arrows·WASD   Wait: Space   Talk: bump into NPC   Stats: Tab   Inventory: I   Menu: Esc
 대시	Dash
 회전\n베기	Spin\nSlash
 [Tab] 스탯	[Tab] Stats
@@ -262,7 +262,7 @@ Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}	Stage {0}/{1}   Room {2}/{3}   Atte
 ←/→ 또는 클릭: 고르기   B: 보스방   [Enter] 시작  (깬 뒤엔 다음 방으로)	←/→ or Click: Select   B: Boss Room   [Enter] Start  (then onward to next room)
 보유	Owned
   <color=#888888>(없음)</color>	  <color=#888888>(none)</color>
-{0}\n<color=#9AA0AA>방향키·클릭: 고르기   1/2/3 키·아래 퀵슬롯 클릭: 등록(등록된 것만 사용 가능)   I: 닫기</color>	{0}\n<color=#9AA0AA>Arrows·Click: Select   1/2/3 keys·click quickslot below: Assign (only assigned items usable)   I: Close</color>
+{0}\n<color=#9AA0AA>방향키·클릭: 고르기   1/2/3 키·아래 퀵슬롯 클릭: 등록(등록된 것만 사용 가능)   I·Esc: 닫기</color>	{0}\n<color=#9AA0AA>Arrows·Click: Select   1/2/3 keys·click quickslot below: Assign (only assigned items usable)   I·Esc: Close</color>
 <size=11>비어\n있음</size>	<size=11>Empty</size>
 사용!	Used!
 가방	Bag
@@ -285,7 +285,7 @@ Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}	Stage {0}/{1}   Room {2}/{3}   Atte
 감염이 한 단계 내려갔다	infection lowered by 1
 정화제! {0}	Purifier! {0}
 보스의 예고 공격 취소 + {0}턴 기절, 주변 몹 {1}턴 기절	Cancels boss telegraphed attack + {0}-turn stun; nearby mobs stunned {1} turns
-옆 칸에 설치 - 밟은 몹(보스 포함) {0}턴 기절	Place on adjacent tile - stuns the mob that steps on it (incl. bosses) for {0} turns
+앞쪽 2x2 칸에 설치 - 밟은 몹(보스 포함) {0}턴 기절	Place on a 2x2 area in front - stuns the mob that steps on it (incl. bosses) for {0} turns
 {0}턴 안에 맞는 보스 예고 공격 1회를 되돌린다(보스 최대 체력 {1:0}%)	Reflects 1 boss telegraphed attack taken within {0} turns ({1:0}% of boss Max HP)
 주변 {0}칸 몹과 보스가 {1}턴 동안 받는 피해 +{2:0}%	Mobs and bosses within {0} tiles take +{2:0}% damage for {1} turns
 다음에 받는 피해 1회 무효	Negates the next instance of damage
@@ -332,9 +332,9 @@ Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}	Stage {0}/{1}   Room {2}/{3}   Atte
 골드가 모자랍니다! ({0} 영약 비용: {1})	Not enough Gold! ({0} Elixir cost: {1})
 {0} 영약 구매! (영구 적용, 다음 시작부터)	Bought {0} Elixir! (permanent, from next run)
 영약 누적 - 공격력+{0:0.#}   체력+{1:0.#}   |   유물 {2}개	Elixirs total - ATK+{0:0.#}   HP+{1:0.#}   |   Relics x{2}
-[A] 공격력 영약 구매 (다음 비용 {0}골드)	[A] Buy ATK Elixir (next cost {0} Gold)
-[H] 체력 영약 구매 (다음 비용 {0}골드)	[H] Buy HP Elixir (next cost {0} Gold)
-[C] 치명타확률+{0:0.#}% 구매 (다음 비용 {1}골드)	[C] Buy Crit Chance+{0:0.#}% (next cost {1} Gold)
+[1] 공격력 영약 구매 (다음 비용 {0}골드)	[1] Buy ATK Elixir (next cost {0} Gold)
+[2] 체력 영약 구매 (다음 비용 {0}골드)	[2] Buy HP Elixir (next cost {0} Gold)
+[3] 치명타확률+{0:0.#}% 구매 (다음 비용 {1}골드)	[3] Buy Crit Chance+{0:0.#}% (next cost {1} Gold)
 치명타 영약: 스테이지 {0}부터 구매 가능(비공개)	Crit Elixir: available from Stage {0} (hidden)
 골드가 모자랍니다! (뽑기 비용: {0})	Not enough Gold! (Gacha cost: {0})
 {0} 획득! 장착했습니다.	Got {0}! Equipped.
@@ -526,7 +526,7 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 의뢰를 받았다: {0}	Request accepted: {0}
 고마워! 방 {0}에서 기다릴게. 먼저 가 있을게... 어떻게 가냐고? 나도 몰라.	Thanks! I'll wait in Room {0}. I'll go on ahead... How? I don't know either.
 받아. ...보스한테 지지 마. 다음 고리에서 또 부탁할지도 모르니까.	Take it. ...Don't lose to the boss. I might ask again next loop.
-숫자키·클릭: 고르기   W/S·Enter: 커서로 고르기   Esc/F: 닫기	Number keys·Click: Select   W/S·Enter: Cursor select   Esc/F: Close
+숫자키·클릭: 고르기   W/S·Enter: 커서로 고르기   Esc: 닫기	Number keys·Click: Select   W/S·Enter: Cursor select   Esc: Close
 타이틀에서 변경	Change from Title screen
 전체 볼륨	Master Volume
 효과음	SFX
@@ -623,8 +623,8 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 체력 50% 이하일 때 주는 피해 +30%	Damage dealt +30% at 50% HP or less
 첫 일격	First Blow
 방마다 첫 공격 피해 1.5배	First attack in each room deals 1.5x damage
-{0}이(가) 기다리고 있었다! (옆에서 F: 보고)	{0} was waiting! (adjacent F: report)
-{0}이(가) 나타났다! (옆에서 F: 대화)	{0} appeared! (adjacent F: talk)
+{0}이(가) 기다리고 있었다! (다가가 부딪히면 보고)	{0} was waiting! (bump into them to report)
+{0}이(가) 나타났다! (다가가 부딪히면 대화)	{0} appeared! (bump into them to talk)
 미믹 처치! 골드 +{0}{1}	Mimic slain! Gold +{0}{1}
 , {0} 획득	, got {0}
 도전 성공! 골드 +{0}, 레벨업 카드 1장	Challenge cleared! Gold +{0}, 1 Level-Up Card
@@ -848,7 +848,7 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 계약자의 낙인	Contractor's Brand
 저주 계약의 대가가 절반	Curse contract costs are halved
 피의 사냥꾼	Blood Hunter
-몹을 처치할 때마다 최대 체력의 2% 회복	Recover 2% max HP on each kill
+몹을 처치할 때마다 최대 체력의 8% 회복	Recover 8% max HP on each kill
 정예 사냥꾼	Elite Hunter
 정예 몹·미믹에게 주는 피해 +30%, 미믹·도전의 깃발 보상 골드 2배	+30% damage to elites and mimics, double gold from mimics and Challenge Flags
 메아리 칼날	Echo Blade
@@ -947,7 +947,7 @@ NPC	NPC
 레벨업! 카드 하나를 골라(<b>1/2/3</b>) 강해지세요. <b>Tab</b>으로 지금 능력치·장비를 볼 수 있어요.	Level up! Pick one card (<b>1/2/3</b>) to grow stronger. Press <b>Tab</b> to see your stats and gear.
 바닥의 <b>빨간 칸</b>은 다음 턴에 공격이 떨어지는 자리예요. 그 칸에서 비켜서세요!	<b>Red tiles</b> on the floor will be hit next turn. Step off them!
 누군가 나타났어요. 옆에 가서 <b>대화</b> 버튼을 누르세요. 대화는 턴을 쓰지 않아요.	Someone appeared. Walk up and press the <b>Talk</b> button. Talking doesn't use a turn.
-누군가 나타났어요. 옆에 가서 <b>F</b>로 말을 걸어 보세요. 대화는 턴을 쓰지 않아요.	Someone appeared. Walk up and press <b>F</b> to talk. Talking doesn't use a turn.
+누군가 나타났어요. 몬스터를 때리듯 그쪽으로 <b>한 번 더 걸어가 부딪히면</b> 말을 걸어요. 대화는 턴을 쓰지 않아요.	Someone appeared. Walk into them <b>like attacking a monster</b> to talk. Talking doesn't use a turn.
 층의 끝, <b>보스방</b>이에요. 보스는 바닥에 공격할 칸을 먼저 보여 주고 다음 턴에 때려요. 보스방엔 안개가 없어요.	The end of the floor: the <b>boss room</b>. Bosses mark the tiles they'll hit first, then strike next turn. There is no fog in boss rooms.
 죽어도 <b>레벨과 능력치는 그대로</b>예요. 그 층 처음부터 다시 도전해요(골드는 조금 잃어요). 로비에서 뽑기·영약으로 더 강해질 수도 있어요.	Even if you die, <b>your level and stats stay</b>. You retry the floor from the start (losing a little gold). You can also get stronger in the lobby with gacha and elixirs.
 건너뛰기	Skip
@@ -1358,3 +1358,11 @@ X자 칼날이 교차하는 자리에서 베여 죽었다	Cut down where the X-s
 기사의 마지막 일격을 받아 내지 못하고 죽었다	Couldn't withstand the knight's final strike
 어디서 다시 시작할까?	Where do you want to start again?
 [Enter/Space/클릭] 계속	[Enter/Space/Click] Continue
+←/→ 또는 클릭: 시작 방 고르기	←/→ or Click: Choose start room
+계속하기  [Enter]	Continue  [Enter]
+로비로 돌아갑니다 - 받은 골드로 먼저 강해지자!	Returning to the Lobby - get stronger with your Gold first!
+받은 골드로 먼저 강해지자!  [1] 보물 상인: 장비 뽑기 · [2] 연금술사: 영약 - 하나라도 사면 문이 열린다	Get stronger with your Gold first!  [1] Treasure Merchant: gear pulls · [2] Alchemist: elixirs - buy anything to open the door
+아직 문이 잠겨 있다 - 보물 상인(1)에서 장비를 뽑거나 연금술사(2)에게 영약을 사서 먼저 강해지자!	The door is still locked - pull gear at the Treasure Merchant (1) or buy an elixir from the Alchemist (2) first!
+문이 열렸다! 이제 위쪽 문으로 던전에 들어가자	The door is open! Head through the top door into the dungeon
+<color=#FFB060>미노타우로스가 벽에 처박혀 크게 휘청인다!</color>	<color=#FFB060>The Minotaur slams into the wall and staggers hard!</color>
+세트 효과 「{0}」	Set Effect "{0}"

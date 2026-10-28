@@ -99,7 +99,7 @@ namespace LoopRogue
         public const float RecurrenceMax = 0.1f;
         public const int PuzzleGloveRewardMultiplier = 2;   // 퍼즐 장인의 장갑 - 퍼즐 성공 골드·영약
         public const float MerchantSealDiscount = 0.8f;     // 상인의 인장 - 던전 상인만(로비 상점 제외)
-        public const float BloodHunterHealRate = 0.02f;     // 피의 사냥꾼 - 처치마다 최대 체력의
+        public const float BloodHunterHealRate = 0.08f;     // 피의 사냥꾼 - 처치마다 최대 체력의(10-28 사용자 "너무 약하다" 2 → 8%, 처치 회복 카드 1장 12%)
         public const float EliteHunterDamage = 1.3f;        // 정예 사냥꾼 - 정예·미믹에게 주는 피해
         public const int EliteHunterGoldMultiplier = 2;     // 정예 사냥꾼 - 미믹·도전의 깃발 보상 골드
         public const int EchoBladeEvery = 3;                // 메아리 칼날 - 일반 공격 n번째마다
@@ -140,7 +140,7 @@ namespace LoopRogue
             { RelicType.PuzzleGlove, (Loc.T("퍼즐 장인의 장갑"), Loc.T("퍼즐·미니게임 성공 보상(골드·영약) 2배")) },
             { RelicType.MerchantSeal, (Loc.T("상인의 인장"), Loc.T("던전 떠돌이 상인 가격 -20%")) },
             { RelicType.ContractBrand, (Loc.T("계약자의 낙인"), Loc.T("저주 계약의 대가가 절반")) },
-            { RelicType.BloodHunter, (Loc.T("피의 사냥꾼"), Loc.T("몹을 처치할 때마다 최대 체력의 2% 회복")) },
+            { RelicType.BloodHunter, (Loc.T("피의 사냥꾼"), Loc.T("몹을 처치할 때마다 최대 체력의 8% 회복")) },
             { RelicType.EliteHunter, (Loc.T("정예 사냥꾼"), Loc.T("정예 몹·미믹에게 주는 피해 +30%, 미믹·도전의 깃발 보상 골드 2배")) },
             { RelicType.EchoBlade, (Loc.T("메아리 칼날"), Loc.T("일반 공격 3번째마다 같은 대상을 한 번 더 벤다(25% 피해, 흡혈 없음)")) },
             { RelicType.AlchemistPouch, (Loc.T("연금술사의 주머니"), Loc.T("아이템을 종류마다 2개까지 가질 수 있다")) },

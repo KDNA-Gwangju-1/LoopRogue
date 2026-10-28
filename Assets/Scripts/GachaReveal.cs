@@ -424,6 +424,148 @@ namespace LoopRogue
             }
         }
 
+        // ------------------------------------------------------------ Unknown 벼리기(10-28 사용자 "언노운 획득 연출을 이쁘게")
+        /// <summary>대장장이가 Unknown 세트를 벼려 줄 때(NpcActor.ForgeSet) - 어두워진 화면에 지금 낀 영원 장비 셋이 뜨고, 망치질 세 번에
+        /// 하나씩 청록 글리치로 지지직거리다 Unknown으로 바뀐다. 셋 다 바뀌면 청록 빛줄기 + 무작위 글자가 "Unknown"으로 맞춰지며 세트 효과.
+        /// 클릭/Space로 넘기면 남은 망치질을 건너뛰고, 다 나온 뒤 한 번 더 누르면 닫힌다. 봇 실행 중엔 연출 없이 바로 onDone.</summary>
+        public static void PlayUnknownForge(Action onDone)
+        {
+            if (DamagePopup.Suppressed)
+            {
+                onDone();
+                return;
+            }
+            if (_instance == null)
+                _instance = Create();
+            if (_instance == null || _instance._playing)
+            {
+                onDone();
+                return;
+            }
+            _instance.gameObject.SetActive(true);
+            _instance.StartCoroutine(_instance.RunUnknownForge(onDone));
+        }
+
+        private const string GlitchChars = "#%&?@$*+=/<>01X";
+
+        private IEnumerator RunUnknownForge(Action onDone)
+        {
+            _playing = true;
+            _hint.gameObject.SetActive(false);
+            _skipAll = false;
+            _skipButton.gameObject.SetActive(true);
+            var cyan = EquipmentData.Grades[ItemGrade.Unknown].Color;
+            var spark = new Color(1f, 0.72f, 0.35f);
+            var slots = new[] { ItemSlot.Weapon, ItemSlot.Armor, ItemSlot.Accessory };
+            var spots = new Vector2[3];
+            var icons = new Image[3];
+
+            // 1) 어두워지고 지금 낀 영원 장비 셋이 차례로 떠오른다
+            yield return Tween(0.4f, t => _dim.color = new Color(0f, 0f, 0f, 0.86f * t));
+            for (var i = 0; i < 3; i++)
+            {
+                spots[i] = new Vector2((i - 1) * 180f, 30f);
+                icons[i] = MakeImage(_shakeRoot, "Equip" + i, EquipIcon(slots[i], ItemGrade.Eternal), spots[i]);
+                var img = icons[i];
+                SfxPlayer.PlayPitched(Sfx.Appear, 0.9f + 0.1f * i);
+                yield return Tween(CheckSkip() ? 0.01f : 0.16f, t => img.rectTransform.localScale = Vector3.one * Mathf.LerpUnclamped(0.3f, 1f, EaseOutBack(t)));
+            }
+            if (!CheckSkip())
+                yield return Wait(0.35f);
+
+            // 2) 망치질 세 번 - 불꽃 + 흔들림, 그 장비가 청록 글리치로 떨리다 Unknown으로
+            for (var i = 0; i < 3; i++)
+            {
+                var img = icons[i];
+                var unknown = EquipIcon(slots[i], ItemGrade.Unknown);
+                if (!CheckSkip())
+                {
+                    SfxPlayer.Play(Sfx.Slam);
+                    _shake = 14f;
+                    StartCoroutine(Flash(Color.white, 0.5f));
+                    Burst(spots[i] + new Vector2(0f, 40f), spark, 16);
+                    for (var t = 0f; t < 0.5f && !CheckSkip(); t += Time.deltaTime)
+                    {
+                        var jitter = UnityEngine.Random.value < 0.6f ? UnityEngine.Random.Range(-7f, 7f) : 0f;
+                        img.rectTransform.anchoredPosition = spots[i] + new Vector2(jitter, 0f);
+                        img.sprite = UnityEngine.Random.value < 0.35f ? unknown : EquipIcon(slots[i], ItemGrade.Eternal);
+                        img.color = UnityEngine.Random.value < 0.5f ? cyan : Color.white;
+                        yield return null;
+                    }
+                }
+                img.sprite = unknown;
+                img.color = Color.white;
+                img.rectTransform.anchoredPosition = spots[i];
+                if (!CheckSkip())
+                {
+                    SfxPlayer.PlayPitched(Sfx.GradeUp, 1f + 0.15f * i);
+                    StartCoroutine(Flash(cyan, 0.45f));
+                    Burst(spots[i], cyan, 22);
+                    _shake = 9f;
+                    yield return Wait(0.4f);
+                }
+            }
+
+            // 3) 완성 - 뒤에서 청록 빛줄기, 큰 번쩍임, 반짝이
+            if (_rays != null)
+            {
+                var rays = MakeImage(_shakeRoot, "Rays", _rays, new Vector2(0f, 30f));
+                rays.transform.SetSiblingIndex(0); // 장비 뒤
+                rays.color = new Color(cyan.r, cyan.g, cyan.b, 0.5f);
+                rays.rectTransform.localScale = Vector3.one * 1.7f;
+                StartCoroutine(Spin(rays.rectTransform, 28f));
+            }
+            SfxPlayer.Play(Sfx.Fanfare);
+            StartCoroutine(Flash(Color.Lerp(Color.white, cyan, 0.5f), 0.8f));
+            _shake = 16f;
+            Burst(new Vector2(0f, 30f), cyan, 40);
+            StartCoroutine(Twinkle(new Vector2(0f, 30f), cyan, 0.07f));
+            for (var i = 0; i < 3; i++)
+                StartCoroutine(Bob(icons[i].rectTransform, spots[i]));
+
+            // 4) 이름 - 무작위 글자가 한 자씩 "Unknown"으로 맞춰진다
+            const string name = "Unknown";
+            var title = MakeText(_shakeRoot, "Title", 46, cyan, new Vector2(0f, 190f), 700f);
+            title.fontStyle = FontStyle.Bold;
+            var chars = new char[name.Length];
+            for (var step = 0; step <= name.Length * 3 && !CheckSkip(); step++)
+            {
+                var fixedCount = step / 3;
+                for (var k = 0; k < name.Length; k++)
+                    chars[k] = k < fixedCount ? name[k] : GlitchChars[UnityEngine.Random.Range(0, GlitchChars.Length)];
+                title.text = new string(chars);
+                if (step % 3 == 0)
+                    SfxPlayer.PlayPitched(Sfx.GradeUp, 1.4f + 0.05f * fixedCount);
+                yield return Wait(0.045f);
+            }
+            title.text = name;
+            var setName = MakeText(_shakeRoot, "SetName", 20, Color.white, new Vector2(0f, -110f), 900f);
+            setName.text = Loc.F("세트 효과 「{0}」", EquipmentEffects.MemorySetName);
+            var setDesc = MakeText(_shakeRoot, "SetDesc", 16, new Color(0.8f, 0.9f, 0.9f), new Vector2(0f, -142f), 900f);
+            setDesc.text = EquipmentEffects.MemorySetDescription;
+
+            // 5) 닫기 - 클릭/Space
+            _skipButton.gameObject.SetActive(false);
+            _hint.gameObject.SetActive(true);
+            for (var t = 0f; ; t += Time.deltaTime)
+            {
+                if (t > 0.4f && SkipPressed())
+                    break;
+                yield return null;
+            }
+            _hint.gameObject.SetActive(false);
+            yield return Tween(0.2f, t =>
+            {
+                _dim.color = new Color(0f, 0f, 0f, 0.86f * (1f - t));
+                _shakeRoot.localScale = Vector3.one * (1f - 0.05f * t);
+            });
+            _playing = false;
+            Cleanup();
+            _closedFrame = Time.frameCount;
+            gameObject.SetActive(false);
+            onDone();
+        }
+
         // ------------------------------------------------------------ 도우미
         /// <summary>등급별 장비 그림(Equip_{부위}_{등급}, 24x24) - 없으면 부위 공용 그림.</summary>
         public static Sprite EquipIcon(ItemSlot slot, ItemGrade grade) =>

@@ -16,6 +16,19 @@ namespace LoopRogue
         public const string DoneKey = "LoopRogue_TutorialStageDone";
         public const string RewardKey = "LoopRogue_TutorialRewardGiven"; // 완료 보상은 한 번만(타이틀에서 다시 해도 또 안 줌)
         public const int RewardGold = 100;
+        /// <summary>10-28 사용자 - 처음 튜토리얼을 마치면 바로 1층 대신 로비로, 보상 골드로 뽑기나 영약을 하나라도 사기 전엔 던전 문이 잠긴다.</summary>
+        public const string FirstShopKey = "LoopRogue_TutorialFirstShopPending";
+        public static bool FirstShopPending => PlayerPrefs.GetInt(FirstShopKey, 0) == 1;
+
+        /// <summary>로비에서 뽑기·영약을 샀다 - 첫 구매 잠금을 푼다. 방금 풀었으면 true.</summary>
+        public static bool CompleteFirstShop()
+        {
+            if (!FirstShopPending)
+                return false;
+            PlayerPrefs.DeleteKey(FirstShopKey);
+            PlayerPrefs.Save();
+            return true;
+        }
         private const float CompleteDelaySeconds = 2.8f;
         public const int RoomCount = 7;
 
@@ -227,13 +240,17 @@ namespace LoopRogue
             {
                 GoldWallet.Add(RewardGold);
                 PlayerPrefs.SetInt(RewardKey, 1);
+                if (!_fromTitle && !BossRush.Trailer)
+                    PlayerPrefs.SetInt(FirstShopKey, 1);
                 PlayerPrefs.Save();
             }
             room.ShowMessage(firstReward
                 ? Loc.F("<color=#FFD966>튜토리얼 완료!</color>  골드 +{0}", RewardGold)
                 : Loc.T("<color=#FFD966>튜토리얼 완료!</color>"));
             if (!BossRush.Trailer)
-                room.ShowMessage(_fromTitle ? Loc.T("잠시 후 타이틀로 돌아갑니다") : Loc.T("이제 진짜 던전으로 내려갑니다..."));
+                room.ShowMessage(_fromTitle ? Loc.T("잠시 후 타이틀로 돌아갑니다")
+                    : FirstShopPending ? Loc.T("로비로 돌아갑니다 - 받은 골드로 먼저 강해지자!")
+                    : Loc.T("이제 진짜 던전으로 내려갑니다..."));
             if (room.Player != null)
                 HitFeedback.OnBonusReward(room.Player);
             room.StartCoroutine(FinishAfterDelay());
@@ -249,8 +266,8 @@ namespace LoopRogue
         {
             Active = false;
             Inventory.LoseAll();
-            if (BossRush.Trailer)
-                UnityEngine.SceneManagement.SceneManager.LoadScene("Lobby"); // 트레일러 - 튜토리얼 다음은 로비, 던전에 들어가면 보스 러시
+            if (BossRush.Trailer || (!_fromTitle && FirstShopPending))
+                UnityEngine.SceneManagement.SceneManager.LoadScene("Lobby"); // 트레일러 - 튜토리얼 다음은 로비, 던전에 들어가면 보스 러시 / 처음 마친 사람은 로비에서 첫 구매부터
             else if (_fromTitle)
                 UnityEngine.SceneManagement.SceneManager.LoadScene("Title");
             else

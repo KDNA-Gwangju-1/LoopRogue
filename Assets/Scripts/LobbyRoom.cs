@@ -35,6 +35,9 @@ namespace LoopRogue
         private readonly List<Npc> _npcs = new List<Npc>();
         private readonly HashSet<Vector2Int> _blocked = new HashSet<Vector2Int>();
         private Action _onDoor;
+        /// <summary>문이 잠겼는지(튜토리얼 뒤 첫 구매 전, LobbyBootstrap) - 잠겼으면 문 칸으로 안 들어가고 OnDoorLocked만.</summary>
+        public Func<bool> DoorLocked;
+        public Action OnDoorLocked;
         private Walker _player;
         private SpriteRenderer _playerRenderer;
         private Vector2Int _facing = Vector2Int.up;
@@ -69,6 +72,14 @@ namespace LoopRogue
         }
 
         public bool NearDoor => _player.GridPos == DoorCell + Vector2Int.down;
+
+        private void EnterDoor()
+        {
+            if (DoorLocked != null && DoorLocked())
+                OnDoorLocked?.Invoke();
+            else
+                _onDoor();
+        }
 
         public static LobbyRoom Create(Action onDoor, string doorLabel)
         {
@@ -227,13 +238,13 @@ namespace LoopRogue
                 return;
             }
 
-            if (GameInput.Down(Key.Space) || GameInput.Down(Key.Enter) || GameInput.Down(Key.F))
+            if (GameInput.Down(Key.Space) || GameInput.Down(Key.Enter)) // F 키는 10-28에 뺐다(부딪히거나 Space)
             {
                 var npc = Nearby;
                 if (npc != null)
                     Talk(npc);
                 else if (NearDoor)
-                    _onDoor();
+                    EnterDoor();
             }
         }
 
@@ -301,6 +312,11 @@ namespace LoopRogue
             var target = _player.GridPos + dir;
             if (target == DoorCell)
             {
+                if (DoorLocked != null && DoorLocked())
+                {
+                    OnDoorLocked?.Invoke();
+                    return;
+                }
                 MoveTo(target);
                 _onDoor();
                 return;

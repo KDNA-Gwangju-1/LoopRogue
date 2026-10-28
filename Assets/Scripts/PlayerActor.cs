@@ -216,7 +216,7 @@ namespace LoopRogue
                     _room.ShowMessage(Loc.F("미끼! {0}턴 동안 몹들이 허수아비를 노린다", ItemInfo.DecoyTurns));
                     break;
                 case ItemType.Trap:
-                    _room.PlaceTrap(target);
+                    _room.PlaceTrap(target, target - GridPos); // 덫은 늘 옆 칸 - 그 방향으로 2x2
                     _room.ShowMessage(Loc.T("덫을 놓았다"));
                     break;
                 case ItemType.Smoke:
@@ -556,7 +556,8 @@ namespace LoopRogue
 
         /// <summary>지금 이동/공격 입력을 받을 수 있는 상태인지(키 입력과 자동 플레이 봇이 같은 조건을 쓴다).</summary>
         public bool CanAct => _room != null && !_room.IsInputLocked && !Levels.IsChoosingUpgrade && !Stats.IsDead && !PauseMenu.BlocksInput && !InventoryUI.IsOpen
-                              && !NpcDialogUI.BlocksInput; // 대화창을 닫은 키(Space/숫자)가 대기/퀵슬롯으로 또 읽히지 않게 닫힌 프레임까지
+                              && !NpcDialogUI.BlocksInput // 대화창을 닫은 키(Space/숫자)가 대기/퀵슬롯으로 또 읽히지 않게 닫힌 프레임까지
+                              && !GachaReveal.BlocksInput; // Unknown 벼리기 연출(대장장이)
 
         /// <summary>자동 플레이 봇용 - 방향키 한 번 누른 것과 똑같이 한 턴 행동한다.</summary>
         public void BotAct(Vector2Int direction)
@@ -724,12 +725,6 @@ namespace LoopRogue
                 return;
             }
 
-            if (GameInput.Down(Key.F))
-            {
-                TryTalk();
-                return;
-            }
-
             if (AimingItem.HasValue)
             {
                 if (GameInput.Down(Key.Q) || GameInput.Down(Key.E))
@@ -792,25 +787,6 @@ namespace LoopRogue
         }
 
         /// <summary>F - 주변 8칸의 NPC와 대화(턴 소모 없음). 방향 고르기 중이면 취소하고 연다.</summary>
-        private void TryTalk()
-        {
-            if (_room.TryViewMural(GridPos))
-            {
-                IsAimingDash = false;
-                AimingItem = null;
-                return; // 벽화의 방 - 벽화 큰 그림(10-19)
-            }
-            var npc = _room.FindNpcNear(GridPos);
-            if (npc == null)
-            {
-                _room.ShowMessage(Loc.T("주변에 말을 걸 상대가 없다"));
-                return;
-            }
-            IsAimingDash = false;
-            AimingItem = null;
-            npc.Talk(this);
-        }
-
         /// <summary>퍼즐이 직접 처리한 행동도 한 턴으로 친다(쿨타임·재생·몹 턴·퍼즐 턴 끝).</summary>
         public void ConsumeTurn()
         {
@@ -856,13 +832,19 @@ namespace LoopRogue
             }
 
             if (!Map.IsInBounds(targetPos) || Map.IsWall(targetPos))
+            {
+                _room.TryViewMuralAt(targetPos); // 벽화의 방 - 벽화에 부딪히면 큰 그림(10-28 F 키 대신)
                 return; // 방 끝/벽 방향으로 헛눌러도 턴 소모 없음 - 로그라이크 관례.
+            }
 
             var occupant = Map.GetActorAt(targetPos);
 
             if (occupant is NpcActor npc)
             {
-                _room.ShowMessage(Loc.F("{0} - F 키로 대화", npc.DisplayName)); // 부딪혀도 턴 소모 없음
+                // 10-28 사용자 - F 키 대신 몬스터 때리듯 부딪히면 대화(턴 소모 없음)
+                IsAimingDash = false;
+                AimingItem = null;
+                npc.Talk(this);
                 return;
             }
 

@@ -117,9 +117,8 @@ namespace LoopRogue
             Add(root, "◀", Corner.BottomLeft, pad + new Vector2(-step, 0f), size, Key.A, PadVisible, repeat: true);
             Add(root, "▶", Corner.BottomLeft, pad + new Vector2(step, 0f), size, Key.D, PadVisible, repeat: true);
 
-            // 오른쪽 아래 - 대기 / 대화(F) / 능력치(Tab)
+            // 오른쪽 아래 - 대기 / 능력치(Tab). 대화는 NPC에게 부딪혀서(10-28 - 대화 버튼·F 키 없앰)
             Add(root, "대기", Corner.BottomRight, new Vector2(-130f, 150f), 110f, Key.Space, Playing);
-            Add(root, "대화", Corner.BottomRight, new Vector2(-250f, 95f), 80f, Key.F, Playing);
             Add(root, "능력치", Corner.BottomRight, new Vector2(-250f, 195f), 80f, Key.Tab, Playing);
 
             // 오른쪽 위 - 메뉴(Esc). 게임 밖(타이틀·로비)에선 Esc가 "뒤로"라 이름도 바꾼다(Update).

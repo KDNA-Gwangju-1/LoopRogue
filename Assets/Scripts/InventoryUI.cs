@@ -6,7 +6,7 @@ namespace LoopRogue
 {
     /// <summary>화면 아래 액션바의 퀵슬롯 3칸(1/2/3 키, GameHUD의 Q/E 칸 옆 - 배치는 ActionBarLayout) + 가방 칸 + I 키로 여닫는
     /// 인벤토리 창(아이템 10칸). 아이템은 퀵슬롯에 등록된 것만 쓸 수 있고(사용자 결정), 창은 등록용이다 - 방향키나 클릭으로 고르고
-    /// 1/2/3 키나 아래 퀵슬롯 칸 클릭 = 그 퀵슬롯에 등록, I·닫기 버튼 = 닫기. 창이 열려 있는 동안은 게임 입력이 멈춘다
+    /// 1/2/3 키나 아래 퀵슬롯 칸 클릭 = 그 퀵슬롯에 등록, I·Esc·닫기 버튼 = 닫기. 창이 열려 있는 동안은 게임 입력이 멈춘다
     /// (PlayerActor.CanAct). 업그레이드 카드와 같은 이유로 EventSystem 없이 Keyboard/Pointer.current로 직접 읽는다.</summary>
     public class InventoryUI : MonoBehaviour
     {
@@ -53,6 +53,8 @@ namespace LoopRogue
 
             if (GameInput.Down(Key.I))
                 ToggleOpen();
+            else if (IsOpen && GameInput.Down(Key.Escape))
+                SetOpen(false); // 10-28 사용자 - I로 열고 Esc로도 닫기(같은 프레임 Esc 메뉴는 LoopManager가 LastCloseFrame으로 막는다)
 
             HandleMouse();
 
@@ -157,7 +159,7 @@ namespace LoopRogue
             }
             var cur = (ItemType)_cursor;
             _detailName.text = $"{ItemInfo.Name(cur)}{(Inventory.Has(cur) ? "" : Loc.T("  <color=#888888>(없음)</color>"))}";
-            _detail.text = Loc.F("{0}\n<color=#9AA0AA>방향키·클릭: 고르기   1/2/3 키·아래 퀵슬롯 클릭: 등록(등록된 것만 사용 가능)   I: 닫기</color>", ItemInfo.Description(cur));
+            _detail.text = Loc.F("{0}\n<color=#9AA0AA>방향키·클릭: 고르기   1/2/3 키·아래 퀵슬롯 클릭: 등록(등록된 것만 사용 가능)   I·Esc: 닫기</color>", ItemInfo.Description(cur));
 
             for (var s = 0; s < Inventory.QuickSlotCount; s++)
             {

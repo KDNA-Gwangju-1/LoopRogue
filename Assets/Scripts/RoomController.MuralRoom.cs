@@ -178,16 +178,14 @@ namespace LoopRogue
         }
 
         /// <summary>F - 벽화의 방에서 벽화(가운데 3칸) 둘레에 서 있으면 큰 그림 창을 다시 연다. 열었으면 true.</summary>
-        public bool TryViewMural(Vector2Int from)
+        /// <summary>벽화(3칸 벽)에 부딪혔다 - 큰 그림 창(10-28 F 키 대신 부딪혀서). 벽화 칸이 아니면 false.</summary>
+        public bool TryViewMuralAt(Vector2Int cell)
         {
             var center = new Vector2Int(MuralWidth / 2, MuralHeight - 1);
             if (!_wallObjects.TryGetValue(center, out var go) || go == null || go.name != "Mural")
                 return false; // 벽화의 방이 아니다
-            if (Mathf.Abs(from.x - center.x) > 2 || Mathf.Abs(from.y - center.y) > 1)
-            {
-                ShowMessage(Loc.T("벽화에 더 가까이 가자"));
-                return true;
-            }
+            if (cell.y != center.y || Mathf.Abs(cell.x - center.x) > 1)
+                return false;
             ShowMural(_stage);
             return true;
         }

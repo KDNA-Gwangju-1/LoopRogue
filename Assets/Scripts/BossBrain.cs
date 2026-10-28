@@ -175,6 +175,23 @@ namespace LoopRogue
         private readonly HashSet<Vector2Int> _pendingTiles = new HashSet<Vector2Int>();
         private Vector2Int _chargeDirection;
 
+        // ---- 8층 벽 튕김 돌진(10-28 사용자) - 돌진이 벽에 막히면 플레이어 쪽 옆으로 90도 꺾여 한 번 더 달린다.
+        // 꺾인 돌진이 벽(조여 온 벽·기둥 포함)에 처박히면 평소보다 BounceCrashExtraStun턴 더 비틀거린다 - 각도를 읽고 보스를 벽에 박게 서는 게 공략.
+        public const int BounceCrashExtraStun = 2;
+        private Vector2Int? _bounceDir;                                          // 이번 돌진이 꺾일 방향(예고 때 정함, 없으면 안 꺾임)
+        private readonly HashSet<Vector2Int> _bounceTiles = new HashSet<Vector2Int>(); // 꺾인 뒤 쓸고 갈 칸(예고는 주황)
+        public static int BounceCount, BounceCrashCount;                         // 봇 통계용
+
+        // ---- 8층 3연속 돌진(10-28 사용자) - 체력 ComboChargeHealthRatio 아래에서 돌진은 3번 이어서. 세 방향은 처음에 다 정해 보스 머리 위에 화살표로
+        // 미리 보여 준다(RoomController.ShowChargeCombo). 첫 번째는 플레이어 쪽, 다음은 앞 돌진이 끝날 자리에서 그때 플레이어가 있던 쪽.
+        // 사이엔 비틀거림 없이 바로 다음 예고, 세 번째가 끝나야 평소처럼 비틀거린다. 화살표와 어긋나지 않게 이 동안 벽 튕김은 없다.
+        public const float ComboChargeHealthRatio = 0.3f;
+        public const int ComboChargeCount = 3;
+        public const int ComboDiagonalMin = 2;
+        private List<Vector2Int> _comboDirs;  // null이면 연속 돌진 중이 아님
+        private int _comboIndex;              // 지금 예고 중인 돌진(0부터)
+        public static int ComboChargeCount3;  // 봇 통계용 - 3연속 돌진을 시작한 횟수
+
         public BossBrain(EnemyActor boss, List<BossPatternType> patterns, int stage)
         {
             _boss = boss;
@@ -289,6 +306,7 @@ namespace LoopRogue
         /// <summary>섬광탄 - 예고해둔 공격(저격 후속 포함)을 없던 일로.</summary>
         public void CancelPending(RoomController room)
         {
+            EndCombo(room);
             _cancelled = true; // Resolve 도중(반사 → 거울 깨기)이면 후속 패턴을 걸지 않게
             _pending = null;
             _jumpTarget = null;
@@ -533,17 +551,31 @@ namespace LoopRogue
                                               // 촛불이 켜져 있는 동안도 저격만(촛불은 저격으로만 꺼진다 - 10-15 사용자, 봇 100판에서 제한 시간 즉사 판당 16회)
                                               // 영혼 과녁 동안도 저격만(X자·마름모를 과녁에서 비키는 기믹 - 10-23 사용자)
 
+            if (type == BossPatternType.Charge && _stage == 8 && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * ComboChargeHealthRatio)
+            {
+                _comboDirs = PlanComboDirs(player, room.Map);
+                _comboIndex = 0;
+                ComboChargeCount3++;
+            }
             ComputeTiles(type, player, room.Map);
             if (_pendingTiles.Count == 0)
+            {
+                EndCombo(room);
                 return false; // 쓸 칸이 없으면(구석 등) 그냥 일반 행동
+            }
+            if (_comboDirs != null)
+                room.ShowChargeCombo(_boss, _comboDirs, _comboIndex);
 
             _pending = type;
             var shownTiles = HallucinatedTiles(type, room);
             _hallucinatedShown = shownTiles != null;
             // 환각 중엔 예고 칸 모양·소리도 반대 패턴으로(10-23) - 파동/역파동 그림이 달라서, 모양만 보고 속임수를 알아채지 않게
             var shownType = shownTiles == null ? type : type == BossPatternType.Ring ? BossPatternType.RingInverse : BossPatternType.Ring;
-            room.ShowTelegraph(_pendingTiles, type == BossPatternType.Encircle ? DashTelegraphColor : (Color?)null, shownTiles,
-                shownType, type == BossPatternType.Charge ? _chargeDirection : type == BossPatternType.AxeWave ? _axeDir : (Vector2Int?)null);
+            if (type == BossPatternType.Charge && _bounceDir.HasValue)
+                room.ShowBounceChargeTelegraph(_pendingTiles.Where(t => !_bounceTiles.Contains(t)), _chargeDirection, _bounceTiles, _bounceDir.Value);
+            else
+                room.ShowTelegraph(_pendingTiles, type == BossPatternType.Encircle ? DashTelegraphColor : (Color?)null, shownTiles,
+                    shownType, type == BossPatternType.Charge ? _chargeDirection : type == BossPatternType.AxeWave ? _axeDir : (Vector2Int?)null);
             if (type == BossPatternType.Jump && HitFeedback.Enabled)
             {
                 // 점프 준비 - 움츠린다(점프 그림이 있으면 그 그림으로 예고 턴 내내, 없으면 한 번 찌그러지기)
@@ -710,14 +742,21 @@ namespace LoopRogue
 
             if (type == BossPatternType.Charge)
             {
-                var crashed = DoChargeMove(room);
-                _stunTurns = crashed ? BoarCrashStunTurns : ChargeStunTurns;
+                var crashed = DoChargeMove(room, out var bounceCrashed);
+                _stunTurns = crashed ? BoarCrashStunTurns : ChargeStunTurns + (bounceCrashed ? BounceCrashExtraStun : 0);
+                if (bounceCrashed)
+                {
+                    BounceCrashCount++;
+                    room.ShowMessage(Loc.T("<color=#FFB060>미노타우로스가 벽에 처박혀 크게 휘청인다!</color>"));
+                    if (HitFeedback.Enabled)
+                        CameraShake.Shake(0.35f, 0.6f);
+                }
                 if (crashed && IsBoar)
                 {
                     BoarCrashCount++;
                     TrailerControls.Cue(TrailerCue.BoarCrash);
                 }
-                if (!crashed)
+                if (!crashed && !bounceCrashed)
                     room.ShowMessage(Loc.T("보스가 돌진 후 비틀거린다!"));
                 else if (!IsBoar)
                 {
@@ -838,6 +877,26 @@ namespace LoopRogue
                 }
                 else
                     _mirrorWaves.Clear();
+            }
+
+            if (type == BossPatternType.Charge && _comboDirs != null)
+            {
+                if (_comboIndex + 1 < _comboDirs.Count && !player.Stats.IsDead && !_boss.Stats.IsDead)
+                {
+                    _comboIndex++;
+                    ComputeTiles(BossPatternType.Charge, player, room.Map);
+                    if (_pendingTiles.Count > 0)
+                    {
+                        _stunTurns = 0; // 사이엔 비틀거리지 않는다
+                        _pending = BossPatternType.Charge;
+                        room.ShowTelegraph(_pendingTiles, pattern: BossPatternType.Charge, direction: _chargeDirection);
+                        room.ShowChargeCombo(_boss, _comboDirs, _comboIndex);
+                    }
+                    else
+                        EndCombo(room);
+                }
+                else
+                    EndCombo(room);
             }
 
             if (type == BossPatternType.Snipe && !player.Stats.IsDead)
@@ -1087,28 +1146,41 @@ namespace LoopRogue
                 }
                 case BossPatternType.Charge:
                 {
+                    _bounceDir = null;
+                    _bounceTiles.Clear();
                     var diff = player.GridPos - origin;
                     _chargeDirection = Mathf.Abs(diff.x) >= Mathf.Abs(diff.y)
                         ? new Vector2Int(System.Math.Sign(diff.x), 0)
                         : new Vector2Int(0, System.Math.Sign(diff.y));
                     if (_chargeDirection == Vector2Int.zero)
                         _chargeDirection = Vector2Int.left;
+                    if (_comboDirs != null)
+                        _chargeDirection = _comboDirs[_comboIndex]; // 8층 3연속 - 머리 위에 보여 준 방향 그대로
                     if (body == 0)
                     {
                         AddRay(map, origin, _chargeDirection, ChargeDistance);
                         break;
                     }
                     // 큰 몸은 몸 폭만큼의 띠를 쓸고 간다 - 몸이 벽에 닿기 직전까지(캐릭터는 예고만 통과, 실제 돌진은 DoChargeMove가 막힘 확인)
-                    for (var k = 1; k <= ChargeDistance; k++)
+                    var end = SweepCharge(map, origin, _chargeDirection, body, null, out var hitWall);
+                    // 8층 - 벽에 막히면 플레이어 쪽 옆으로 꺾여 한 번 더(플레이어가 같은 줄이면 더 멀리 달릴 수 있는 쪽)
+                    if (_stage == 8 && hitWall && _comboDirs == null)
                     {
-                        var center = origin + _chargeDirection * k;
-                        var fits = true;
-                        foreach (var p in GridMap.Cells(center, body))
-                            fits &= map.IsInBounds(p) && !map.IsWall(p);
-                        if (!fits)
+                        var side = _chargeDirection.x != 0 ? Vector2Int.up : Vector2Int.right;
+                        var toward = side.x != 0 ? player.GridPos.x - end.x : player.GridPos.y - end.y;
+                        var first = toward < 0 ? -side : toward > 0 ? side : (SweepLength(map, end, side, body) >= SweepLength(map, end, -side, body) ? side : -side);
+                        foreach (var d in new[] { first, -first })
+                        {
+                            if (SweepLength(map, end, d, body) == 0)
+                                continue;
+                            _bounceDir = d;
+                            var firstLeg = new HashSet<Vector2Int>(_pendingTiles);
+                            SweepCharge(map, end, d, body, _bounceTiles, out _);
+                            // 꺾인 띠의 첫 칸은 첫 띠 끝과 몸 두 줄이 겹친다 - 겹친 칸은 첫 띠(빨강·원래 화살표)로 두고, 보스 몸 칸(예고 안 함)도 뺀다
+                            _bounceTiles.ExceptWith(firstLeg);
+                            _bounceTiles.IntersectWith(_pendingTiles);
                             break;
-                        foreach (var p in GridMap.Cells(center, body))
-                            AddTile(map, p);
+                        }
                     }
                     break;
                 }
@@ -1117,8 +1189,9 @@ namespace LoopRogue
 
         /// <summary>돌진 방향으로 벽/다른 캐릭터에 막히기 직전 칸까지 이동(플레이어가 길 위에 있으면 그 앞까지).
         /// 멧돼지 기둥에 막혔으면 그 기둥을 부수고 true(남은 거리를 다 달리기 전에 막혀도).</summary>
-        private bool DoChargeMove(RoomController room)
+        private bool DoChargeMove(RoomController room, out bool bounceCrashed)
         {
+            bounceCrashed = false;
             var map = room.Map;
             var pos = _boss.GridPos;
             var blockedAt = (Vector2Int?)null;
@@ -1132,6 +1205,25 @@ namespace LoopRogue
                 }
                 pos = next;
             }
+            // 8층 벽 튕김 - 벽(사람이 아니라)에 막혔고 꺾을 방향을 예고해 뒀으면 그쪽으로 한 번 더. 다시 벽에 막히면 처박힘.
+            if (_bounceDir.HasValue && blockedAt.HasValue && BlockedByWall(map, blockedAt.Value))
+            {
+                BounceCount++;
+                var d = _bounceDir.Value;
+                blockedAt = null;
+                for (var i = 0; i < ChargeDistance; i++)
+                {
+                    var next = pos + d;
+                    if (!map.CanOccupy(_boss, next))
+                    {
+                        blockedAt = next;
+                        break;
+                    }
+                    pos = next;
+                }
+                bounceCrashed = blockedAt.HasValue && BlockedByWall(map, blockedAt.Value);
+            }
+            _bounceDir = null;
             if (pos != _boss.GridPos)
                 map.MoveActor(_boss, pos);
             if (!blockedAt.HasValue)
@@ -1140,6 +1232,76 @@ namespace LoopRogue
             if (room.BoarPillarCount > 0 && room.BreakBoarPillars(front))
                 return true;
             return room.TryLavaFall(front, _boss); // 8층 미노타우로스 - 용암 균열에 빠짐(피해·기절은 RoomController가)
+        }
+
+        /// <summary>8층 3연속 돌진 방향 - 지금 플레이어 자리를 향해, 앞 돌진이 끝날 자리(벽만 보고 미리 계산)에서 차례로 정한다.
+        /// 그쪽으로 한 칸도 못 가면 다른 축, 그것도 막히면 가장 멀리 갈 수 있는 쪽.
+        /// 2·3번째는 플레이어가 대각선 쪽(두 축 다 ComboDiagonalMin칸 이상, 비율 2배 안)이면 대각선으로(10-28 사용자) - 첫 번째는 예고가 한 턴뿐이라 상하좌우만.</summary>
+        private List<Vector2Int> PlanComboDirs(PlayerActor player, GridMap map)
+        {
+            var dirs = new List<Vector2Int>();
+            var body = _boss.FootprintRadius;
+            var pos = _boss.GridPos;
+            var target = player.GridPos;
+            for (var i = 0; i < ComboChargeCount; i++)
+            {
+                var diff = target - pos;
+                var main = Mathf.Abs(diff.x) >= Mathf.Abs(diff.y) ? new Vector2Int(System.Math.Sign(diff.x), 0) : new Vector2Int(0, System.Math.Sign(diff.y));
+                var other = main.x != 0 ? new Vector2Int(0, System.Math.Sign(diff.y)) : new Vector2Int(System.Math.Sign(diff.x), 0);
+                var diagonal = new Vector2Int(System.Math.Sign(diff.x), System.Math.Sign(diff.y));
+                var ax = Mathf.Abs(diff.x);
+                var ay = Mathf.Abs(diff.y);
+                var useDiagonal = i > 0 && ax >= ComboDiagonalMin && ay >= ComboDiagonalMin && ax <= ay * 2 && ay <= ax * 2;
+                var d = (useDiagonal ? new[] { diagonal, main, other } : new[] { main, other })
+                    .FirstOrDefault(c => c != Vector2Int.zero && SweepLength(map, pos, c, body) > 0);
+                if (d == Vector2Int.zero)
+                    d = Directions.OrderByDescending(c => SweepLength(map, pos, c, body)).First();
+                dirs.Add(d);
+                pos += d * SweepLength(map, pos, d, body);
+            }
+            return dirs;
+        }
+
+        private void EndCombo(RoomController room)
+        {
+            if (_comboDirs == null)
+                return;
+            _comboDirs = null;
+            _comboIndex = 0;
+            room?.ClearChargeCombo();
+        }
+
+        /// <summary>몸이 center에 섰을 때 막는 게 벽·방 끝인지(캐릭터가 아니라).</summary>
+        private bool BlockedByWall(GridMap map, Vector2Int center)
+        {
+            foreach (var p in GridMap.Cells(center, _boss.FootprintRadius))
+                if (!map.IsInBounds(p) || map.IsWall(p))
+                    return true;
+            return false;
+        }
+
+        /// <summary>from에서 d로 몸이 몇 칸 나아갈 수 있는지(벽만 본다, ChargeDistance까지).</summary>
+        private int SweepLength(GridMap map, Vector2Int from, Vector2Int d, int body)
+        {
+            var k = 0;
+            while (k < ChargeDistance && !BlockedByWall(map, from + d * (k + 1)))
+                k++;
+            return k;
+        }
+
+        /// <summary>돌진 띠 - from에서 d로 몸 폭만큼 쓸고 간 칸을 예고에 넣는다(extra가 있으면 거기에도). 멈춘 몸 가운데를 돌려주고, 벽에 막혀 멈췄으면 hitWall.</summary>
+        private Vector2Int SweepCharge(GridMap map, Vector2Int from, Vector2Int d, int body, HashSet<Vector2Int> extra, out bool hitWall)
+        {
+            var len = SweepLength(map, from, d, body);
+            for (var k = 1; k <= len; k++)
+                foreach (var p in GridMap.Cells(from + d * k, body))
+                {
+                    AddTile(map, p);
+                    if (extra != null && map.IsInBounds(p) && !map.IsWall(p))
+                        extra.Add(p);
+                }
+            hitWall = len < ChargeDistance;
+            return from + d * len;
         }
 
         private void AddSquare(GridMap map, Vector2Int center, int radius)

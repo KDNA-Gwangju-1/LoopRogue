@@ -88,7 +88,9 @@ namespace LoopRogue
             // 중도 포기도 사망과 같은 데스 패널티(안 그러면 죽기 직전에 Esc로 빠져나가 패널티를 피할 수 있다).
             _hud.gameObject.AddComponent<PauseMenu>().Setup(RetreatToLobby,
                 () => !_roomController.IsInputLocked && !_player.Levels.IsChoosingUpgrade && !_player.Stats.IsDead && !InventoryUI.IsOpen
-                      && !NpcDialogUI.BlocksInput, // 대화창을 Esc로 닫은 그 프레임에 메뉴가 바로 열리지 않게
+                      && InventoryUI.LastCloseFrame != Time.frameCount // 가방을 Esc로 닫은 그 프레임에 메뉴가 바로 열리지 않게
+                      && !NpcDialogUI.BlocksInput // 대화창을 Esc로 닫은 그 프레임에 메뉴가 바로 열리지 않게
+                      && !GachaReveal.BlocksInput, // Unknown 벼리기 연출을 Esc로 닫은 프레임도
                 lobbyLabel: Loc.F("로비로 이동 (이번 시도 골드 {0:0}% 손실)  [L]", Relics.DeathPenaltyRate * 100f),
                 goToTitle: RetreatToTitle);
 

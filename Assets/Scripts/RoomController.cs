@@ -142,6 +142,7 @@ namespace LoopRogue
         private readonly List<Vector2Int> _torches = new List<Vector2Int>();
         public IReadOnlyList<Vector2Int> Torches => _torches;
         private readonly Dictionary<Vector2Int, GameObject> _traps = new Dictionary<Vector2Int, GameObject>();
+        private readonly Dictionary<Vector2Int, List<Vector2Int>> _trapGroups = new Dictionary<Vector2Int, List<Vector2Int>>(); // 덫 2x2 - 같이 놓인 칸들
         private readonly List<(Vector2Int Center, List<GameObject> Objects)> _playerBombs = new List<(Vector2Int, List<GameObject>)>();
         private readonly Dictionary<Vector2Int, GameObject> _wallObjects = new Dictionary<Vector2Int, GameObject>();
         private static readonly Color PlayerBombColor = new Color(1f, 0.85f, 0.2f, 0.4f);
@@ -591,8 +592,8 @@ namespace LoopRogue
             if (type == NpcType.Blacksmith)
                 Achievements.Unlock("ACH_SMITH_MET");
             ShowMessage(report
-                ? Loc.F("{0}이(가) 기다리고 있었다! (옆에서 F: 보고)", _npc.DisplayName)
-                : Loc.F("{0}이(가) 나타났다! (옆에서 F: 대화)", _npc.DisplayName));
+                ? Loc.F("{0}이(가) 기다리고 있었다! (다가가 부딪히면 보고)", _npc.DisplayName)
+                : Loc.F("{0}이(가) 나타났다! (다가가 부딪히면 대화)", _npc.DisplayName));
         }
 
         /// <summary>지금 층의 방 클리어 골드(보너스 반영) - 이벤트·저주 계약 보상의 기준.</summary>
@@ -1152,6 +1153,26 @@ namespace LoopRogue
             var angle = direction.HasValue ? Fx.Angle(direction.Value) : 0f;
             foreach (var t in display ?? tiles)
                 _telegraphObjects.Add(SpawnTelegraphTile(t, color ?? TelegraphColor, -5, style, angle));
+            RebuildDangerTiles();
+        }
+
+        /// <summary>8층 벽 튕김 돌진 - 첫 돌진 띠(빨강, 돌진 방향 화살표) + 벽에 꺾인 뒤 띠(주황, 꺾인 방향). 둘 다 이번 턴에 터지는 위험 칸.</summary>
+        public void ShowBounceChargeTelegraph(IEnumerable<Vector2Int> first, Vector2Int firstDir, IEnumerable<Vector2Int> second, Vector2Int secondDir)
+        {
+            ClearTelegraph(rebuild: false);
+            HitFeedback.OnTelegraph(BossPatternType.Charge);
+            var style = BossBrain.TelegraphStyle(BossPatternType.Charge);
+            foreach (var t in first)
+            {
+                _bossDangerTiles.Add(t);
+                _telegraphObjects.Add(SpawnTelegraphTile(t, TelegraphColor, -5, style, Fx.Angle(firstDir)));
+            }
+            foreach (var t in second)
+            {
+                if (!_bossDangerTiles.Add(t))
+                    continue;
+                _telegraphObjects.Add(SpawnTelegraphTile(t, TelegraphWaveColors[1], -5, style, Fx.Angle(secondDir)));
+            }
             RebuildDangerTiles();
         }
 
@@ -1746,7 +1767,7 @@ namespace LoopRogue
             ClearCrystalTelegraph(c);
         }
 
-        /// <summary>골렘 둘레 아무 데나 바위 count개(수정이 솟을 때 - 폭발을 막아 줄 안전지대). 길을 끊는 칸·플레이어 2칸 안은 빼고.</summary>
+        /// <summary>골렘 둘레 아무 데나 바위 count개(수정이 솟을 때 - 폭발을 막아 줄 안전지대). 길을 끊는 칸·플레이어 2칸 안·벽에 붙은 칸은 빼고.</summary>
         public int DropGolemRubbleAround(EnemyActor golem, int count, int wave = 0)
         {
             var cells = new List<Vector2Int>();
@@ -1758,7 +1779,26 @@ namespace LoopRogue
                     && Mathf.Max(Mathf.Abs(p.x - _player.GridPos.x), Mathf.Abs(p.y - _player.GridPos.y)) >= 2)
                     cells.Add(p);
             }
-            return DropGolemRubble(cells, count, wave);
+            // 10-28 사용자: 벽(방 끝·기둥)에 붙은 바위는 뒤에 숨을 자리가 없다 - 둘레 8칸에 진짜 벽이 없는 칸만. 그런 칸이 모자랄 때만 나머지에서.
+            var placed = DropGolemRubble(cells.Where(p => !TouchesRealWall(p)), count, wave);
+            if (placed < count)
+                placed += DropGolemRubble(cells, count - placed, wave);
+            return placed;
+        }
+
+        /// <summary>둘레 8칸 중 방 밖이거나 진짜 벽(수정·바위 말고)이 있는지.</summary>
+        private bool TouchesRealWall(Vector2Int p)
+        {
+            for (var dx = -1; dx <= 1; dx++)
+            for (var dy = -1; dy <= 1; dy++)
+            {
+                var n = new Vector2Int(p.x + dx, p.y + dy);
+                if (n == p)
+                    continue;
+                if (!Map.IsInBounds(n) || (Map.IsWall(n) && !_golemCrystals.Contains(n) && !_golemRubble.Contains(n)))
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>공명 수정을 targetCount개가 되도록 세운다(벽 칸) - 골렘 몸에서 3칸, 플레이어에게서 2칸 이상, 수정끼리 3칸 이상 떨어진 빈 칸. 새로 세운 개수.</summary>
@@ -2185,9 +2225,66 @@ namespace LoopRogue
         }
 
         /// <summary>대상 위에 붙어 다니는 표시(대상 오브젝트엔 그림 배율이 걸려 있어 자식으로 안 붙인다).</summary>
+        // ---- 8층 3연속 돌진 화살표(10-28 사용자) - 보스 머리 위, 기믹 글자보다 한 줄 위. 끝난 건 회색, 지금 것은 노랗고 크게, 남은 건 흰색.
+        // 대각선도 있어서(기본 글꼴에 ↗ 같은 글자가 없을 수 있다) "→" 하나를 방향만큼 돌려 그린다.
+        private GameObject _comboLabel;
+        private readonly List<TextMesh> _comboArrows = new List<TextMesh>();
+
+        public void ShowChargeCombo(EnemyActor boss, IReadOnlyList<Vector2Int> dirs, int current)
+        {
+            if (DamagePopup.Suppressed || boss == null)
+                return;
+            if (_comboLabel == null)
+            {
+                _comboLabel = new GameObject("ChargeComboLabel");
+                _comboLabel.transform.SetParent(transform, false);
+                _roomObjects.Add(_comboLabel);
+                _comboLabel.AddComponent<FollowAbove>().Target = boss.transform;
+                _comboLabel.GetComponent<FollowAbove>().Height = 2.75f;
+                _comboArrows.Clear();
+            }
+            while (_comboArrows.Count < dirs.Count)
+            {
+                var go = new GameObject("Arrow");
+                go.transform.SetParent(_comboLabel.transform, false);
+                var t = go.AddComponent<TextMesh>();
+                t.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                t.text = "→";
+                t.fontSize = 64;
+                t.anchor = TextAnchor.MiddleCenter;
+                t.alignment = TextAlignment.Center;
+                var mr = go.GetComponent<MeshRenderer>();
+                mr.material = t.font.material;
+                mr.sortingOrder = 30;
+                _comboArrows.Add(t);
+            }
+            const float spacing = 0.75f; // 칸
+            for (var i = 0; i < _comboArrows.Count; i++)
+            {
+                var t = _comboArrows[i];
+                var shown = i < dirs.Count;
+                t.gameObject.SetActive(shown);
+                if (!shown)
+                    continue;
+                t.transform.localPosition = new Vector3((i - (dirs.Count - 1) * 0.5f) * spacing * GridConstants.CellSize, 0f, 0f);
+                t.transform.localRotation = Quaternion.Euler(0f, 0f, Fx.Angle(dirs[i]));
+                t.characterSize = i == current ? 0.14f : 0.09f;
+                t.color = i < current ? new Color(0.47f, 0.47f, 0.47f) : i == current ? new Color(1f, 0.82f, 0.25f) : Color.white;
+            }
+        }
+
+        public void ClearChargeCombo()
+        {
+            if (_comboLabel != null)
+                Destroy(_comboLabel);
+            _comboLabel = null;
+            _comboArrows.Clear();
+        }
+
         private sealed class FollowAbove : MonoBehaviour
         {
             public Transform Target;
+            public float Height = 2.1f; // 칸 - 3x3 몸 위
 
             private void LateUpdate()
             {
@@ -2196,7 +2293,7 @@ namespace LoopRogue
                     Destroy(gameObject);
                     return;
                 }
-                transform.position = Target.position + new Vector3(0f, GridConstants.CellSize * 2.1f, -1f); // 3x3 몸 위
+                transform.position = Target.position + new Vector3(0f, GridConstants.CellSize * Height, -1f);
             }
         }
 
@@ -2540,6 +2637,7 @@ namespace LoopRogue
             ActiveDecoy = null;
             _torches.Clear();
             _traps.Clear();
+            _trapGroups.Clear();
             _playerBombs.Clear();
             _wallObjects.Clear();
 
@@ -2926,7 +3024,26 @@ namespace LoopRogue
             _roomObjects.Add(go);
         }
 
-        public void PlaceTrap(Vector2Int pos)
+        /// <summary>덫 2x2(10-28 사용자) - 놓은 칸, 그 앞 칸, 옆으로 한 줄 더. 옆은 놓을 수 있는 칸이 많은 쪽(같으면 시계 방향).
+        /// 벽·몹·출구 칸은 빼서 4칸이 안 될 수도 있다. 한 칸이라도 밟히면 덫 전체가 사라진다.</summary>
+        public void PlaceTrap(Vector2Int pos, Vector2Int dir)
+        {
+            var right = new Vector2Int(dir.y, -dir.x);
+            var front = pos + dir;
+            int Count(Vector2Int side) => (CanPlaceAt(pos + side) ? 1 : 0) + (CanPlaceAt(front + side) ? 1 : 0);
+            var side = Count(-right) > Count(right) ? -right : right;
+            var group = new List<Vector2Int>();
+            foreach (var p in new[] { pos, front, pos + side, front + side })
+                if (p == pos || (CanPlaceAt(p) && !_traps.ContainsKey(p)))
+                {
+                    PlaceTrapCell(p);
+                    group.Add(p);
+                }
+            foreach (var p in group)
+                _trapGroups[p] = group;
+        }
+
+        private void PlaceTrapCell(Vector2Int pos)
         {
             var go = new GameObject("Trap");
             go.transform.SetParent(transform, false);
@@ -2960,9 +3077,14 @@ namespace LoopRogue
             var trapCell = GridMap.CellsOf(enemy).FirstOrDefault(c => _traps.ContainsKey(c));
             if (!_traps.TryGetValue(trapCell, out var go) || !GridMap.Occupies(enemy, trapCell))
                 return;
-            _traps.Remove(trapCell);
-            if (go != null)
-                Destroy(go);
+            var group = _trapGroups.TryGetValue(trapCell, out var g) ? g : new List<Vector2Int> { trapCell };
+            foreach (var c in group)
+            {
+                if (_traps.TryGetValue(c, out var cellGo) && cellGo != null)
+                    Destroy(cellGo);
+                _traps.Remove(c);
+                _trapGroups.Remove(c);
+            }
             enemy.Snare(ItemInfo.TrapStunTurns);
             ShowMessage(Loc.F("{0}이(가) 덫에 걸렸다! ({1}턴 기절)", enemy.DisplayName, ItemInfo.TrapStunTurns));
         }

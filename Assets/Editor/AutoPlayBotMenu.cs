@@ -66,6 +66,7 @@ namespace LoopRogue.EditorTools
         /// Play 진입이 막힌 채(컴파일 에러 등) 다시 누르면 체험용으로 바뀐 저장이 백업을 덮어 진짜 저장이 사라졌다. 시작해도 되면 true.</summary>
         private static bool BackupBeforeTest(string what)
         {
+            SnapshotSave(what);
             if (EditorPrefs.GetBool(TestRestorePendingKey, false) && System.IO.File.Exists(TestBackupPath))
                 return true; // 진짜 저장은 이미 백업돼 있다 - Play를 멈추면 그걸로 되돌아간다
             UnityEngine.PlayerPrefs.Save();
@@ -388,8 +389,24 @@ namespace LoopRogue.EditorTools
         /// 덮어쓰지 않는다 - 예전엔 봇을 두 번 돌리면 두 번째 백업이 봇 저장을 담아 진짜 저장이 사라졌다. 시작해도 되면 true.</summary>
         private static bool BackupBeforeBot()
         {
+            SnapshotSave("봇·기준 스펙");
             if (EditorPrefs.GetBool(BotBackupPendingKey, false) && System.IO.File.Exists(BackupPath))
-                return true; // 이미 진짜 저장이 백업돼 있다("봇 전 저장 되돌리기"를 하기 전까지 그대로 둔다)
+            {
+                // 10-28: 10-12 백업에 "아직 안 되돌림" 표시가 남아 있어서, 그 사이 플레이한 진짜 저장(2시간 51분)을 새로 백업하지 않고
+                // 덮어쓴 뒤 "봇 전 저장 되돌리기"가 10-12 저장을 불러왔다. 오래된 백업이면 묻는다(위 SnapshotSave가 지금 저장도 따로 남긴다).
+                var made = System.IO.File.GetLastWriteTime(BackupPath);
+                if ((System.DateTime.Now - made).TotalHours < 3)
+                    return true; // 방금 만든 백업 - 봇을 이어서 돌리는 중
+                var choice = EditorUtility.DisplayDialogComplex("봇 전 백업이 오래됐습니다",
+                    $"\"봇 전 저장 되돌리기\"를 아직 안 한 백업이 있습니다({made:MM-dd HH:mm}).\n" +
+                    "그 뒤에 직접 플레이한 저장이 지금 저장이라면 새로 백업해야 합니다.\n(지금 저장은 BotLogs/save_auto_*.reg에도 따로 남겼습니다.)",
+                    "지금 저장으로 새로 백업", "취소", "옛 백업 그대로 두기");
+                if (choice == 1)
+                    return false;
+                if (choice == 2)
+                    return true;
+                EditorPrefs.SetBool(BotBackupPendingKey, false);
+            }
             UnityEngine.PlayerPrefs.Save(); // 메모리에만 있는 값까지 레지스트리에 쓴 뒤 백업
             if (RunReg($"export \"{PrefsRegistryKey}\" \"{BackupPath}\" /y"))
             {
@@ -400,6 +417,28 @@ namespace LoopRogue.EditorTools
         }
 
         private const string BotBackupPendingKey = "LoopRogue_BotBackupPending";
+
+        /// <summary>저장을 바꾸는 메뉴(봇·체험·기준 스펙)를 시작할 때마다 지금 저장을 날짜별 파일로 한 벌 더 남긴다(BotLogs/save_auto_날짜_시각.reg).
+        /// 위 백업들은 "되돌리기 전까지 덮어쓰지 않음" 규칙이라 꼬이면 진짜 저장이 아무 데도 안 남을 수 있다(10-28). 최근 30개만 둔다.</summary>
+        private static void SnapshotSave(string what)
+        {
+            try
+            {
+                UnityEngine.PlayerPrefs.Save();
+                var dir = System.IO.Path.GetDirectoryName(BackupPath);
+                var file = System.IO.Path.Combine(dir, $"save_auto_{System.DateTime.Now:yyyyMMdd_HHmmss}.reg");
+                if (RunReg($"export \"{PrefsRegistryKey}\" \"{file}\" /y"))
+                    UnityEngine.Debug.Log($"[{what}] 지금 저장을 {System.IO.Path.GetFileName(file)}에 남겼습니다.");
+                var olds = System.IO.Directory.GetFiles(dir, "save_auto_*.reg");
+                System.Array.Sort(olds); // 이름 = 날짜순
+                for (var i = 0; i < olds.Length - 30; i++)
+                    System.IO.File.Delete(olds[i]);
+            }
+            catch (System.Exception e)
+            {
+                UnityEngine.Debug.LogWarning($"[{what}] 저장 스냅샷 실패: {e.Message}");
+            }
+        }
 
         /// <summary>Play를 멈추면 봇 켜짐 표시를 항상 지운다 - 예전엔 봇을 중간에 멈추면 표시가 남아, 다음 평범한 Play에서 봇이 다시 켜져
         /// 저장을 지웠다. 테스트 맵 도중 에디터가 꺼졌다면(되돌리기가 남아 있으면) 에디터가 다시 켜질 때 바로 되돌린다

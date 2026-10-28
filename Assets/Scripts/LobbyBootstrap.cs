@@ -50,6 +50,8 @@ namespace LoopRogue
         private readonly List<(RectTransform rect, Image image)> _skinnedButtons = new List<(RectTransform, Image)>();
 
         private Text _goldText;
+        private Text _hubGoldText;  // 로비 방(허브) 오른쪽 위 골드 칸 - 상점 안은 위 제목 줄 골드
+        private int _shownHubGold = -1;
         private Text _weaponText;
         private Text _armorText;
         private Text _accessoryText;
@@ -138,6 +140,12 @@ namespace LoopRogue
         private void Update()
         {
             _goldText.text = Loc.F("보유 골드: {0}", GoldWallet.Gold - _slotPendingPayout);
+            var hubGold = GoldWallet.Gold - _slotPendingPayout;
+            if (_shownHubGold != hubGold)
+            {
+                _shownHubGold = hubGold;
+                _hubGoldText.text = hubGold.ToString("N0");
+            }
             UpdateHover();
 
             // 안내자와 대화 중이거나 업적 창이 열려 있으면(닫은 프레임 포함) 로비 버튼·단축키를 안 받는다 - 그 창들이 Esc/숫자/클릭을 직접 처리한다.
@@ -197,11 +205,12 @@ namespace LoopRogue
                     break;
 
                 case LobbyView.Potion:
-                    if (GameInput.Down(Key.A))
+                    // 10-28 사용자 - A/H/C 대신 뽑기 상점처럼 숫자 1/2/3
+                    if (GameInput.Down(Key.Digit1))
                         DoPotionBuy(PotionType.Attack, Loc.T("공격력"));
-                    if (GameInput.Down(Key.H))
+                    if (GameInput.Down(Key.Digit2))
                         DoPotionBuy(PotionType.Health, Loc.T("체력"));
-                    if (GameInput.Down(Key.C))
+                    if (GameInput.Down(Key.Digit3))
                         DoPotionBuy(PotionType.Critical, Loc.T("치명타"));
                     break;
 
@@ -292,6 +301,7 @@ namespace LoopRogue
             ShowResult(Loc.F("{0} 영약 구매! (영구 적용, 다음 시작부터)", label), new Color(0.4f, 1f, 0.5f));
             RefreshPotionDisplay();
             RefreshCriticalDisplay();
+            OnShopPurchase();
         }
 
         private void RefreshPotionDisplay()
@@ -300,9 +310,9 @@ namespace LoopRogue
                 Loc.F("영약 누적 - 공격력+{0:0.#}   체력+{1:0.#}   |   유물 {2}개", StatPotionWallet.TotalAttackBonus(), StatPotionWallet.TotalHealthBonus(), Relics.OwnedCount);
 
             _attackButtonText.text =
-                Loc.F("[A] 공격력 영약 구매 (다음 비용 {0}골드)", StatPotionWallet.GetNextCost(PotionType.Attack));
+                Loc.F("[1] 공격력 영약 구매 (다음 비용 {0}골드)", StatPotionWallet.GetNextCost(PotionType.Attack));
             _healthButtonText.text =
-                Loc.F("[H] 체력 영약 구매 (다음 비용 {0}골드)", StatPotionWallet.GetNextCost(PotionType.Health));
+                Loc.F("[2] 체력 영약 구매 (다음 비용 {0}골드)", StatPotionWallet.GetNextCost(PotionType.Health));
         }
 
         private void RefreshCriticalDisplay()
@@ -313,7 +323,7 @@ namespace LoopRogue
                 _criticalIcon.color = unlocked ? Color.white : new Color(0.35f, 0.35f, 0.38f); // 잠겨 있으면 병도 어둡게
 
             _criticalButtonText.text = unlocked
-                ? Loc.F("[C] 치명타확률+{0:0.#}% 구매 (다음 비용 {1}골드)", StatPotionWallet.TotalCriticalChanceBonus() * 100f, StatPotionWallet.GetNextCost(PotionType.Critical))
+                ? Loc.F("[3] 치명타확률+{0:0.#}% 구매 (다음 비용 {1}골드)", StatPotionWallet.TotalCriticalChanceBonus() * 100f, StatPotionWallet.GetNextCost(PotionType.Critical))
                 : Loc.F("치명타 영약: 스테이지 {0}부터 구매 가능(비공개)", StatPotionWallet.CriticalUnlockStage);
         }
 
@@ -346,6 +356,7 @@ namespace LoopRogue
             {
                 ShowResult(message, color);
                 RefreshEquipmentDisplay();
+                OnShopPurchase();
             });
         }
 
@@ -402,6 +413,7 @@ namespace LoopRogue
             {
                 ShowResult(message, EquipmentData.Grades[best.Grade].Color);
                 RefreshEquipmentDisplay();
+                OnShopPurchase();
             });
         }
 
@@ -804,25 +816,56 @@ namespace LoopRogue
             var view = CreateView(parent, LobbyView.Hub);
             // 허브 = 걸어 다니는 방(LobbyRoom) - 예전 카드 6개·시작 버튼 대신 NPC와 문. 화면엔 아래 안내 한 줄만.
             CreatePanel(view, 0f, -330f, 1000f, 44f);
-            var hint = CreateLabel(view, "HubHint",
-                Loc.T("방향키 이동 · NPC에게 부딪히거나 Space로 말 걸기 · 위쪽 문으로 들어가면 시작 · 숫자 1~6 바로 열기 · Esc 타이틀"),
-                15, FontStyle.Normal, new Color(0.85f, 0.85f, 0.9f), -330f, 980f);
-            hint.rectTransform.sizeDelta = new Vector2(980f, 36f);
+            _hubHint = CreateLabel(view, "HubHint", string.Empty, 15, FontStyle.Normal, new Color(0.85f, 0.85f, 0.9f), -330f, 980f);
+            _hubHint.rectTransform.sizeDelta = new Vector2(980f, 36f);
+            RefreshHubHint();
+            // 골드 칸(던전 HUD와 같은 모양) - 방(가로 약 224~1056px) 오른쪽 위 빈 모서리, 아래 안내 줄(~1140px)과도 안 겹친다
+            _hubGoldText = HudUi.CreateGoldBox(view, Vector2.one, Vector2.one, new Vector2(-12f, -8f));
         }
+
+        private Text _hubHint;
+
+        /// <summary>아래 안내 줄 - 튜토리얼 뒤 첫 구매 전엔 할 일(뽑기·영약)을 노란 글씨로.</summary>
+        private void RefreshHubHint()
+        {
+            var shopFirst = FirstShopLocked;
+            _hubHint.text = shopFirst
+                ? Loc.T("받은 골드로 먼저 강해지자!  [1] 보물 상인: 장비 뽑기 · [2] 연금술사: 영약 - 하나라도 사면 문이 열린다")
+                : Loc.T("방향키 이동 · NPC에게 부딪히거나 Space로 말 걸기 · 위쪽 문으로 들어가면 시작 · 숫자 1~6 바로 열기 · Esc 타이틀");
+            _hubHint.color = shopFirst ? new Color(1f, 0.85f, 0.4f) : new Color(0.85f, 0.85f, 0.9f);
+        }
+
+        /// <summary>튜토리얼 뒤 첫 구매 전 - 던전 문 잠금. 골드가 뽑기·영약 어느 쪽도 못 살 만큼이면(그럴 일은 없지만) 잠그지 않는다.</summary>
+        private static bool FirstShopLocked => TutorialStage.FirstShopPending
+            && GoldWallet.Gold >= Mathf.Min(GachaSystem.GetPullCost(ItemSlot.Weapon), StatPotionWallet.GetNextCost(PotionType.Attack));
+
+        /// <summary>뽑기·영약을 샀다 - 첫 구매 잠금이 풀렸으면 알린다.</summary>
+        private void OnShopPurchase()
+        {
+            if (!TutorialStage.CompleteFirstShop())
+                return;
+            RefreshHubHint();
+            // 방금 띄운 구매 결과 뒤에 붙인다(덮으면 뭘 뽑았는지 안 보인다)
+            _resultText.text += "   <color=#7CFF8A>" + Loc.T("문이 열렸다! 이제 위쪽 문으로 던전에 들어가자") + "</color>";
+        }
+
+        private static string FirstShopBadge() => FirstShopLocked ? "<color=#FFD966>!</color>" : string.Empty;
 
         /// <summary>로비 방에 NPC 6명을 세운다(예전 허브 카드 6개와 같은 기능·같은 숫자키).</summary>
         private void BuildLobbyRoom()
         {
             _room = LobbyRoom.Create(StartRun, Loc.F("스테이지 {0} 시작", StageProgress.CurrentStage));
             const int left = 1, right = LobbyRoom.Width - 2, top = LobbyRoom.Height - 2, upper = top - 2, lower = top - 5;
-            _room.AddNpc("LobbyGacha", new Vector2Int(left, upper), () => Loc.T("[1] 보물 상인"), () => string.Empty, () => ShowView(LobbyView.Gacha));
-            _room.AddNpc("LobbyAlchemist", new Vector2Int(left, lower), () => Loc.T("[2] 연금술사"), () => string.Empty, () => ShowView(LobbyView.Potion));
+            _room.AddNpc("LobbyGacha", new Vector2Int(left, upper), () => Loc.T("[1] 보물 상인"), FirstShopBadge, () => ShowView(LobbyView.Gacha));
+            _room.AddNpc("LobbyAlchemist", new Vector2Int(left, lower), () => Loc.T("[2] 연금술사"), FirstShopBadge, () => ShowView(LobbyView.Potion));
             _room.AddNpc("LobbyGambler", new Vector2Int(right, upper), () => Loc.T("[3] 도박꾼"), () => string.Empty, () => ShowView(LobbyView.Casino));
             _room.AddNpc("LobbyTimeKeeper", new Vector2Int(LobbyRoom.DoorCell.x - 3, top), () => $"[4] {LobbyGuide.Name}", GuideBadge, LobbyGuide.Talk);
             _room.AddNpc("LobbyChronicler", new Vector2Int(LobbyRoom.DoorCell.x + 3, top), () => Loc.T("[5] 기록관"),
                 () => $"<color=#FFD966>{Achievements.UnlockedCount} / {Achievements.All.Length}</color>", () => _achievementPanel.Open());
             _room.AddNpc("LobbyScholar", new Vector2Int(right, lower), () => Loc.T("[6] 도감 학자"),
                 () => $"<color=#B9A0FF>{Codex.FoundCount()} / {Codex.TotalCount()}</color>", () => _codexPanel.Open());
+            _room.DoorLocked = () => FirstShopLocked;
+            _room.OnDoorLocked = () => ShowResult(Loc.T("아직 문이 잠겨 있다 - 보물 상인(1)에서 장비를 뽑거나 연금술사(2)에게 영약을 사서 먼저 강해지자!"), new Color(1f, 0.85f, 0.4f));
             _room.Build();
         }
 

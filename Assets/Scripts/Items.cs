@@ -63,7 +63,7 @@ namespace LoopRogue
             ItemType.Smoke => Loc.T("방 안 몹들이 플레이어가 공격하기 전까지 플레이어를 못 찾는다(행동 못 함)"),
             ItemType.Cleanse => Loc.F("거미줄·점액 즉시 해제 + {0}턴 동안 달라붙지 않음. 주변 점액을 씻고 포자 감염을 1단계 낮춘다", CleanseImmuneTurns),
             ItemType.Flash => Loc.F("보스의 예고 공격 취소 + {0}턴 기절, 주변 몹 {1}턴 기절", FlashBossStunTurns, FlashEnemyStunTurns),
-            ItemType.Trap => Loc.F("옆 칸에 설치 - 밟은 몹(보스 포함) {0}턴 기절", TrapStunTurns),
+            ItemType.Trap => Loc.F("앞쪽 2x2 칸에 설치 - 밟은 몹(보스 포함) {0}턴 기절", TrapStunTurns),
             ItemType.Reflect => Loc.F("{0}턴 안에 맞는 보스 공격 1회(예고 공격·평타·파동)를 막고 내 평타 한 대만큼 되돌린다(치명타는 따로)", ReflectTurns),
             ItemType.Weakness => Loc.F("주변 {0}칸 몹과 보스가 {1:0}초 동안 받는 피해 +{2:0}%", WeaknessRadius, WeaknessSeconds, (WeaknessDamageMultiplier - 1f) * 100f),
             _ => Loc.T("다음에 받는 피해 1회 무효"),

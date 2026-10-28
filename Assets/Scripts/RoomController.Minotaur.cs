@@ -46,29 +46,36 @@ namespace LoopRogue
             _crushWarned = false;
         }
 
-        /// <summary>side 벽이 지금 닫을 줄의 칸들(다른 벽 사이 구간만).</summary>
-        private List<Vector2Int> CrushLine(int side)
-        {
-            var cells = new List<Vector2Int>();
-            int x0 = _crushInset[0], x1 = Map.Width - 1 - _crushInset[1], y0 = _crushInset[2], y1 = Map.Height - 1 - _crushInset[3];
-            switch (side)
-            {
-                case 0: for (var y = y0; y <= y1; y++) cells.Add(new Vector2Int(x0, y)); break;
-                case 1: for (var y = y0; y <= y1; y++) cells.Add(new Vector2Int(x1, y)); break;
-                case 2: for (var x = x0; x <= x1; x++) cells.Add(new Vector2Int(x, y0)); break;
-                default: for (var x = x0; x <= x1; x++) cells.Add(new Vector2Int(x, y1)); break;
-            }
-            return cells;
-        }
-
+        /// <summary>다음에 닫힐 칸 = 한 줄씩 조인 뒤 안쪽 사각형 밖의 빈 칸 전부. 그 줄만 닫으면 부서졌던 줄의 모서리나 보스 몸 때문에
+        /// 비워 둔 칸이 벽 밖에 1칸짜리로 남아 들어가면 못 나오는 "뒤주"가 됐다(10-28 사용자) - 밖에 남은 빈 칸도 같이 닫는다.</summary>
         private HashSet<Vector2Int> NextCrushCells()
         {
             var set = new HashSet<Vector2Int>();
-            for (var side = 0; side < 4; side++)
-                foreach (var p in CrushLine(side))
-                    if (Map.IsInBounds(p) && !Map.IsWall(p))
-                        set.Add(p);
+            foreach (var (p, _, _) in CrushTargets())
+                set.Add(p);
             return set;
+        }
+
+        /// <summary>이번에 닫을 칸과 그 칸이 속할 벽(쪽·줄). 쪽은 왼·오·아래·위 순서로 먼저 걸리는 쪽(예전 줄 닫기와 같은 모서리 배정),
+        /// 줄은 그쪽 끝에서 몇 번째 줄인지 - 도끼 충격파가 맨 안쪽 줄을 부술 때 이 줄 번호로 찾는다.</summary>
+        private List<(Vector2Int Cell, int Side, int Line)> CrushTargets()
+        {
+            var list = new List<(Vector2Int, int, int)>();
+            for (var x = 0; x < Map.Width; x++)
+            for (var y = 0; y < Map.Height; y++)
+            {
+                var p = new Vector2Int(x, y);
+                if (Map.IsWall(p))
+                    continue;
+                var depth = new[] { x, Map.Width - 1 - x, y, Map.Height - 1 - y }; // 왼·오·아래·위 끝에서 몇 번째 줄
+                for (var side = 0; side < 4; side++)
+                    if (depth[side] <= _crushInset[side])
+                    {
+                        list.Add((p, side, depth[side]));
+                        break;
+                    }
+            }
+            return list;
         }
 
         /// <summary>몹 턴 끝마다 - 남은 턴, 예고, 조이기. 즉사면 true(사망 처리는 TickStageGimmick이).</summary>
@@ -97,39 +104,36 @@ namespace LoopRogue
             ClearEnemyTelegraph(_gimmickBoss);
             _crushWarned = false;
             var crushed = false;
-            for (var side = 0; side < 4; side++)
+            foreach (var (p, side, line) in CrushTargets())
             {
-                var line = _crushInset[side];
-                foreach (var p in CrushLine(side))
+                if (Map.IsWall(p))
+                    continue;
+                if (p == _player.GridPos)
                 {
-                    if (!Map.IsInBounds(p) || Map.IsWall(p))
-                        continue;
-                    if (p == _player.GridPos)
-                    {
-                        crushed = true;
-                        continue;
-                    }
-                    if (_gimmickBoss != null && GridMap.Occupies(_gimmickBoss, p))
-                    {
-                        // 보스 몸에 걸리면 안쪽으로 한 칸 밀고, 못 밀면 그 칸은 이번엔 비워 둔다
-                        var push = _gimmickBoss.GridPos + CrushNormals[side];
-                        if (Map.CanOccupy(_gimmickBoss, push) && !GridMap.Cells(push, _gimmickBoss.FootprintMin, _gimmickBoss.FootprintMax).Contains(_player.GridPos))
-                        {
-                            Map.MoveActor(_gimmickBoss, push);
-                            if (_gimmickBoss.TryGetComponent<SpriteAnimator>(out var anim))
-                                anim.SnapToGrid();
-                            _gimmickBoss.SyncTransform();
-                        }
-                        if (GridMap.Occupies(_gimmickBoss, p))
-                            continue;
-                    }
-                    if (Map.GetActorAt(p) is EnemyActor other && other != _gimmickBoss)
-                        DespawnEnemy(other, CrushWallColor); // 졸개 등은 벽에 끼어 사라진다
-                    AddCrushWall(p);
-                    _crushWalls[p] = (side, line);
+                    crushed = true;
+                    continue;
                 }
-                _crushInset[side]++;
+                if (_gimmickBoss != null && GridMap.Occupies(_gimmickBoss, p))
+                {
+                    // 보스 몸에 걸리면 안쪽으로 한 칸 밀고, 못 밀면 그 칸은 이번엔 비워 둔다(다음 조이기 때 같이 닫힌다)
+                    var push = _gimmickBoss.GridPos + CrushNormals[side];
+                    if (Map.CanOccupy(_gimmickBoss, push) && !GridMap.Cells(push, _gimmickBoss.FootprintMin, _gimmickBoss.FootprintMax).Contains(_player.GridPos))
+                    {
+                        Map.MoveActor(_gimmickBoss, push);
+                        if (_gimmickBoss.TryGetComponent<SpriteAnimator>(out var anim))
+                            anim.SnapToGrid();
+                        _gimmickBoss.SyncTransform();
+                    }
+                    if (GridMap.Occupies(_gimmickBoss, p))
+                        continue;
+                }
+                if (Map.GetActorAt(p) is EnemyActor other && other != _gimmickBoss)
+                    DespawnEnemy(other, CrushWallColor); // 졸개 등은 벽에 끼어 사라진다
+                AddCrushWall(p);
+                _crushWalls[p] = (side, line);
             }
+            for (var side = 0; side < 4; side++)
+                _crushInset[side]++;
             RefreshCrushWallFaces();
             if (HitFeedback.Enabled)
             {

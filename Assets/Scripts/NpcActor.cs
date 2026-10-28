@@ -14,7 +14,7 @@ namespace LoopRogue
     }
 
     /// <summary>방 안의 NPC - 일반 방을 클리어하면 가끔 그 방에 나타난다(RoomController.TrySpawnRoomClearNpc). 칸 하나를 차지하고
-    /// (아무도 못 지나감) 플레이어가 주변 8칸에서 F를 누르면 대화창을 연다. 대화는 턴을 쓰지 않는다.
+    /// (아무도 못 지나감) 플레이어가 부딪히면(10-28, 예전엔 주변 8칸에서 F) 대화창을 연다. 대화는 턴을 쓰지 않는다.
     /// 도트 그림은 Resources/Sprites/{Merchant|Wanderer}(4방향 대기 4프레임, 가까이 온 플레이어 쪽을 본다) - 없으면 단색 사각형.</summary>
     public class NpcActor : GridActor
     {
@@ -186,7 +186,7 @@ namespace LoopRogue
             }
         }
 
-        /// <summary>플레이어가 주변 칸에서 F를 눌렀을 때(PlayerActor).</summary>
+        /// <summary>플레이어가 부딪혔을 때(PlayerActor).</summary>
         public void Talk(PlayerActor player)
         {
             _player = player;
@@ -542,11 +542,15 @@ namespace LoopRogue
         {
             if (!ForgeNow())
                 return;
-            _room.ShowMessage(Loc.F("<color=#7FE0D8>Unknown 장비 세트</color>를 받았다! 세트 효과 「{0}」: {1}", EquipmentEffects.MemorySetName, EquipmentEffects.MemorySetDescription));
-            HitFeedback.OnBonusReward(_player);
-            NpcDialogUI.Instance.Show(DisplayName,
-                Loc.T("이름은 없다. 나처럼. ...잘 써라. 그 장비는 고리를 한 번 더 기억해 줄 거다."),
-                new[] { new NpcDialogUI.Choice(Loc.T("떠난다"), null) });
+            // 10-28 사용자 - 벼리는 순간을 크게(GachaReveal.PlayUnknownForge: 영원 셋 → 망치질 세 번 → Unknown), 끝나면 대사
+            GachaReveal.PlayUnknownForge(() =>
+            {
+                _room.ShowMessage(Loc.F("<color=#7FE0D8>Unknown 장비 세트</color>를 받았다! 세트 효과 「{0}」: {1}", EquipmentEffects.MemorySetName, EquipmentEffects.MemorySetDescription));
+                HitFeedback.OnBonusReward(_player);
+                NpcDialogUI.Instance.Show(DisplayName,
+                    Loc.T("이름은 없다. 나처럼. ...잘 써라. 그 장비는 고리를 한 번 더 기억해 줄 거다."),
+                    new[] { new NpcDialogUI.Choice(Loc.T("떠난다"), null) });
+            });
         }
 
         // ===================== 길 잃은 모험가 =====================

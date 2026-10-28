@@ -514,6 +514,36 @@ namespace LoopRogue
             rect.offsetMin = new Vector2(inset, inset);
             rect.offsetMax = new Vector2(-inset, -inset);
         }
+
+        /// <summary>보유 골드 칸(10-28 테스터 의견) - 쇠테 + 코인 그림(Effects/coin/0 2배) + 금색 숫자. 던전 HUD·로비 방 공용.
+        /// anchor·pivot 기준 position에 150x40. 숫자 글자를 돌려준다(채우는 건 부르는 쪽).</summary>
+        public static Text CreateGoldBox(Transform parent, Vector2 anchor, Vector2 pivot, Vector2 position)
+        {
+            var box = CreateImage(parent, "GoldBox", HudSlot.FillNormal);
+            PixelUi.Slice(box, "Slot");
+            var rect = box.rectTransform;
+            rect.anchorMin = rect.anchorMax = anchor;
+            rect.pivot = pivot;
+            rect.sizeDelta = new Vector2(150f, 40f);
+            rect.anchoredPosition = position;
+            var coin = CreateImage(box.transform, "Coin", Color.white);
+            coin.sprite = PixelUi.Get("Effects/coin/0");
+            coin.enabled = coin.sprite != null;
+            var coinRect = coin.rectTransform;
+            coinRect.anchorMin = coinRect.anchorMax = new Vector2(0f, 0.5f);
+            coinRect.pivot = new Vector2(0f, 0.5f);
+            coinRect.sizeDelta = new Vector2(32f, 32f); // 16px 도트 2배
+            coinRect.anchoredPosition = new Vector2(8f, 0f);
+            var text = CreateText(box.transform, "Gold", 16, TextAnchor.MiddleRight);
+            text.color = new Color(1f, 0.85f, 0.4f);
+            text.fontStyle = FontStyle.Bold;
+            var textRect = text.rectTransform;
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = new Vector2(44f, 0f);
+            textRect.offsetMax = new Vector2(-12f, 0f);
+            return text;
+        }
     }
 
     /// <summary>작은 버튼(닫기 X·28~34px 줄)은 4배 쇠테 양쪽이 칸보다 커서 테가 찌그러진다 - 크기가 정해질 때마다

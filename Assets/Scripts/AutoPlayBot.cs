@@ -2971,6 +2971,8 @@ namespace LoopRogue
             var power = _results[0].TestPower;
             Log($"--- {_bossTrialStage}층 보스방 반복 ({power}층 입장 기준 상태, 목숨 하나) ---");
             Log($"클리어 {wins}/{n} ({wins * 100f / n:0}%) | 사망 {n - wins}회 (그중 기믹 즉사 {gimmick}회)");
+            if (_bossTrialStage == 8) // 10-28 벽 튕김·3연속 돌진
+                Log($"벽 튕김 돌진 {BossBrain.BounceCount}회 (처박힘 {BossBrain.BounceCrashCount}) | 3연속 돌진 {BossBrain.ComboChargeCount3}회");
             if (wins > 0)
                 Log($"클리어한 판 보스전 턴: 평균 {_results.Where(r => r.Completed).Average(r => r.BossTurns):0} / 중앙값 {Percentile(_results.Where(r => r.Completed).Select(r => (float)r.BossTurns).ToList(), 0.5f):0}");
             if (deaths.Count > 0)
