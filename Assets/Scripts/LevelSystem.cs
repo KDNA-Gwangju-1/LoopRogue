@@ -102,8 +102,9 @@ namespace LoopRogue
         {
             // C - 소소한·그때그때
             // 10-29 사용자 - 깡스탯(고정 수치) 카드 4장을 %로: 레벨이 오를수록 고정 +N은 의미가 없어지고, 초반엔 너무 컸다
-            new UpgradeOption { Grade = UpgradeGrade.C, Icon = "BalancedGrowth", Title = Loc.T("균형 성장"), Description = Loc.T("최대체력 +4%, 공격력 +2% / 현재 체력 -10%"),
-                Apply = s => { s.IncreaseMaxHealth(s.BaseMaxHealth * 0.04f, true); s.BaseAttack *= 1.02f; s.LoseCurrentHealthPercent(0.1f); } },
+            // 10-29 봇 - %만으론 초반(공격력 6~10)에 거의 안 올라 1·2층 사망이 2~4배 → % 성장 카드에 최소치(옛 고정 수치) 보장
+            new UpgradeOption { Grade = UpgradeGrade.C, Icon = "BalancedGrowth", Title = Loc.T("균형 성장"), Description = Loc.T("최대체력 +4% (최소 +12), 공격력 +2% (최소 +3) / 현재 체력 -10%"),
+                Apply = s => { s.IncreaseMaxHealth(Math.Max(s.BaseMaxHealth * 0.04f, 12f), true); s.BaseAttack += Math.Max(s.BaseAttack * 0.02f, 3f); s.LoseCurrentHealthPercent(0.1f); } },
             new UpgradeOption { Grade = UpgradeGrade.C, Icon = "FullHeal", Title = Loc.T("완전 회복"), Description = Loc.T("체력 전부 회복"),
                 Apply = s => { s.FullHeal(); } }, // 10-29 사용자 - 손해 없음
             new UpgradeOption { Grade = UpgradeGrade.C, Icon = "CatchBreath", Title = Loc.T("숨 고르기"), Description = Loc.T("최대체력 40% 회복"),
@@ -119,21 +120,21 @@ namespace LoopRogue
                 Apply = s => { s.ExpBonusRate += 0.08f; s.LoseCurrentHealthPercent(0.1f); } },
 
             // B - 작은 % 성장·고정 확률(10-29 깡스탯이 %로 바뀌기 전엔 "고정 수치")
-            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Strength", Title = Loc.T("힘"), Description = Loc.T("공격력 +6% / 받는 피해 +1%"),
-                Apply = s => { s.BaseAttack *= 1.06f; s.DamageReductionRate -= 0.01f; } },
-            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Vitality", Title = Loc.T("체력"), Description = Loc.T("최대체력 +8% / 공격력 -3%"),
-                Apply = s => { s.IncreaseMaxHealth(s.BaseMaxHealth * 0.08f, true); s.BaseAttack *= 0.97f; } },
+            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Strength", Title = Loc.T("힘"), Description = Loc.T("공격력 +6% (최소 +6) / 받는 피해 +1%"),
+                Apply = s => { s.BaseAttack += Math.Max(s.BaseAttack * 0.06f, 6f); s.DamageReductionRate -= 0.01f; } },
+            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Vitality", Title = Loc.T("체력"), Description = Loc.T("최대체력 +8% (최소 +25) / 공격력 -3%"),
+                Apply = s => { s.IncreaseMaxHealth(Math.Max(s.BaseMaxHealth * 0.08f, 25f), true); s.BaseAttack *= 0.97f; } },
             new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Learning", Title = Loc.T("학습"), Description = Loc.T("경험치 +25% / 받는 피해 +3%"),
                 Apply = s => { s.ExpBonusRate += 0.25f; s.DamageReductionRate -= 0.03f; } },
-            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Sturdy", Title = Loc.T("단단함"), Description = Loc.T("최대체력 +12% / 공격력 -3%"),
-                Apply = s => { s.IncreaseMaxHealth(s.BaseMaxHealth * 0.12f, true); s.BaseAttack *= 0.97f; } },
+            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Sturdy", Title = Loc.T("단단함"), Description = Loc.T("최대체력 +12% (최소 +40) / 공격력 -3%"),
+                Apply = s => { s.IncreaseMaxHealth(Math.Max(s.BaseMaxHealth * 0.12f, 40f), true); s.BaseAttack *= 0.97f; } },
             // 10-29 사용자 - 등급마다 7장씩(B +3)
             new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Agility", Title = Loc.T("몸놀림"), Description = Loc.T("치명타 +3%p / 받는 피해 +1%"),
                 Apply = s => { s.CriticalChanceRate += 0.03f; s.DamageReductionRate -= 0.01f; } },
-            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Vigor", Title = Loc.T("균형 잡힌 몸"), Description = Loc.T("최대체력 +6%, 공격력 +3% / 받는 피해 +2%"),
-                Apply = s => { s.IncreaseMaxHealth(s.BaseMaxHealth * 0.06f, true); s.BaseAttack *= 1.03f; s.DamageReductionRate -= 0.02f; } },
-            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Grit", Title = Loc.T("근성"), Description = Loc.T("공격력 +5%, 최대체력 +5% / 경험치 -5%"),
-                Apply = s => { s.BaseAttack *= 1.05f; s.IncreaseMaxHealth(s.BaseMaxHealth * 0.05f, true); s.ExpBonusRate -= 0.05f; } },
+            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Vigor", Title = Loc.T("균형 잡힌 몸"), Description = Loc.T("최대체력 +6% (최소 +20), 공격력 +3% (최소 +3) / 받는 피해 +2%"),
+                Apply = s => { s.IncreaseMaxHealth(Math.Max(s.BaseMaxHealth * 0.06f, 20f), true); s.BaseAttack += Math.Max(s.BaseAttack * 0.03f, 3f); s.DamageReductionRate -= 0.02f; } },
+            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Grit", Title = Loc.T("근성"), Description = Loc.T("공격력 +5% (최소 +3), 최대체력 +5% (최소 +15) / 경험치 -5%"),
+                Apply = s => { s.BaseAttack += Math.Max(s.BaseAttack * 0.05f, 3f); s.IncreaseMaxHealth(Math.Max(s.BaseMaxHealth * 0.05f, 15f), true); s.ExpBonusRate -= 0.05f; } },
 
             // A - % 곱하기 성장
             new UpgradeOption { Grade = UpgradeGrade.A, Icon = "AttackUp", Title = Loc.T("공격력 강화"), Description = Loc.T("공격력 +12% / 최대체력 -3%"),
