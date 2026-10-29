@@ -517,7 +517,11 @@ namespace LoopRogue
 
         /// <summary>보유 골드 칸(10-28 테스터 의견) - 쇠테 + 코인 그림(Effects/coin/0 2배) + 금색 숫자. 던전 HUD·로비 방 공용.
         /// anchor·pivot 기준 position에 150x40. 숫자 글자를 돌려준다(채우는 건 부르는 쪽).</summary>
-        public static Text CreateGoldBox(Transform parent, Vector2 anchor, Vector2 pivot, Vector2 position)
+        public static Text CreateGoldBox(Transform parent, Vector2 anchor, Vector2 pivot, Vector2 position) =>
+            CreateCurrencyBox(parent, anchor, pivot, position, "Effects/coin/0", new Color(1f, 0.85f, 0.4f));
+
+        /// <summary>골드 칸과 같은 모양의 재화 칸 - 왼쪽 그림(16px 도트 2배) + 오른쪽 숫자. 마석 칸(로비)도 이걸로.</summary>
+        public static Text CreateCurrencyBox(Transform parent, Vector2 anchor, Vector2 pivot, Vector2 position, string iconPath, Color textColor)
         {
             var box = CreateImage(parent, "GoldBox", HudSlot.FillNormal);
             PixelUi.Slice(box, "Slot");
@@ -527,7 +531,7 @@ namespace LoopRogue
             rect.sizeDelta = new Vector2(150f, 40f);
             rect.anchoredPosition = position;
             var coin = CreateImage(box.transform, "Coin", Color.white);
-            coin.sprite = PixelUi.Get("Effects/coin/0");
+            coin.sprite = PixelUi.Get(iconPath);
             coin.enabled = coin.sprite != null;
             var coinRect = coin.rectTransform;
             coinRect.anchorMin = coinRect.anchorMax = new Vector2(0f, 0.5f);
@@ -535,7 +539,7 @@ namespace LoopRogue
             coinRect.sizeDelta = new Vector2(32f, 32f); // 16px 도트 2배
             coinRect.anchoredPosition = new Vector2(8f, 0f);
             var text = CreateText(box.transform, "Gold", 16, TextAnchor.MiddleRight);
-            text.color = new Color(1f, 0.85f, 0.4f);
+            text.color = textColor;
             text.fontStyle = FontStyle.Bold;
             var textRect = text.rectTransform;
             textRect.anchorMin = Vector2.zero;

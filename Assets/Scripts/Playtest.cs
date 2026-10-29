@@ -38,7 +38,6 @@ namespace LoopRogue
             }
         }
 
-        /// <summary>설문 링크를 브라우저로 연다. 링크가 없으면 false.</summary>
         /// <summary>[설문 참여](10-27 사용자) - 기록을 먼저 클립보드에 복사하고 설문을 연다(첫 칸에 Ctrl+V만 하면 되게). 링크가 없으면 false.</summary>
         public static bool CopyAndOpenSurvey()
         {
@@ -49,7 +48,7 @@ namespace LoopRogue
         }
 
         /// <summary>종료하려 할 때 설문을 권하는 창이 떠 있는지 - 뒤의 타이틀·Esc 메뉴는 입력을 받지 않는다.</summary>
-        public static bool QuitPromptOpen => QuitPrompt.Instance != null;
+        public static bool QuitPromptOpen => QuitPrompt.Instance != null || Time.frameCount == QuitPrompt.ClosedFrame; // 닫은 프레임까지 - 뒤 Esc 메뉴가 같은 Esc를 또 읽지 않게
 
         /// <summary>게임 종료 버튼(타이틀·Esc 메뉴)에서 - 설문 링크가 있으면 한 번 묻는 창을 띄우고 true(창이 quit을 부른다).
         /// 링크가 없거나(출시 빌드) 이번 실행에 이미 물었으면 false - 호출부가 바로 끈다.</summary>
@@ -168,8 +167,11 @@ namespace LoopRogue
                 quit?.Invoke();
             }
 
+            public static int ClosedFrame = -1;
+
             private void Close()
             {
+                ClosedFrame = Time.frameCount;
                 Instance = null;
                 Destroy(gameObject);
             }

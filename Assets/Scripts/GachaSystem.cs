@@ -114,7 +114,7 @@ namespace LoopRogue
         public static int GetMultiPullCost(ItemSlot slot) => GetPullCost(slot) * MultiPullPaidCount;
 
         // ---- 뽑기권(던전 떠돌이 상인이 판다) - 슬롯 상관없이 1회 뽑기를 골드 없이. 영구 저장. ----
-        private const string TicketKey = "LoopRogue_GachaTickets";
+        public const string TicketKey = "LoopRogue_GachaTickets";
         private static bool _ticketsLoaded;
         private static int _tickets;
 
@@ -225,7 +225,10 @@ namespace LoopRogue
                     return (ItemGrade)i;
             }
 
-            return ItemGrade.Common; // 부동소수점 오차로 못 걸러졌을 때 안전망.
+            for (var i = weights.Length - 1; i >= 0; i--)
+                if (weights[i] > 0f)
+                    return (ItemGrade)i; // 부동소수점 오차로 못 걸러졌을 때 - 확률이 있는 마지막 등급(일반이 0%인 상점 레벨도 있다)
+            return ItemGrade.Common;
         }
     }
 }

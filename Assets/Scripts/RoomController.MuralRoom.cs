@@ -147,7 +147,6 @@ namespace LoopRogue
         // ---- 벽화 이야기(층마다 한 장) - 고리를 만든 자(10층 거울 가면 기사)의 이야기를 조금씩. 본 벽화는 저장(나중에 도감 등에서 다시 보기용).
         private const string MuralSeenKey = "LoopRogue_MuralSeen"; // 본 층 비트
 
-        public static bool MuralSeen(int stage) => (PlayerPrefs.GetInt(MuralSeenKey, 0) & (1 << stage)) != 0;
 
         public static string MuralText(int stage) => Mathf.Clamp(stage, 1, 10) switch
         {

@@ -24,7 +24,6 @@ namespace LoopRogue
 
         private static readonly Color ButtonColor = new Color(0.25f, 0.28f, 0.35f);
         private static readonly Color ButtonLockedColor = new Color(0.18f, 0.18f, 0.18f);
-        private static readonly Color StartButtonColor = new Color(0.2f, 0.45f, 0.25f);
 
         private readonly List<(RectTransform rect, Action onClick)> _buttons = new List<(RectTransform, Action)>();
 
@@ -52,6 +51,9 @@ namespace LoopRogue
         private Text _goldText;
         private Text _hubGoldText;  // 로비 방(허브) 오른쪽 위 골드 칸 - 상점 안은 위 제목 줄 골드
         private int _shownHubGold = -1;
+        private Text _hubStoneText; // 골드 칸 바로 아래 마석 칸
+        private int _shownHubStones = -1;
+        private Text _exchangeButtonText;
         private Text _weaponText;
         private Text _armorText;
         private Text _accessoryText;
@@ -139,12 +141,17 @@ namespace LoopRogue
 
         private void Update()
         {
-            _goldText.text = Loc.F("보유 골드: {0}", GoldWallet.Gold - _slotPendingPayout);
+            _goldText.text = Loc.F("보유 골드: {0}", GoldWallet.Gold - _slotPendingPayout) + "      " + Loc.F("마석: {0}", ManaStoneWallet.Stones);
             var hubGold = GoldWallet.Gold - _slotPendingPayout;
             if (_shownHubGold != hubGold)
             {
                 _shownHubGold = hubGold;
                 _hubGoldText.text = hubGold.ToString("N0");
+            }
+            if (_shownHubStones != ManaStoneWallet.Stones)
+            {
+                _shownHubStones = ManaStoneWallet.Stones;
+                _hubStoneText.text = _shownHubStones.ToString("N0");
             }
             UpdateHover();
 
@@ -195,6 +202,8 @@ namespace LoopRogue
                         SetChanceOpen(true);
                         return;
                     }
+                    if (GameInput.Down(Key.E))
+                        DoManaExchange(shift ? ExchangeBulkCount : 1);
                     // 숫자키 = 1회, Shift+숫자키 = 10연차
                     if (GameInput.Down(Key.Digit1))
                         DoGacha(ItemSlot.Weapon, shift);
@@ -821,6 +830,7 @@ namespace LoopRogue
             RefreshHubHint();
             // 골드 칸(던전 HUD와 같은 모양) - 방(가로 약 224~1056px) 오른쪽 위 빈 모서리, 아래 안내 줄(~1140px)과도 안 겹친다
             _hubGoldText = HudUi.CreateGoldBox(view, Vector2.one, Vector2.one, new Vector2(-12f, -8f));
+            _hubStoneText = HudUi.CreateCurrencyBox(view, Vector2.one, Vector2.one, new Vector2(-12f, -52f), "UI/Icons/ManaStone", new Color(0.79f, 0.63f, 1f));
         }
 
         private Text _hubHint;
@@ -903,6 +913,11 @@ namespace LoopRogue
             // 등급 확률표는 바로 보여주지 않고 버튼으로 여는 창(사용자 요청) - 어둡게 덮고 가운데에 표, 닫기 버튼·P·Esc로 닫음
             CreateButton(view, "ChanceButton", new Color(0.3f, 0.3f, 0.36f), -150f, 260f, 44f,
                 out _, Loc.T("[P] 등급 확률 보기"), 16, Color.white, () => SetChanceOpen(true));
+
+            // 마석(10-29) - 골드 환전(유물 뽑기는 던전의 떠돌이 마석 상인)
+            CreateButton(view, "ManaExchangeButton", new Color(0.36f, 0.16f, 0.2f), -222f, 330f, 52f,
+                out _exchangeButtonText, string.Empty, 16, Color.white, () => DoManaExchange(1));
+            RefreshManaStoneDisplay();
             CreateBackButton(view);
 
             _chanceGroup = CreateGroup(view, "ChanceGroup");
@@ -916,6 +931,25 @@ namespace LoopRogue
         }
 
         private GameObject _chanceGroup;
+
+        private const int ExchangeBulkCount = 10; // [Shift+E] 10개씩
+
+        private void RefreshManaStoneDisplay()
+        {
+            _exchangeButtonText.text = Loc.F("[E] 마석 1개로 환전 ({0}골드)\n[Shift+E] 10개", ManaStoneWallet.ExchangeCost);
+        }
+
+        private void DoManaExchange(int count)
+        {
+            var done = 0;
+            while (done < count && ManaStoneWallet.TryExchange())
+                done++;
+            if (done == 0)
+                ShowResult(Loc.F("골드가 모자랍니다! (마석 1개: {0}골드)", ManaStoneWallet.ExchangeCost), Color.white);
+            else
+                ShowResult(Loc.F("골드를 마석 {0}개로 바꿨습니다. (보유 마석 {1})", done, ManaStoneWallet.Stones), new Color(0.79f, 0.63f, 1f));
+            RefreshManaStoneDisplay();
+        }
         private bool ChanceOpen => _chanceGroup != null && _chanceGroup.activeSelf;
 
         private void SetChanceOpen(bool open)

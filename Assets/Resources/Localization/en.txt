@@ -109,9 +109,6 @@ X자 베기	X Slash
 심지에 불을 붙이면 다음 턴에 주변 3x3이 터진다(주황 칸). 터지기 전에 잡으면 불발.	Once the fuse is lit, the 3x3 around it explodes next turn (orange tiles). Kill it before it blows and it's a dud.
 미믹	Mimic
 보물상자인 척하는 상자 괴물. 밟으면 튀어나온다. 튼튼하고 아프게 물지만, 잡으면 보물상자보다 훨씬 많은 골드와 아이템을 뱉는다.	A box monster posing as a treasure chest. Springs out when stepped on. Tough and bites hard, but drops far more Gold and items than a chest.
-예고 없이 붉은 슬라임 졸개를 부르고(최대 2마리), 번갈아 주변 3x3을 짓누른다. 졸개부터 정리하자.	Summons red slime minions without warning (max 2) and alternately crushes the 3x3 around it. Clear the minions first.
-돌진과 도끼 내려찍기(주변 3x3)를 번갈아 쓴다. 돌진 뒤 비틀거릴 때가 기회.	Alternates charges and axe smashes (surrounding 3x3). Its stagger after a charge is your chance.
-십자 마법(가로줄·세로줄 전체)과 두 발 저격을 번갈아 쓴다. 같은 줄을 피하고, 저격은 움직이고 → 대기.	Alternates cross magic (entire row and column) and double snipes. Avoid its lines; for snipes, move → wait.
 {0}층 보스를 처음 쓰러뜨리면 기록된다	Recorded when you first defeat the Floor {0} boss
 처음 처치하면 기록된다	Recorded on first kill
 몬스터 도감	Monster Codex
@@ -237,7 +234,6 @@ X자 베기	X Slash
 받는 피해  <color=#FF7070>+{0:0.#}%</color>	Damage taken  <color=#FF7070>+{0:0.#}%</color>
 흡혈  {0:0.#}%{1}	Lifesteal  {0:0.#}%{1}
  (최대)	 (max)
-재생  턴당 {0:0.#}%  (≈{1:0.#} HP)	Regen  {0:0.#}% per turn  (≈{1:0.#} HP)
 처치 회복  {0:0.#}%  (≈{1:0.#} HP)	Kill Heal  {0:0.#}%  (≈{1:0.#} HP)
 <b><color=#FFE680>[경제]</color></b>	<b><color=#FFE680>[Economy]</color></b>
 경험치  {0}	EXP  {0}
@@ -257,9 +253,6 @@ Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}	Stage {0}/{1}   Room {2}/{3}   Atte
 대시	Dash
 회전\n베기	Spin\nSlash
 [Tab] 스탯	[Tab] Stats
-사망! (레벨/스탯/장비는 그대로 유지됩니다)	You died! (Level/stats/gear are kept)
-←/→ 또는 클릭: 시작 방 고르기   [Enter] 계속하기   [L] 로비로 이동	←/→ or Click: Choose start room   [Enter] Continue   [L] Go to Lobby
-←/→ 또는 클릭: 고르기   B: 보스방   [Enter] 시작  (깬 뒤엔 다음 방으로)	←/→ or Click: Select   B: Boss Room   [Enter] Start  (then onward to next room)
 보유	Owned
   <color=#888888>(없음)</color>	  <color=#888888>(none)</color>
 {0}\n<color=#9AA0AA>방향키·클릭: 고르기   1/2/3 키·아래 퀵슬롯 클릭: 등록(등록된 것만 사용 가능)   I·Esc: 닫기</color>	{0}\n<color=#9AA0AA>Arrows·Click: Select   1/2/3 keys·click quickslot below: Assign (only assigned items usable)   I·Esc: Close</color>
@@ -276,51 +269,56 @@ Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}	Stage {0}/{1}   Room {2}/{3}   Atte
 덫	Trap
 반사 부적	Reflect Charm
 약점 표식	Weakness Mark
-옆 칸에 설치 - 그 주변이 계속 밝게 보인다	Place on adjacent tile - keeps its surroundings lit
 던지면 최대 {0}칸 앞에 떨어져 다음 턴 3x3 폭발(공격력 {1:0}배, 벽도 부숨, 방패 무시)	Thrown up to {0} tiles ahead; explodes 3x3 next turn ({1:0}x ATK, breaks walls, ignores shields)
 옆 칸에 허수아비 - {0}턴 동안 몹들이 허수아비를 노린다	Scarecrow on adjacent tile - mobs target it for {0} turns
-주변 {0}칸 몹이 {1}턴 동안 플레이어를 못 찾는다(행동 못 함)	Mobs within {0} tiles can't find you for {1} turns (can't act)
 거미줄·점액 즉시 해제 + {0}턴 동안 달라붙지 않음. 주변 점액을 씻고 포자 감염을 1단계 낮춘다	Instantly frees you from webs and slime + nothing sticks for {0} turns. Washes away nearby slime and lowers spore infection by 1
 점액 {0}칸을 씻어 냈다	washed away {0} slime tiles
 감염이 한 단계 내려갔다	infection lowered by 1
 정화제! {0}	Purifier! {0}
 보스의 예고 공격 취소 + {0}턴 기절, 주변 몹 {1}턴 기절	Cancels boss telegraphed attack + {0}-turn stun; nearby mobs stunned {1} turns
 앞쪽 2x2 칸에 설치 - 밟은 몹(보스 포함) {0}턴 기절	Place on a 2x2 area in front - stuns the mob that steps on it (incl. bosses) for {0} turns
-{0}턴 안에 맞는 보스 예고 공격 1회를 되돌린다(보스 최대 체력 {1:0}%)	Reflects 1 boss telegraphed attack taken within {0} turns ({1:0}% of boss Max HP)
-주변 {0}칸 몹과 보스가 {1}턴 동안 받는 피해 +{2:0}%	Mobs and bosses within {0} tiles take +{2:0}% damage for {1} turns
 다음에 받는 피해 1회 무효	Negates the next instance of damage
 균형 성장	Balanced Growth
-최대체력 +12, 공격력 +3 / 현재 체력 -20%	Max HP +12, ATK +3 / Current HP -20%
+최대체력 +4%, 공격력 +2% / 현재 체력 -10%	Max HP +4%, ATK +2% / Current HP -10%
 힘	Strength
-공격력 +6 / 받는 피해 +2%	ATK +6 / Damage taken +2%
+공격력 +6% / 받는 피해 +1%	ATK +6% / Damage taken +1%
 체력	Vitality
-최대체력 +25 / 공격력 -3%	Max HP +25 / ATK -3%
+최대체력 +8% / 공격력 -3%	Max HP +8% / ATK -3%
 완전 회복	Full Heal
-체력 전부 회복 / 공격력 -2%	Fully restore HP / ATK -2%
+체력 전부 회복	Fully restore HP
 공격력 강화	Power Up
 공격력 +12% / 최대체력 -3%	ATK +12% / Max HP -3%
 체력 강화	Vitality Up
-최대체력 +15% / 공격력 -5%	Max HP +15% / ATK -5%
+최대체력 +20% / 공격력 -5%	Max HP +20% / ATK -5%
 날카로움	Sharpness
-치명타 +5%p / 공격력 -4%	Crit +5%p / ATK -4%
+치명타 +5%p / 공격력 -3%	Crit +5%p / ATK -3%
 흡혈	Lifesteal
-흡혈 +8% (일반 공격만, 최대 50%) / 공격력 -3%	Lifesteal +8% (normal attacks only, max 50%) / ATK -3%
+흡혈 +8% (일반 공격만, 최대 50%) / 공격력 -2%	Lifesteal +8% (normal attacks only, max 50%) / ATK -2%
 방어	Defense
 받는 피해 -2% (최대 30%) / 골드 -5%	Damage taken -2% (max 30%) / Gold -5%
 재생	Regen
-매 턴 최대체력 1.5% 회복 / 받는 피해 +2%	Heal 1.5% Max HP every turn / Damage taken +2%
 처치 회복	Kill Heal
-처치 시 최대체력 12% 회복 (최대 36%) / 공격력 -3%	Heal 12% Max HP on kill (max 36%) / ATK -3%
+처치 시 최대체력 12% 회복 (최대 36%) / 최대체력 -2%	Heal 12% Max HP on kill (max 36%) / Max HP -2%
 학습	Learning
 경험치 +25% / 받는 피해 +3%	EXP +25% / Damage taken +3%
 수집	Collector
 골드 +20% (최대 100%) / 경험치 -10%	Gold +20% (max 100%) / EXP -10%
-[도박] 광폭화	[Gamble] Berserk
+광폭화	Berserk
 공격력 +20% / 최대체력 -10%	ATK +20% / Max HP -10%
-[도박] 철갑	[Gamble] Ironclad
-받는 피해 -3% / 공격력 -5%	Damage taken -3% / ATK -5%
-[도박] 황금 욕심	[Gamble] Gold Greed
+철갑	Ironclad
+받는 피해 -3% / 최대체력 -5%	Damage taken -3% / Max HP -5%
+황금 욕심	Gold Greed
 골드 +30% (최대 100%) / 받는 피해 +8%	Gold +30% (max 100%) / Damage taken +8%
+숨 고르기	Catch Breath
+최대체력 40% 회복	Heal 40% Max HP
+모험심	Adventurous
+골드 +10%, 경험치 +10% / 현재 체력 -10%	Gold +10%, EXP +10% / Current HP -10%
+단단함	Sturdy
+최대체력 +12% / 공격력 -3%	Max HP +12% / ATK -3%
+급소 노리기	Weak Spot
+치명타 +8%p / 받는 피해 +2%	Crit +8%p / Damage taken +2%
+혈투	Blood Feud
+공격력 +18% / 받는 피해 +5%	ATK +18% / Damage taken +5%
 업적 달성! {0} - 칭호 「{1}」{2}	Achievement unlocked! {0} - Title 「{1}」{2}
 보유 골드: {0}	Gold: {0}
 공격력	ATK
@@ -338,7 +336,6 @@ Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}	Stage {0}/{1}   Room {2}/{3}   Atte
 치명타 영약: 스테이지 {0}부터 구매 가능(비공개)	Crit Elixir: available from Stage {0} (hidden)
 골드가 모자랍니다! (뽑기 비용: {0})	Not enough Gold! (Gacha cost: {0})
 {0} 획득! 장착했습니다.	Got {0}! Equipped.
-{0}... 이미 더 좋은 장비가 있어 버려짐.	{0}... discarded, you already have better gear.
   새 효과: {0} ({1})	  New effect: {0} ({1})
   {0} 상점 Lv{1} 달성!	  {0} Shop Lv{1} reached!
 골드가 모자랍니다! (10연차 비용: {0})	Not enough Gold! (10-pull cost: {0})
@@ -360,24 +357,12 @@ Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}	Stage {0}/{1}   Room {2}/{3}   Atte
 {0}: {1} (공격력+{2:0.#} 체력+{3:0.#}){4}	{0}: {1} (ATK+{2:0.#} HP+{3:0.#}){4}
 보유 골드: 0	Gold: 0
 [Esc] 로비로	[Esc] To Lobby
-[1] 뽑기 상점	[1] Gacha Shop
-검·갑옷·반지 뽑기	Sword·Armor·Ring Gacha
-[2] 영약 상점	[2] Elixir Shop
-공격력·체력·치명타	ATK·HP·Crit
-[3] 도박장	[3] Casino
-운명의 슬롯	Slot of Fate
-[Enter / Space] 스테이지 {0} 시작	[Enter / Space] Start Stage {0}
-Esc: 타이틀로	Esc: To Title
-[5] 업적·칭호 <color=#FFD966>({0}/{1})</color>	[5] Achievements·Titles <color=#FFD966>({0}/{1})</color>
-[6] 도감 <color=#B9A0FF>({0}/{1})</color>	[6] Codex <color=#B9A0FF>({0}/{1})</color>
- <color=#FFD966>(보상 {0})</color>	 <color=#FFD966>(Reward {0})</color>
 운명의 슬롯\n3개 일치 10배 / 2개 일치 0.5배	Slot of Fate\n3 match 10x / 2 match 0.5x
 등급 확률 (상점 레벨별)	Grade Odds (by Shop Level)
 등급\n	Grade\n
 시간지기 노인	Old Timekeeper
 보스방엔 안개가 없네. 바닥의 빨간 칸은 다음 턴에 맞는 자리니 비켜서게. 움직일 데가 없으면 Space로 버티는 것도 방법이야.	No fog in the boss room. Red tiles on the floor get hit next turn, so step aside. If there's nowhere to go, holding still with Space works too.
 <color=#FFD966>섬광탄</color>은 보스의 예고 공격을 취소하고 잠깐 기절시키지. 아껴 두다 죽으면 그게 제일 아까운 걸세.	A <color=#FFD966>Flashbang</color> cancels a boss's telegraphed attack and stuns it briefly. Dying while saving one is the biggest waste of all.
-<color=#FFD966>반사 부적</color>을 켜 두면 보스의 예고 공격 한 번을 그대로 되돌려 주지.	Keep a <color=#FFD966>Reflect Charm</color> active and it'll send one boss telegraphed attack right back.
 보스가 부른 졸개는 보스를 쓰러뜨리면 같이 사라지네. 졸개만 쫓다 지치지 말게.	Minions a boss summons vanish when the boss falls. Don't wear yourself out chasing them.
 보스한테 계속 막힌다면 뽑기와 영약으로 몸부터 키우게. 버틸 체력이 있어야 패턴도 보이는 법이지.	If a boss keeps stopping you, build yourself up with gacha and elixirs first. You need the HP to survive long enough to see the patterns.
 방을 다 비우면 <color=#7FD4FF>파란 출구 칸</color>이 열리네. 안개 속에 숨어 있으니 직접 찾아야 해.	Clear a room and the <color=#7FD4FF>blue exit tile</color> opens. It hides in the fog, so you'll have to find it yourself.
@@ -489,7 +474,6 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 고리의 단골이여. 오늘은 무엇을 내어 주겠나?	Regular of the loop. What will you give up today?
 <color=#C890FF>{0}</color>  <color=#FF8080>대가: {1}</color>  <color=#8CE08C>얻는 것: {2}</color>	<color=#C890FF>{0}</color>  <color=#FF8080>Price: {1}</color>  <color=#8CE08C>Gain: {2}</color>
 거절한다	Refuse
-{0}\n<size=13><color=#9AA0AA>계약은 하나만. 배율 효과는 이번 시도 동안(죽거나 층을 넘기면 풀린다).</color></size>	{0}\n<size=13><color=#9AA0AA>One pact only. Multiplier effects last this attempt (broken on death or next floor).</color></size>
 어이, 이런 곳에서 산 사람을 다 보는군! 오늘 들고 온 건 이것뿐이네.	Hey, a living soul in a place like this! This is all I brought today.
 또 자넨가! 이번 고리에서도 살아 있군. 물건 보고 가게.	You again! Still alive this loop, eh. Have a look at my wares.
 단골이 다 됐군. 자네 쓰러지는 소리는 이제 벽 너머에서도 알아듣는다네.	You've become a regular. I can hear you hit the floor even through the walls now.
@@ -557,10 +541,8 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 폭탄을 던졌다! 다음 턴에 터진다	Threw a bomb! It explodes next turn
 미끼! {0}턴 동안 몹들이 허수아비를 노린다	Decoy! Mobs target the scarecrow for {0} turns
 덫을 놓았다	Set a trap
-연막! 주변 몹이 {0}턴 동안 플레이어를 못 찾는다	Smoke! Nearby mobs can't find you for {0} turns
 정화제! 거미줄이 풀렸다	Purifier! Webs removed
 섬광탄! 보스의 공격이 취소됐다	Flashbang! Boss attack canceled
-반사 부적! {0}턴 안에 맞는 보스 공격을 되돌린다	Reflect Charm! Reflects a boss attack taken within {0} turns
 약점 표식! 받는 피해가 늘어난다	Weakness Mark! Damage taken increased
 보호막! 다음 피해 1회 무효	Barrier! Next damage negated
 지금은 쓸 수 없다	Can't use that now
@@ -571,8 +553,6 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 회전 베기는 {0}턴 뒤에 쓸 수 있다	Spin Slash ready in {0} turn(s)
 주변에 적이 없다	No enemies nearby
 그쪽으로는 대시할 수 없다	Can't dash that way
-주변에 말을 걸 상대가 없다	No one nearby to talk to
-{0} - F 키로 대화	{0} - Press F to talk
 거미줄에 묶여 움직일 수 없다! (공격·회전 베기·대기는 가능)	Webbed - can't move! (attack·Spin Slash·wait OK)
 {0}이(가) {1}을(를) 떨어뜨렸다!	{0} dropped {1}!
 방 {0}을 비우고 모험가에게 보고	Clear Room {0} and report to the Adventurer
@@ -580,7 +560,7 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 모험가의 의뢰 완료! 골드 +{0}, 뽑기권 +{1}	Adventurer's request complete! Gold +{0}, Gacha Ticket +{1}
 의뢰: {0}	Request: {0}
 돌진의 뿔	Horn of the Charge
-대시 거리 3→4칸, 대시 공격 피해 +50%	Dash range 3→4 tiles, dash attack damage +50%
+대시 거리 3→4칸, 대시가 몹을 뚫고 지나가며 길 위의 몹을 모두 벤다	Dash range 3→4 tiles, dash passes through enemies, slashing every enemy in its path
 대지의 망치	Hammer of the Earth
 일반 공격 시 대상 상하좌우 몹에게도 20% 피해	Normal attacks also deal 20% damage to mobs orthogonally adjacent to the target
 십자 문장	Cross Crest
@@ -589,7 +569,6 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 방마다 1번, 체력이 {0:0}% 아래로 떨어지면 허수아비가 나타나 {1}턴 동안 몹들의 공격을 받아 낸다	Once per room, when HP drops below {0:0}%, a scarecrow appears and draws enemy attacks for {1} turns
 망령의 깃발! 허수아비가 {0}턴 동안 공격을 받아 낸다	Wraith Banner! A scarecrow draws attacks for {0} turns
 파동의 핵	Shockwave Core
-회전 베기에 맞은 몹 1턴 기절	Mobs hit by Spin Slash are stunned 1 turn
 저격수의 눈	Sniper's Eye
 치명타 피해 +50%p	Crit damage +50%p
 관통의 인장	Piercing Seal
@@ -687,21 +666,14 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 게임 시작  [Enter]	Start Game  [Enter]
 종료	Quit
 거울 파편	Mirror Shards
-거울 파편(2번째)	Mirror Shards (2nd)
 {0}가 본모습을 드러냈다! ({1})	{0} reveals its true form! ({1})
-본모습일 때는 거울 파편을 쓴다 - 주변 4칸을 체스판 무늬로 두 번 연달아 친다. 상하좌우로 한 칸 움직이면 피하고, 두 번째도 다시 움직여야 한다.	In its true form it uses Mirror Shards: two checkerboard strikes in a row within 4 tiles of you. Step one tile up/down/left/right to dodge, then move again for the second.
 주변 {0}칸 몹과 보스가 {1:0}초 동안 받는 피해 +{2:0}%	Mobs and bosses within {0} tiles take +{2:0}% damage for {1:0} seconds
 섬광탄! 보스는 비틀거리지만 거울 파편은 멈추지 않는다	Flashbang! The boss staggers, but the Mirror Shards keep coming
 대기	Wait
-대화	Talk
 능력치	Stats
 확인	OK
 로비	Lobby
-[5] 업적·칭호	[5] Achievements
-[6] 도감	[6] Codex
 보상 {0}개 받기	Claim {0} reward(s)
-할 이야기가 있다(!)	Has something to say (!)
-이야기·조언·의뢰	Stories · Tips · Requests
 뒤로	Back
 치유사	Healer
 돌진병	Charger
@@ -712,10 +684,10 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 오크 돌격병	Orc Charger
 분열 젤리	Splitting Jelly
 그림자 도적	Shadow Rogue
-멀찍이 떨어져서 {0}칸 안의 다친 아군을 최대 체력의 {1}%만큼 고친다(3턴마다). 몸이 약하니 제일 먼저 쫓아가 잡자. 5층부터.	Keeps its distance and heals a wounded ally within {0} tiles for {1}% of their max HP (every 3 turns). It's frail, so chase it down first. From floor 5.
-같은 줄 {0}칸 안에 서면 돌진할 줄을 빨갛게 예고하고, 다음 턴에 그 줄을 끝까지 달려 들이받는다(공격력 2배). 줄에서 비키거나 다른 몹 뒤에 서자. 돌진한 뒤엔 한 턴 숨을 고른다. 6층부터.	If you stand in its row or column within {0} tiles, it marks the charge line in red and rams down it next turn (2x attack). Step off the line or hide behind another monster. It catches its breath for a turn after charging. From floor 6.
-튼튼한 젤리. 쓰러뜨리면 작은 조각 둘로 갈라진다. 조각은 약하고 갓 갈라진 턴엔 굳어 있지만 골드와 경험치를 주지 않는다. 회전 베기로 한꺼번에 치우자. 7층부터.	A sturdy jelly. When defeated it splits into two small blobs. The blobs are weak and frozen the turn they appear, but give no gold or EXP. Clear them together with Spin Slash. From floor 7.
-조금 떨어져 있으면 연기와 함께 플레이어 등 뒤로 순간이동한다. 순간이동 직후 첫 공격은 1.5배로 아프다. 나타나면 바로 때려서 기습 전에 잡자. 8층부터.	When a few tiles away, it vanishes in smoke and teleports right behind you. Its first attack after teleporting deals 1.5x damage. Hit it the moment it appears, before it strikes. From floor 8.
+멀찍이 떨어져서 {0}칸 안의 다친 아군을 최대 체력의 {1}%만큼 고친다(3턴마다). 몸이 약하니 제일 먼저 쫓아가 잡자. 5층부터.	Keeps its distance and heals a wounded ally within {0} tiles for {1}% of their max HP (every 3 turns). It's frail, so chase it down first. From Floor 5.
+같은 줄 {0}칸 안에 서면 돌진할 줄을 빨갛게 예고하고, 다음 턴에 그 줄을 끝까지 달려 들이받는다(공격력 2배). 줄에서 비키거나 다른 몹 뒤에 서자. 돌진한 뒤엔 한 턴 숨을 고른다. 6층부터.	If you stand in its row or column within {0} tiles, it marks the charge line in red and rams down it next turn (2x attack). Step off the line or hide behind another monster. It catches its breath for a turn after charging. From Floor 6.
+튼튼한 젤리. 쓰러뜨리면 작은 조각 둘로 갈라진다. 조각은 약하고 갓 갈라진 턴엔 굳어 있지만 골드와 경험치를 주지 않는다. 회전 베기로 한꺼번에 치우자. 7층부터.	A sturdy jelly. When defeated it splits into two small blobs. The blobs are weak and frozen the turn they appear, but give no gold or EXP. Clear them together with Spin Slash. From Floor 7.
+조금 떨어져 있으면 연기와 함께 플레이어 등 뒤로 순간이동한다. 순간이동 직후 첫 공격은 1.5배로 아프다. 나타나면 바로 때려서 기습 전에 잡자. 8층부터.	When a few tiles away, it vanishes in smoke and teleports right behind you. Its first attack after teleporting deals 1.5x damage. Hit it the moment it appears, before it strikes. From Floor 8.
 <color=#9AA0AA>{0} 클리어 시 {1} 열림</color>	<color=#9AA0AA>Clear {0} to unlock {1}</color>
 쓰러졌다!	You fell!
 포기했다	Gave up
@@ -729,7 +701,6 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 성공! 레벨업 카드 1장	Success! 1 level-up card
 여기선 스킬·아이템을 쓸 수 없다	Skills and items can't be used here
 시간 초과	Time's up
-{0} / {1}	{0} / {1}
 얼음 미끄럼	Ice Slide
 이동 횟수를 다 썼다	Out of moves
 함정 복도	Trap Corridor
@@ -744,22 +715,16 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 상자 섞기	Shell Game
 보물이 든 상자를 골라라	Pick the chest with the treasure
 꽝! 보물은 다른 상자에 있었다	Miss! The treasure was in another chest
-두더지 잡기	Whack-a-Slime
-황금 슬라임 추격	Golden Slime Chase
+두더지 잡기	Whack-a-Mole
 놓쳤다	It got away
 보물 찾기	Treasure Hunt
 함정을 밟았다	Stepped on a trap
 버티기	Survival
 남은 시간 {0}:{1:00}	Time left {0}:{1:00}
 보물 상자를 눈으로 쫓아 부딪혀 열어라. 라운드를 전부 맞혀야 성공! 마지막 라운드엔 상자가 어두워진다.	Follow the treasure chest and bump it to open. Win every round! In the last round the chests go dark.
-점수 {0} / {1}   남은 턴 {2}	Score {0} / {1}   Turns left {2}
 폭탄 슬라임! 점수 -2	Bomb slime! Score -2
-황금 슬라임을 구석으로 몰아 부딪혀라({0}턴마다 숨을 고른다). 지나간 자리의 점액을 밟으면 발이 묶인다!	Corner the golden slime and bump into it (it rests every {0} turns). Stepping in its slime trail roots you!
-남은 슬라임 {0}   남은 턴 {1}	Slimes left {0}   Turns left {1}
-한 마리 잡았다! 남은 슬라임을 쫓아라	Caught one! Chase the other
-점액에 발이 묶였다! (Space로 한 턴 쉬기)	Stuck in slime! (Space to rest a turn)
-있음	yes
-없음	no
+있음	found
+없음	none
 열쇠를 주웠다! 이제 보물 상자로	Got the key! Now to the chest
 잠겨 있다 - 열쇠가 필요하다	Locked - you need the key
 1분을 버텨라. 가만히 있어도 몹은 움직인다. 빨간 칸엔 돌이 떨어지고, 30초가 지나면 더 거세진다!	Survive 1 minute. Monsters move even if you stand still. Rocks fall on red tiles, and it gets fiercer after 30 seconds!
@@ -779,9 +744,6 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 머리 위 번호 순서대로 쓰러뜨려라. 다른 몹을 먼저 잡으면 실패! (회전 베기·폭탄 조심)	Defeat monsters in the order of the numbers above them. Kill another first and you fail! (Careful with Spin Slash and bombs)
 다음 번호 {0} / {1}	Next number {0} / {1}
 순서가 틀렸다 - {0}번을 먼저 잡아야 했다	Wrong order - number {0} had to go first
-주변 {0}칸 몹이 플레이어가 공격하기 전까지 플레이어를 못 찾는다(행동 못 함)	Mobs within {0} tiles can't find you until you attack (they can't act)
-연막! 공격하기 전까지 주변 몹이 플레이어를 못 찾는다	Smoke! Nearby mobs can't find you until you attack
-출구가 열렸다! (계단)	The exit opened! (stairs)
 폭탄 두더지! 점수 -2	Bomb mole! Score -2
 점수 {0} / {1}   남은 시간 {2}:{3:00}	Score {0} / {1}   Time left {2}:{3:00}
 황금 고블린 추격	Golden Goblin Chase
@@ -828,13 +790,13 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 ...드디어 끝인가. 이 기억을... 네가 가져가라.	...Is this finally the end? Take this memory... with you.
 다음 고리에서... 다시 보자.	In the next loop... we meet again.
 또 졌군. 그래도 잊지는 않겠다.	Defeated again. Still, I will not forget.
-간파!	Read!
+간파!	Foreseen!
 숨 고르기	Catching breath
 {0} 처치! 골드 +{1}, 히든 유물 <color=#7FE0D8>「{2}」</color> 획득	{0} slain! Gold +{1}, hidden relic <color=#7FE0D8>"{2}"</color> obtained
 {0} 처치! 골드 +{1}	{0} slain! Gold +{1}
 기사의 기억	Knight's Memory
 그림자 걸음	Shadow Step
-대시가 몹을 뚫고 지나가며 길 위의 몹을 모두 벤다	Dash passes through enemies, slashing every enemy in its path
+대시로 벤 몹에게 한 턴 뒤 그 피해의 75%가 그림자로 한 번 더 들어간다	Enemies hit by your dash take a shadow strike for 75% of that damage one turn later
 소용돌이	Whirlwind
 회전 베기에 맞은 몹을 2칸 밀어낸다(막히면 공격력 30% 추가 피해, 보스는 안 밀림)	Spin Slash knocks enemies back 2 tiles (if blocked, +30% ATK damage; bosses are not pushed)
 멈춘 회중시계	Stopped Pocket Watch
@@ -844,7 +806,7 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 퍼즐 장인의 장갑	Puzzlemaster's Gloves
 퍼즐·미니게임 성공 보상(골드·영약) 2배	Double puzzle and minigame rewards (gold and elixirs)
 상인의 인장	Merchant's Seal
-던전 떠돌이 상인 가격 -20%	Wandering dungeon merchant prices -20%
+던전 떠돌이 상인 가격 -20%	Wandering Merchant prices -20%
 계약자의 낙인	Contractor's Brand
 저주 계약의 대가가 절반	Curse contract costs are halved
 피의 사냥꾼	Blood Hunter
@@ -868,12 +830,10 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 보유 ×{0}	Owned ×{0}
 몹·보스의 공격을 12% 확률로 간파해 피해를 받지 않음	12% chance to read a monster's or boss's attack and take no damage
 히든 유물 - 보스 보상으로는 나오지 않는다	Hidden relic - never offered as a boss reward
-어딘가에 고리를 기억하는 자가 있다고 한다	They say someone, somewhere, remembers the loop
 어딘가에 말을 하는 몬스터가 있다고 한다	They say there is a monster somewhere that speaks
-간파! 공격을 읽고 피했다	Read! You saw the attack coming and dodged
+간파! 공격을 읽고 피했다	Foreseen! You saw the attack coming and dodged
 설문 참여	Take the survey
 내 기록 복사	Copy my record
-브라우저에서 열었어요	Opened in your browser
 설문 링크가 아직 없어요	No survey link yet
 복사했어요! 설문에 붙여 넣기	Copied! Paste it into the survey
 기록 복사 + 설문 열기 완료	Logs copied + survey opened
@@ -884,8 +844,6 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 취소  [Esc]	Cancel  [Esc]
 기록 {0}개 복사! 설문에 붙여 넣기	Copied {0} logs! Paste into the survey
 플레이 기록 폴더	Play log folder
-폴더를 열었어요	Folder opened
-폴더를 못 열었어요	Couldn't open the folder
 이름 없는 대장장이	The Nameless Blacksmith
 기사의 검 조각	Knight's Blade Shard
 기억의 벼림	Forged Memory
@@ -906,12 +864,12 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 <color=#7FE0D8>Unknown 장비 세트</color>를 받았다! 세트 효과 「{0}」: {1}	Received the <color=#7FE0D8>Unknown equipment set</color>! Set bonus "{0}": {1}
 네 돌진, 기억해 뒀다. 이번엔 내 차례다.	I remembered your charge. Now it's my turn.
 그렇게 달려들었지. 이렇게.	You rushed in like this. Just like this.
-네 회전 베기다. 돌려주마.	Your spinning slash. I'll give it back.
+네 회전 베기다. 돌려주마.	Your Spin Slash. I'll give it back.
 빙글빙글... 이렇게 하는 거였나?	Round and round... Was it like this?
 ...던전이 흔들린다.	...The dungeon trembles.
-강타!	Heavy Strike!
+강타!	Slam!
 기억 재현!	Echo!
-<color=#FF7A70>기사의 강타!</color>	<color=#FF7A70>Knight's Heavy Strike!</color>
+<color=#FF7A70>기사의 강타!</color>	<color=#FF7A70>Knight's Slam!</color>
 <color=#7FE0D8>기억 재현 - 회전 베기!</color>	<color=#7FE0D8>Echo - Spin!</color>
 <color=#7FE0D8>기억 재현 - 돌진!</color>	<color=#7FE0D8>Echo - Charge!</color>
 <color=#9AA0AA>투구 틈의 빛이 희미하게 깜빡이다 꺼졌다... 더 깊은 곳의 기사라면 무언가 남길지도.</color>	<color=#9AA0AA>The light in the visor flickered faintly and went out... A knight in the deeper floors might leave something behind.</color>
@@ -940,13 +898,11 @@ Q 대시는 달려들면서 한 대, E 회전 베기는 둘러싸였을 때. 쿨
 빨간 칸	Red Tiles
 NPC	NPC
 죽어도 괜찮아요	It's okay to die
-방을 비우면 <b>출구(계단)</b>가 열려요. 안개 속에 있으니 찾아가서 밟으세요. 방을 비울 때마다 체력도 조금 회복돼요.	Clearing a room opens the <b>exit (stairs)</b>. It's hidden in the fog, so find it and step on it. You also recover a little health each time you clear a room.
 아이템을 얻었어요! <b>가방 칸</b>을 눌러 퀵슬롯(1/2/3)에 올린 뒤, 숫자 칸을 눌러 써요. 아끼다 죽으면 잃어요.	You got an item! Tap the <b>bag slot</b> to put it in a quick slot (1/2/3), then tap the number slot to use it. You lose items if you die saving them.
 아이템을 얻었어요! <b>I</b>로 가방을 열어 퀵슬롯(1/2/3)에 올린 뒤, <b>숫자 키</b>로 써요. 아끼다 죽으면 잃어요.	You got an item! Open your bag with <b>I</b>, put it in a quick slot (1/2/3), then use it with the <b>number keys</b>. You lose items if you die saving them.
 레벨업! 카드 하나를 골라 강해지세요. <b>능력치</b> 버튼으로 지금 상태를 볼 수 있어요.	Level up! Pick one card to grow stronger. Check your current stats with the <b>Stats</b> button.
 레벨업! 카드 하나를 골라(<b>1/2/3</b>) 강해지세요. <b>Tab</b>으로 지금 능력치·장비를 볼 수 있어요.	Level up! Pick one card (<b>1/2/3</b>) to grow stronger. Press <b>Tab</b> to see your stats and gear.
 바닥의 <b>빨간 칸</b>은 다음 턴에 공격이 떨어지는 자리예요. 그 칸에서 비켜서세요!	<b>Red tiles</b> on the floor will be hit next turn. Step off them!
-누군가 나타났어요. 옆에 가서 <b>대화</b> 버튼을 누르세요. 대화는 턴을 쓰지 않아요.	Someone appeared. Walk up and press the <b>Talk</b> button. Talking doesn't use a turn.
 누군가 나타났어요. 몬스터를 때리듯 그쪽으로 <b>한 번 더 걸어가 부딪히면</b> 말을 걸어요. 대화는 턴을 쓰지 않아요.	Someone appeared. Walk into them <b>like attacking a monster</b> to talk. Talking doesn't use a turn.
 층의 끝, <b>보스방</b>이에요. 보스는 바닥에 공격할 칸을 먼저 보여 주고 다음 턴에 때려요. 보스방엔 안개가 없어요.	The end of the floor: the <b>boss room</b>. Bosses mark the tiles they'll hit first, then strike next turn. There is no fog in boss rooms.
 죽어도 <b>레벨과 능력치는 그대로</b>예요. 그 층 처음부터 다시 도전해요(골드는 조금 잃어요). 로비에서 뽑기·영약으로 더 강해질 수도 있어요.	Even if you die, <b>your level and stats stay</b>. You retry the floor from the start (losing a little gold). You can also get stronger in the lobby with gacha and elixirs.
@@ -964,7 +920,7 @@ NPC	NPC
 기억하는 기사를 쓰러뜨린다	Defeat the Remembering Knight
 기사 사냥꾼	Knight Hunter
 완벽한 간파	Perfect Read
-강타·기억 재현에 한 번도 맞지 않고 기억하는 기사를 쓰러뜨린다	Defeat the Remembering Knight without being hit by Heavy Strike or Echo
+강타·기억 재현에 한 번도 맞지 않고 기억하는 기사를 쓰러뜨린다	Defeat the Remembering Knight without being hit by Slam or Echo
 읽히지 않는 자	The Unreadable
 이어받은 기억	Inherited Memory
 히든 유물 「기사의 기억」을 얻는다	Obtain the hidden relic "Knight's Memory"
@@ -975,26 +931,17 @@ NPC	NPC
 Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 <b>능력치</b> 버튼을 눌러 보세요. 공격력·체력·장비·유물을 한눈에 볼 수 있어요. 한 번 더 누르면 닫혀요.	Tap the <b>Stats</b> button. You can see your attack, health, gear and relics at a glance. Tap again to close.
 <b>Tab</b>을 눌러 능력치 창을 열어 보세요. 공격력·체력·장비·유물을 한눈에 볼 수 있어요. 한 번 더 누르면 닫혀요.	Press <b>Tab</b> to open the stats window. You can see your attack, health, gear and relics at a glance. Press again to close.
-<color=#FFD966>튜토리얼 1/4</color>  첫걸음 - 움직여 보고 출구(계단)로	<color=#FFD966>Tutorial 1/4</color>  First Steps - move around and head for the exit (stairs)
-<color=#FFD966>튜토리얼 2/4</color>  공격 - 슬라임에게 부딪혀 보세요	<color=#FFD966>Tutorial 2/4</color>  Attack - bump into the slime
-<color=#FFD966>튜토리얼 3/4</color>  스킬 - 대시와 회전 베기	<color=#FFD966>Tutorial 3/4</color>  Skills - Dash and Spin Slash
-<color=#FFD966>튜토리얼 4/4</color>  위험 피하기 - 빨간 칸에서 비키고, 아이템도 써 보세요	<color=#FFD966>Tutorial 4/4</color>  Dodging - step off the red tiles, and try using an item
 튜토리얼   Room {0}/{1}	Tutorial   Room {0}/{1}
 <color=#FFD966>튜토리얼 완료!</color>  골드 +{0}	<color=#FFD966>Tutorial complete!</color>  Gold +{0}
 <color=#FFD966>튜토리얼 완료!</color>	<color=#FFD966>Tutorial complete!</color>
 잠시 후 타이틀로 돌아갑니다	Returning to the title shortly
 이제 진짜 던전으로 내려갑니다...	Now, down into the real dungeon...
-<color=#FFB060>멧돼지가 땅을 들이받자 돌기둥이 솟았다!</color> 기둥이 서 있는 동안 멧돼지는 단단하다	<color=#FFB060>The boar slams the ground and stone pillars rise!</color> While the pillars stand, the boar is armored
-기둥 뒤에 서서 돌진을 유도해 기둥에 박게 하자!	Stand behind a pillar and lure its charge into it!
 <color=#FFB060>오우거가 분노해 바닥을 부술 기세로 몽둥이를 쥔다!</color> 강타가 바닥에 균열을 남긴다	<color=#FFB060>The ogre grips its club hard enough to shatter the floor!</color> Its slams now leave cracks
 <color=#FF8080>균열에 발이 빠졌다!</color> 한 턴 움직일 수 없다	<color=#FF8080>Your foot sank into a crack!</color> You can't move for a turn
 출구가 열렸다! (문)	The exit opened! (door)
 방을 비우면 <b>출구(문)</b>가 열려요. 안개 속에 있으니 찾아가서 밟으세요. 방을 비울 때마다 체력도 조금 회복돼요.	Clearing a room opens the <b>exit (door)</b>. It's hidden in the fog, so find it and step on it. You also recover a little health each time you clear a room.
-<color=#FFD966>튜토리얼 1/4</color>  첫걸음 - 움직여 보고 출구(문)로	<color=#FFD966>Tutorial 1/4</color>  First Steps - move around and head for the exit (door)
 ←/→ 또는 클릭: 고르기   B: 보스방   [Enter/Space] 시작  (깬 뒤엔 다음 방으로)	←/→ or Click: Select   B: Boss Room   [Enter/Space] Start  (then onward to next room)
-←/→ 또는 클릭: 시작 방 고르기   [Enter/Space] 계속하기   [L] 로비로 이동	←/→ or Click: Choose start room   [Enter/Space] Continue   [L] Go to Lobby
 <b><color=#C890FF>[저주 계약 {0}개]</color></b>  <size=12><color=#9AA0AA>죽거나 층을 넘기면 풀린다</color></size>	<b><color=#C890FF>[Curse Pacts: {0}]</color></b>  <size=12><color=#9AA0AA>Lifted when you die or clear the floor</color></size>
-<color=#C890FF>{0}</color>  <size=12><color=#FF8080>대가: {1}</color>  <color=#8CE08C>얻은 것: {2}</color></size>	<color=#C890FF>{0}</color>  <size=12><color=#FF8080>Cost: {1}</color>  <color=#8CE08C>Gained: {2}</color></size>
 <size=12>   <color=#FF8080>대가: {0}</color>  <color=#8CE08C>얻은 것: {1}</color></size>	<size=12>   <color=#FF8080>Cost: {0}</color>  <color=#8CE08C>Gained: {1}</color></size>
 하나만 골라라. 힘은 네가 쓰러지거나 이 층을 떠날 때까지만 빌려주지... 당장 쥐여 주는 것만은 영영 네 것이고.	Choose only one. I lend this power only until you fall or leave this floor... though what I hand you right now is yours forever.
 명심해라. 이 힘은 이번 걸음이 끝날 때까지만이다. 죽거나 층을 넘으면 도로 거둬 가지. 흐흐.	Remember this. The power lasts only until this journey ends. Die or cross the floor, and I take it back. Heh heh.
@@ -1007,93 +954,33 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 숨겨진 보물상자를 찾는다	Find the hidden treasure chest
 벽 너머를 본 자	Wall Seer
 오래된 던전엔 숨겨진 게 많지. 금이 간 벽을 보거든 폭탄 냄새를 맡게 해 주게. 허허.	Old dungeons hide many things. If you see a cracked wall, let it smell a bomb. Heh heh.
-<color=#7FE0D8>수정이 공명해 터졌다!</color> 골렘이 크게 휘청인다	<color=#7FE0D8>The crystal resonated and burst!</color> The golem staggers badly
-<color=#7FE0D8>골렘이 땅을 울리자 바닥에서 공명 수정이 솟았다!</color>	<color=#7FE0D8>The golem shakes the ground and resonance crystals rise from the floor!</color>
-십자 베기가 수정에 닿으면 수정이 터져 골렘이 다친다 - 수정 주변은 나도 위험	If its Cross Slash reaches a crystal, the crystal bursts and hurts the golem - but it's dangerous near the crystal for you too
-<color=#7FE0D8>골렘의 몸이 갈라지며 돌이 쏟아진다!</color> 이제 십자 베기가 돌무더기를 남긴다	<color=#7FE0D8>The golem's body cracks and stones pour out!</color> Its Cross Slash now leaves rubble
-돌무더기 뒤에 숨으면 십자 베기를 막을 수 있다 - 대신 길도 막힌다	Hide behind rubble to block the Cross Slash - but it blocks your path too
-체력이 줄면 바닥에 공명 수정이 솟는다. 십자 베기가 수정에 닿으면 수정이 터져 골렘이 크게 다치지만 수정 주변도 위험하다. 더 몰리면 십자 베기가 돌무더기를 남겨 엄폐물이 된다.	As its health drops, resonance crystals rise from the floor. If its Cross Slash reaches one, the crystal bursts and badly hurts the golem, but the area around it is dangerous too. When pushed further, its Cross Slash leaves rubble you can take cover behind.
 [1] 보물 상인	[1] Treasure Merchant
 [2] 연금술사	[2] Alchemist
 [3] 도박꾼	[3] Gambler
-[5] 기록관	[5] Chronicler
-[6] 도감 학자	[6] Bestiary Scholar
+[5] 기록관	[5] Archivist
+[6] 도감 학자	[6] Codex Scholar
 방향키 이동 · NPC에게 부딪히거나 Space로 말 걸기 · 위쪽 문으로 들어가면 시작 · 숫자 1~6 바로 열기 · Esc 타이틀	Arrows: move · Bump an NPC or press Space to talk · Enter the top door to start · 1-6: open directly · Esc: title
 클릭 / Space - 넘기기	Click / Space - skip
 장착!	Equipped!
-이미 더 좋은 장비가 있음	You already have better gear
 [P] 등급 확률 보기	[P] Grade odds
 [P / Esc] 닫기	[P / Esc] Close
 ▶▶ 건너뛰기 [Space]	▶▶ Skip [Space]
 뽑기 연출	Gacha animation
 수호막	Ward
-방에 들어갈 때마다 최대체력 8% 보호막 (최대 50%) / 받는 피해 +2%	Gain a shield of 8% max HP on entering each room (max 50%) / Damage taken +2%
+방에 들어갈 때마다 최대체력 8% 보호막 (최대 50%) / 받는 피해 +1%	Shield 8% of Max HP on entering each room (max 50%) / Damage taken +1%
 수호막  방마다 {0:0.#}%  (≈{1:0.#} HP)	Ward  {0:0.#}% per room  (≈{1:0.#} HP)
-<color=#7FE0D8>수정이 공명해 터졌다!</color> 골렘이 잠깐 휘청인다	<color=#7FE0D8>The crystal resonated and burst!</color> The golem staggers briefly
-체력이 줄면 바닥에 공명 수정이 솟는다. 십자 베기가 수정에 닿으면 수정이 터져 골렘이 잠깐 휘청이지만 수정 주변도 위험하다. 더 몰리면 십자 베기가 돌무더기를 남겨 엄폐물이 된다.	As its health drops, resonance crystals rise from the floor. If its Cross Slash reaches one, the crystal bursts and the golem staggers briefly, but the area around it is dangerous too. When pushed further, its Cross Slash leaves rubble you can take cover behind.
 <color=#FF4040>멧돼지가 광폭해져 모든 것을 짓밟았다!</color>	<color=#FF4040>The boar went berserk and trampled everything!</color>
 기둥 {0}개 · {1}턴	{0} pillars · {1} turns
-기둥 뒤에 서서 돌진을 유도해 기둥에 박게 하자! <color=#FF6060>{0}턴 안에 다 못 부수면 끝장이다</color>	Stand behind a pillar and lure its charge into it! <color=#FF6060>Fail to break them all within {0} turns and it's over</color>
 <color=#FF4040>바닥이 통째로 무너져 내렸다!</color>	<color=#FF4040>The whole floor collapsed!</color>
 구멍 {0}/{1}	Holes {0}/{1}
-<color=#FFB060>오우거가 분노해 몽둥이로 땅을 내리친다!</color> 이제 강타마다 던전이 흔들려 바닥에 구멍이 뚫린다	<color=#FFB060>The ogre slams the ground in rage!</color> Now every Slam shakes the dungeon and opens holes in the floor
-구멍에 붙어 그쪽으로 움직이면 메울 수 있다 - <color=#FF6060>구멍이 {0}개가 되면 바닥이 무너진다</color>	Stand next to a hole and move into it to fill it - <color=#FF6060>at {0} holes the floor collapses</color>
-<color=#7FE0D8>골렘이 땅을 울리자 수정이 솟고 천장에서 바위가 떨어졌다!</color>	<color=#7FE0D8>The golem shakes the ground - crystals rise and boulders fall from the ceiling!</color>
-수정은 {0}턴 뒤 방 전체를 날려 버린다 - <color=#FF6060>붙어서 깨거나, 바위 뒤에 숨자</color>	The crystals will blast the whole room in {0} turns - <color=#FF6060>break them up close, or hide behind a boulder</color>
 <color=#FF4040>수정이 폭발해 방 전체를 휩쓸었다!</color>	<color=#FF4040>The crystal exploded and swept the whole room!</color>
-체력이 줄면 수정이 솟고 천장에서 바위가 떨어진다. 수정은 {0}턴 뒤 폭발해 수정에서 보이는 칸을 전부 날려 버린다(즉사) - 붙어서 깨거나 바위 뒤에 숨자. 더 몰리면 십자 베기가 바위를 더 남긴다.	As its health drops, crystals rise and boulders fall from the ceiling. Each crystal explodes after {0} turns and obliterates every tile it can see (instant death) - break it up close or hide behind a boulder. When pushed further, its Cross Slash leaves more boulders.
-<color=#7FE0D8>골렘이 땅을 울리자 수정 {0}개가 솟고 천장에서 바위가 떨어졌다!</color>	<color=#7FE0D8>The golem shakes the ground - {0} crystal(s) rise and boulders fall from the ceiling!</color>
-수정은 {0}턴 뒤 방 전체를 날려 버린다 - <color=#FF6060>붙어서 깨거나, 바위 뒤에 숨자</color> (바위는 폭발에 깨진다)	The crystals will blast the whole room in {0} turns - <color=#FF6060>break them up close, or hide behind a boulder</color> (boulders shatter in the blast)
-체력이 80·60·40·20%가 될 때마다 수정이 1·2·3·4개 솟고 천장에서 바위가 떨어진다. 수정은 {0}턴 뒤 폭발해 수정에서 보이는 칸을 전부 날려 버린다(즉사) - 붙어서 깨거나 바위 뒤에 숨자. 폭발을 받아 낸 바위는 깨진다. 40%부터는 십자 베기도 바위를 남긴다.	Each time its health hits 80/60/40/20%, 1/2/3/4 crystals rise and boulders fall from the ceiling. Each crystal explodes after {0} turns and obliterates every tile it can see (instant death) - break it up close or hide behind a boulder. A boulder that takes a blast shatters. From 40%, its Cross Slash also leaves boulders.
-체력이 80·60·40·20%가 될 때마다 수정이 1·2·3·4개 솟고 천장에서 바위가 떨어진다. 수정은 {0}턴 뒤 폭발해 수정에서 보이는 칸을 전부 날려 버린다(즉사) - 붙어서 깨거나 바위 뒤에 숨자. 폭발을 받아 낸 바위는 깨진다.	Each time its health hits 80/60/40/20%, 1/2/3/4 crystals rise and boulders fall from the ceiling. Each crystal explodes after {0} turns and obliterates every tile it can see (instant death) - break it up close or hide behind a boulder. A boulder that takes a blast shatters.
-체력이 80·60·40·20%가 될 때마다 수정이 1·2·3·4개 솟고 천장에서 바위가 떨어진다. 수정은 {0}턴 뒤 폭발해 수정에서 보이는 칸을 전부 날려 버린다(즉사) - 붙어서 깨거나 바위 뒤에 숨자. 수정이 터지면 바위는 전부 깨진다.	Each time its health hits 80/60/40/20%, 1/2/3/4 crystals rise and boulders fall from the ceiling. Each crystal explodes after {0} turns and obliterates every tile it can see (instant death) - break it up close or hide behind a boulder. When a crystal explodes, every boulder shatters.
-<color=#FFD966>튜토리얼 1/7</color>  첫걸음 - 움직여 보고 출구(문)로	<color=#FFD966>Tutorial 1/7</color>  First steps - move around and head for the exit (door)
-<color=#FFD966>튜토리얼 2/7</color>  공격 - 슬라임에게 부딪혀 보세요	<color=#FFD966>Tutorial 2/7</color>  Attack - bump into the slime
-<color=#FFD966>튜토리얼 3/7</color>  스킬 - 대시와 회전 베기	<color=#FFD966>Tutorial 3/7</color>  Skills - Dash and Spin Slash
-<color=#FFD966>튜토리얼 4/7</color>  위험 피하기 - 빨간 칸에서 비키고, 폭탄도 던져 보세요	<color=#FFD966>Tutorial 4/7</color>  Dodging danger - step off red tiles, and try throwing a bomb
-<color=#FFD966>튜토리얼 5/7</color>  아이템 ① 설치 - 횃불·덫·미끼를 놓아 보세요	<color=#FFD966>Tutorial 5/7</color>  Items ① Placing - set down a Torch, Trap and Decoy
-<color=#FFD966>튜토리얼 6/7</color>  아이템 ② 전투 보조 - 연막탄·약점 표식·보호막	<color=#FFD966>Tutorial 6/7</color>  Items ② Combat support - Smoke, Weakness Mark, Barrier
-<color=#FFD966>튜토리얼 7/7</color>  아이템 ③ 위기 대처 - 정화제·섬광탄·반사 부적	<color=#FFD966>Tutorial 7/7</color>  Items ③ Emergencies - Cleanse, Flashbang, Reflect Charm
-좋아요! 남은 아이템: {0}	Nice! Items left: {0}
-<color=#8CE08C>아이템을 다 써 봤어요!</color> 몹을 정리하고 출구로	<color=#8CE08C>You've tried every item!</color> Clear the monsters and head for the exit
 <color=#FFB060>아직 안 써 본 아이템이 있어요:</color> {0}	<color=#FFB060>Items you haven't tried yet:</color> {0}
-숫자 키로 아이템을 써요 - 놓거나 던지는 아이템은 숫자를 누른 뒤 방향키로. 세 개를 다 써 봐야 출구로 나갈 수 있어요	Use items with the number keys - for items you place or throw, press the number then a direction. Try all three to unlock the exit
-<color=#80FFB0>빛버섯을 먹었다!</color> 감염이 씻겨 나갔다	<color=#80FFB0>Ate a glow mushroom!</color> The infection washed away
-<color=#A0E0FF>망령 궁수가 모습을 감추고 영혼 촛불이 켜졌다!</color> 촛불이 켜져 있는 동안 궁수는 무적	<color=#A0E0FF>The Phantom Archer vanished and spirit candles lit up!</color> It is invulnerable while the candles burn
-<color=#B090D0>그림자 암살자가 분신을 만들었다!</color> 분신에겐 칼이 안 통하고, 분신이 있는 동안 암살자는 무적	<color=#B090D0>The Shadow Assassin made clones!</color> Blades pass through them, and it is invulnerable while they remain
-<color=#C080FF>버섯 군주가 포자를 흩뿌린다!</color> 파동에 맞거나 시간이 지나면 감염된다	<color=#C080FF>The Fungal Lord scatters spores!</color> Getting hit by a wave or waiting too long infects you
-<color=#C090FF>리치가 영혼을 항아리에 숨겼다!</color> 항아리가 남아 있는 동안 리치는 무적	<color=#C090FF>The Lich hid its soul in jars!</color> It is invulnerable while the jars remain
-<color=#C090FF>마법이 영혼 항아리를 깨뜨렸다!</color> 남은 항아리 {0}	<color=#C090FF>The spell shattered a soul jar!</color> Jars left {0}
-<color=#C090FF>항아리가 모두 깨졌다!</color> 리치의 영혼이 흔들린다	<color=#C090FF>All jars are broken!</color> The Lich's soul wavers
 <color=#FF4040>그림자들이 한꺼번에 덮쳤다!</color>	<color=#FF4040>The shadows struck all at once!</color>
-<color=#FF4040>리치가 죽음의 주문을 완성했다!</color>	<color=#FF4040>The Lich completed the death spell!</color>
-<color=#FF4040>망령 궁수의 화살비가 쏟아졌다!</color>	<color=#FF4040>The Phantom Archer's arrow rain poured down!</color>
-<color=#FF4040>슬라임 킹이 거대해져 모든 것을 삼켰다!</color>	<color=#FF4040>The Slime King grew huge and swallowed everything!</color>
-<color=#FF4040>용암이 한꺼번에 분출했다!</color>	<color=#FF4040>The lava erupted all at once!</color>
+<color=#FF4040>망령 궁수의 화살비가 쏟아졌다!</color>	<color=#FF4040>The Wraith Archer's arrow rain poured down!</color>
 <color=#FF4040>포자가 온몸을 뒤덮었다!</color>	<color=#FF4040>Spores covered your whole body!</color>
-<color=#FF7070>슬라임 킹이 졸개를 불러들인다!</color> 졸개가 킹에게 붙어 있으면 흡수된다	<color=#FF7070>The Slime King calls its minions!</color> Minions that stay next to the King get absorbed
-<color=#FF7070>슬라임 킹이 졸개를 흡수했다!</color> 흡수 {0}/{1}	<color=#FF7070>The Slime King absorbed a minion!</color> Absorbed {0}/{1}
-<color=#FF7070>짓누르기에 졸개 {0}마리가 터졌다!</color> 킹이 산성에 다친다	<color=#FF7070>{0} minion(s) burst under the crush!</color> The acid hurts the King
-<color=#FF9040>미노타우로스의 도끼가 바닥을 갈라 용암이 솟는다!</color>	<color=#FF9040>The Minotaur's axe splits the floor and lava wells up!</color>
 감염 {0}/{1} · {2}턴	Infection {0}/{1} · {2} turns
-공기 중의 포자에 감염됐다!	Infected by spores in the air!
-균열 {0}/{1}	Cracks {0}/{1}
-균열 뒤에 서서 돌진을 균열에 빠뜨리자 - <color=#FF6060>균열이 {0}개 쌓이면 용암이 분출한다</color>	Stand behind a crack and lure its charge into it - <color=#FF6060>at {0} cracks the lava erupts</color>
-리치와 같은 줄, 항아리 뒤에 서서 십자 마법이 항아리를 깨게 하자 - <color=#FF6060>{0}턴 안에 다 못 깨면 끝장이다</color>	Stand in line with the Lich, behind a jar, so its cross spell breaks the jar - <color=#FF6060>fail to break them all within {0} turns and it's over</color>
 분신 {0} · {1}턴	Clones {0} · {1} turns
-분신과 대각선 줄에 서서 X자 베기가 분신을 베게 하자 - <color=#FF6060>{0}턴 안에 다 못 지우면 끝장이다</color>	Stand diagonal to a clone so the X Slash cuts it down - <color=#FF6060>fail to clear them all within {0} turns and it's over</color>
-졸개를 먼저 잡거나 킹의 짓누르기에 휘말리게 하자 - <color=#FF6060>{0}번 흡수되면 끝장이다</color>	Kill the minions first or get them caught in the King's crush - <color=#FF6060>{0} absorptions and it's over</color>
 촛불 {0} · {1}턴	Candles {0} · {1} turns
-촛불 옆에 서서 저격이 촛불을 덮게 하자 - <color=#FF6060>{0}턴 안에 다 못 끄면 끝장이다</color>	Stand next to a candle so the snipe covers it - <color=#FF6060>fail to snuff them all within {0} turns and it's over</color>
-파동 뒤에 피는 빛버섯을 밟으면 해독 - <color=#FF6060>감염 {0}이면 끝장이다</color>	Step on the glow mushrooms that sprout after waves to cure it - <color=#FF6060>at infection {0} it's over</color>
-항아리 {0} · {1}턴	Jars {0} · {1} turns
-흡수 {0}/{1}	Absorbed {0}/{1}
-체력이 절반 아래로 떨어지면 멀리서 졸개를 불러 킹에게 기어가게 한다. 킹에게 붙은 졸개는 흡수돼 킹을 회복시키고, {0}번 흡수되면 즉사한다. 졸개를 먼저 잡거나 짓누르기에 휘말리게 하면 터지며 킹이 다친다.	Below half health it summons minions far away that crawl to the King. Minions next to the King are absorbed and heal it; {0} absorptions means instant death. Kill them first, or let the crush catch them - they burst and hurt the King.
-체력이 절반 아래로 떨어지면 파동에 맞거나 시간이 지날 때마다 감염된다. 감염 {0}이면 즉사 - 파동 뒤에 피는 빛버섯을 밟으면 해독된다.	Below half health, getting hit by a wave or simply waiting infects you. Infection {0} means instant death - step on the glow mushrooms that sprout after waves to cure it.
-체력이 절반 아래로 떨어지면 칼이 안 통하는 그림자 분신을 만들고 무적이 된다. 분신과 대각선 줄에 서면 X자 베기가 분신을 벤다. {0}턴 안에 다 못 지우면 즉사.	Below half health it creates shadow clones that blades pass through and becomes invulnerable. Stand diagonal to a clone and the X Slash will cut it down. Fail to clear them all within {0} turns and you die instantly.
-체력이 절반 아래로 떨어지면 도끼 내려찍기가 용암 균열을 남긴다. 균열 뒤에 서서 돌진을 유도하면 빠져서 크게 다치고 기절한다. 균열이 {0}개 쌓이면 분출해 즉사.	Below half health its axe slam leaves lava cracks. Stand behind a crack and lure its charge - it falls in, takes heavy damage and is stunned. At {0} cracks the lava erupts and you die instantly.
-체력이 절반 아래로 떨어지면 영혼 항아리에 영혼을 숨기고 무적이 된다. 리치와 같은 줄, 항아리 뒤에 서면 십자 마법이 항아리를 깬다. {0}턴 안에 다 못 깨면 즉사.	Below half health it hides its soul in jars and becomes invulnerable. Stand in line with the Lich behind a jar and its cross spell will break the jar. Fail to break them all within {0} turns and you die instantly.
-<color=#FFB060>거대 멧돼지가 분노해 울부짖는다!</color>	<color=#FFB060>The Giant Boar roars in fury!</color>
 대지의 기세가 흩어졌다	The Earth's Might fades
 <color=#FFD070>대지의 기세 {0}단계!</color> 오우거에게 주는 피해 +{1:0}% ({2}턴)	<color=#FFD070>Earth's Might Lv{0}!</color> Damage to the Ogre +{1:0}% ({2} turns)
 기세 +{0:0}% ({1}턴)	Might +{0:0}% ({1}t)
@@ -1106,17 +993,12 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 <color=#FFD27A>{0} 강화 +{1} 달성! (장비 스탯 +{2:0}%)</color>	<color=#FFD27A>{0} Enhance +{1}! (gear stats +{2:0}%)</color>
   <color=#FFD27A>강화 +{0} ({1})</color>	  <color=#FFD27A>Enh +{0} ({1})</color>
 지그재그 베기	Zigzag Slash
-<color=#B090D0>그림자 암살자가 다시 분신을 만들었다!</color> 분신이 있는 동안 암살자는 무적	<color=#B090D0>The Shadow Assassin made clones again!</color> It is invulnerable while they remain
-체력이 10% 줄 때마다 칼이 안 통하는 그림자 분신 3개를 만들고 무적이 된다. 분신과 대각선 줄에 서면 X자 베기가 분신을 벤다. {0}턴 안에 다 못 지우면 즉사. 지그재그 베기도 섞어 쓴다.	Every time it loses 10% health it creates 3 shadow clones that blades pass through and becomes invulnerable. Stand on a diagonal line with a clone and its X Slash will cut it. Fail to clear them within {0} turns and you die instantly. It also mixes in a Zigzag Slash.
 포위 폭발	Encircling Blast
 <color=#FFA040>보스가 포위 폭발을 준비한다!</color>	<color=#FFA040>The boss prepares an Encircling Blast!</color>
 3연 파동	Triple Shockwave
 <color=#FFB060>오우거가 땅을 연달아 내려친다!</color>	<color=#FFB060>The Ogre pounds the ground again and again!</color>
-<color=#C8D8FF>거울 가면 기사가 거울 속 자신을 불러냈다!</color> 좌우가 뒤집힌 가짜에겐 칼이 안 통한다	<color=#C8D8FF>The Mirror-Masked Knight summoned its reflections!</color> Blades pass through the mirrored fakes
-진짜는 좌우가 제대로다 - 기사의 예고 공격에 가짜를 맞혀 깨뜨리자. <color=#FF6060>{0}턴 안에 다 못 깨면 끝장이다</color>	The real one is not mirrored - lure the knight's telegraphed attacks onto the fakes to shatter them. <color=#FF6060>Fail to shatter them all within {0} turns and you die</color>
 <color=#FF4040>거울 속 기사들이 한꺼번에 베어 들었다!</color>	<color=#FF4040>The knights in the mirror cut in all at once!</color>
 거울상 {0} · {1}턴	Reflections {0} · {1} turns
-체력이 75% 아래로 떨어지면 좌우가 뒤집힌 거울상 2개를 불러내고 진짜와 자리를 섞는다. 거울상에겐 칼이 안 통하고, 진짜의 예고 공격에 맞으면 깨진다. {0}턴 안에 다 못 깨면 즉사.	Below 75% health it summons 2 left-right mirrored reflections and swaps places with one. Blades pass through reflections; they shatter when hit by the real one's telegraphed attacks. Fail to shatter them all within {0} turns and you die instantly.
 <color=#FFB060>지금은 움직여 보는 방이에요</color> - 방향키로 걸어서 출구(문)로	<color=#FFB060>This room is for moving</color> - walk to the exit (door) with the arrow keys
 <color=#FFB060>지금은 공격을 배우는 방이에요</color> - 슬라임 쪽으로 이동 키를 눌러 부딪혀 보세요. 스킬은 다음 방에서	<color=#FFB060>This room is for attacking</color> - press a move key toward the slime to bump it. Skills come in the next room
 <color=#FFB060>이 방에선 폭탄만 써 봐요</color> - 다른 아이템은 다음 방들에서 하나씩	<color=#FFB060>Only try the bomb in this room</color> - the other items come one by one in the next rooms
@@ -1150,39 +1032,26 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 영혼 구체	Soul Orb
 점프 짓누르기	Jump Crush
 <color=#C090FF>리치가 바닥에 체스판 마법진을 그린다!</color>	<color=#C090FF>The Lich draws a chessboard circle on the floor!</color>
-체력이 절반 아래로 떨어지면 2x2로 작아지며 둘로 갈라진다. 떨어져 나간 조각은 방 둘레 벽 위로 올라간 무적 포탑이 되어 벽을 타고 나를 따라다니다 내 줄에 오면 일직선과 양옆 대각선 점액 파동을 쏜다. 킹이 내려앉은 자리엔 점액이 남고, 밟으면 한 턴 묶인다(점액은 떨어진다). 파동이 지나간 점액은 씻겨 나간다 - 점액이 {0}칸 쌓이면 즉사.	Below half health it shrinks to 2x2 and splits in two. The broken-off piece climbs onto the surrounding wall as an invulnerable turret, crawls along it after you, and fires slime waves straight and to both diagonals once it lines up with you. Where the King lands, slime remains; stepping in it binds you for a turn (the slime comes off). Waves wash slime away - {0} slime tiles means instant death.
 <color=#D9A0FF>[환각·혼란]</color>	<color=#D9A0FF>[Hallucination·Confusion]</color>
 <color=#D9A0FF>[환각]</color>	<color=#D9A0FF>[Hallucination]</color>
 옆 칸에 설치 - 그 주변이 계속 밝게 보인다. 불 꺼진 제단에 쓰면 숨은 길이 열린다	Place on adjacent tile - keeps the area lit. Use on an unlit altar to open a hidden path
 방 안 몹들이 플레이어가 공격하기 전까지 플레이어를 못 찾는다(행동 못 함)	Mobs in the room can't find you until you attack (they can't act)
-{0}턴 안에 맞는 보스 공격 1회(예고 공격·평타·파동)를 막고 내 평타 한 대만큼 되돌린다(치명타는 따로)	Blocks 1 boss attack (telegraphed·basic·wave) within {0} turns and reflects one of your basic attacks (crits separate)
+{0}턴 안에 맞는 보스 공격 1회(예고 공격·평타·파동)를 막고 내 평타 한 대만큼 되돌린다(치명타는 따로)	Blocks 1 boss attack (telegraphed·basic·wave) within {0} turns and strikes back for one basic attack's worth of damage (crits rolled separately)
 스테이지 {0} 시작	Stage {0} Start
 <color=#FFD966>반사 부적</color>을 켜 두면 보스의 공격 한 번을 막고 그대로 되돌려 주지.	Keep a <color=#FFD966>Reflect Charm</color> active and it'll block one boss attack and send it right back.
 반사 부적! 보스의 공격을 치명타로 되돌렸다	Reflect Charm! Sent the boss's attack back as a critical hit
 연막! 공격하기 전까지 몹들이 플레이어를 못 찾는다	Smoke! Mobs can't find you until you attack
 반사 부적! {0}턴 안에 맞는 보스 공격 한 번을 막고 되돌린다	Reflect Charm! Blocks and reflects one boss attack within {0} turns
 회전 베기에 맞은 몹 {0}턴 기절	Mobs hit by Spin Slash stunned {0} turns
-안개 속 포자가 {0}턴마다 몸에 스며든다 - 파동 뒤에 피는 빛버섯을 밟으면 해독. <color=#FF6060>감염 {1}이면 끝장이다</color>	Spores in the fog seep in every {0} turns - step on glow mushrooms that sprout after waves to cure. <color=#FF6060>At infection {1} it's over</color>
-다가오는 벽을 등지고 서서 도끼 충격파가 벽을 부수게 하자 - <color=#FF6060>닫히는 줄에 서 있거나 방이 {0}칸보다 좁아지면 끝장이다</color>	Stand with your back to the approaching wall so the axe shockwave breaks it - <color=#FF6060>stand on a closing row or let the room shrink below {0} tiles and it's over</color>
 <color=#FF4040>죽음의 낙인이 타올랐다!</color>	<color=#FF4040>The Death Mark ignited!</color>
 점액 {0}/{1}	Slime {0}/{1}
 낙인 {0}턴 · 흡수 {1}/{2}	Mark {0} turns · Absorbed {1}/{2}
-킹이 내려앉은 자리엔 점액이 남는다(밟으면 한 턴 묶임) - 벽 조각의 파동이 점액을 씻어 낸다. <color=#FF6060>점액이 {0}칸 쌓이면 끝장이다</color>	Slime remains where the King lands (stepping in binds you a turn) - wall pieces' waves wash it away. <color=#FF6060>At {0} slime tiles it's over</color>
-<color=#C080FF>버섯 군주가 포자를 흩뿌린다!</color> 독안개가 방을 뒤덮는다 - 파동에 맞거나 안개를 마시면 감염된다	<color=#C080FF>The Fungal Lord scatters spores!</color> Toxic fog fills the room - get hit by a wave or breathe the fog and you're infected
 <color=#C090FF>리치가 영혼 구체를 다시 불러낸다!</color>	<color=#C090FF>The Lich summons the soul orbs again!</color>
 <color=#FF8080>영혼 구체에 맞았다!</color>	<color=#FF8080>Hit by a soul orb!</color>
-<color=#C090FF>리치가 죽음의 낙인을 찍었다!</color> 낙인이 있는 동안 리치는 무적	<color=#C090FF>The Lich branded you with the Death Mark!</color> The Lich is invulnerable while the mark remains
-영혼 구체가 나를 쫓아온다 - 리치를 사이에 두고 구체가 리치에게 닿게 하자. 구체 {0}개를 흡수시키면 낙인이 리치에게 옮겨 간다. <color=#FF6060>{1}턴 안에 못 옮기면 끝장이다</color>	Soul orbs chase you - keep the Lich between you so the orbs hit it. Let it absorb {0} orbs and the mark passes to the Lich. <color=#FF6060>Fail to pass it within {1} turns and it's over</color>
 <color=#FF4040>조여 온 벽에 끼어 버렸다!</color>	<color=#FF4040>Crushed by the closing walls!</color>
 <color=#FF4040>사방의 벽이 맞붙어 모든 것을 짓눌렀다!</color>	<color=#FF4040>The walls met and crushed everything!</color>
 <color=#FF6060>방이 거의 닫혔다...</color>	<color=#FF6060>The room is nearly closed...</color>
 벽 {0}턴 · 방 {1}x{2}	Wall {0} turns · Room {1}x{2}
-<color=#FF9040>미노타우로스가 도끼로 바닥을 내리찍자 사방의 벽이 움직이기 시작한다!</color>	<color=#FF9040>The Minotaur slams its axe into the floor and the walls begin to move!</color>
-<color=#FFE890>어디선가 빛이 비쳤다가 사라졌다...</color>	<color=#FFE890>A light flashed somewhere and faded...</color>
-<color=#FFE890>의문의 조력자가 나타나 빛을 쏘았다!</color> 거울 갑옷을 두른 기사는 무적이 됐다	<color=#FFE890>A mysterious helper appeared and fired a beam!</color> The knight in mirror armor became invulnerable
-거울에 붙어 밀면 방향이 바뀐다 - 빛이 거울 {0}개에 모두 반사된 뒤 기사에게 닿으면 무적이 풀리고 기사가 기절한다. <color=#FF6060>{1}턴 안에 못 하면 끝장이다</color>	Push mirrors to turn them - once the beam reflects off all {0} mirrors and hits the knight, its invulnerability breaks and it is stunned. <color=#FF6060>Fail within {1} turns and it's over</color>
-<color=#FF6060>거울 가면이 깨지며 기사가 발악한다!</color> 칼은 더 이상 통하지 않는다	<color=#FF6060>The mirror mask cracks and the knight makes a last stand!</color> Your blade no longer works
-이제 시간이 흐른다 - <color=#FF6060>{0:0}초 동안 기사의 공격을 피하자! 맞으면 끝장이다</color>	Time now flows - <color=#FF6060>dodge the knight's attacks for {0:0}s! Get hit and it's over</color>
 <color=#FF4040>기사의 마지막 일격에 쓰러졌다!</color>	<color=#FF4040>Felled by the knight's final blow!</color>
 <color=#FFD24A>거울 가면이 산산조각 났다!</color> 거울 가면 기사가 쓰러진다	<color=#FFD24A>The mirror mask shattered!</color> The Mirror-Masked Knight falls
 <color=#FF4040>거울 속 내가 거울 밖으로 걸어 나와 나를 베었다!</color>	<color=#FF4040>Your reflection stepped out of the mirror and cut you down!</color>
@@ -1190,8 +1059,6 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 거울 속 나 {0}/{1} · {2}턴	Reflection {0}/{1} · {2} turns
 단단함 · 빛 {0}턴	Hardened · Beam {0} turns
 발악 {0:0.0}초	Last Stand {0:0.0}s
-<color=#C8D8FF>거울 가면 기사가 나를 비췄다!</color> 좌우가 뒤집힌 내가 방 반대편에 나타났다	<color=#C8D8FF>The Mirror-Masked Knight reflected you!</color> A mirrored you appeared across the room
-거울 속 나는 좌우가 반대로 움직인다 - 기사의 예고 공격에 거울 속 나를 {0}번 맞히자. <color=#FF6060>{1}턴 안에 못 하면 끝장이다</color>	Your reflection moves left-right reversed - get it hit by the knight's telegraphed attacks {0} times. <color=#FF6060>Fail within {1} turns and it's over</color>
 무릎 꿇은 기사 앞에 꺼져 가는 등불 하나가 그려져 있다.\n물감 아래 새겨진 글씨: <i>"그날, 나는 늦었다."</i>	A kneeling knight, before him a lantern burning out.\nWords carved beneath the paint: <i>"That day, I was too late."</i>
 기사가 거대한 시곗바늘을 붙잡아 거꾸로 돌리고 있다. 바늘 끝에 손이 베여 붉은 물감이 번졌다.\n<i>"한 번만 더. 딱 한 번만 더 그 순간으로."</i>	A knight grips a giant clock hand, turning it backward. His hand is cut on its tip, red paint bleeding.\n<i>"Once more. Just once more, back to that moment."</i>
 같은 문을 열고 들어가는 기사가 수십 겹으로 겹쳐 그려져 있다. 모두 같은 자세, 같은 걸음.\n<i>"몇 번째인지 세는 것을 그만두었다."</i>	A knight entering the same door, painted dozens of times over. Same pose, same stride.\n<i>"I stopped counting how many times."</i>
@@ -1204,13 +1071,11 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 벽화가 비어 있다. 가운데 손바닥 자국 하나만 찍혀 있다 - 크기가 꼭 내 손만 하다.\n<i>"다음 벽화는 네가 그린다."</i>	The mural is empty. Only a single handprint in the middle - exactly the size of my hand.\n<i>"The next mural is yours to paint."</i>
 잊힌 벽화 - {0}층	Forgotten Mural - Floor {0}
 ...	...
-벽화에 더 가까이 가자	Get closer to the mural
 몹이 남아 있는 동안엔 제단에 불이 붙지 않는다	The altar won't light while mobs remain
 <color=#A8B4D8>어딘가에 불 꺼진 제단이 있다...</color>	<color=#A8B4D8>There's an unlit altar somewhere...</color>
 <color=#9CD8FF>제단에 푸른 불이 붙었다!</color> 벽 너머로 길이 열린다...	<color=#9CD8FF>A blue flame lit the altar!</color> A path opens beyond the wall...
 <color=#FF4040>점액이 바닥을 뒤덮어 삼켜 버렸다!</color>	<color=#FF4040>Slime covered the floor and swallowed you!</color>
 <color=#FF7088>점액에 발이 붙었다!</color> 한 턴 움직일 수 없다	<color=#FF7088>Your feet stuck in slime!</color> Can't move for a turn
-<color=#FF7088>슬라임 킹이 몸을 찢으며 둘로 갈라졌다!</color> 떨어져 나간 조각이 벽에 달라붙는다	<color=#FF7088>The Slime King tore itself in two!</color> The broken-off piece clings to the wall
 <color=#FFD24A>보스 러시 완료!</color> {0}~{1}층 보스를 모두 쓰러뜨렸다	<color=#FFD24A>Boss Rush complete!</color> Defeated every boss from Floor {0} to {1}
 {0}층 보스 격파! 체력을 회복했다 - 출구로 가면 {1}층 보스	Floor {0} boss defeated! HP restored - take the exit for the Floor {1} boss
 모루! 갑옷을 두드려 폈다 - 이번 시도 동안 받는 피해 -{0:0}%	Anvil! Hammered your armor smooth - damage taken -{0:0}% this run
@@ -1251,11 +1116,11 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 가슴에 박힌 수정은 누군가의 눈물이 굳은 것이라 한다. 골렘은 그 빛을 지키려고 스스로 돌이 되었다.\n<i>"울지 않으려고 돌이 되었다. 그래도 금은 간다."</i>	They say the crystal in its chest is someone's tears, hardened. The golem turned itself to stone to guard that light.\n<i>"I became stone so I would not weep. Still, I crack."</i>
 왕관만은 녹지 않았다. 갈라지고 또 갈라져도, 킹은 자기가 하나였던 때를 기억하려 애쓴다.\n<i>"나눠 지면 가벼워질 줄 알았다."</i>	Only the crown never melted. Split again and again, the king still struggles to remember when it was one.\n<i>"I thought sharing the weight would make it lighter."</i>
 포자를 들이마시면 보고 싶은 것이 보인다고 한다. 대개는 다시 오지 않을 그날의 얼굴이다.\n<i>"꿈속에서는 늘 제때 도착했다."</i>	They say breathing its spores shows you what you long to see. Usually, a face from a day that will never come again.\n<i>"In my dreams, I always arrived in time."</i>
-한 번도 과녁을 놓친 적 없다는 궁수. 가장 중요했던 단 한 번만 빼고. 꺼진 촛불 밑동마다 이름이 하나씩 새겨져 있다.\n<i>"그때 쏘았다면."</i>	An archer said never to have missed a mark - except the one time that mattered most. A name is carved at the base of every snuffed candle.\n<i>"If only I had loosed the arrow then."</i>
+한 번도 과녁을 놓친 적 없다는 궁수. 가장 중요했던 단 한 번만 빼고. 꺼진 촛불 밑동마다 이름이 하나씩 새겨져 있다.\n<i>"그때 쏘았다면."</i>	An archer who, they say, never missed a mark - except the one time that mattered most. A name is carved at the base of every snuffed candle.\n<i>"If only I had loosed the arrow then."</i>
 기사의 몸에서 떨어져 나온 그림자 가운데 가장 빠른 것. 녀석이 세는 박자는 어느 문 앞에서 멎은 심장 소리와 꼭 같다고 한다.\n<i>"한 걸음만 빨랐다면."</i>	The swiftest of the shadows torn from the knight's body. They say the beat it counts is exactly the heartbeat that stopped before a certain door.\n<i>"If I had been one step faster."</i>
-들어온 자가 나가는 길을 잊을수록 미궁은 좁아진다. 소머리 문지기는 벽이 다 닫히기를 기다린다. 그 벽을 쌓은 손은 문지기의 것이 아니다.\n<i>"벽을 세운 건 나였다."</i>	The more those who enter forget the way out, the narrower the labyrinth grows. The bull-headed warden waits for the walls to close. The hands that built them were not his.\n<i>"It was I who raised the walls."</i>
+들어온 자가 나가는 길을 잊을수록 미궁은 좁아진다. 소머리 문지기는 벽이 다 닫히기를 기다린다. 그 벽을 쌓은 손은 문지기의 것이 아니다.\n<i>"벽을 세운 건 나였다."</i>	The more those who enter forget the way out, the narrower the labyrinth grows. The bull-headed gatekeeper waits for the walls to close. The hands that built them were not his.\n<i>"It was I who raised the walls."</i>
 죽음을 미뤄 온 마법사. 그의 낙인은 본래 다른 누군가의 몫이었다고 한다. 그 몫을 넘겨받은 자가 누구였는지, 리치는 끝내 말하지 않는다.\n<i>"끝을 미루는 법은 가르쳐 주었다. 끝내는 법은 나도 모른다."</i>	A sorcerer who kept putting off death. They say his brand was meant for someone else. Who took on that share, the lich will never say.\n<i>"I taught him how to put off the end. How to end it, even I do not know."</i>
-고리를 만든 자. 깨진 거울 가면에는 지금껏 쓰러뜨린 문지기들의 얼굴이 차례로 비친다. 가면 아래 얼굴을 본 자는 없다 - 아직은.\n<i>"낯익은 얼굴이군. 거울 속에서 매일 보던 얼굴이다."</i>	The one who made the loop. In the cracked mirror mask, the faces of every warden you have felled appear in turn. No one has seen the face beneath - not yet.\n<i>"A familiar face. The one I saw in the mirror every day."</i>
+고리를 만든 자. 깨진 거울 가면에는 지금껏 쓰러뜨린 문지기들의 얼굴이 차례로 비친다. 가면 아래 얼굴을 본 자는 없다 - 아직은.\n<i>"낯익은 얼굴이군. 거울 속에서 매일 보던 얼굴이다."</i>	The one who made the loop. In the cracked mirror mask, the faces of every gatekeeper you have felled appear in turn. No one has seen the face beneath - not yet.\n<i>"A familiar face. The one I saw in the mirror every day."</i>
 {0}\n<color=#9AA0AA>{1}층 보스</color>	{0}\n<color=#9AA0AA>Floor {1} Boss</color>
 기둥 사이의 춤	Dance Between Pillars
 돌진을 흘린 자	Charge-Dodger
@@ -1277,16 +1142,16 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 낙인 없는 자	The Unbranded
 비치지 않는 얼굴	A Face Unreflected
 거울에 비치지 않는 자	The Unmirrored
-{0}층 보스를 한 대도 맞지 않고 쓰러뜨린다	Defeat the floor {0} boss without taking a single hit
+{0}층 보스를 한 대도 맞지 않고 쓰러뜨린다	Defeat the Floor {0} boss without taking a single hit
    <size=12><color=#9AA0AA>{0}~{1} / {2} (휠·W/S로 넘기기)</color></size>	   <size=12><color=#9AA0AA>{0}-{1} / {2} (wheel or W/S to scroll)</color></size>
 흠 없는 고리	Flawless Loop
-1~10층 보스를 모두 한 대도 맞지 않고 쓰러뜨린다	Defeat every boss on floors 1-10 without taking a single hit
+1~10층 보스를 모두 한 대도 맞지 않고 쓰러뜨린다	Defeat every boss on Floors 1-10 without taking a single hit
 고리에 닿지 않은 자	Untouched by the Loop
 반격병	Counter Sentinel
 주문술사	Chanter
 반격!	Counter!
-두 턴에 한 번 방패를 세워 반격 자세를 잡는다(몸에 방패 빛). 그때 때리면 피해를 거의 막고 공격력 2배로 되받아친다 - 일반 공격·대시·회전 베기 모두. 자세를 잡은 턴엔 한 칸 물러나거나 기다렸다가, 자세를 푼 틈에 때리자. 4층부터.	Every other turn it raises its shield into a counter stance (shield glow on its body). Hit it then and it blocks almost everything and strikes back for 2x attack - normal attacks, dashes and spins alike. On its stance turn, step back or wait, then strike when it lowers its guard. From floor 4.
-플레이어를 본 순간부터 머리 위 숫자를 세며 주문을 외운다({0}턴). 1이 되면 내 둘레 3x3을 예고하고, 0이 되면 그 칸이 폭발한다 - 맞으면 즉사급. 몸이 약하니 숫자가 끝나기 전에 뛰어가 잡거나, 대시로 빠지거나 보호막으로 막자. 6층부터, 방에 한 마리까지.	From the moment it sees you it chants, counting down the number above its head ({0} turns). At 1 it marks the 3x3 around you, and at 0 those tiles explode - a near-certain kill if it hits. It is frail - rush in and kill it before the count runs out, dash out, or block it with a shield. From floor 6, at most one per room.
+두 턴에 한 번 방패를 세워 반격 자세를 잡는다(몸에 방패 빛). 그때 때리면 피해를 거의 막고 공격력 2배로 되받아친다 - 일반 공격·대시·회전 베기 모두. 자세를 잡은 턴엔 한 칸 물러나거나 기다렸다가, 자세를 푼 틈에 때리자. 4층부터.	Every other turn it raises its shield into a counter stance (shield glow on its body). Hit it then and it blocks almost everything and strikes back for 2x attack - normal attacks, dashes and spins alike. On its stance turn, step back or wait, then strike when it lowers its guard. From Floor 4.
+플레이어를 본 순간부터 머리 위 숫자를 세며 주문을 외운다({0}턴). 1이 되면 내 둘레 3x3을 예고하고, 0이 되면 그 칸이 폭발한다 - 맞으면 즉사급. 몸이 약하니 숫자가 끝나기 전에 뛰어가 잡거나, 대시로 빠지거나 보호막으로 막자. 6층부터, 방에 한 마리까지.	From the moment it sees you it chants, counting down the number above its head ({0} turns). At 1 it marks the 3x3 around you, and at 0 those tiles explode - a near-certain kill if it hits. It is frail - rush in and kill it before the count runs out, dash out, or block it with a Barrier. From Floor 6, at most one per room.
 색 발판	Color Tiles
 바닥 보석의 색을 벽에 걸린 석판과 똑같이 맞춰라. 발판 위에서 [Space]로 대기하면 발판이 작동한다 - 어느 칸이 바뀌는지는 직접 알아내라.	Match the gems on the floor to the stone tablet on the wall. Wait on a tile with [Space] to trigger it - figure out for yourself which tiles change.
 일치 {0} / {1}	Match {0} / {1}
@@ -1317,7 +1182,7 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 오우거의 몽둥이에 바닥까지 박혀 죽었다	Hammered into the floor by an ogre's club
 골렘의 돌주먹에 종잇장처럼 납작해져 죽었다	Flattened like paper by a golem's stone fist
 슬라임 킹에게 깔려 숨이 막혀 죽었다	Smothered under the Slime King
-버섯 군주의 포자를 한가득 들이마셔 죽었다	Inhaled a lungful of the Mushroom Lord's spores
+버섯 군주의 포자를 한가득 들이마셔 죽었다	Inhaled a lungful of the Fungal Lord's spores
 망령 궁수의 손끝에 영혼이 빠져나가 죽었다	Soul slipped out at the Wraith Archer's touch
 그림자 암살자가 언제 왔는지도 모른 채 베여 죽었다	Cut down by the Shadow Assassin without ever seeing it
 미노타우로스의 도끼에 두 동강 나 죽었다	Split in two by the Minotaur's axe
@@ -1351,7 +1216,6 @@ X자 칼날이 교차하는 자리에서 베여 죽었다	Cut down where the X-s
 영혼 과녁이 모두 꿰뚫리며 함께 꿰뚫려 죽었다	Pierced along with every soul target
 한꺼번에 덮친 그림자들에게 찢겨 죽었다	Torn apart by shadows pouncing all at once
 박자를 놓쳐 그림자 칼날에 갈려 죽었다	Missed the beat and was shredded by shadow blades
-분출한 용암에 녹아 죽었다	Melted by erupting lava
 조여 오는 벽 사이에 끼어 납작해져 죽었다	Squashed flat between closing walls
 맞붙은 사방의 벽에 짓눌려 죽었다	Crushed as the walls met from every side
 죽음의 낙인이 타올라 재가 되어 죽었다	The death mark flared and left only ashes
@@ -1366,3 +1230,53 @@ X자 칼날이 교차하는 자리에서 베여 죽었다	Cut down where the X-s
 문이 열렸다! 이제 위쪽 문으로 던전에 들어가자	The door is open! Head through the top door into the dungeon
 <color=#FFB060>미노타우로스가 벽에 처박혀 크게 휘청인다!</color>	<color=#FFB060>The Minotaur slams into the wall and staggers hard!</color>
 세트 효과 「{0}」	Set Effect "{0}"
+감염 {0}/{1}	Infection {0}/{1}
+재생하는 	Regenerating 
+강철 	Steel 
+광분하는 	Raging 
+흡혈 	Vampiric 
+광분!	Rage!
+<color=#C9A0FF>마석 +{0}</color> (보유 {1})	<color=#C9A0FF>Mana Stone +{0}</color> (have {1})
+마석: {0}	Mana Stones: {0}
+[E] 마석 1개로 환전 ({0}골드)\n[Shift+E] 10개	[E] Exchange for 1 Mana Stone ({0} Gold)\n[Shift+E] x10
+골드가 모자랍니다! (마석 1개: {0}골드)	Not enough Gold! (1 Mana Stone: {0} Gold)
+골드를 마석 {0}개로 바꿨습니다. (보유 마석 {1})	Exchanged Gold for {0} Mana Stone(s). (have {1})
+공격 준비!	Readying!
+정예가 자세를 잡는 걸 보고도 그 자리에 서 있다 짓뭉개져 죽었다	Saw the elite take its stance, stood still anyway, and got crushed
+정예 궁수가 보여 준 화살길 위에 그대로 서 있다 꿰뚫려 죽었다	Stood right on the arrow path the elite archer showed, and got pierced
+정예 방패병의 방패 돌진에 깔려 죽었다	Flattened by the elite shield soldier's shield charge
+버텼다!	Held on!
+버팀	Endure
+마석 상인	Mana Stone Dealer
+<color=#FF9A9A>보유 마석 {0}개</color> · 남은 유물 {1}개 · 뽑을 때마다 마석이 1개씩 더 든다	<color=#FF9A9A>Mana Stones: {0}</color> · {1} relics left · each draw costs 1 more stone
+유물 뽑기 - 남은 유물 없음	Relic Draw - none left
+유물 뽑기 (마석 {0}개)	Relic Draw ({0} Mana Stones)
+유물 <color=#FF9A9A>「{0}」</color> 획득! {1}	Got relic <color=#FF9A9A>「{0}」</color>! {1}
+흐흐... <color=#FF9A9A>「{0}」</color>이다. {1}	Heh heh... <color=#FF9A9A>「{0}」</color>. {1}
+그 돌, 평범한 돌이 아니야. 마석이지.\n시험 삼아 1개만 줘 봐. 진정한 모습을 보여 줄게.	That's no ordinary stone. It's a Mana Stone.\nGive me just one, as a test. I'll show you its true form.
+봤지? 그게 마석의 진짜 모습이야.\n이번엔 {0}개. 진짜는 공짜로 안 나와.	See? That's a Mana Stone's true form.\nThis time, {0}. The real thing doesn't come free.
+{0}개. 마석을 많이 줄수록 더 깊은 데서 꺼내 오지.	{0}. The more stones you give, the deeper I reach.
+{0}개다. 비싸다고? 네가 쥔 유물들 값을 생각해 봐.	{0}. Too pricey? Think about what the relics in your hands are worth.
+{0}개. 깎아 줄 생각은 없어. 갈수록 꺼내기 힘들어지거든.	{0}. No discounts. They only get harder to pull out.
+{0}개... 이제 남은 건 깊이 묻힌 것들뿐이야. 값도 그만큼이지.	{0}... All that's left are the deeply buried ones. The price matches.
+<color=#C890FF>회피 낙인이 걷혔다!</color> (피해 없음)	<color=#C890FF>The Evasion Brand lifts!</color> (no damage)
+낙인 해제	Brand lifted
+회피 낙인 {0}/{1}	Evasion Brand {0}/{1}
+<color=#FF4040>회피 낙인이 넘쳐 영혼이 찢겨 나갔다!</color>	<color=#FF4040>The Evasion Brand overflows and tears your soul apart!</color>
+<color=#FF6060>회피 낙인 3 - 다음 체스판·영혼 구체는 반드시 맞아야 한다!</color> (맞으면 피해 없이 낙인이 걷힌다, 또 피하면 즉사)	<color=#FF6060>Evasion Brand 3 - you must take the next Chessboard or Soul Orbs!</color> (taking it lifts the brand with no damage; dodging again is death)
+<color=#C890FF>회피 낙인 {0}/{1}</color> - 체스판·영혼 구체를 피하면 쌓인다, 3개면 한 번은 맞아야 한다	<color=#C890FF>Evasion Brand {0}/{1}</color> - dodging Chessboard or Soul Orbs builds it; at 3 you must take a hit
+리치의 공격을 끝까지 피하려다 회피 낙인에 영혼이 찢겨 죽었다	Tried to dodge the Lich forever, and the Evasion Brand tore the soul apart
+행운의 동전	Lucky Coin
+골드 +8% (최대 100%) / 현재 체력 -10%	Gold +8% (max 100%) / Current HP -10%
+반짝 집중	Sudden Focus
+치명타 +2%p / 현재 체력 -10%	Crit +2%p / Current HP -10%
+짧은 수련	Quick Training
+경험치 +8% / 현재 체력 -10%	EXP +8% / Current HP -10%
+몸놀림	Footwork
+치명타 +3%p / 받는 피해 +1%	Crit +3%p / Damage taken +1%
+균형 잡힌 몸	Balanced Body
+최대체력 +6%, 공격력 +3% / 받는 피해 +2%	Max HP +6%, ATK +3% / Damage taken +2%
+근성	Grit
+공격력 +5%, 최대체력 +5% / 경험치 -5%	ATK +5%, Max HP +5% / EXP -5%
+투지	Fighting Spirit
+공격력 +8%, 최대체력 +8% / 받는 피해 +3%	ATK +8%, Max HP +8% / Damage taken +3%

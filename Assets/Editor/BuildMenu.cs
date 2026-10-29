@@ -40,7 +40,7 @@ namespace LoopRogue.EditorTools
         public void OnPreprocessBuild(BuildReport report)
         {
             const string path = "Assets/Resources/BuildStamp.txt";
-            System.IO.File.WriteAllText(path, System.DateTime.Now.ToString("yyyy-MM-dd HH:mm"));
+            System.IO.File.WriteAllText(path, System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"));
             AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
         }
     }

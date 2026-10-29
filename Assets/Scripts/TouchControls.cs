@@ -7,7 +7,7 @@ using UnityEngine.UI;
 
 namespace LoopRogue
 {
-    /// <summary>모바일 화면 버튼 - 왼쪽 아래 방향 패드(꾹 누르면 반복), 오른쪽 아래 대기·대화, 오른쪽 위 메뉴·능력치,
+    /// <summary>모바일 화면 버튼 - 왼쪽 아래 방향 패드(꾹 누르면 반복), 오른쪽 아래 대기·능력치, 오른쪽 위 메뉴,
     /// 화면 가운데 위에 그때그때 필요한 버튼(레벨업 카드·유물 1/2/3, 계속하기/로비, 확인). 스킬(Q/E)·퀵슬롯(1~3)·가방(I)은
     /// HUD 칸을 직접 탭한다(GameHUD·InventoryUI가 GameInput.RegisterTap). 버튼은 키를 누른 것과 똑같이 동작한다(GameInput).
     /// 터치 화면이 있을 때만 보인다(에디터에선 메뉴 "LoopRogue/모바일 터치 버튼 미리보기"로 켜서 마우스로 시험).</summary>

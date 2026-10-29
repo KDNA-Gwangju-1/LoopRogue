@@ -566,6 +566,123 @@ namespace LoopRogue
             onDone();
         }
 
+        // ------------------------------------------------------------ 마석 유물 뽑기(10-29 사용자 "뽑는 연출도")
+        /// <summary>떠돌이 마석 상인에게 유물을 뽑을 때(NpcActor.DrawRelic) - 어두워진 화면에 마석이 떠올라 세 번 붉게 맥동하며 떨리다가
+        /// 산산이 깨지고, 검붉은 빛줄기 속에서 유물이 솟아올라 이름·효과를 보여 준다. 클릭/Space로 넘기면 맥동을 건너뛰고,
+        /// 다 나온 뒤 한 번 더 누르면 닫힌다. 봇 실행 중엔 연출 없이 바로 onDone.</summary>
+        public static void PlayRelicDraw(RelicType relic, Action onDone)
+        {
+            if (DamagePopup.Suppressed)
+            {
+                onDone();
+                return;
+            }
+            if (_instance == null)
+                _instance = Create();
+            if (_instance == null || _instance._playing)
+            {
+                onDone();
+                return;
+            }
+            _instance.gameObject.SetActive(true);
+            _instance.StartCoroutine(_instance.RunRelicDraw(relic, onDone));
+        }
+
+        private static readonly Color StoneRed = new Color(0.86f, 0.24f, 0.28f);
+        private static readonly Color StoneDark = new Color(0.45f, 0.05f, 0.1f);
+
+        private IEnumerator RunRelicDraw(RelicType relic, Action onDone)
+        {
+            _playing = true;
+            _hint.gameObject.SetActive(false);
+            _skipAll = false;
+            _skipButton.gameObject.SetActive(true);
+            var center = new Vector2(0f, 40f);
+
+            // 1) 어두워지고 마석이 떠오른다(16px 도트 8배)
+            var stoneSprite = Resources.Load<Sprite>("UI/Icons/ManaStone");
+            var stone = MakeImage(_shakeRoot, "Stone", stoneSprite, center);
+            stone.rectTransform.sizeDelta *= 2f;
+            SfxPlayer.Play(Sfx.Appear);
+            yield return Tween(0.4f, t =>
+            {
+                _dim.color = new Color(0f, 0f, 0f, 0.86f * t);
+                stone.rectTransform.localScale = Vector3.one * Mathf.LerpUnclamped(0.3f, 1f, EaseOutBack(t));
+            });
+
+            // 2) 세 번 맥동 - 점점 세게 떨리고, 붉은 번쩍임·불티가 커지며 음이 올라간다
+            for (var i = 0; i < 3 && !CheckSkip(); i++)
+            {
+                SfxPlayer.PlayPitched(Sfx.GradeUp, 0.8f + 0.2f * i);
+                StartCoroutine(Flash(StoneRed, 0.18f + 0.12f * i));
+                Burst(center, StoneRed, 6 + 6 * i);
+                _shake = 4f + 4f * i;
+                for (var t = 0f; t < 0.45f && !CheckSkip(); t += Time.deltaTime)
+                {
+                    var k = Mathf.Sin(t / 0.45f * Mathf.PI); // 부풀었다 돌아온다
+                    stone.rectTransform.localScale = Vector3.one * (1f + (0.08f + 0.05f * i) * k);
+                    stone.rectTransform.anchoredPosition = center + new Vector2(UnityEngine.Random.Range(-2f, 2f) * (1 + i), 0f);
+                    stone.color = Color.Lerp(Color.white, new Color(1f, 0.6f, 0.6f), k);
+                    yield return null;
+                }
+                stone.color = Color.white;
+                stone.rectTransform.anchoredPosition = center;
+                if (!CheckSkip())
+                    yield return Wait(0.12f);
+            }
+
+            // 3) 깨짐 - 흰 번쩍임 + 검붉은 파편, 그 자리에 빛줄기와 유물
+            Destroy(stone.gameObject);
+            SfxPlayer.Play(Sfx.Explosion);
+            StartCoroutine(Flash(Color.white, 0.85f));
+            _shake = 16f;
+            Burst(center, StoneDark, 26);
+            Burst(center, StoneRed, 26);
+            if (_rays != null)
+            {
+                var rays = MakeImage(_shakeRoot, "Rays", _rays, center);
+                rays.color = new Color(StoneRed.r, StoneRed.g, StoneRed.b, 0.55f);
+                rays.rectTransform.localScale = Vector3.one * 1.6f;
+                StartCoroutine(Spin(rays.rectTransform, 30f));
+            }
+            var icon = MakeImage(_shakeRoot, "Relic", PixelUi.Get($"UI/Relics/Relic_{relic}"), center);
+            if (icon.sprite != null) // 16px·24px 유물 그림 모두 약 144px로 - 정수 배율이라 도트가 고르게
+                icon.rectTransform.sizeDelta = icon.sprite.rect.size * Mathf.Max(1f, Mathf.Round(144f / icon.sprite.rect.width));
+            icon.enabled = icon.sprite != null;
+            yield return Tween(0.35f, t => icon.rectTransform.localScale = Vector3.one * Mathf.LerpUnclamped(0.2f, 1f, EaseOutBack(t)));
+            SfxPlayer.Play(Sfx.Fanfare);
+            StartCoroutine(Bob(icon.rectTransform, center));
+            StartCoroutine(Twinkle(center, StoneRed, 0.08f));
+
+            // 4) 이름·효과
+            var title = MakeText(_shakeRoot, "Title", 34, new Color(1f, 0.6f, 0.6f), new Vector2(0f, -110f), 900f);
+            title.fontStyle = FontStyle.Bold;
+            title.text = $"「{Relics.Name(relic)}」";
+            var desc = MakeText(_shakeRoot, "Desc", 17, new Color(0.92f, 0.86f, 0.86f), new Vector2(0f, -152f), 900f);
+            desc.text = Relics.Description(relic);
+
+            // 5) 닫기 - 클릭/Space
+            _skipButton.gameObject.SetActive(false);
+            _hint.gameObject.SetActive(true);
+            for (var t = 0f; ; t += Time.deltaTime)
+            {
+                if (t > 0.4f && SkipPressed())
+                    break;
+                yield return null;
+            }
+            _hint.gameObject.SetActive(false);
+            yield return Tween(0.2f, t =>
+            {
+                _dim.color = new Color(0f, 0f, 0f, 0.86f * (1f - t));
+                _shakeRoot.localScale = Vector3.one * (1f - 0.05f * t);
+            });
+            _playing = false;
+            Cleanup();
+            _closedFrame = Time.frameCount;
+            gameObject.SetActive(false);
+            onDone();
+        }
+
         // ------------------------------------------------------------ 도우미
         /// <summary>등급별 장비 그림(Equip_{부위}_{등급}, 24x24) - 없으면 부위 공용 그림.</summary>
         public static Sprite EquipIcon(ItemSlot slot, ItemGrade grade) =>

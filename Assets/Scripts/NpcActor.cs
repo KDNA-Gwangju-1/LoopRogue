@@ -11,6 +11,7 @@ namespace LoopRogue
         Wanderer, // 길 잃은 모험가 - 방 1에서 의뢰, 방 10에서 보고
         Curse,    // 그림자 거래상 - 대가를 치르는 저주 계약(Curses)
         Blacksmith, // 히든 - 이름 없는 대장장이(장비 전부 영원일 때, 기사의 검 조각 → Unknown 세트)
+        RelicDealer, // 떠돌이 마석 상인(10-29) - 마석이 1개 이상일 때만, 마석으로 아직 없는 유물을 뽑아 준다(1·2·3…개)
     }
 
     /// <summary>방 안의 NPC - 일반 방을 클리어하면 가끔 그 방에 나타난다(RoomController.TrySpawnRoomClearNpc). 칸 하나를 차지하고
@@ -53,6 +54,7 @@ namespace LoopRogue
             NpcType.Merchant => Loc.T("떠돌이 상인"),
             NpcType.Wanderer => Loc.T("길 잃은 모험가"),
             NpcType.Blacksmith => LoopRogue.Blacksmith.Name,
+            NpcType.RelicDealer => Loc.T("마석 상인"),
             _ => Loc.T("그림자 거래상"),
         };
 
@@ -127,6 +129,7 @@ namespace LoopRogue
             NpcType.Merchant => new Color(0.95f, 0.7f, 0.3f),
             NpcType.Wanderer => new Color(0.45f, 0.85f, 0.55f),
             NpcType.Blacksmith => new Color(0.85f, 0.45f, 0.25f),
+            NpcType.RelicDealer => new Color(0.5f, 0.12f, 0.18f),
             _ => new Color(0.45f, 0.2f, 0.6f),
         };
 
@@ -140,7 +143,9 @@ namespace LoopRogue
         {
             if (DamagePopup.Suppressed)
                 return;
-            var smoke = Type == NpcType.Curse ? new Color(0.35f, 0.15f, 0.45f, 0.9f) : new Color(0.75f, 0.75f, 0.8f, 0.85f);
+            var smoke = Type == NpcType.Curse ? new Color(0.35f, 0.15f, 0.45f, 0.9f)
+                : Type == NpcType.RelicDealer ? new Color(0.45f, 0.08f, 0.14f, 0.9f) // 검붉은 연기
+                : new Color(0.75f, 0.75f, 0.8f, 0.85f);
             DeathBurst.Spawn(transform.position, smoke, 14, GridConstants.CellSize * 2.2f, GridConstants.CellSize * 0.18f);
             DeathBurst.Spawn(transform.position + new Vector3(0f, GridConstants.CellSize * 0.3f, 0f), smoke, 8, GridConstants.CellSize * 1.2f, GridConstants.CellSize * 0.14f);
             SfxPlayer.Play(Type == NpcType.Curse ? Sfx.Curse : Sfx.Appear);
@@ -198,9 +203,57 @@ namespace LoopRogue
                 ShowWanderer();
             else if (Type == NpcType.Blacksmith)
                 ShowBlacksmith();
+            else if (Type == NpcType.RelicDealer)
+                ShowRelicDealer();
             else
                 ShowCurse();
             _talkedOnce = true;
+        }
+
+        // ===================== 떠돌이 마석 상인(10-29) =====================
+
+        /// <summary>마석 상인 대화 - 유물 뽑기(첫 번째 마석 1개, 뽑을 때마다 1개씩 더) / 떠난다. 뽑고 나도 창은 열린 채로 다음 가격을 보여 준다.</summary>
+        private void ShowRelicDealer(string line = null)
+        {
+            var left = ManaStoneWallet.RelicCandidates().Length;
+            var cost = ManaStoneWallet.RelicDrawCost;
+            line ??= RelicDealerLine(ManaStoneWallet.RelicDraws, cost);
+            var body = line + "\n" + Loc.F("<color=#FF9A9A>보유 마석 {0}개</color> · 남은 유물 {1}개 · 뽑을 때마다 마석이 1개씩 더 든다", ManaStoneWallet.Stones, left);
+            var draw = left == 0
+                ? new NpcDialogUI.Choice(Loc.T("유물 뽑기 - 남은 유물 없음"), null, enabled: false)
+                : new NpcDialogUI.Choice(Loc.F("유물 뽑기 (마석 {0}개)", cost), DrawRelic, enabled: ManaStoneWallet.Stones >= cost);
+            NpcDialogUI.Instance.Show(DisplayName, body, new[] { draw, new NpcDialogUI.Choice(Loc.T("떠난다"), null) });
+        }
+
+        /// <summary>마석 상인 인사(10-29 사용자) - 첫 뽑기는 "시험 삼아 1개", 두 번째부터는 뽑은 횟수가 늘수록 마석을 더 요구하는 말투로.</summary>
+        private static string RelicDealerLine(int draws, int cost) => draws switch
+        {
+            0 => Loc.T("그 돌, 평범한 돌이 아니야. 마석이지.\n시험 삼아 1개만 줘 봐. 진정한 모습을 보여 줄게."),
+            1 => Loc.F("봤지? 그게 마석의 진짜 모습이야.\n이번엔 {0}개. 진짜는 공짜로 안 나와.", cost),
+            2 => Loc.F("{0}개. 마석을 많이 줄수록 더 깊은 데서 꺼내 오지.", cost),
+            <= 4 => Loc.F("{0}개다. 비싸다고? 네가 쥔 유물들 값을 생각해 봐.", cost),
+            <= 7 => Loc.F("{0}개. 깎아 줄 생각은 없어. 갈수록 꺼내기 힘들어지거든.", cost),
+            _ => Loc.F("{0}개... 이제 남은 건 깊이 묻힌 것들뿐이야. 값도 그만큼이지.", cost),
+        };
+
+        private void DrawRelic()
+        {
+            var relic = ManaStoneWallet.DrawRelic(_player, out _);
+            if (relic == null)
+            {
+                ShowRelicDealer();
+                return;
+            }
+            // 뽑는 연출(마석이 깨지며 유물이 솟아오름) 동안엔 대화창을 닫아 둔다 - 넘기기 키(Space·Esc)를 대화창이 같이 읽지 않게
+            NpcDialogUI.Instance.Close();
+            var name = Relics.Name(relic.Value);
+            GachaReveal.PlayRelicDraw(relic.Value, () =>
+            {
+                _room.ShowMessage(Loc.F("유물 <color=#FF9A9A>「{0}」</color> 획득! {1}", name, Relics.Description(relic.Value)));
+                HitFeedback.OnBonusReward(_player);
+                if (this != null)
+                    ShowRelicDealer(Loc.F("흐흐... <color=#FF9A9A>「{0}」</color>이다. {1}", name, Relics.Description(relic.Value)));
+            });
         }
 
         // ===================== 그림자 거래상 =====================
@@ -458,6 +511,13 @@ namespace LoopRogue
                     RunQuest.Accept();
                 return bought;
             }
+            if (Type == NpcType.RelicDealer)
+            {
+                // 봇 - 마석이 되는 만큼 뽑는다(유물은 바로 얻는다)
+                while (ManaStoneWallet.DrawRelic(player, out _) is RelicType relic)
+                    bought.Add((StockKind.Item, Relics.Name(relic), 0));
+                return bought;
+            }
             if (Type == NpcType.Blacksmith)
             {
                 if (LoopRogue.Blacksmith.Current == LoopRogue.Blacksmith.Stage.NotMet)
@@ -521,21 +581,9 @@ namespace LoopRogue
         /// 예전엔 지갑만 바뀌어 그 판엔 세트 스탯이 없었고, 로비에 다녀오면 RunProgress 복원이 성장 몫을 장비 증가분만큼 깎았다.</summary>
         private bool ForgeNow()
         {
-            var attackBefore = RunProgress.CurrentPermanentAttack();
-            var healthBefore = RunProgress.CurrentPermanentHealth();
-            var criticalBefore = RunProgress.CurrentPermanentCritical();
-            if (!LoopRogue.Blacksmith.Forge())
-                return false;
-            if (_player != null)
-            {
-                var stats = _player.Stats;
-                stats.FixedAttack += RunProgress.CurrentPermanentAttack() - attackBefore;
-                var healthGain = RunProgress.CurrentPermanentHealth() - healthBefore;
-                stats.FixedMaxHealth += healthGain;
-                stats.Heal(healthGain);
-                stats.CriticalChanceRate += RunProgress.CurrentPermanentCritical() - criticalBefore;
-            }
-            return true;
+            var forged = false;
+            RunProgress.ApplyPermanentChange(_player != null ? _player.Stats : null, () => forged = LoopRogue.Blacksmith.Forge());
+            return forged;
         }
 
         private void ForgeSet()

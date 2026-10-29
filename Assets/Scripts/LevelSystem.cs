@@ -5,7 +5,8 @@ namespace LoopRogue
 {
     /// <summary>카드 등급(10-23 사용자 - 예전 기본/성장/특수/경제/도박 분류 대신) - 등장 가중치와 카드 테두리(UI/Common/Card_등급)에 쓴다.
     /// 플레이어에게 등급 글자는 안 보여 준다(테두리 그림만 다르다).
-    /// S = 상한 있는 카드(상한에 가까울수록 덜 나오고 닿으면 빠진다), A = % 곱하기 성장, B = 고정 수치, C = 소소한·그때그때 카드.</summary>
+    /// S = 상한 있는 카드(상한에 가까울수록 덜 나오고 닿으면 빠진다), A = % 곱하기 성장, B = 작은 % 성장·고정 확률, C = 소소한·그때그때 카드.
+    /// 10-29부터 등급마다 7장씩(28장).</summary>
     public enum UpgradeGrade
     {
         C,
@@ -20,6 +21,8 @@ namespace LoopRogue
         public string Title;
         public string Description;
         public UpgradeGrade Grade;
+        /// <summary>카드 왼쪽 그림 UI/Cards/Card_{Icon} - 제목은 언어마다 달라서 따로 둔다(그림이 없으면 글자만).</summary>
+        public string Icon;
         public Action<CharacterStats> Apply;
         /// <summary>지금 이 카드를 보기에 넣어도 되는지 - 없으면 항상 가능(상한 카드는 상한에 닿으면 빠진다).</summary>
         public Func<CharacterStats, bool> IsAvailable;
@@ -98,56 +101,85 @@ namespace LoopRogue
         private static readonly LocCache<List<UpgradeOption>> PoolCache = new LocCache<List<UpgradeOption>>(() => new List<UpgradeOption>
         {
             // C - 소소한·그때그때
-            new UpgradeOption { Grade = UpgradeGrade.C, Title = Loc.T("균형 성장"), Description = Loc.T("최대체력 +12, 공격력 +3 / 현재 체력 -20%"),
-                Apply = s => { s.IncreaseMaxHealth(12f, true); s.BaseAttack += 3f; s.LoseCurrentHealthPercent(0.2f); } },
-            new UpgradeOption { Grade = UpgradeGrade.C, Title = Loc.T("완전 회복"), Description = Loc.T("체력 전부 회복 / 공격력 -2%"),
-                Apply = s => { s.FullHeal(); s.BaseAttack *= 0.98f; } },
+            // 10-29 사용자 - 깡스탯(고정 수치) 카드 4장을 %로: 레벨이 오를수록 고정 +N은 의미가 없어지고, 초반엔 너무 컸다
+            new UpgradeOption { Grade = UpgradeGrade.C, Icon = "BalancedGrowth", Title = Loc.T("균형 성장"), Description = Loc.T("최대체력 +4%, 공격력 +2% / 현재 체력 -10%"),
+                Apply = s => { s.IncreaseMaxHealth(s.BaseMaxHealth * 0.04f, true); s.BaseAttack *= 1.02f; s.LoseCurrentHealthPercent(0.1f); } },
+            new UpgradeOption { Grade = UpgradeGrade.C, Icon = "FullHeal", Title = Loc.T("완전 회복"), Description = Loc.T("체력 전부 회복"),
+                Apply = s => { s.FullHeal(); } }, // 10-29 사용자 - 손해 없음
+            new UpgradeOption { Grade = UpgradeGrade.C, Icon = "CatchBreath", Title = Loc.T("숨 고르기"), Description = Loc.T("최대체력 40% 회복"),
+                Apply = s => { s.Heal(s.MaxHealth * 0.4f); } }, // 10-29 사용자 - 손해 없음
+            new UpgradeOption { Grade = UpgradeGrade.C, Icon = "Adventurous", Title = Loc.T("모험심"), Description = Loc.T("골드 +10%, 경험치 +10% / 현재 체력 -10%"),
+                Apply = s => { s.GoldBonusRate = Math.Min(CharacterStats.MaxGoldBonusCard, s.GoldBonusRate + 0.1f); s.ExpBonusRate += 0.1f; s.LoseCurrentHealthPercent(0.1f); } },
+            // 10-29 사용자 - 등급마다 7장씩(C +3)
+            new UpgradeOption { Grade = UpgradeGrade.C, Icon = "LuckyCoin", Title = Loc.T("행운의 동전"), Description = Loc.T("골드 +8% (최대 100%) / 현재 체력 -10%"),
+                Apply = s => { s.GoldBonusRate = Math.Min(CharacterStats.MaxGoldBonusCard, s.GoldBonusRate + 0.08f); s.LoseCurrentHealthPercent(0.1f); } },
+            new UpgradeOption { Grade = UpgradeGrade.C, Icon = "Focus", Title = Loc.T("반짝 집중"), Description = Loc.T("치명타 +2%p / 현재 체력 -10%"),
+                Apply = s => { s.CriticalChanceRate += 0.02f; s.LoseCurrentHealthPercent(0.1f); } },
+            new UpgradeOption { Grade = UpgradeGrade.C, Icon = "ShortTraining", Title = Loc.T("짧은 수련"), Description = Loc.T("경험치 +8% / 현재 체력 -10%"),
+                Apply = s => { s.ExpBonusRate += 0.08f; s.LoseCurrentHealthPercent(0.1f); } },
 
-            // B - 고정 수치
-            new UpgradeOption { Grade = UpgradeGrade.B, Title = Loc.T("힘"), Description = Loc.T("공격력 +6 / 받는 피해 +2%"),
-                Apply = s => { s.BaseAttack += 6f; s.DamageReductionRate -= 0.02f; } },
-            new UpgradeOption { Grade = UpgradeGrade.B, Title = Loc.T("체력"), Description = Loc.T("최대체력 +25 / 공격력 -3%"),
-                Apply = s => { s.IncreaseMaxHealth(25f, true); s.BaseAttack *= 0.97f; } },
-            new UpgradeOption { Grade = UpgradeGrade.B, Title = Loc.T("학습"), Description = Loc.T("경험치 +25% / 받는 피해 +3%"),
+            // B - 작은 % 성장·고정 확률(10-29 깡스탯이 %로 바뀌기 전엔 "고정 수치")
+            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Strength", Title = Loc.T("힘"), Description = Loc.T("공격력 +6% / 받는 피해 +1%"),
+                Apply = s => { s.BaseAttack *= 1.06f; s.DamageReductionRate -= 0.01f; } },
+            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Vitality", Title = Loc.T("체력"), Description = Loc.T("최대체력 +8% / 공격력 -3%"),
+                Apply = s => { s.IncreaseMaxHealth(s.BaseMaxHealth * 0.08f, true); s.BaseAttack *= 0.97f; } },
+            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Learning", Title = Loc.T("학습"), Description = Loc.T("경험치 +25% / 받는 피해 +3%"),
                 Apply = s => { s.ExpBonusRate += 0.25f; s.DamageReductionRate -= 0.03f; } },
+            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Sturdy", Title = Loc.T("단단함"), Description = Loc.T("최대체력 +12% / 공격력 -3%"),
+                Apply = s => { s.IncreaseMaxHealth(s.BaseMaxHealth * 0.12f, true); s.BaseAttack *= 0.97f; } },
+            // 10-29 사용자 - 등급마다 7장씩(B +3)
+            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Agility", Title = Loc.T("몸놀림"), Description = Loc.T("치명타 +3%p / 받는 피해 +1%"),
+                Apply = s => { s.CriticalChanceRate += 0.03f; s.DamageReductionRate -= 0.01f; } },
+            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Vigor", Title = Loc.T("균형 잡힌 몸"), Description = Loc.T("최대체력 +6%, 공격력 +3% / 받는 피해 +2%"),
+                Apply = s => { s.IncreaseMaxHealth(s.BaseMaxHealth * 0.06f, true); s.BaseAttack *= 1.03f; s.DamageReductionRate -= 0.02f; } },
+            new UpgradeOption { Grade = UpgradeGrade.B, Icon = "Grit", Title = Loc.T("근성"), Description = Loc.T("공격력 +5%, 최대체력 +5% / 경험치 -5%"),
+                Apply = s => { s.BaseAttack *= 1.05f; s.IncreaseMaxHealth(s.BaseMaxHealth * 0.05f, true); s.ExpBonusRate -= 0.05f; } },
 
             // A - % 곱하기 성장
-            new UpgradeOption { Grade = UpgradeGrade.A, Title = Loc.T("공격력 강화"), Description = Loc.T("공격력 +12% / 최대체력 -3%"),
+            new UpgradeOption { Grade = UpgradeGrade.A, Icon = "AttackUp", Title = Loc.T("공격력 강화"), Description = Loc.T("공격력 +12% / 최대체력 -3%"),
                 Apply = s => { s.BaseAttack *= 1.12f; s.MultiplyMaxHealth(0.97f); } },
-            new UpgradeOption { Grade = UpgradeGrade.A, Title = Loc.T("체력 강화"), Description = Loc.T("최대체력 +15% / 공격력 -5%"),
-                Apply = s => { s.IncreaseMaxHealth(s.BaseMaxHealth * 0.15f, true); s.BaseAttack *= 0.95f; } },
-            new UpgradeOption { Grade = UpgradeGrade.A, Title = Loc.T("날카로움"), Description = Loc.T("치명타 +5%p / 공격력 -4%"),
-                Apply = s => { s.CriticalChanceRate += 0.05f; s.BaseAttack *= 0.96f; } },
+            new UpgradeOption { Grade = UpgradeGrade.A, Icon = "VitalityUp", Title = Loc.T("체력 강화"), Description = Loc.T("최대체력 +20% / 공격력 -5%"),
+                Apply = s => { s.IncreaseMaxHealth(s.BaseMaxHealth * 0.2f, true); s.BaseAttack *= 0.95f; } },
+            new UpgradeOption { Grade = UpgradeGrade.A, Icon = "Sharpness", Title = Loc.T("날카로움"), Description = Loc.T("치명타 +5%p / 공격력 -3%"),
+                Apply = s => { s.CriticalChanceRate += 0.05f; s.BaseAttack *= 0.97f; } },
+            new UpgradeOption { Grade = UpgradeGrade.A, Icon = "WeakSpot", Title = Loc.T("급소 노리기"), Description = Loc.T("치명타 +8%p / 받는 피해 +2%"),
+                Apply = s => { s.CriticalChanceRate += 0.08f; s.DamageReductionRate -= 0.02f; } },
             // 광폭화는 곱하기라 A등급 가중치 6이면 예전(도박 4)보다 판당 거의 두 배 뽑혀 공격력 ×2·체력 -40%로 튀었다(10-24 봇 100판·카드 시뮬레이션) - 3이면 등급제 전과 같다
-            new UpgradeOption { Grade = UpgradeGrade.A, WeightOverride = 3, Title = Loc.T("[도박] 광폭화"), Description = Loc.T("공격력 +20% / 최대체력 -10%"),
+            new UpgradeOption { Grade = UpgradeGrade.A, WeightOverride = 3, Icon = "Berserk", Title = Loc.T("광폭화"), Description = Loc.T("공격력 +20% / 최대체력 -10%"),
                 Apply = s => { s.BaseAttack *= 1.2f; s.MultiplyMaxHealth(0.9f); } },
+            // 광폭화와 같은 크게 얻고 크게 잃는 카드라 가중치도 3
+            new UpgradeOption { Grade = UpgradeGrade.A, WeightOverride = 3, Icon = "BloodFeud", Title = Loc.T("혈투"), Description = Loc.T("공격력 +18% / 받는 피해 +5%"),
+                Apply = s => { s.BaseAttack *= 1.18f; s.DamageReductionRate -= 0.05f; } },
+            // 10-29 사용자 - 등급마다 7장씩(A +1)
+            new UpgradeOption { Grade = UpgradeGrade.A, Icon = "FightingSpirit", Title = Loc.T("투지"), Description = Loc.T("공격력 +8%, 최대체력 +8% / 받는 피해 +3%"),
+                Apply = s => { s.BaseAttack *= 1.08f; s.IncreaseMaxHealth(s.BaseMaxHealth * 0.08f, true); s.DamageReductionRate -= 0.03f; } },
 
             // S - 상한 있는 카드(상한에 가까울수록 덜 나오고, 닿으면 빠진다)
-            new UpgradeOption { Grade = UpgradeGrade.S, Title = Loc.T("흡혈"), Description = Loc.T("흡혈 +8% (일반 공격만, 최대 50%) / 공격력 -3%"),
-                Apply = s => { s.LifeStealRate = Math.Min(Relics.LifeStealCap, s.LifeStealRate + 0.08f); s.BaseAttack *= 0.97f; },
+            new UpgradeOption { Grade = UpgradeGrade.S, Icon = "Lifesteal", Title = Loc.T("흡혈"), Description = Loc.T("흡혈 +8% (일반 공격만, 최대 50%) / 공격력 -2%"),
+                Apply = s => { s.LifeStealRate = Math.Min(Relics.LifeStealCap, s.LifeStealRate + 0.08f); s.BaseAttack *= 0.98f; },
                 IsAvailable = s => s.LifeStealRate < Relics.LifeStealCap,
                 CapProgress = s => s.LifeStealRate / Relics.LifeStealCap },
-            new UpgradeOption { Grade = UpgradeGrade.S, Title = Loc.T("방어"), Description = Loc.T("받는 피해 -2% (최대 30%) / 골드 -5%"),
+            new UpgradeOption { Grade = UpgradeGrade.S, Icon = "Defense", Title = Loc.T("방어"), Description = Loc.T("받는 피해 -2% (최대 30%) / 골드 -5%"),
                 Apply = s => { s.DamageReductionRate += 0.02f; s.GoldBonusRate -= 0.05f; },
                 IsAvailable = s => s.DamageReductionRate < CharacterStats.MaxDamageReduction - 0.001f,
                 CapProgress = s => s.DamageReductionRate / CharacterStats.MaxDamageReduction },
-            new UpgradeOption { Grade = UpgradeGrade.S, Title = Loc.T("[도박] 철갑"), Description = Loc.T("받는 피해 -3% / 공격력 -5%"),
-                Apply = s => { s.DamageReductionRate += 0.03f; s.BaseAttack *= 0.95f; },
+            new UpgradeOption { Grade = UpgradeGrade.S, Icon = "Ironclad", Title = Loc.T("철갑"), Description = Loc.T("받는 피해 -3% / 최대체력 -5%"),
+                Apply = s => { s.DamageReductionRate += 0.03f; s.MultiplyMaxHealth(0.95f); },
                 IsAvailable = s => s.DamageReductionRate < CharacterStats.MaxDamageReduction - 0.001f,
                 CapProgress = s => s.DamageReductionRate / CharacterStats.MaxDamageReduction },
-            new UpgradeOption { Grade = UpgradeGrade.S, Title = Loc.T("수호막"), Description = Loc.T("방에 들어갈 때마다 최대체력 8% 보호막 (최대 50%) / 받는 피해 +2%"),
-                Apply = s => { s.RoomShieldCardRate = Math.Min(CharacterStats.MaxRoomShieldCard, s.RoomShieldCardRate + 0.08f); s.DamageReductionRate -= 0.02f; },
+            new UpgradeOption { Grade = UpgradeGrade.S, Icon = "Ward", Title = Loc.T("수호막"), Description = Loc.T("방에 들어갈 때마다 최대체력 8% 보호막 (최대 50%) / 받는 피해 +1%"),
+                Apply = s => { s.RoomShieldCardRate = Math.Min(CharacterStats.MaxRoomShieldCard, s.RoomShieldCardRate + 0.08f); s.DamageReductionRate -= 0.01f; },
                 IsAvailable = s => s.RoomShieldCardRate < CharacterStats.MaxRoomShieldCard,
                 CapProgress = s => s.RoomShieldCardRate / CharacterStats.MaxRoomShieldCard },
-            new UpgradeOption { Grade = UpgradeGrade.S, Title = Loc.T("처치 회복"), Description = Loc.T("처치 시 최대체력 12% 회복 (최대 36%) / 공격력 -3%"),
-                Apply = s => { s.KillHealRate = Math.Min(CharacterStats.MaxKillHeal, s.KillHealRate + 0.12f); s.BaseAttack *= 0.97f; },
+            new UpgradeOption { Grade = UpgradeGrade.S, Icon = "KillHeal", Title = Loc.T("처치 회복"), Description = Loc.T("처치 시 최대체력 12% 회복 (최대 36%) / 최대체력 -2%"),
+                Apply = s => { s.KillHealRate = Math.Min(CharacterStats.MaxKillHeal, s.KillHealRate + 0.12f); s.MultiplyMaxHealth(0.98f); },
                 IsAvailable = s => s.KillHealRate < CharacterStats.MaxKillHeal - 0.001f,
                 CapProgress = s => s.KillHealRate / CharacterStats.MaxKillHeal },
-            new UpgradeOption { Grade = UpgradeGrade.S, Title = Loc.T("수집"), Description = Loc.T("골드 +20% (최대 100%) / 경험치 -10%"),
+            new UpgradeOption { Grade = UpgradeGrade.S, Icon = "Collector", Title = Loc.T("수집"), Description = Loc.T("골드 +20% (최대 100%) / 경험치 -10%"),
                 Apply = s => { s.GoldBonusRate = Math.Min(CharacterStats.MaxGoldBonusCard, s.GoldBonusRate + 0.2f); s.ExpBonusRate -= 0.1f; },
                 IsAvailable = s => s.GoldBonusRate < CharacterStats.MaxGoldBonusCard,
                 CapProgress = s => s.GoldBonusRate / CharacterStats.MaxGoldBonusCard },
-            new UpgradeOption { Grade = UpgradeGrade.S, Title = Loc.T("[도박] 황금 욕심"), Description = Loc.T("골드 +30% (최대 100%) / 받는 피해 +8%"),
+            new UpgradeOption { Grade = UpgradeGrade.S, Icon = "GoldGreed", Title = Loc.T("황금 욕심"), Description = Loc.T("골드 +30% (최대 100%) / 받는 피해 +8%"),
                 Apply = s => { s.GoldBonusRate = Math.Min(CharacterStats.MaxGoldBonusCard, s.GoldBonusRate + 0.3f); s.DamageReductionRate -= 0.08f; },
                 IsAvailable = s => s.GoldBonusRate < CharacterStats.MaxGoldBonusCard,
                 CapProgress = s => s.GoldBonusRate / CharacterStats.MaxGoldBonusCard },

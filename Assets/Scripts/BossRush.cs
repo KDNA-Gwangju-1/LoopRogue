@@ -64,7 +64,7 @@ namespace LoopRogue
         // 보스방에 들어갈 때마다(죽고 다시 들어가도) 봇 기준 상태 BotLogs/reference_snapshots.tsv의 (N+1)층 입장 저장값 = N층을 막 깬 판의
         // 레벨·스탯·장비·영약·골드를 써넣고 플레이어를 그 값으로 다시 맞춘다("기준 스펙으로 N층 보스방" 메뉴와 같은 기준). 지난 보스에서 오른
         // 레벨은 버린다. 그 층 기준 상태에 없는 키는 지운다(앞 층 값이 남지 않게). 층·시도 횟수는 러시 것을 그대로 둔다.
-        private static readonly string[] KeepKeys = { "LoopRogue_CurrentStage", "LoopRogue_StageAttempts" };
+        private static readonly string[] KeepKeys = { StageProgress.StageKey, StageProgress.AttemptsKey };
 
         public static void ApplyStageSpec(int bossStage, PlayerActor player)
         {

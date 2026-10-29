@@ -310,8 +310,8 @@ namespace LoopRogue
         /// <summary>플레이어가 막 밟은 칸이 점액이면 한 턴 묶이고 점액은 떨어진다(PlayerActor.TryAct).</summary>
         public void CheckSlimePuddle()
         {
-            if (!_slimePuddles.ContainsKey(_player.GridPos))
-                return;
+            if (_roomCleared || !_slimePuddles.ContainsKey(_player.GridPos))
+                return; // 킹을 잡은 뒤(보스 러시는 다음 보스로 걸어간다) 기믹 정리 전 한 턴 동안 묶이던 것
             RemoveFloorProp(_slimePuddles, _player.GridPos, SlimeColor);
             if (_player.WebImmuneTurns > 0) // 정화제 기운 - 안 붙고 밟은 점액만 지워진다
             {

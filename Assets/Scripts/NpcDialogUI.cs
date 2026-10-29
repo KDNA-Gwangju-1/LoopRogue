@@ -9,7 +9,7 @@ namespace LoopRogue
 {
     /// <summary>NPC 대화창 - 화면 아래쪽에 이름표 + 대사 + 선택지 목록. Main(던전 NPC)과 Lobby(안내자)가 같이 쓴다.
     /// 선택지를 고르면 그 선택지의 동작이 실행되고, 동작 안에서 Show를 다시 부르면 내용이 바뀐 채로 계속 열려 있다(상점 구매 후 갱신 등).
-    /// 조작: 숫자키 = 바로 고르기, 방향키(W/S)로 커서 + Enter/Space, 마우스 클릭, Esc/F = 닫기.
+    /// 조작: 숫자키 = 바로 고르기, 방향키(W/S)로 커서 + Enter/Space, 마우스 클릭, Esc = 닫기(10-28 F 키 대화는 없앴다 - NPC에게 부딪혀서 연다).
     /// 다른 UI와 같은 이유로 EventSystem 없이 Keyboard/Pointer.current와 사각형 히트테스트로 직접 읽는다. 자체 캔버스를 HUD보다 위에 그린다.</summary>
     public class NpcDialogUI : MonoBehaviour
     {
@@ -90,7 +90,7 @@ namespace LoopRogue
         public void Show(string speaker, string body, IList<Choice> choices)
         {
             if (!IsOpen)
-                _openedFrame = Time.frameCount; // 연 키(F/숫자)가 같은 프레임에 선택/닫기로 또 읽히지 않게
+                _openedFrame = Time.frameCount; // 연 키(부딪힌 방향키/숫자)가 같은 프레임에 선택/닫기로 또 읽히지 않게
             _speakerText.text = speaker;
             _bodyText.text = body;
 

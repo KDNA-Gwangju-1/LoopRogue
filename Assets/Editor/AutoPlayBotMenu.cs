@@ -172,7 +172,7 @@ namespace LoopRogue.EditorTools
             }
             if (!BackupBeforeTest("체험"))
                 return;
-            UnityEngine.PlayerPrefs.SetInt("LoopRogue_CurrentStage", stage);
+            UnityEngine.PlayerPrefs.SetInt(StageProgress.StageKey, stage);
             UnityEngine.PlayerPrefs.SetInt(LoopRogue.TutorialStage.DoneKey, 1); // 튜토리얼로 새지 않게
             UnityEngine.PlayerPrefs.Save();
             EditorPrefs.SetBool(LoopRogue.MuralTrial.PrefKey, true);
@@ -280,8 +280,8 @@ namespace LoopRogue.EditorTools
                 else
                     UnityEngine.PlayerPrefs.SetInt(p[1], int.Parse(p[3], inv));
             }
-            UnityEngine.PlayerPrefs.SetInt("LoopRogue_CurrentStage", stage);
-            UnityEngine.PlayerPrefs.SetInt("LoopRogue_StageAttempts", 0);
+            UnityEngine.PlayerPrefs.SetInt(StageProgress.StageKey, stage);
+            UnityEngine.PlayerPrefs.SetInt(StageProgress.AttemptsKey, 0);
             UnityEngine.PlayerPrefs.SetInt(LoopRogue.TutorialStage.DoneKey, 1); // 튜토리얼로 새지 않게
             UnityEngine.PlayerPrefs.Save();
             EditorPrefs.SetBool(LoopRogue.LoopManager.BossDirectPrefKey, true);
@@ -351,8 +351,8 @@ namespace LoopRogue.EditorTools
                     v *= BossRushHealthBoost;
                 UnityEngine.PlayerPrefs.SetFloat(p[1], v);
             }
-            UnityEngine.PlayerPrefs.SetInt("LoopRogue_CurrentStage", LoopRogue.BossRush.LastStage);
-            UnityEngine.PlayerPrefs.SetInt("LoopRogue_StageAttempts", 0);
+            UnityEngine.PlayerPrefs.SetInt(StageProgress.StageKey, LoopRogue.BossRush.LastStage);
+            UnityEngine.PlayerPrefs.SetInt(StageProgress.AttemptsKey, 0);
             UnityEngine.PlayerPrefs.SetInt(LoopRogue.TutorialStage.DoneKey, 1);
             UnityEngine.PlayerPrefs.Save();
             EditorPrefs.SetBool(LoopRogue.BossRush.PrefKey, true);

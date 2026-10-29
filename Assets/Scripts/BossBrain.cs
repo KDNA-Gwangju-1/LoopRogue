@@ -319,6 +319,8 @@ namespace LoopRogue
 
         /// <summary>거울 파편(4연격)이 진행 중인지 - 섬광탄으로도 안 멈추고, 보스가 기절해 있어도 계속 터진다(사용자 요청).</summary>
         public bool MirrorShardsActive => _pending == BossPatternType.MirrorShards;
+        /// <summary>예고해 둔 패턴(없으면 null) - 봇이 9층 회피 낙인을 풀 패턴(체스판·영혼 구체)인지 보는 데 쓴다.</summary>
+        public BossPatternType? PendingPattern => _pending;
 
         /// <summary>체력 조건을 지난 기믹 시작(컷신) - 시작했으면 true(그 턴은 끝). 보스 러시는 입장하자마자 이걸 한 번 부른다.</summary>
         public bool TryStartGimmick(RoomController room)
@@ -758,10 +760,6 @@ namespace LoopRogue
                 }
                 if (!crashed && !bounceCrashed)
                     room.ShowMessage(Loc.T("보스가 돌진 후 비틀거린다!"));
-                else if (!IsBoar)
-                {
-                    // 8층 용암 - 메시지는 RoomController.TryLavaFall이
-                }
             }
 
             // 맞았는지는 점프로 밀려나기 전에 정한다
@@ -810,6 +808,23 @@ namespace LoopRogue
             TrailerControls.Cue(type == BossPatternType.TripleWave ? TrailerCue.TripleWave : TrailerCue.Pattern, playerHit);
             HitFeedback.OnBossPatternResolved(player, playerHit, type, _pendingTiles, type == BossPatternType.SoulOrbs ? _orbCenters : null,
                 _stage >= MirrorStage ? MorphStage(type) : _stage); // 10층은 변신한 보스의 그림
+            // 9층 리치 회피 낙인(10-29) - 체스판·영혼 구체만. 피하면 쌓이고, 3개일 때 맞으면 피해 없이 초기화, 4개면 즉사(RoomController.OnLichPatternResolved).
+            // 체스판은 두 번 나눠 터지니 한 번이라도 맞으면 맞은 것, 두 번 다 피해야(마지막 타에서) 1개.
+            var lichSpared = false;
+            if (_stage == 9 && type == BossPatternType.SoulOrbs)
+                lichSpared = room.OnLichPatternResolved(playerHit);
+            else if (_stage == 9 && type == BossPatternType.Checker)
+            {
+                if (_mirrorWaveNumber <= 1)
+                    _checkerHitThisCast = false;
+                if (playerHit)
+                {
+                    _checkerHitThisCast = true;
+                    lichSpared = room.OnLichPatternResolved(true);
+                }
+                else if (_mirrorWaves.Count == 0 && !_checkerHitThisCast)
+                    room.OnLichPatternResolved(false);
+            }
             if (playerHit && room.MirrorLastStand)
             {
                 // 10층 발악 - 맞으면 즉사(보호막·부활·반사 무시). 사망 처리는 몹 턴 루프가.
@@ -819,7 +834,7 @@ namespace LoopRogue
                 _mirrorWaves.Clear();
                 return;
             }
-            if (playerHit)
+            if (playerHit && !lichSpared)
             {
                 PatternHitCount++;
                 if (player.ReflectInto(_boss, room)) // 반사 부적 - 안 맞고 평타 한 대만큼 되돌린다
@@ -1229,9 +1244,7 @@ namespace LoopRogue
             if (!blockedAt.HasValue)
                 return false;
             var front = GridMap.Cells(blockedAt.Value, _boss.FootprintRadius);
-            if (room.BoarPillarCount > 0 && room.BreakBoarPillars(front))
-                return true;
-            return room.TryLavaFall(front, _boss); // 8층 미노타우로스 - 용암 균열에 빠짐(피해·기절은 RoomController가)
+            return room.BoarPillarCount > 0 && room.BreakBoarPillars(front);
         }
 
         /// <summary>8층 3연속 돌진 방향 - 지금 플레이어 자리를 향해, 앞 돌진이 끝날 자리(벽만 보고 미리 계산)에서 차례로 정한다.
@@ -1326,6 +1339,7 @@ namespace LoopRogue
 
         private readonly List<HashSet<Vector2Int>> _mirrorWaves = new List<HashSet<Vector2Int>>(); // 거울 파편·3연 파동의 남은 웨이브
         private int _mirrorWaveNumber;
+        private bool _checkerHitThisCast; // 9층 회피 낙인 - 이번 체스판에서 한 번이라도 맞았는지
 
         private static bool IsWavePattern(BossPatternType type) =>
             type == BossPatternType.MirrorShards || type == BossPatternType.TripleWave || type == BossPatternType.Checker;

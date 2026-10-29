@@ -24,11 +24,9 @@ namespace LoopRogue
         private readonly Dictionary<Vector2Int, (int Side, int Line)> _crushWalls = new Dictionary<Vector2Int, (int, int)>();
         private int _crushInterval, _crushCountdown;
         private bool _crushActive;
-        private bool _crushWarned;
 
         public bool CrushActive => _gimmickStage == 8 && _crushActive;
         public IReadOnlyList<int> CrushInset => _crushInset;
-        public int CrushCountdown => _crushCountdown;
 
         private static readonly Vector2Int[] CrushNormals = { Vector2Int.right, Vector2Int.left, Vector2Int.up, Vector2Int.down }; // 그 벽에서 방 안쪽 방향
 
@@ -36,14 +34,13 @@ namespace LoopRogue
         public int CrushInnerWidth => Map.Width - _crushInset[0] - _crushInset[1];
         public int CrushInnerHeight => Map.Height - _crushInset[2] - _crushInset[3];
 
-        private void BeginCrusher(GimmickCutscene c)
+        private void BeginCrusher()
         {
             System.Array.Clear(_crushInset, 0, 4);
             _crushWalls.Clear();
             _crushInterval = CrushStartInterval;
             _crushCountdown = CrushStartInterval;
             _crushActive = true;
-            _crushWarned = false;
         }
 
         /// <summary>다음에 닫힐 칸 = 한 줄씩 조인 뒤 안쪽 사각형 밖의 빈 칸 전부. 그 줄만 닫으면 부서졌던 줄의 모서리나 보스 몸 때문에
@@ -89,10 +86,6 @@ namespace LoopRogue
                 if (_crushCountdown <= CrushWarnTurns)
                 {
                     ShowEnemyTelegraph(_gimmickBoss, NextCrushCells().ToList(), CrushTelegraphColor, "tel_crush"); // 벽돌 무늬(10-23)
-                    if (!_crushWarned)
-                    {
-                        _crushWarned = true;
-                    }
                 }
                 return false;
             }
@@ -102,7 +95,6 @@ namespace LoopRogue
         private bool CloseCrushRing()
         {
             ClearEnemyTelegraph(_gimmickBoss);
-            _crushWarned = false;
             var crushed = false;
             foreach (var (p, side, line) in CrushTargets())
             {
@@ -186,7 +178,6 @@ namespace LoopRogue
             if (_crushCountdown > CrushWarnTurns)
             {
                 ClearEnemyTelegraph(_gimmickBoss);
-                _crushWarned = false;
             }
             else
                 ShowEnemyTelegraph(_gimmickBoss, NextCrushCells().ToList(), CrushTelegraphColor, "tel_crush"); // 벽돌 무늬(10-23)
@@ -241,7 +232,6 @@ namespace LoopRogue
         private void ClearCrusher()
         {
             _crushActive = false;
-            _crushWarned = false;
             System.Array.Clear(_crushInset, 0, 4);
             _crushWalls.Clear();
         }

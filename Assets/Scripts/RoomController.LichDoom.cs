@@ -30,10 +30,47 @@ namespace LoopRogue
         private int _doomOrbClock; // 구체가 움직일 차례를 센다(DoomOrbMoveEvery턴마다)
         private readonly List<DoomOrb> _doomOrbs = new List<DoomOrb>();
 
+        // ---- 회피 낙인(10-29 사용자) - 리치의 예고 공격을 피할 때마다 1개. 3개면 다음 공격은 맞아야 한다(맞으면 피해 없이 0으로),
+        // 3개에서 또 피해 4개가 되면 즉사. "계속 피하기만 할 수는 없다" - 일부러 맞을 자리를 고르는 게 공략. ----
+        public const int LichForceHitStacks = 3;
+        public const int LichDeathStacks = 4;
+        public int LichDodgeStacks { get; private set; }
+
+        /// <summary>9층 리치 예고 공격이 터질 때(BossBrain) - 스택을 쌓거나 비운다. 이번 공격 피해를 없애야 하면 true(3개에서 맞음).
+        /// 4개가 되면 즉사 - 사망 처리는 몹 턴 루프가.</summary>
+        public bool OnLichPatternResolved(bool playerHit)
+        {
+            if (playerHit)
+            {
+                if (LichDodgeStacks < LichForceHitStacks)
+                    return false; // 평소처럼 맞는다(스택은 그대로)
+                LichDodgeStacks = 0;
+                ShowMessage(Loc.T("<color=#C890FF>회피 낙인이 걷혔다!</color> (피해 없음)"));
+                if (HitFeedback.Enabled)
+                    DamagePopup.SpawnText(_player.transform.position, Loc.T("낙인 해제"), new Color(0.78f, 0.56f, 1f));
+                return true;
+            }
+            LichDodgeStacks++;
+            if (LichDodgeStacks >= LichDeathStacks)
+            {
+                GimmickKills[9]++;
+                DeathCause.Set("g9_dodge");
+                ShowMessage(Loc.T("<color=#FF4040>회피 낙인이 넘쳐 영혼이 찢겨 나갔다!</color>"));
+                GimmickDeathFx();
+                KillPlayerInstantly();
+                return false;
+            }
+            if (HitFeedback.Enabled)
+                DamagePopup.SpawnText(_player.transform.position, Loc.F("회피 낙인 {0}/{1}", LichDodgeStacks, LichForceHitStacks),
+                    LichDodgeStacks >= LichForceHitStacks ? new Color(1f, 0.35f, 0.35f) : new Color(0.78f, 0.56f, 1f));
+            ShowMessage(LichDodgeStacks >= LichForceHitStacks
+                ? Loc.T("<color=#FF6060>회피 낙인 3 - 다음 체스판·영혼 구체는 반드시 맞아야 한다!</color> (맞으면 피해 없이 낙인이 걷힌다, 또 피하면 즉사)")
+                : Loc.F("<color=#C890FF>회피 낙인 {0}/{1}</color> - 체스판·영혼 구체를 피하면 쌓인다, 3개면 한 번은 맞아야 한다", LichDodgeStacks, LichForceHitStacks));
+            return false;
+        }
+
         /// <summary>죽음의 낙인이 나에게 찍혀 있는 동안(리치 무적).</summary>
         public bool DoomActive => _gimmickStage == 9 && _doomTurnsLeft > 0;
-        public int DoomTurnsLeft => DoomActive ? _doomTurnsLeft : 0;
-        public int DoomAbsorbed => _doomAbsorbed;
         public IEnumerable<Vector2Int> DoomOrbPositions => _doomOrbs.Select(o => o.Pos);
 
         /// <summary>봇 통계용 - 낙인을 리치에게 옮긴 횟수 / 구체에 맞은 횟수.</summary>

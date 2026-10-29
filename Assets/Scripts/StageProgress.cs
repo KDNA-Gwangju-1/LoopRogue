@@ -9,8 +9,8 @@ namespace LoopRogue
     public static class StageProgress
     {
         public const int MaxStage = 10;
-        private const string StageKey = "LoopRogue_CurrentStage";
-        private const string AttemptsKey = "LoopRogue_StageAttempts";
+        public const string StageKey = "LoopRogue_CurrentStage";
+        public const string AttemptsKey = "LoopRogue_StageAttempts";
         private const string RoomsClearedKey = "LoopRogue_StageRoomsCleared";
         private const string PuzzleRoomsKey = "LoopRogue_StagePuzzleRooms";
         private const string GlitchRoomKey = "LoopRogue_StageGlitchRoom";       // -1 = 아직 안 굴림, 0 = 이 층엔 없음, n = 방 번호

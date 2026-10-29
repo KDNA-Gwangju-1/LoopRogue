@@ -1142,6 +1142,20 @@ namespace LoopRogue
                 text.fontSize = 15;
                 text.color = Color.white;
                 text.text = $"[{i + 1}] {option.Title}\n{option.Description}";
+
+                // 왼쪽에 카드 그림(16x16 도트 3배, 유물 창과 같게) - 그림이 있으면 글자를 오른쪽으로 민다.
+                var sprite = option.Icon != null ? PixelUi.Get($"UI/Cards/Card_{option.Icon}") : null;
+                if (sprite != null)
+                {
+                    var icon = HudUi.CreateImage(cardGo.transform, "Icon", Color.white);
+                    icon.sprite = sprite;
+                    var iconRect = icon.rectTransform;
+                    iconRect.anchorMin = iconRect.anchorMax = new Vector2(0f, 0.5f);
+                    iconRect.pivot = new Vector2(0f, 0.5f);
+                    iconRect.sizeDelta = new Vector2(48f, 48f);
+                    iconRect.anchoredPosition = new Vector2(12f, 0f);
+                    textRect.offsetMin = new Vector2(64f, 0f);
+                }
             }
 
             _upgradePanel.SetActive(true);
@@ -1381,7 +1395,7 @@ namespace LoopRogue
         }
 
         /// <summary>보유 골드(10-28 테스터 의견) - 아래 띠 오른쪽 끝(가방 칸 오른쪽 빈자리, 게임 화면 밖). 코인 그림 + 숫자.
-        /// 터치 버튼(대화 x -250)보다 오른쪽이라 모바일에서도 안 겹친다.</summary>
+        /// 터치 버튼(능력치 x -250)보다 오른쪽이라 모바일에서도 안 겹친다.</summary>
         private void BuildGoldBox(Transform parent) =>
             _goldText = HudUi.CreateGoldBox(parent, new Vector2(1f, 0f), new Vector2(1f, 0.5f), new Vector2(-12f, ActionBarLayout.SlotCenterY));
 

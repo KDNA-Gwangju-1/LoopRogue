@@ -23,14 +23,25 @@ namespace LoopRogue
         {
             ClearsKey, LoopRecord.LifetimeDeathsKey, // 노인의 이야기 조각은 회차를 넘어
             // 마지막 업적(10층 클리어) 보상 이용권이 엔딩 직후 지워지던 문제 - 이용권은 남긴다.
-            "LoopRogue_GachaTickets", "LoopRogue_SlotTickets",
+            GachaSystem.TicketKey, SlotMachine.TicketKey,
             Tutorial.BasicsKey, Tutorial.HintsKey, TutorialStage.DoneKey, TutorialStage.RewardKey, // 첫 판 안내는 한 번 봤으면 엔딩 뒤에도 다시 안 띄운다
         };
 
         public static void ResetAll()
         {
-            GameSettings.Preserve(() => PlayerPrefs.DeleteAll()); // 설정(볼륨·화면)은 남긴다
+            WipeAll();
             ReloadAll();
+        }
+
+        /// <summary>설정(볼륨·화면·언어)과 빌드 표시만 남기고 전부 지운다. 빌드 표시까지 지우면 다음 실행 때 "새 빌드"로 착각해
+        /// 엔딩 뒤 남긴 도감·유물·이용권이나 초기화 뒤 한 진행이 한 번 더 통째로 지워졌다(10-28).</summary>
+        private static void WipeAll()
+        {
+            var stamp = PlayerPrefs.GetString(BuildStampKey, "");
+            GameSettings.Preserve(() => PlayerPrefs.DeleteAll());
+            if (stamp.Length > 0)
+                PlayerPrefs.SetString(BuildStampKey, stamp);
+            PlayerPrefs.Save();
         }
 
         /// <summary>10층 보스를 잡고 엔딩을 본 뒤 - 클리어 횟수를 하나 올리고, 도감·이용권(+엔딩에서 고른 유물 하나)만 남기고 초기화한다.</summary>
@@ -47,7 +58,7 @@ namespace LoopRogue
                     ints[key] = PlayerPrefs.GetInt(key);
 
             var playTime = PlayerPrefs.GetFloat(PlayTimeKey, 0f); // 누적 플레이 시간(테스트 기록용)도 엔딩 뒤에 남긴다
-            GameSettings.Preserve(() => PlayerPrefs.DeleteAll());
+            WipeAll();
             PlayerPrefs.SetFloat(PlayTimeKey, playTime);
             foreach (var pair in strings)
                 PlayerPrefs.SetString(pair.Key, pair.Value);
@@ -69,6 +80,8 @@ namespace LoopRogue
         {
             get
             {
+                if (Application.isEditor)
+                    return null; // 에디터 플레이 기록엔 지난 빌드 시각 대신 "editor"(Playtest.BuildLabel)
                 var stamp = Resources.Load<TextAsset>("BuildStamp");
                 return stamp != null ? stamp.text.Trim() : null;
             }
@@ -92,6 +105,7 @@ namespace LoopRogue
         public static void ReloadAll()
         {
             GoldWallet.Reload();
+            ManaStoneWallet.Reload();
             EquipmentWallet.Reload();
             StatPotionWallet.Reload();
             StageProgress.Reload();

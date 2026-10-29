@@ -29,7 +29,7 @@ namespace LoopRogue
             Mathf.RoundToInt(BaseBet * StageScaling.RewardMultiplier(StageProgress.CurrentStage)) * (high ? HighBetMultiplier : 1);
 
         // ---- 이용권(던전 떠돌이 상인이 10장 묶음으로 판다) - 일반 베팅 1회를 골드 없이 돌린다. 영구 저장. ----
-        private const string TicketKey = "LoopRogue_SlotTickets";
+        public const string TicketKey = "LoopRogue_SlotTickets";
         private static bool _ticketsLoaded;
         private static int _tickets;
 

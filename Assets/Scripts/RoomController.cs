@@ -325,19 +325,8 @@ namespace LoopRogue
             StatPotionWallet.IsUnlocked(PotionType.Critical) ? PotionType.Critical : PotionType.Attack;
 
         /// <summary>영약 1개 - 영구로 저장하고 지금 런의 스탯에도 바로 더한다(영약의 샘과 같은 방식: 영구 몫이 늘어난 만큼만).</summary>
-        private void GrantPotionNow(PotionType type)
-        {
-            var attackBefore = RunProgress.CurrentPermanentAttack();
-            var healthBefore = RunProgress.CurrentPermanentHealth();
-            var criticalBefore = RunProgress.CurrentPermanentCritical();
-            StatPotionWallet.AddPotion(type);
-            var stats = _player.Stats;
-            stats.FixedAttack += RunProgress.CurrentPermanentAttack() - attackBefore;
-            var healthGain = RunProgress.CurrentPermanentHealth() - healthBefore;
-            stats.FixedMaxHealth += healthGain;
-            stats.Heal(healthGain);
-            stats.CriticalChanceRate += RunProgress.CurrentPermanentCritical() - criticalBefore;
-        }
+        private void GrantPotionNow(PotionType type) =>
+            RunProgress.ApplyPermanentChange(_player.Stats, () => StatPotionWallet.AddPotion(type));
 
         /// <summary>퍼즐 실패 - 입력을 잠그고 "다시 도전 / 이전 방으로" 창(방 1이면 이전 방이 없어서 평소 전투 방으로).</summary>
         public void FailPuzzle(PuzzleBase puzzle, string reason)
@@ -358,7 +347,7 @@ namespace LoopRogue
         /// <summary>이 방의 NPC(없으면 null).</summary>
         public NpcActor Npc => _npc;
 
-        /// <summary>pos 주변 8칸에 있는 NPC - 플레이어가 F로 말을 걸 때.</summary>
+        /// <summary>pos 주변 8칸에 있는 NPC - 봇이 말을 걸 때(사람은 부딪혀서 건다).</summary>
         public NpcActor FindNpcNear(Vector2Int pos)
         {
             if (_npc == null)
@@ -428,10 +417,14 @@ namespace LoopRogue
                 FogOfWar.Create(this, _player, layout, _roomObjects);
             CreateRoomLighting(layout); // 가짜 빛 - 방 전체를 조금 어둡게, 플레이어·횃불 둘레만 밝게
 
+            var eliteIndex = _loadCleared || glitch ? -1 : PickEliteIndex(def, layout.EnemyPositions.Count);
             for (var i = 0; i < layout.EnemyPositions.Count && !_loadCleared; i++)
             {
                 var kind = i < def.EnemyKinds.Count ? def.EnemyKinds[i] : EnemyKind.Melee;
-                SpawnEnemy(layout.EnemyPositions[i], def, kind);
+                var elite = i == eliteIndex;
+                var enemy = SpawnEnemy(layout.EnemyPositions[i], def, kind, elite ? EliteHealthRatio : 1f, elite ? EliteAttackRatio : 1f);
+                if (elite)
+                    enemy.MarkAsElite((EliteAffix)Rng.Next(1, System.Enum.GetValues(typeof(EliteAffix)).Length));
             }
 
             // 히든 몹 기사 - 방을 깔 때 굴리고, 나오는 건 방을 비운 순간(FinishRoomCleared). 기사를 잡아야 출구·NPC가 나온다.
@@ -445,6 +438,7 @@ namespace LoopRogue
             TrySpawnSecretWall(def, layout);
             TrySpawnAltar(def, layout); // 횃불 → 벽화의 방(층마다 한 번)
 
+            LichDodgeStacks = 0; // 9층 회피 낙인은 방(시도)마다 새로
             _thornsKills.Clear();
             _challengeEnemies.Clear();
             _roomCleared = false;
@@ -556,6 +550,8 @@ namespace LoopRogue
         /// <summary>유물 테스트 봇 - 방을 비우면 상인·그림자 거래상이 번갈아 반드시(상인의 인장·계약자의 낙인이 발동할 상황).</summary>
         public static bool ForceNpcForTest;
         private const float CurseChance = 0.07f; // 상인도 안 나오면 그림자 거래상
+        /// <summary>떠돌이 마석 상인(10-29) - 마석이 1개 이상일 때만, 모험가 다음·상인 앞에서 굴린다.</summary>
+        private const float RelicDealerChance = 0.08f;
 
         /// <summary>일반 방을 비운 직후(출구가 생긴 뒤) - 확률로 NPC를 플레이어 근처에 세운다. 봇도 걸어가서 말을 건다(AutoPlayBot).</summary>
         private void TrySpawnRoomClearNpc()
@@ -572,6 +568,8 @@ namespace LoopRogue
                 type = NpcType.Blacksmith; // 히든 - 조각을 들고 있으면 반드시
             else if (report || (!RunQuest.Active && room == RunQuest.AcceptRoom && Rng.NextDouble() < WandererChance))
                 type = NpcType.Wanderer;
+            else if (ManaStoneWallet.Stones >= 1 && !ManaStoneWallet.DealerMetOnStage(_stage) && Rng.NextDouble() < RelicDealerChance)
+                type = NpcType.RelicDealer;
             else if (Rng.NextDouble() < MerchantChance)
                 type = NpcType.Merchant;
             else if (Rng.NextDouble() < CurseChance)
@@ -589,6 +587,8 @@ namespace LoopRogue
             _npc.Initialize(type, _stage, this, _player, isReport: report);
             Map.PlaceActor(_npc, pos.Value);
             _npc.PlayAppearEffect();
+            if (type == NpcType.RelicDealer)
+                ManaStoneWallet.MarkDealerMet(_stage); // 한 층에 한 번만(죽고 다시 돌아도)
             if (type == NpcType.Blacksmith)
                 Achievements.Unlock("ACH_SMITH_MET");
             ShowMessage(report
@@ -705,6 +705,22 @@ namespace LoopRogue
         public const float EliteAttackRatio = 1.3f;
         public const int ChallengeGoldRooms = 6;   // 도전 성공 골드 = 방 클리어 골드 × 이 값(+ 레벨업 카드 1장)
         private readonly HashSet<EnemyActor> _challengeEnemies = new HashSet<EnemyActor>();
+
+        // ---- 일반 방 정예(10-29 사용자) - 방마다 한 번 굴려서 몹 하나가 특수 능력을 가진 정예가 된다. 잡으면 마석 ----
+        /// <summary>정예가 나올 확률 - 1층은 없음(10-29 봇: 대시·보호막이 모자란 1층에서 3x3 자세 공격에 판당 2~3번 죽었다), 2층 18%, 층마다 +3%p(10층 42%).</summary>
+        public static float EliteRoomChance(int stage) => stage < 2 ? 0f : Mathf.Min(0.45f, 0.15f + 0.03f * (stage - 1));
+
+        /// <summary>이 방에서 정예가 될 몹 번호(-1 = 없음). 보스방·튜토리얼·테스트 방·보스 러시는 없고, 폭발병은 스스로 터져서 빼고 고른다.</summary>
+        private int PickEliteIndex(RoomDefinition def, int count)
+        {
+            if (def.IsBossRoom || def.IsTutorialRoom || def.IsTestRoom || BossRush.Active || Rng.NextDouble() >= EliteRoomChance(_stage))
+                return -1;
+            var candidates = new List<int>();
+            for (var i = 0; i < count; i++)
+                if ((i < def.EnemyKinds.Count ? def.EnemyKinds[i] : EnemyKind.Melee) != EnemyKind.Bomber)
+                    candidates.Add(i);
+            return candidates.Count > 0 ? candidates[Rng.Next(candidates.Count)] : -1;
+        }
         private bool _roomCleared;
         public bool IsRoomCleared => _roomCleared;
 
@@ -873,6 +889,11 @@ namespace LoopRogue
         /// <summary>미믹·도전 정예를 잡았을 때의 추가 보상.</summary>
         private void GiveEventEnemyReward(EnemyActor enemy)
         {
+            if (enemy.IsElite && !enemy.NoReward && Rng.NextDouble() < ManaStoneWallet.EliteDropChance)
+            {
+                ManaStoneWallet.Add(1);
+                ShowMessage(Loc.F("<color=#C9A0FF>마석 +{0}</color> (보유 {1})", 1, ManaStoneWallet.Stones));
+            }
             if (enemy.IsMimic)
             {
                 if (Relics.Has(RelicType.EliteHunter)) Relics.Mark(RelicType.EliteHunter);
@@ -927,51 +948,6 @@ namespace LoopRogue
             _loopManager.ShowMessage(message);
         }
 
-        /// <summary>상하좌우 걸음 수 지도(벽만 막힘, 몹은 무시) - starts에서 각 칸까지. 못 가는 칸은 -1.</summary>
-        private static int[,] WalkSteps(GridMap map, IEnumerable<Vector2Int> starts)
-        {
-            var dist = new int[map.Width, map.Height];
-            for (var x = 0; x < map.Width; x++)
-            for (var y = 0; y < map.Height; y++)
-                dist[x, y] = -1;
-            var queue = new Queue<Vector2Int>();
-            foreach (var s in starts)
-                if (map.IsInBounds(s) && dist[s.x, s.y] < 0)
-                {
-                    dist[s.x, s.y] = 0;
-                    queue.Enqueue(s);
-                }
-            var dirs = new[] { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
-            while (queue.Count > 0)
-            {
-                var c = queue.Dequeue();
-                foreach (var d in dirs)
-                {
-                    var n = c + d;
-                    if (!map.IsInBounds(n) || dist[n.x, n.y] >= 0 || map.IsWall(n))
-                        continue;
-                    dist[n.x, n.y] = dist[c.x, c.y] + 1;
-                    queue.Enqueue(n);
-                }
-            }
-            return dist;
-        }
-
-        /// <summary>보스 몸에 상하좌우로 붙은 칸들(흡수 자리).</summary>
-        private List<Vector2Int> AdjacentCells(EnemyActor boss)
-        {
-            var list = new List<Vector2Int>();
-            var r = boss.FootprintReach + 1;
-            for (var dx = -r; dx <= r; dx++)
-            for (var dy = -r; dy <= r; dy++)
-            {
-                var p = boss.GridPos + new Vector2Int(dx, dy);
-                if (Map.IsInBounds(p) && !Map.IsWall(p) && GridMap.FootprintDistance(boss, p) == 1)
-                    list.Add(p);
-            }
-            return list;
-        }
-
         /// <summary>보스 소환 - 보스 주변 빈 칸에 졸개를 (살아있는 졸개 포함 최대 maxAlive마리까지) 만든다.</summary>
         public void SpawnMinions(EnemyActor boss, int maxAlive)
         {
@@ -980,30 +956,8 @@ namespace LoopRogue
             if (toSpawn <= 0)
                 return;
 
-            // 보스 몸 바로 둘레 한 줄(3x3 보스면 5x5 테두리) - 4층 흡수 단계면 멀리(킹까지 기어가야 흡수된다)
+            // 보스 몸 바로 둘레 한 줄(3x3 보스면 5x5 테두리)
             var cells = new List<Vector2Int>();
-            if (SpawnMinionsFar)
-            {
-                // 4층 흡수 단계 - 졸개가 킹에게 붙기까지 걸음 수와 플레이어가 졸개에게 붙기까지 걸음 수가 같은 칸(10-14 사용자).
-                // 멀면 못 잡고 가까우면 거저 잡는다 - 걸음이 같으면 바로 쫓아가야 막는 경주가 된다. 같은 칸이 없으면 차이가 가장 작은 칸들.
-                var toKing = WalkSteps(Map, AdjacentCells(boss));
-                var toPlayer = WalkSteps(Map, new[] { _player.GridPos });
-                var scored = new List<(Vector2Int P, int Diff)>();
-                for (var x = 0; x < Map.Width; x++)
-                for (var y = 0; y < Map.Height; y++)
-                {
-                    var p = new Vector2Int(x, y);
-                    if (!Map.IsWalkable(p) || GridMap.FootprintChebyshev(boss, p) < 4 || ExitPosition == p
-                        || toKing[x, y] < 0 || toPlayer[x, y] < 2)
-                        continue;
-                    scored.Add((p, Mathf.Abs((toPlayer[x, y] - 1) - toKing[x, y])));
-                }
-                if (scored.Count > 0)
-                {
-                    var best = scored.Min(s => s.Diff);
-                    cells.AddRange(scored.Where(s => s.Diff <= best + (toSpawn > 1 ? 1 : 0)).Select(s => s.P)); // 여러 마리면 한 칸 차이까지(한데 뭉치지 않게)
-                }
-            }
             // 둘레 한 줄 전부를 후보로 - 예전엔 반복문 조건에 cells.Count == 0이 붙어 첫 세로줄(보스 왼쪽)만 모으고 멈췄다.
             // 짝수 몸(2x2)도 몸에서 한 칸 떨어진 칸만(FootprintChebyshev).
             if (cells.Count == 0)
@@ -1013,7 +967,7 @@ namespace LoopRogue
                 for (var dy = -ring; dy <= ring; dy++)
                 {
                     var p = boss.GridPos + new Vector2Int(dx, dy);
-                    if (Map.IsWalkable(p) && GridMap.FootprintChebyshev(boss, p) == 1)
+                    if (Map.IsWalkable(p) && GridMap.FootprintChebyshev(boss, p) == 1 && ExitPosition != p && !_traps.ContainsKey(p))
                         cells.Add(p);
                 }
             }
@@ -1043,13 +997,13 @@ namespace LoopRogue
         public void SpawnSplitChildren(EnemyActor parent)
         {
             var cells = new List<Vector2Int>();
-            if (Map.IsWalkable(parent.GridPos))
+            if (Map.IsWalkable(parent.GridPos) && ExitPosition != parent.GridPos)
                 cells.Add(parent.GridPos);
             foreach (var p in new[] { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right }.Select(d => parent.GridPos + d).OrderBy(_ => Rng.Next()))
                 if (Map.IsWalkable(p) && ExitPosition != p)
                     cells.Add(p);
 
-            foreach (var pos in cells.Take(EnemyActor.SplitCount))
+            foreach (var pos in cells.Take(parent.IsElite ? EnemyActor.EliteSplitCount : EnemyActor.SplitCount)) // 정예는 셋으로
             {
                 var go = new GameObject("SplitChild");
                 go.transform.SetParent(transform, false);
@@ -1113,7 +1067,7 @@ namespace LoopRogue
         /// <summary>오류방 "되살아남" - 쓰러진 몹이 그 자리(막혔으면 옆 칸)에서 체력 절반으로 한 번 더(보상 없음, 다시는 안 살아남).</summary>
         public void SpawnGlitchRevive(EnemyActor dead)
         {
-            Vector2Int? pos = Map.IsWalkable(dead.GridPos) ? dead.GridPos : (Vector2Int?)null;
+            Vector2Int? pos = Map.IsWalkable(dead.GridPos) && ExitPosition != dead.GridPos ? dead.GridPos : (Vector2Int?)null;
             if (!pos.HasValue)
                 foreach (var p in new[] { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right }.Select(d => dead.GridPos + d))
                     if (Map.IsWalkable(p) && ExitPosition != p)
@@ -1592,7 +1546,6 @@ namespace LoopRogue
         // 12 → 16(10-14, 봇 3층 보스방 사망 20/목표 4) → 20 → 물결마다 20·30·40·50(10-15 사용자)
         private static readonly int[] GolemCrystalFuseByWave = { 20, 30, 40, 50 };
         public static int GolemCrystalFuseTurns(int wave) => GolemCrystalFuseByWave[Mathf.Clamp(wave, 1, GolemCrystalFuseByWave.Length) - 1];
-        public static string GolemCrystalFuseText => string.Join("·", GolemCrystalFuseByWave);
         private const int CrystalWarnTurns = 2;
         private static readonly Color CrystalBlastColor = new Color(0.4f, 0.95f, 1f, 0.4f);
         private readonly Dictionary<Vector2Int, int> _crystalFuse = new Dictionary<Vector2Int, int>();
@@ -1780,14 +1733,15 @@ namespace LoopRogue
                     cells.Add(p);
             }
             // 10-28 사용자: 벽(방 끝·기둥)에 붙은 바위는 뒤에 숨을 자리가 없다 - 둘레 8칸에 진짜 벽이 없는 칸만. 그런 칸이 모자랄 때만 나머지에서.
-            var placed = DropGolemRubble(cells.Where(p => !TouchesRealWall(p)), count, wave);
+            var placed = DropGolemRubble(cells.Where(p => !TouchesWall(p, n => _golemCrystals.Contains(n) || _golemRubble.Contains(n))), count, wave);
             if (placed < count)
                 placed += DropGolemRubble(cells, count - placed, wave);
             return placed;
         }
 
-        /// <summary>둘레 8칸 중 방 밖이거나 진짜 벽(수정·바위 말고)이 있는지.</summary>
-        private bool TouchesRealWall(Vector2Int p)
+        /// <summary>둘레 8칸 중 방 밖이거나 벽인 칸이 있는지 - ignoreWall이 true인 벽(3층 수정·바위 등)은 벽으로 안 친다.
+        /// 3층 바위·10층 빛 거울이 벽에 딱 붙지 않게 고를 때 쓴다.</summary>
+        private bool TouchesWall(Vector2Int p, System.Func<Vector2Int, bool> ignoreWall = null)
         {
             for (var dx = -1; dx <= 1; dx++)
             for (var dy = -1; dy <= 1; dy++)
@@ -1795,7 +1749,7 @@ namespace LoopRogue
                 var n = new Vector2Int(p.x + dx, p.y + dy);
                 if (n == p)
                     continue;
-                if (!Map.IsInBounds(n) || (Map.IsWall(n) && !_golemCrystals.Contains(n) && !_golemRubble.Contains(n)))
+                if (!Map.IsInBounds(n) || (Map.IsWall(n) && (ignoreWall == null || !ignoreWall(n))))
                     return true;
             }
             return false;
@@ -1849,20 +1803,6 @@ namespace LoopRogue
                 SfxPlayer.Play(Sfx.Slam);
             }
             return placed;
-        }
-
-        /// <summary>공명 수정이 터진다(골렘 십자 베기에 닿음) - 칸이 비고 청록 파편이 크게 튄다.</summary>
-        public void ExplodeGolemCrystal(Vector2Int p)
-        {
-            if (!_golemCrystals.Contains(p))
-                return;
-            var pos = new Vector3(p.x * GridConstants.CellSize, p.y * GridConstants.CellSize, 0f);
-            RemoveWallObject(p); // 깨지는 연출(crystal_shatter)은 여기서
-            if (HitFeedback.Enabled)
-            {
-                DeathBurst.Spawn(pos, new Color(0.55f, 1f, 1f, 0.95f), 16, GridConstants.CellSize * 2.6f, GridConstants.CellSize * 0.14f);
-                HitFeedback.OnExplosion(pos);
-            }
         }
 
         /// <summary>골렘 십자 베기가 지나간 칸 중 count칸(빈 칸, 출구·수정 아닌 곳)에 돌무더기(벽)를 떨어뜨린다 - 다음 십자를 막는 엄폐물.</summary>
@@ -1990,7 +1930,6 @@ namespace LoopRogue
         // ---- 1층 멧돼지 기둥 제한 턴(10-14 사용자) - 기믹을 안 쓰고 버티기만 하면 끝나게: 기둥이 솟은 뒤 BoarPillarTurnLimit턴 안에
         // 기둥을 다 못 부수면 멧돼지가 광폭 돌진으로 즉사시킨다(보호막·불굴·부활 무시). 남은 턴은 멧돼지 머리 위 숫자.
         public const int BoarPillarTurnLimit = 100; // 10-14 300 → 150 → 10-18 100(사용자)
-        private static readonly int[] BoarWarnAt = { 50, 20, 10, 5, 3, 2, 1 };
         private int _boarTurnsLeft;
         private TextMesh _boarTimerLabel;
         public int BoarTurnsLeft => _boarPillars.Count > 0 ? _boarTurnsLeft : 0;
@@ -2212,7 +2151,7 @@ namespace LoopRogue
             if (_boarTimerLabel == null)
                 _boarTimerLabel = CreateBossLabel(boar, "BoarTimer");
             _boarTimerLabel.text = Loc.F("기둥 {0}개 · {1}턴", _boarPillars.Count, _boarTurnsLeft);
-            _boarTimerLabel.color = _boarTurnsLeft <= 20 ? new Color(1f, 0.3f, 0.3f) : _boarTurnsLeft <= 100 ? new Color(1f, 0.75f, 0.3f) : Color.white;
+            _boarTimerLabel.color = _boarTurnsLeft <= 20 ? new Color(1f, 0.3f, 0.3f) : _boarTurnsLeft <= 50 ? new Color(1f, 0.75f, 0.3f) : Color.white;
         }
 
         private void HideBoarTimer()
@@ -2368,19 +2307,6 @@ namespace LoopRogue
                 boarAnim.SnapToGrid(); // 걸어가는 모션 대신 순간이동
             if (_player.TryGetComponent<SpriteAnimator>(out var playerAnim))
                 playerAnim.SnapToGrid();
-        }
-
-        private void SpawnBoarPillarsAndAnnounce(EnemyActor boar)
-        {
-            SpawnBoarPillars(boar);
-        }
-
-        public int SpawnBoarPillars(EnemyActor boar)
-        {
-            BeginBoarPillars();
-            foreach (var spot in BoarPillarTemplate())
-                AddBoarPillar(spot);
-            return FinishBoarPillars();
         }
 
         private void BeginBoarPillars() => _boarPillars.Clear();
@@ -2638,8 +2564,7 @@ namespace LoopRogue
             _torches.Clear();
             _traps.Clear();
             _trapGroups.Clear();
-            _playerBombs.Clear();
-            _wallObjects.Clear();
+            _wallObjects.Clear(); // 던져 둔 폭탄은 아래 ClearAllTelegraphs가 그림까지 반납하고 비운다(먼저 비우면 그림이 다음 방에 남았다)
 
             ClearAllTelegraphs();
         }
@@ -2892,6 +2817,8 @@ namespace LoopRogue
                 if (dead != null && _player.ClaimKill(dead))
                     return;
             }
+            if (_player.ResolveShadowEchoes())
+                return; // 유물 "그림자 걸음" - 지난 대시로 벤 몹에게 그림자 베기(그걸로 방이 끝났다)
 
             if (TickBoarDeadline())
                 return; // 1층 멧돼지 기둥 제한 턴 - 즉사

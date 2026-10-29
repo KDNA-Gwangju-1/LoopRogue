@@ -55,14 +55,14 @@ namespace LoopRogue
             if (!bossAlive)
                 return;
 
-            // 1층 오우거 - 구멍이 다 차면 바닥 붕괴, 메워서 얻는 기세
+            // 2층 오우거 - 구멍이 다 차면 바닥 붕괴, 메워서 얻는 기세
             if (_ogreHoles.Count > 0)
                 AddCount("Hole", Loc.F("구멍 {0}/{1} · 다 차면 바닥 붕괴", _ogreHoles.Count, OgreHoleCollapseCount), _ogreHoles.Count, OgreHoleCollapseCount, 2);
             if (_ogreMightStacks > 0)
                 _hudTimers.Add(new HudTimer("Might", Loc.F("기세 +{0:0}% ({1}턴)", (OgreMightMultiplier - 1f) * 100f, _ogreMightTurns),
                     _ogreMightTurns / (float)OgreMightTurns, false, buff: true, steps: OgreMightTurns));
 
-            // 2층 멧돼지 - 기둥을 다 부수기 전에 시간이 끝나면 광폭
+            // 1층 멧돼지 - 기둥을 다 부수기 전에 시간이 끝나면 광폭
             if (BoarTurnsLeft > 0)
                 AddClock("boar", "Pillar", Loc.F("기둥 {0}개 · 광폭까지 {1}턴", _boarPillars.Count, _boarTurnsLeft), _boarTurnsLeft, 20);
 

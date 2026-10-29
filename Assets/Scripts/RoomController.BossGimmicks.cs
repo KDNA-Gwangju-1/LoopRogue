@@ -16,7 +16,6 @@ namespace LoopRogue
     /// 남은 상황은 보스 머리 위 글자(CreateBossLabel). 봇은 AutoPlayBot.TryStageGimmick이 같은 규칙으로 대응한다.</summary>
     public partial class RoomController
     {
-        public const int GimmickTurnLimit = 120;
         public const int CandleTurnLimit = 100;        // 6층 촛불 - 120 → 60(10-15 "너무 쉽다") → 100(봇 100판 bot_20261015_122831: 저격·포위 폭발 번갈아 + 60턴에 6층 제한 시간 즉사 판당 35회)
         public const int CloneTurnLimit = 30;          // 7층 분신 물결마다(10-15 사용자 - 120에서)
         public const int InfectionLimit = 3;
@@ -24,10 +23,6 @@ namespace LoopRogue
         private const int MaxMushrooms = 3;
         private const int CandleCount = 4;
         private const int CloneCount = 4;              // 3 → 4(10-15 사용자 - 분신 동안 X자만 넣은 뒤 7층 보스방 사망 2.4~3.2, 목표 8)
-        public const int LavaEruptCount = 8;
-        private const int LavaPerSlam = 2;
-        private const float LavaFallDamage = 0.15f;
-        private const int LavaFallStunTurns = 3;
         private const int GimmickBreakStunTurns = 3;   // 촛불·분신·항아리를 다 없애면 보스 기절
         // 10층 거울 가면 기사 "진짜 찾기"(10-15 사용자): 체력 75%에 좌우가 뒤집힌 거울상 MirrorFakeCount개 - 칼이 안 통하고 진짜의 예고 공격에
         // 맞아야 깨진다. 진짜는 그동안에도 맞는다. MirrorFakeTurnLimit턴 안에 다 못 깨면 즉사.
@@ -50,7 +45,6 @@ namespace LoopRogue
         private readonly Dictionary<Vector2Int, GameObject> _mushrooms = new Dictionary<Vector2Int, GameObject>();
         private readonly Dictionary<Vector2Int, GameObject> _candles = new Dictionary<Vector2Int, GameObject>();
         private readonly List<EnemyActor> _clones = new List<EnemyActor>();
-        private readonly HashSet<Vector2Int> _lava = new HashSet<Vector2Int>();
         private readonly List<EnemyActor> _mirrorFakes = new List<EnemyActor>();
         private readonly Dictionary<EnemyActor, TextMesh> _mirrorFakeLabels = new Dictionary<EnemyActor, TextMesh>();
 
@@ -59,25 +53,18 @@ namespace LoopRogue
         public IReadOnlyCollection<Vector2Int> Mushrooms => _mushrooms.Keys;
         public IReadOnlyCollection<Vector2Int> Candles => _candles.Keys;
         public IReadOnlyList<EnemyActor> Clones => _clones;
-        public IReadOnlyCollection<Vector2Int> LavaCracks => _lava;
         public IReadOnlyList<EnemyActor> MirrorFakes => _mirrorFakes;
         /// <summary>10층 거울상이 남아 있는 동안 - 보스 준비 동작 표시를 끈다(진짜만 숨쉬면 바로 들킨다).</summary>
         public bool MirrorFakesActive => _gimmickStage == BossBrain.MirrorStage && _mirrorFakes.Count > 0;
 
-        /// <summary>폭탄에 안 부서지는 기믹 벽 - 8층 용암 균열, 10층 빛 단계 거울·조력자(10-16 사용자).
+        /// <summary>폭탄에 안 부서지는 기믹 벽 - 8층 조여 온 벽, 10층 빛 단계 거울·조력자(10-16 사용자).
         /// 예전엔 폭탄이 벽·그림만 지우고 기믹 목록엔 남아서 (예전 9층) 항아리가 안 보이는데 리치가 계속 무적인 일이 생겼다.</summary>
-        private bool IsUnbreakableGimmickWall(Vector2Int p) => _lava.Contains(p) || _lightWalls.Contains(p) || _crushWalls.ContainsKey(p);
+        private bool IsUnbreakableGimmickWall(Vector2Int p) => _lightWalls.Contains(p) || _crushWalls.ContainsKey(p);
 
         /// <summary>6·7층 - 촛불·분신이 남아 있는 동안, 9층 - 죽음의 낙인이 있는 동안 보스는 무적(BossBrain.ArmorMultiplier). 10층 - 빛 단계·발악 동안.</summary>
         public bool BossInvulnerable =>
             (_gimmickStage == 6 && (_candles.Count > 0 || _soulTargetActive)) || (_gimmickStage == 7 && (_clones.Count > 0 || _beatActive)) || DoomActive
             || (MirrorPhase == 3 && _lightActive) || MirrorLastStand;
-
-        /// <summary>졸개가 플레이어 대신 갈 곳 - 예전 4층 흡수 기믹용(10-16에 분열 기믹으로 바뀌어 지금은 없음).</summary>
-        public Vector2Int? MinionTarget(EnemyActor minion) => null;
-
-        /// <summary>졸개를 보스에게서 멀리 소환할지 - 예전 4층 흡수 기믹용(지금은 없음).</summary>
-        private bool SpawnMinionsFar => false;
 
         // ------------------------------------------------------------------ 시작
         public void BeginStageGimmick(int stage, EnemyActor boss)
@@ -117,7 +104,7 @@ namespace LoopRogue
                         c.Steps.Add(EnemyStep(() => SpawnClones(boss, 1) > 0, "shadow_split"));
                     break;
                 case 8:
-                    BeginCrusher(c);
+                    BeginCrusher();
                     break;
                 case 9:
                     BeginLichDoom(c);
@@ -273,64 +260,6 @@ namespace LoopRogue
             UpdateGimmickLabel();
         }
 
-        /// <summary>8층 도끼 내려찍기 - 충격이 퍼져 보스 몸에서 2~4칸 떨어진 칸 몇 곳에 용암 균열(벽). 분출 개수에 닿으면 즉사시키고 true.
-        /// (처음엔 내려찍은 테두리 칸 = 몸 바로 둘레에 깔아서 보스가 구석에서 균열에 갇혀 못 움직였다 - 10-14 봇 갇힘 3판)</summary>
-        public bool AddLava(IEnumerable<Vector2Int> tiles, int count = LavaPerSlam)
-        {
-            if (_gimmickStage != 8 || _gimmickBoss == null)
-                return false;
-            var cells = new List<Vector2Int>();
-            for (var x = 0; x < Map.Width; x++)
-            for (var y = 0; y < Map.Height; y++)
-            {
-                var c = new Vector2Int(x, y);
-                var d = GridMap.FootprintChebyshev(_gimmickBoss, c);
-                if (d >= 2 && d <= 4 && Map.IsWalkable(c) && c != _player.GridPos && ExitPosition != c)
-                    cells.Add(c);
-            }
-            var placed = 0;
-            foreach (var p in cells.OrderBy(_ => Rng.Next()))
-            {
-                if (placed >= count)
-                    break;
-                if (!WallKeepsConnected(p))
-                    continue;
-                AddWallProp(p, "Lava_Crack", new Color(0.9f, 0.35f, 0.1f), "LavaCrack");
-                _lava.Add(p);
-                placed++;
-            }
-            UpdateGimmickLabel();
-            if (_lava.Count >= LavaEruptCount)
-            {
-                GimmickKills[8]++;
-                DeathCause.Set("g8_lava"); // 사망 대사
-                ShowMessage(Loc.T("<color=#FF4040>용암이 한꺼번에 분출했다!</color>"));
-                GimmickDeathFx();
-                KillPlayerInstantly();
-                return true;
-            }
-            return false;
-        }
-
-        /// <summary>8층 돌진이 막힌 칸에 용암 균열이 있으면 빠진다 - 균열이 메워지고 큰 피해 + 기절. 빠졌으면 true.</summary>
-        public bool TryLavaFall(IEnumerable<Vector2Int> cells, EnemyActor boss)
-        {
-            if (_gimmickStage != 8)
-                return false;
-            var hit = cells.Where(_lava.Contains).ToList();
-            if (hit.Count == 0)
-                return false;
-            foreach (var p in hit)
-            {
-                _lava.Remove(p);
-                RemoveWallObject(p);
-            }
-            // 기절은 BossBrain이 돌진 충돌 기절(BoarCrashStunTurns = LavaFallStunTurns)로 건다 - 여기서 또 걸면 두 배가 된다
-            DamageGimmickBoss(boss.Stats.MaxHealth * LavaFallDamage, new Color(1f, 0.5f, 0.2f));
-            UpdateGimmickLabel();
-            return true;
-        }
-
 
 
         // ------------------------------------------------------------------ 몹 턴 끝(RunEnemyTurnsCore)
@@ -438,7 +367,6 @@ namespace LoopRogue
             return true;
         }
 
-        private static readonly int[] GimmickWarnAt = { 60, 30, 10, 5, 3, 2, 1 };
 
         /// <summary>정화제(10-27 사용자) - 4층 슬라임 킹: 내 둘레 3x3 점액을 씻는다, 5층 버섯 군주: 감염 1단계 낮춤.
         /// 바뀐 것을 메시지용으로 돌려준다(없으면 빈 목록). dryRun이면 바꾸지 않고 쓸 데가 있는지만 본다.</summary>
@@ -777,7 +705,6 @@ namespace LoopRogue
             ClearSlimeKing();
             ClearCrusher();
             ClearSporeFog();
-            _lava.Clear();
             ClearDoom();
             ClearSoulTarget();
             ClearShadowBeat();

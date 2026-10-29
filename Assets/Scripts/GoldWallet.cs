@@ -49,7 +49,7 @@ namespace LoopRogue
             PlayerPrefs.Save();
         }
 
-        /// <summary>상점 등에서 나중에 쓸 차감 - 지금은 호출하는 곳이 없지만 미리 만들어둔다.</summary>
+        /// <summary>골드 차감(상점·뽑기·영약·데스 패널티 등) - 모자라면 false.</summary>
         public static bool TrySpend(int amount)
         {
             EnsureLoaded();

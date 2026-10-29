@@ -156,6 +156,7 @@ namespace LoopRogue
         }
 
         private string _setName;
+        public string SetName => _setName;
 
         public void Setup(string setName, SpriteRenderer renderer, Color debrisColor)
         {

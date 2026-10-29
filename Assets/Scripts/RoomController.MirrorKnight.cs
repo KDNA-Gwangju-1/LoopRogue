@@ -41,7 +41,7 @@ namespace LoopRogue
         private bool _lightActive;
         private readonly List<GameObject> _beamObjects = new List<GameObject>();
         private float _lastStandSeconds;   // 발악 남은 시간(초)
-        private bool _lastStandRunning, _lastStandWarned;
+        private bool _lastStandRunning;
 
         /// <summary>지금 10층 기믹 단계(1~4) - 다른 층이거나 없으면 0.</summary>
         public int MirrorPhase => _gimmickStage == BossBrain.MirrorStage && _mirrorPhase <= 4 ? _mirrorPhase : 0;
@@ -113,7 +113,6 @@ namespace LoopRogue
                 case 4:
                     _lastStandSeconds = LastStandSeconds;
                     _lastStandRunning = true;
-                    _lastStandWarned = false;
                     ClearLightPuzzle();
                     foreach (var m in _enemies.Where(e => e != null && e.IsMinion && !e.Stats.IsDead).ToList())
                         DespawnEnemy(m, new Color(0.8f, 0.88f, 1f));
@@ -367,19 +366,6 @@ namespace LoopRogue
         }
 
         private const int LightLayoutCandidates = 40;
-
-        /// <summary>둘레 8칸 중 방 밖이거나 벽인 칸이 있는지.</summary>
-        private bool TouchesWall(Vector2Int p)
-        {
-            for (var dx = -1; dx <= 1; dx++)
-            for (var dy = -1; dy <= 1; dy++)
-            {
-                var n = new Vector2Int(p.x + dx, p.y + dy);
-                if (n != p && (!Map.IsInBounds(n) || Map.IsWall(n)))
-                    return true;
-            }
-            return false;
-        }
 
         /// <summary>플레이어 자리에서 거울마다 옆 칸을 한 번씩 들르는 가장 짧은 걸음 수(순서는 전부 따져 봄). 벽·조력자·거울은 못 지나가고 몹은 무시.</summary>
         private int LightTourSteps()
@@ -739,10 +725,6 @@ namespace LoopRogue
                     FinishLastStand();
                     finished = true; // 처치 처리로 방이 넘어갔을 수 있다 - 이번 몹 턴은 여기서 끝
                     return false;
-                }
-                if (!_lastStandWarned && _lastStandSeconds <= 6f)
-                {
-                    _lastStandWarned = true;
                 }
                 return false;
             }

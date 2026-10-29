@@ -18,8 +18,6 @@ namespace LoopRogue
         /// <summary>언어가 바뀔 때마다 1씩 오른다 - 번역한 문장을 들고 있는 정적 표(LocCache)가 다시 만들어지게.</summary>
         public static int Version { get; private set; }
 
-        public static event Action Changed;
-
         /// <summary>자동 플레이 봇 중엔 항상 한국어 - 봇이 카드 이름 등 한국어 문장으로 판단하고 로그도 한국어로 남긴다.</summary>
         public static bool ForceKorean
         {
@@ -52,6 +50,7 @@ namespace LoopRogue
                 ? (GameLanguage)Mathf.Clamp(PlayerPrefs.GetInt(PrefKey), 0, 3)
                 : FromSystem(Application.systemLanguage);
             _table = null;
+            Version++; // 다른 BeforeSceneLoad(저장 초기화 등)가 먼저 번역 표(LocCache)를 한국어로 만들어 뒀을 수 있다
         }
 
         private static GameLanguage FromSystem(SystemLanguage language) => language switch
@@ -73,7 +72,6 @@ namespace LoopRogue
             Current = language;
             _table = null;
             Version++;
-            Changed?.Invoke();
         }
 
         public static string T(string korean)

@@ -128,8 +128,7 @@ namespace LoopRogue
             var mark = SpawnTelegraphTile(cell, white ? ShadowBeatWhiteColor : ShadowBeatMarkColor, -4, "tel_beat_next");
             SfxPlayer.Play(Sfx.Warning);
             yield return new WaitForSeconds(ShadowBeatShowSeconds);
-            if (mark != null)
-                Destroy(mark);
+            Fx.Release(mark); // 풀에서 꺼낸 예고 그림 - 지우지 않고 돌려준다
         }
 
         /// <summary>이번 박자의 위험 칸(빈 칸 하나만 빼고 방 전체) - 판정·봇용, 그림은 없다.</summary>

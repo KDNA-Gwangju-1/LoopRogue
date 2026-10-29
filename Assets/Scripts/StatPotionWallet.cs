@@ -120,6 +120,10 @@ namespace LoopRogue
         public static void AddPotion(PotionType type)
         {
             EnsureLoaded();
+            // 구매 키가 없으면 다음 실행 때 "개수 = 구매 횟수"로 읽혀(옛 저장 호환용 기본값) 로비 가격이 갑자기 올랐다(10-28) - 지금 값을 써 둔다
+            foreach (var (key, bought) in new[] { (AttackBoughtKey, _attackBought), (HealthBoughtKey, _healthBought), (CriticalBoughtKey, _criticalBought) })
+                if (!PlayerPrefs.HasKey(key))
+                    PlayerPrefs.SetInt(key, bought);
             switch (type)
             {
                 case PotionType.Attack:

@@ -57,7 +57,8 @@ namespace LoopRogue
 
         // ---- 효과 수치 ---- (범위 공격 유물은 봇 측정에서 8~10층 일반 방 사망을 목표의 15~25%로 떨어뜨려서 한 번 약화: 망치 30→20%, 관통·갑주 50→30%, 집행 25→15%, 연쇄 30→20%)
         public const int ChargeHornDashRange = 4;
-        public const float ChargeHornDashDamage = 1.5f;
+        /// <summary>그림자 걸음 - 대시로 벤 몹에게 한 턴 뒤 그 피해의 이만큼(10-29 사용자 75%).</summary>
+        public const float ShadowStepEchoRate = 0.75f;
         public const float EarthHammerSplashRate = 0.2f;
         public const int PulseCoreStunTurns = 2; // 파동의 핵 - 회전 베기 기절(10-19 사용자 1 → 2)
         /// <summary>망령의 깃발(10-27 테스터 제안, 사용자 7턴) - 방마다 1번, 체력이 이 비율 아래로 떨어지면 몹 옆에 허수아비가 생겨 몹들이 그것만 노린다.</summary>
@@ -110,7 +111,7 @@ namespace LoopRogue
 
         private static readonly LocCache<Dictionary<RelicType, (string Name, string Description)>> InfoCache = new LocCache<Dictionary<RelicType, (string Name, string Description)>>(() => new Dictionary<RelicType, (string, string)>
         {
-            { RelicType.ChargeHorn, (Loc.T("돌진의 뿔"), Loc.T("대시 거리 3→4칸, 대시 공격 피해 +50%")) },
+            { RelicType.ChargeHorn, (Loc.T("돌진의 뿔"), Loc.T("대시 거리 3→4칸, 대시가 몹을 뚫고 지나가며 길 위의 몹을 모두 벤다")) },
             { RelicType.EarthHammer, (Loc.T("대지의 망치"), Loc.T("일반 공격 시 대상 상하좌우 몹에게도 20% 피해")) },
             { RelicType.CrossCrest, (Loc.T("십자 문장"), Loc.T("회전 베기가 상하좌우 2칸까지 닿음")) },
             { RelicType.PhantomBanner, (Loc.T("망령의 깃발"), Loc.F("방마다 1번, 체력이 {0:0}% 아래로 떨어지면 허수아비가 나타나 {1}턴 동안 몹들의 공격을 받아 낸다", PhantomBannerHealthRatio * 100f, PhantomBannerTurns)) },
@@ -133,7 +134,7 @@ namespace LoopRogue
             { RelicType.Berserker, (Loc.T("광전사"), Loc.T("체력 50% 이하일 때 주는 피해 +30%")) },
             { RelicType.FirstStrike, (Loc.T("첫 일격"), Loc.T("방마다 첫 공격 피해 1.5배")) },
             { RelicType.KnightMemory, (Loc.T("기사의 기억"), Loc.T("몹·보스의 공격을 12% 확률로 간파해 피해를 받지 않음")) },
-            { RelicType.ShadowStep, (Loc.T("그림자 걸음"), Loc.T("대시가 몹을 뚫고 지나가며 길 위의 몹을 모두 벤다")) },
+            { RelicType.ShadowStep, (Loc.T("그림자 걸음"), Loc.T("대시로 벤 몹에게 한 턴 뒤 그 피해의 75%가 그림자로 한 번 더 들어간다")) },
             { RelicType.Whirlwind, (Loc.T("소용돌이"), Loc.T("회전 베기에 맞은 몹을 2칸 밀어낸다(막히면 공격력 30% 추가 피해, 보스는 안 밀림)")) },
             { RelicType.StoppedWatch, (Loc.T("멈춘 회중시계"), Loc.T("누적 사망 1회마다 주는 피해 +0.5% (최대 +25%)")) },
             { RelicType.RecurrenceMark, (Loc.T("되풀이의 각인"), Loc.T("지금 층에서 죽을 때마다 받는 피해 -2% (최대 -10%, 다음 층에서 초기화)")) },

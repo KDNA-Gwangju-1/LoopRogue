@@ -369,16 +369,7 @@ namespace LoopRogue
                 return Loc.F("영약의 샘... 아직 모르는 맛이다. 바닥의 동전 골드 +{0}", gold);
             }
             var type = types[Rng.Next(types.Count)];
-            var attackBefore = RunProgress.CurrentPermanentAttack();
-            var healthBefore = RunProgress.CurrentPermanentHealth();
-            var criticalBefore = RunProgress.CurrentPermanentCritical();
-            StatPotionWallet.AddPotion(type);
-            var stats = player.Stats;
-            stats.FixedAttack += RunProgress.CurrentPermanentAttack() - attackBefore;
-            var healthGain = RunProgress.CurrentPermanentHealth() - healthBefore;
-            stats.FixedMaxHealth += healthGain;
-            stats.Heal(healthGain);
-            stats.CriticalChanceRate += RunProgress.CurrentPermanentCritical() - criticalBefore;
+            RunProgress.ApplyPermanentChange(player.Stats, () => StatPotionWallet.AddPotion(type));
             HitFeedback.OnHeal(player);
             return Loc.F("영약의 샘! {0} 1개 (영구)", StatPotionWallet.Name(type));
         }

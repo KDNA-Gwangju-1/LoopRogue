@@ -67,6 +67,24 @@ namespace LoopRogue
 
         public static float CurrentPermanentCritical() => StatPotionWallet.TotalCriticalChanceBonus() + Achievements.TitleCrit;
 
+        /// <summary>영구 몫(장비·영약·유물·칭호)을 바꾸는 change를 실행하고, 늘어난 만큼만 지금 런 능력치의 고정 몫에 더한다.
+        /// heal이면 늘어난 최대 체력만큼 회복도 한다. 영약의 샘·상인·퍼즐 보상·대장장이·봇 로비가 같이 쓴다(예전엔 네 군데 복사본).</summary>
+        public static void ApplyPermanentChange(CharacterStats stats, System.Action change, bool heal = true)
+        {
+            var attackBefore = CurrentPermanentAttack();
+            var healthBefore = CurrentPermanentHealth();
+            var criticalBefore = CurrentPermanentCritical();
+            change();
+            if (stats == null)
+                return;
+            stats.FixedAttack += CurrentPermanentAttack() - attackBefore;
+            var healthGain = CurrentPermanentHealth() - healthBefore;
+            stats.FixedMaxHealth += healthGain;
+            if (heal)
+                stats.Heal(healthGain);
+            stats.CriticalChanceRate += CurrentPermanentCritical() - criticalBefore;
+        }
+
         public static void EnsureLoaded()
         {
             if (_loaded)
@@ -131,15 +149,6 @@ namespace LoopRogue
             PlayerPrefs.SetFloat(PermAttackKey, PermanentAttackAtSave);
             PlayerPrefs.SetFloat(PermHealthKey, PermanentHealthAtSave);
             PlayerPrefs.SetFloat(PermCriticalKey, PermanentCriticalAtSave);
-            PlayerPrefs.Save();
-        }
-
-        /// <summary>보스를 격파하면(다음 시도부턴 새 런이어야 하니) 저장된 스냅샷을 지운다 - 지금은
-        /// 호출하는 곳이 없지만(승리 화면에 로비 복귀가 아직 없음), 나중에 쓸 수 있게 미리 만들어둔다.</summary>
-        public static void Clear()
-        {
-            HasSavedRun = false;
-            PlayerPrefs.SetInt(HasSavedKey, 0);
             PlayerPrefs.Save();
         }
     }

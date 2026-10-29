@@ -43,7 +43,7 @@ namespace LoopRogue
         {
             _gimmickCutscenePlaying = true;
             IsInputLocked = true;
-            ClearAllTelegraphs();
+            ClearTelegraph(); // 보스 예고만 - 폭발병·돌진병 예고는 그대로 발동하니 남겨 둔다
             CameraShake.Focus(c.Focus != null ? c.Focus : _enemies.FirstOrDefault(e => e != null && e.IsBoss && !e.Stats.IsDead)); // 10-14 사용자: 컷신 동안 보스를 비추게
             CameraShake.Shake(0.35f, 0.6f);
             SfxPlayer.Play(Sfx.Slam);

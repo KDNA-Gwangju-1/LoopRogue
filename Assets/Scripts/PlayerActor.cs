@@ -19,6 +19,8 @@ namespace LoopRogue
 
         // ---- 스킬(처음부터 보유, 턴 쿨타임) - Q 대시, E 회전 베기 ----
         public static int DashRange => Relics.Has(RelicType.ChargeHorn) ? Relics.ChargeHornDashRange : 3; // 유물 "돌진의 뿔"
+        /// <summary>대시가 몹을 뚫고 지나가며 길 위의 몹을 모두 벤다 - 유물 "돌진의 뿔"(10-29 사용자, 예전엔 대시 피해 +50%. 이 효과는 원래 "그림자 걸음"이었다).</summary>
+        public static bool DashPierces => Relics.Has(RelicType.ChargeHorn);
         public const int DashCooldownTurns = 5;
         public const int SpinCooldownTurns = 6;
         public static float SpinDamageRate => Relics.Has(RelicType.SpinningBlade) ? Relics.SpinningBladeDamageRate : 0.8f; // 유물 "회전 칼날"
@@ -973,6 +975,31 @@ namespace LoopRogue
             return ClaimKill(enemy);
         }
 
+        // ---- 유물 "그림자 걸음"(10-29 사용자) - 대시로 벤 몹에게 한 턴 뒤(그 몹 턴이 끝날 때) 그 대시 피해의 75%가 그림자로 한 번 더 ----
+        private readonly List<(EnemyActor Enemy, float Damage)> _shadowEchoes = new List<(EnemyActor, float)>();
+
+        /// <summary>몹 턴이 끝난 뒤(RoomController) - 쌓인 그림자 베기를 넣는다. 방이 넘어갔으면 true.</summary>
+        public bool ResolveShadowEchoes()
+        {
+            if (_shadowEchoes.Count == 0)
+                return false;
+            var echoes = _shadowEchoes.ToArray();
+            _shadowEchoes.Clear();
+            foreach (var (enemy, damage) in echoes)
+            {
+                if (enemy == null || enemy.Stats.IsDead || !_room.Enemies.Contains(enemy))
+                    continue; // 그새 죽었거나 방이 바뀌었다
+                Relics.Mark(RelicType.ShadowStep);
+                enemy.Stats.TakeDamage(damage);
+                DamagePopup.Spawn(enemy.transform.position, damage, new Color(0.62f, 0.48f, 0.95f));
+                if (HitFeedback.Enabled)
+                    Fx.Play("death_smoke", enemy.transform.position, 0.9f, tint: new Color(0.35f, 0.25f, 0.55f));
+                if (enemy.Stats.IsDead && ClaimKill(enemy))
+                    return true;
+            }
+            return false;
+        }
+
         /// <summary>죽은 몹을 플레이어가 잡은 것으로 처리(제거 + 처치 회복 + 경험치 + 골드/방 전환 + 가끔 아이템). 직접 때린 경우와
         /// 폭탄/반사 부적 공통. 방이 넘어갔으면 true.</summary>
         public bool ClaimKill(EnemyActor enemy)
@@ -1108,12 +1135,12 @@ namespace LoopRogue
         public bool PreviewDash(Vector2Int dir, out Vector2Int landing, out EnemyActor hit) =>
             PreviewDash(dir, out landing, out hit, out _);
 
-        /// <summary>passed = 유물 "그림자 걸음"일 때 뚫고 지나가며 벨 몹들(가는 길 순서, 첫 몹 = hit). 그림자 걸음이면 몹을 지나 방 끝/벽/다른 칸 앞까지
+        /// <summary>passed = 유물 "돌진의 뿔"일 때 뚫고 지나가며 벨 몹들(가는 길 순서, 첫 몹 = hit). 돌진의 뿔이면 몹을 지나 방 끝/벽/다른 칸 앞까지
         /// 가서 마지막 빈칸에 내려선다(몹 칸엔 안 내려섬).</summary>
         public bool PreviewDash(Vector2Int dir, out Vector2Int landing, out EnemyActor hit, out List<EnemyActor> passed)
         {
             passed = null;
-            if (Relics.Has(RelicType.ShadowStep))
+            if (DashPierces)
             {
                 landing = GridPos;
                 hit = null;
@@ -1194,15 +1221,17 @@ namespace LoopRogue
             if (hit != null)
             {
                 PlayAttackFlash(dir);
-                var dashRate = Relics.Has(RelicType.ChargeHorn) ? Relics.ChargeHornDashDamage : 1f; // 유물 "돌진의 뿔"
-                if (Relics.Has(RelicType.ChargeHorn)) Relics.Mark(RelicType.ChargeHorn);
-                if (passed != null && passed.Count > 1) Relics.Mark(RelicType.ShadowStep); // 둘 이상 뚫고 지나감
-                foreach (var target in passed ?? new List<EnemyActor> { hit }) // 유물 "그림자 걸음"이면 지나친 몹 전부
+                if (passed != null && passed.Count > 1) // 둘 이상 뚫고 지나감
+                    Relics.Mark(RelicType.ChargeHorn);
+                foreach (var target in passed ?? new List<EnemyActor> { hit }) // 유물 "돌진의 뿔"이면 지나친 몹 전부
                 {
                     if (target == null || target.Stats.IsDead)
                         continue;
-                    if (StrikeEnemy(target, dir, dashRate, isSkill: true, style: AttackStyle.Dash))
+                    var before = target.Stats.CurrentHealth;
+                    if (StrikeEnemy(target, dir, 1f, isSkill: true, style: AttackStyle.Dash))
                         return true;
+                    if (Relics.Has(RelicType.ShadowStep) && !target.Stats.IsDead && before > target.Stats.CurrentHealth)
+                        _shadowEchoes.Add((target, (before - target.Stats.CurrentHealth) * Relics.ShadowStepEchoRate)); // 유물 "그림자 걸음"
                 }
             }
 

@@ -138,8 +138,8 @@ namespace LoopRogue
         /// 체력이 40% 미만이면 완전 회복을 최우선으로 고른다.</summary>
         private static readonly string[] CardPriority =
         {
-            "공격력 강화", "흡혈", "체력 강화", "[도박] 광폭화", "날카로움", "처치 회복", "힘", "체력",
-            "균형 성장", "수호막", "학습", "수집", "방어", "[도박] 철갑", "[도박] 황금 욕심", "완전 회복",
+            "공격력 강화", "흡혈", "체력 강화", "투지", "광폭화", "혈투", "날카로움", "급소 노리기", "처치 회복", "힘", "단단함", "균형 잡힌 몸", "근성", "체력",
+            "몸놀림", "균형 성장", "수호막", "학습", "모험심", "반짝 집중", "수집", "방어", "철갑", "짧은 수련", "황금 욕심", "행운의 동전", "숨 고르기", "완전 회복",
         };
 
         /// <summary>한 판의 결과 - 스테이지 배열은 인덱스 0 = 스테이지 1, 클리어 못 한 스테이지는 -1.</summary>
@@ -222,6 +222,8 @@ namespace LoopRogue
             public int MerchantsMet;       // 떠돌이 상인 등장
             public int WanderersMet;       // 길 잃은 모험가 등장
             public int CurseNpcsMet;       // 그림자 거래상 등장
+            public int RelicDealersMet;    // 떠돌이 마석 상인 등장(10-29)
+            public int RelicDraws;         // 마석 상인에게 뽑은 유물 수
             public int CursesTaken;        // 저주 계약 횟수
             public int NpcTalks;           // 실제로 말을 건 횟수(못 가서 포기한 건 빠짐)
             public readonly int[] MerchantBuys = new int[4]; // NpcActor.StockKind 순서
@@ -644,8 +646,8 @@ namespace LoopRogue
                 else
                     PlayerPrefs.SetInt(pair.Key, (int)pair.Value);
             }
-            PlayerPrefs.SetInt("LoopRogue_StageAttempts", 0);
-            PlayerPrefs.SetInt("LoopRogue_CurrentStage", stage); // 한 층 앞 상태로 시험할 땐 층만 바꿔 끼운다
+            PlayerPrefs.SetInt(StageProgress.AttemptsKey, 0);
+            PlayerPrefs.SetInt(StageProgress.StageKey, stage); // 한 층 앞 상태로 시험할 땐 층만 바꿔 끼운다
             PlayerPrefs.Save();
             GoldWallet.Reload();
             EquipmentWallet.Reload();
@@ -1132,6 +1134,8 @@ namespace LoopRogue
                     _run.WanderersMet++;
                 else if (_room.Npc.Type == NpcType.Blacksmith)
                     _run.SmithsMet++;
+                else if (_room.Npc.Type == NpcType.RelicDealer)
+                    _run.RelicDealersMet++;
                 else
                     _run.CurseNpcsMet++;
             }
@@ -1273,11 +1277,14 @@ namespace LoopRogue
             var cursed = Curses.ActiveDeals.Count > cursesBefore;
             if (cursed)
                 _run.CursesTaken++;
-            foreach (var (kind, _, price) in bought)
-            {
-                _run.MerchantBuys[(int)kind]++;
-                _run.GoldSpentMerchant += price;
-            }
+            if (npcType == NpcType.RelicDealer)
+                _run.RelicDraws += bought.Count; // 마석 상인 - 상인 구매 통계와 따로
+            else
+                foreach (var (kind, _, price) in bought)
+                {
+                    _run.MerchantBuys[(int)kind]++;
+                    _run.GoldSpentMerchant += price;
+                }
             var accepted = npcType == NpcType.Wanderer && !hadQuest && RunQuest.Active;
             var completed = npcType == NpcType.Wanderer && hadQuest && !RunQuest.Active; // 방 10에서 보고
             if (accepted)
@@ -1285,7 +1292,8 @@ namespace LoopRogue
             if (completed)
                 _run.QuestCompleted++;
 
-            var what = npcType == NpcType.Blacksmith ? $"대장장이 - {Blacksmith.Current}"
+            var what = npcType == NpcType.RelicDealer ? (bought.Count > 0 ? "유물 뽑기: " + string.Join(", ", bought.Select(b => b.Name)) : "마석 부족")
+                : npcType == NpcType.Blacksmith ? $"대장장이 - {Blacksmith.Current}"
                 : npcType == NpcType.Wanderer
                 ? (completed ? "보고 - 의뢰 보상" : accepted ? "의뢰 수락" : "이미 의뢰 보유")
                 : npcType == NpcType.Curse
@@ -1409,7 +1417,9 @@ namespace LoopRogue
                 ("alive_charger", alive.Count(e => e.Kind == EnemyKind.Charger)),
                 ("alive_splitter", alive.Count(e => e.Kind == EnemyKind.Splitter)),
                 ("alive_assassin", alive.Count(e => e.Kind == EnemyKind.Assassin)),
-                ("alive_minion", alive.Count(e => e.IsMinion)));
+                ("alive_minion", alive.Count(e => e.IsMinion)),
+                ("alive_elite", alive.Count(e => e.IsElite)), // 정예(10-29) - 정예가 있는 방에서 얼마나 죽는지
+                ("cause", DeathCause.Key));
 
             Detail($"[사망 #{_stageDeaths}] {_room.RoomName} ({_attemptTurns}턴){bossInfo} | 데스 패널티 골드 -{_hud.LastDeathGoldPenalty} | {StatLine()}");
             LogDeathMaps();
@@ -1441,16 +1451,7 @@ namespace LoopRogue
         /// 씬 로드 한 번에 약 0.15초라(봇 30판 기준 전체 시간의 90% 이상) 이게 제일 큰 속도 개선이다.</summary>
         private void LobbyTripInPlace()
         {
-            var attackBefore = RunProgress.CurrentPermanentAttack();
-            var healthBefore = RunProgress.CurrentPermanentHealth();
-            var criticalBefore = RunProgress.CurrentPermanentCritical();
-
-            DoShopping();
-
-            var stats = _player.Stats;
-            stats.FixedAttack += RunProgress.CurrentPermanentAttack() - attackBefore;
-            stats.FixedMaxHealth += RunProgress.CurrentPermanentHealth() - healthBefore;
-            stats.CriticalChanceRate += RunProgress.CurrentPermanentCritical() - criticalBefore;
+            RunProgress.ApplyPermanentChange(_player.Stats, DoShopping, heal: false); // 회복은 바로 아래 "계속하기"가 다 채운다
 
             _hud.ChooseDeathContinue(); // FullHeal + 방1 다시 로드 + 새 시도 시작(BeginAttempt/이벤트 방 다시 뽑기)
             _attemptTurns = 0;
@@ -1499,8 +1500,14 @@ namespace LoopRogue
         /// <summary>스킬 사용 규칙(단순하게): 1) 예고 칸 위인데 한 칸 이동으로 안전한 칸이 없으면 대시로 탈출
         /// 2) 주변 8칸에 몹 2마리 이상이면 회전 베기 3) 붙어 있는 몹이 없고 대시 경로 끝에 몹이 있으면(착지 칸이 안전할 때) 대시로 붙어서 한 대.
         /// 썼으면 true(이번 턴 행동 끝).</summary>
+        /// <summary>9층 리치 회피 낙인 3개 - 다음 예고 공격은 일부러 맞아야 한다(또 피하면 즉사, 맞으면 피해 없이 초기화).</summary>
+        private bool LichMustTakeHit => _room.Stage == 9 && _room.IsBossRoom && _room.LichDodgeStacks >= RoomController.LichForceHitStacks
+            && _room.Enemies.Any(e => e != null && e.IsBoss && e.PendingBossPattern is BossPatternType.Checker or BossPatternType.SoulOrbs); // 낙인을 푸는 두 패턴만
+
         private bool TryUseSkill()
         {
+            if (LichMustTakeHit)
+                return false; // 대시로 예고 칸을 빠져나가지 않게
             var map = _room.Map;
             var start = _player.GridPos;
             var danger = _room.DangerTiles;
@@ -1510,7 +1517,13 @@ namespace LoopRogue
                 var canStepOut = Directions.Any(d => map.IsWalkable(start + d) && !danger.Contains(start + d));
                 if (canStepOut || _player.DashCooldown > 0)
                     return false; // 평소처럼 한 칸 회피(ChooseDirection)
-                foreach (var d in Directions)
+                // 피하는 방향은 주문·자세를 잡는 몹(없으면 가장 가까운 몹) 쪽 착지부터 - 아무 쪽으로나 피하면 멀리 있는 정예 주문술사(5턴)에게
+                // 다가가다 뒤로 피하기를 끝없이 되풀이했다(10-29 봇 100판 중 83판 턴 제한)
+                var aim = _room.Enemies.Where(e => e != null && !e.Stats.IsDead).OrderByDescending(e => e.IsChanting)
+                    .ThenBy(e => Mathf.Abs(e.GridPos.x - start.x) + Mathf.Abs(e.GridPos.y - start.y)).FirstOrDefault();
+                int AimDistance(Vector2Int d) => aim == null || !_player.PreviewDash(d, out var l, out _) ? 0
+                    : Mathf.Abs(aim.GridPos.x - l.x) + Mathf.Abs(aim.GridPos.y - l.y);
+                foreach (var d in Directions.OrderBy(AimDistance))
                 {
                     if (_player.PreviewDash(d, out var landing, out _) && landing != start && !danger.Contains(landing) && _player.BotDash(d))
                     {
@@ -1530,7 +1543,7 @@ namespace LoopRogue
             }
 
             // 1층 멧돼지 기둥 단계엔 대시로 뛰어들지 않는다(기둥 뒤에서 돌진을 기다리는 중 - TryBoarLure)
-            var luringBoar = (_room.Stage == 1 && _room.BoarPillarCount > 0) || (_room.GimmickStage >= 6 && _room.GimmickStage <= 9 && (_room.BossInvulnerable || _room.LavaCracks.Count > 0));
+            var luringBoar = (_room.Stage == 1 && _room.BoarPillarCount > 0) || (_room.GimmickStage >= 6 && _room.GimmickStage <= 9 && _room.BossInvulnerable);
             // 6층 보스방은 대시를 아껴 둔다 - 포위 폭발(5x5)은 대시로만 피한다(10-15). 공격에 써 버리면 보스가 포위 폭발 대신 저격을 써서
             // 봇 측정에서 새 패턴을 거의 안 만나게 된다(사람도 대시를 아껴 두는 게 정석).
             var reserveDashForEncircle = _room.Stage == 6 && _room.Enemies.Any(e => e != null && e.IsBoss && !e.Stats.IsDead);
@@ -1665,6 +1678,22 @@ namespace LoopRogue
             var start = _player.GridPos;
             var danger = _room.DangerTiles;
 
+            if (LichMustTakeHit && danger.Count > 0)
+            {
+                // 회피 낙인 3개 - 예고 칸에 서 있으면 그대로 맞고, 아니면 가장 가까운 예고 칸으로
+                if (danger.Contains(start))
+                {
+                    _lastDecision = "낙인 - 맞기 대기";
+                    return null;
+                }
+                var toHit = FirstStepTo(c => danger.Contains(c), c => map.IsWalkable(c));
+                if (toHit.HasValue)
+                {
+                    _lastDecision = "낙인 - 맞으러";
+                    return toHit.Value;
+                }
+            }
+
             if (danger.Contains(start))
             {
                 Vector2Int? safest = null;
@@ -1687,6 +1716,17 @@ namespace LoopRogue
                     _run.Dodges++;
                     _lastDecision = "회피";
                     return safest.Value;
+                }
+                // 둘레가 전부 예고 칸(정예 3x3 한가운데) - 두 칸 걸어 빠질 수 있는 쪽으로 한 칸(10-29 정예 예고를 2턴 전으로 당기면서)
+                foreach (var d in Directions)
+                {
+                    var next = start + d;
+                    if (map.IsWalkable(next) && Directions.Any(dd => map.IsWalkable(next + dd) && !danger.Contains(next + dd)))
+                    {
+                        _run.Dodges++;
+                        _lastDecision = "회피(두 칸)";
+                        return d;
+                    }
                 }
             }
 
@@ -1825,7 +1865,7 @@ namespace LoopRogue
             // 단, 두 경우엔 우회를 포기하고 맞으면서 돌진한다(100판 테스트에서 붙어 다니는 궁수 둘 앞에서 매 턴 경로가 바뀌어
             // 제자리 왕복하다 93판이 턴 제한에 걸렸다): 1) 궁수들이 한 턴에 주는 피해로 CrossfireDangerTurns턴을 맞아도 안 죽을
             // 만큼 체력이 넉넉할 때 2) 적 체력이 CrossfireGiveUpTurns턴 동안 전혀 안 줄었을 때(진행이 막힘).
-            var archers = _room.Enemies.Where(e => e != null && !e.Stats.IsDead && e.Kind == EnemyKind.Ranged).ToList();
+            var archers = _room.Enemies.Where(e => e != null && !e.Stats.IsDead && (e.Kind == EnemyKind.Ranged || (e.Kind == EnemyKind.Spider && e.IsElite))).ToList(); // 정예 거미도 원거리(10-29)
             var archerVolley = archers.Select(a => a.Stats.AttackPower).OrderByDescending(a => a).Take(2).Sum();
             var crossfireDangerous = _player.Stats.CurrentHealth < archerVolley * CrossfireDangerTurns;
             Vector2Int? toEnemy = null;
@@ -3122,7 +3162,7 @@ namespace LoopRogue
             Log($"폭발병(판당): 폭발 {_results.Average(r => r.BombExplosions):0.0}회, 플레이어 적중 {(bombs > 0 ? _results.Sum(r => r.BombHits) * 100f / bombs : 0f):0}%");
                 Log($"방 이벤트(판당): {string.Join(" / ", Enumerable.Range(0, EventNames.Length).Select(i => $"{EventNames[i]} {_results.Average(r => r.Events[i]):0.0}"))}");
                 Log($"NPC(판당): 상인 {_results.Average(r => r.MerchantsMet):0.0} / 모험가 {_results.Average(r => r.WanderersMet):0.0} / " +
-                    $"거래상 {_results.Average(r => r.CurseNpcsMet):0.0}(계약 {_results.Average(r => r.CursesTaken):0.0}) / 대화 {_results.Average(r => r.NpcTalks):0.0} | " +
+                    $"거래상 {_results.Average(r => r.CurseNpcsMet):0.0}(계약 {_results.Average(r => r.CursesTaken):0.0}) / 마석 상인 {_results.Average(r => r.RelicDealersMet):0.0}(유물 {_results.Average(r => r.RelicDraws):0.0}) / 대화 {_results.Average(r => r.NpcTalks):0.0} | " +
                     $"상인 구매 {string.Join(" ", Enumerable.Range(0, 4).Select(i => $"{StockKindNames[i]} {_results.Average(r => r.MerchantBuys[i]):0.0}"))} " +
                     $"(골드 {_results.Average(r => r.GoldSpentMerchant):0})");
                 Log($"모험가 의뢰(판당): 수락 {_results.Average(r => r.QuestAccepted):0.0} / 완료 {_results.Average(r => r.QuestCompleted):0.0} | " +
