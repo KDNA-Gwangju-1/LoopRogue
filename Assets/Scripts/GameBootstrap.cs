@@ -169,6 +169,9 @@ namespace LoopRogue
             _ => 4.95f, // 5.38 // 5.88 // 6.92 // 7.49 // 5.76 // 4.43 // 3.85 // 8~10층은 갈수록 빡센 마지막 고비(사용자: "후반으로 갈수록 더 어려워져야" - 일반 방 사망 목표 8층 약 7, 9층 약 9, 10층 약 11)
         };
 
+        /// <summary>모든 몬스터(일반 방 몹·보스·기사·이벤트 몹·졸개) 체력 공통 배율 - 10-30 사용자 1 → 1.2(카드 손해를 줄이고 나니 너무 쉬워졌다).</summary>
+        //public const float MonsterHealthMultiplier = 1.2f;
+
         private static float RoomEnemyHealthScale(int stage) => stage switch
         {
             1 => 1f,
@@ -182,6 +185,8 @@ namespace LoopRogue
         {
             var stageMultiplier = StageScaling.EnemyMultiplier(stage);
             var extraBoss = ExtraBossMultiplier(stage) * BossPatternBalance(stage) * BossScaleForBotTest;
+           // 1.2   곱한거
+           //return (150f * stageMultiplier * BossStatMultiplier * extraBoss * MonsterHealthMultiplier, 12f * stageMultiplier * BossStatMultiplier * extraBoss);
             return (150f * stageMultiplier * BossStatMultiplier * extraBoss, 12f * stageMultiplier * BossStatMultiplier * extraBoss);
         }
 
@@ -221,6 +226,8 @@ namespace LoopRogue
             var stagePower = stage - 1;
             var stageMultiplier = StageScaling.EnemyMultiplier(stage);
             var count = Mathf.Min(Mathf.RoundToInt((2 + stagePower + (room - 1) / 2) * EnemyCountMultiplier), MaxEnemiesPerRoom);
+            //1.2 곱한거
+            //var hp = (8f + (room - 1) * 2f) * stageMultiplier * RoomEnemyHealthScale(stage) * MonsterHealthMultiplier;
             var hp = (8f + (room - 1) * 2f) * stageMultiplier * RoomEnemyHealthScale(stage);
             var atk = (2f + (room - 1) * 0.4f) * stageMultiplier * RoomEnemyAttackScale(stage);
             return (hp, atk, count);

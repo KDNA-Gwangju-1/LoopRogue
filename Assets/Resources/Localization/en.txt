@@ -279,15 +279,15 @@ Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}	Stage {0}/{1}   Room {2}/{3}   Atte
 앞쪽 2x2 칸에 설치 - 밟은 몹(보스 포함) {0}턴 기절	Place on a 2x2 area in front - stuns the mob that steps on it (incl. bosses) for {0} turns
 다음에 받는 피해 1회 무효	Negates the next instance of damage
 균형 성장	Balanced Growth
-최대체력 +4% (최소 +12), 공격력 +2% (최소 +3) / 현재 체력 -10%	Max HP +4% (min +12), ATK +2% (min +3) / Current HP -10%
+최대체력 +4% (최소 +12), 공격력 +1% (최소 +1) / 현재 체력 -10%	Max HP +4% (min +12), ATK +1% (min +1) / Current HP -10%
 힘	Strength
-공격력 +6% (최소 +6) / 받는 피해 +1%	ATK +6% (min +6) / Damage taken +1%
+공격력 +3% (최소 +3) / 받는 피해 +1%	ATK +3% (min +3) / Damage taken +1%
 체력	Vitality
 최대체력 +8% (최소 +25) / 공격력 -3%	Max HP +8% (min +25) / ATK -3%
 완전 회복	Full Heal
 체력 전부 회복	Fully restore HP
 공격력 강화	Power Up
-공격력 +12% / 최대체력 -3%	ATK +12% / Max HP -3%
+공격력 +6% / 최대체력 -3%	ATK +6% / Max HP -3%
 체력 강화	Vitality Up
 최대체력 +20% / 공격력 -5%	Max HP +20% / ATK -5%
 날카로움	Sharpness
@@ -304,7 +304,7 @@ Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}	Stage {0}/{1}   Room {2}/{3}   Atte
 수집	Collector
 골드 +20% (최대 100%) / 경험치 -10%	Gold +20% (max 100%) / EXP -10%
 광폭화	Berserk
-공격력 +20% / 최대체력 -10%	ATK +20% / Max HP -10%
+공격력 +10% / 최대체력 -10%	ATK +10% / Max HP -10%
 철갑	Ironclad
 받는 피해 -3% / 최대체력 -5%	Damage taken -3% / Max HP -5%
 황금 욕심	Gold Greed
@@ -318,7 +318,7 @@ Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}	Stage {0}/{1}   Room {2}/{3}   Atte
 급소 노리기	Weak Spot
 치명타 +8%p / 받는 피해 +2%	Crit +8%p / Damage taken +2%
 혈투	Blood Feud
-공격력 +18% / 받는 피해 +5%	ATK +18% / Damage taken +5%
+공격력 +9% / 받는 피해 +5%	ATK +9% / Damage taken +5%
 업적 달성! {0} - 칭호 「{1}」{2}	Achievement unlocked! {0} - Title 「{1}」{2}
 보유 골드: {0}	Gold: {0}
 공격력	ATK
@@ -1275,8 +1275,8 @@ X자 칼날이 교차하는 자리에서 베여 죽었다	Cut down where the X-s
 몸놀림	Footwork
 치명타 +3%p / 받는 피해 +1%	Crit +3%p / Damage taken +1%
 균형 잡힌 몸	Balanced Body
-최대체력 +6% (최소 +20), 공격력 +3% (최소 +3) / 받는 피해 +2%	Max HP +6% (min +20), ATK +3% (min +3) / Damage taken +2%
+최대체력 +6% (최소 +20), 공격력 +1% (최소 +1) / 받는 피해 +2%	Max HP +6% (min +20), ATK +1% (min +1) / Damage taken +2%
 근성	Grit
-공격력 +5% (최소 +3), 최대체력 +5% (최소 +15) / 경험치 -5%	ATK +5% (min +3), Max HP +5% (min +15) / EXP -5%
+공격력 +2% (최소 +1), 최대체력 +5% (최소 +15) / 경험치 -5%	ATK +2% (min +1), Max HP +5% (min +15) / EXP -5%
 투지	Fighting Spirit
-공격력 +8%, 최대체력 +8% / 받는 피해 +3%	ATK +8%, Max HP +8% / Damage taken +3%
+공격력 +4%, 최대체력 +8% / 받는 피해 +3%	ATK +4%, Max HP +8% / Damage taken +3%
