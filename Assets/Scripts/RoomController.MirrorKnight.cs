@@ -23,7 +23,7 @@ namespace LoopRogue
         public const int LightTurnBase = 50;
         public const int LightTurnPerStep = 2;
         public const float LastStandSeconds = 30f;
-        public const float LastStandTurnSeconds = 0.6f;
+        public const float LastStandTurnSeconds = 0.9f; // 11-01 테스터 "0.6초는 너무 짧다" - 0.9초로 너프(30초 동안 기사 턴 50 → 33)
 
         /// <summary>봇 통계용 - 10층 단계별 기믹 즉사 횟수(인덱스 = 단계 1~4).</summary>
         public static readonly int[] MirrorPhaseKills = new int[5];

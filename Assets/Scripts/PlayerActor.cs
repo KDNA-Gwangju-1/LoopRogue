@@ -598,7 +598,7 @@ namespace LoopRogue
         }
 
         // ---- 10층 발악(RoomController.MirrorLastStand) - 사람은 누르는 즉시 움직이고(10-23 사용자 - 예전엔 0.6초 박자까지 모아 두었다가
-        // 실행해 최대 0.6초 늦게 움직였다), LastStandTurnSeconds 동안 아무것도 안 하면 시간이 대기 턴을 넘긴다. 행동할 때마다 시계는 처음부터.
+        // 실행해 최대 LastStandTurnSeconds초 늦게 움직였다), LastStandTurnSeconds 동안 아무것도 안 하면 시간이 대기 턴을 넘긴다. 행동할 때마다 시계는 처음부터.
         // 봇은 원래대로 턴마다 바로 움직인다.
         private float _realtimeClock;
 

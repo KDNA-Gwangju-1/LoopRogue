@@ -166,6 +166,17 @@ namespace LoopRogue
             if (!Enabled)
                 return;
             _attemptTurns = 0;
+            // 이 층을 처음부터 다시 오르는 중이면(저장 초기화·새 회차·이미 깬 층 재입장) 이 층과 그 위 층 기록을 새로 센다 - 11-01 테스터 로그에서
+            // 저장 초기화 전 첫 입장부터 세어 "1층 172.6분"(실제 117분)·"2층 153.8분"(실제 7분)으로 나왔다
+            if (StageProgress.AttemptsThisStage <= 1 || _stageTime.ContainsKey(stage) || _stageEnterTime.Keys.Any(s => s > stage))
+            {
+                foreach (var s in _stageEnterTime.Keys.Union(_stageTime.Keys).Union(_stageDeaths.Keys).Where(s => s >= stage).ToList())
+                {
+                    _stageEnterTime.Remove(s);
+                    _stageTime.Remove(s);
+                    _stageDeaths.Remove(s);
+                }
+            }
             if (!_stageEnterTime.ContainsKey(stage))
                 _stageEnterTime[stage] = Time.unscaledTime;
             var curses = string.Join(",", Curses.ActiveDeals.Select(c => c.Name));

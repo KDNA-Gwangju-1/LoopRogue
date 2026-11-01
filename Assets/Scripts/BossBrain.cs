@@ -198,6 +198,7 @@ namespace LoopRogue
             _patterns = patterns != null && patterns.Count > 0 ? patterns : new List<BossPatternType> { BossPatternType.Slam };
             _stage = stage;
             RollNormalTurns();
+            ApplyGimmickFloor();
         }
 
         private void RollNormalTurns()
@@ -322,8 +323,40 @@ namespace LoopRogue
         /// <summary>예고해 둔 패턴(없으면 null) - 봇이 9층 회피 낙인을 풀 패턴(체스판·영혼 구체)인지 보는 데 쓴다.</summary>
         public BossPatternType? PendingPattern => _pending;
 
+        /// <summary>다음에 시작할 기믹의 체력 문턱(비율, 없으면 0) - 1~9층 보스 체력은 이 아래로 안 깎인다(ApplyGimmickFloor).
+        /// 11-01 사용자 "보스 기믹 확정적으로, 딜찍 없게" - 테스터가 강해진 뒤 1·2층 보스를 8~14턴에 잡아 기믹을 통째로 건너뛰었다.
+        /// 조건은 TryStartGimmick과 같게 둔다(곧 풀리는 조건 - 무적·낙인 진행 중 - 만 빼고). 안 그러면 기믹이 영영 안 나와 보스가 안 죽는다.</summary>
+        private float NextGimmickRatio() => _stage switch
+        {
+            1 => _pillarPhase ? 0f : BoarPillarHealthRatio,
+            2 => OgreHolesEnabled && !_holePhase ? OgreHoleHealthRatio : 0f,
+            3 => _golemPhase < GolemWaveHealth.Length ? GolemWaveHealth[_golemPhase] : 0f,
+            6 => !_stageGimmickStarted ? StageGimmickHealthRatio : !_soulTargetStarted ? SoulTargetHealthRatio : 0f,
+            7 => Mathf.Max(_cloneWave < CloneWaveHealth.Length ? CloneWaveHealth[_cloneWave] : 0f,
+                           _stageGimmickStarted && _shadowBeatWave < ShadowBeatHealth.Length ? ShadowBeatHealth[_shadowBeatWave] : 0f),
+            9 => _doomWave < DoomWaveHealth.Length ? DoomWaveHealth[_doomWave] : 0f,
+            4 or 5 or 8 => _stageGimmickStarted ? 0f : StageGimmickHealthRatio,
+            _ => 0f, // 10층은 단계마다 RoomController.SetMirrorFloor
+        };
+
+        /// <summary>보스 체력 하한을 다음 기믹 문턱으로 - 문턱에 닿으면 보스 턴에 기믹이 시작되고(TryStartGimmick) 하한이 다음 문턱으로 내려간다.</summary>
+        public void ApplyGimmickFloor()
+        {
+            if (_stage >= MirrorStage)
+                return;
+            var ratio = NextGimmickRatio();
+            _boss.Stats.HealthFloor = ratio > 0f ? Mathf.Max(1f, _boss.Stats.MaxHealth * ratio) : 0f;
+        }
+
         /// <summary>체력 조건을 지난 기믹 시작(컷신) - 시작했으면 true(그 턴은 끝). 보스 러시는 입장하자마자 이걸 한 번 부른다.</summary>
         public bool TryStartGimmick(RoomController room)
+        {
+            var started = TryStartGimmickCore(room);
+            ApplyGimmickFloor();
+            return started;
+        }
+
+        private bool TryStartGimmickCore(RoomController room)
         {
             _room = room;
             if (IsBoar && !_pillarPhase && _boss.Stats.CurrentHealth <= _boss.Stats.MaxHealth * BoarPillarHealthRatio)
