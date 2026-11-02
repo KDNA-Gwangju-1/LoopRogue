@@ -896,7 +896,7 @@ namespace LoopRogue
         /// <summary>미믹·도전 정예를 잡았을 때의 추가 보상.</summary>
         private void GiveEventEnemyReward(EnemyActor enemy)
         {
-            if (enemy.IsElite && !enemy.NoReward && Rng.NextDouble() < ManaStoneWallet.EliteDropChance)
+            if (enemy.IsElite && !enemy.NoReward && ManaStoneWallet.RollEliteDrop(Rng)) // 25%, 4마리째 연속 실패면 확정
             {
                 ManaStoneWallet.Add(1);
                 ShowMessage(Loc.F("<color=#C9A0FF>마석 +{0}</color> (보유 {1})", 1, ManaStoneWallet.Stones));

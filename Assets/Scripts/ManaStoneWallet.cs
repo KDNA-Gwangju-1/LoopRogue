@@ -15,6 +15,23 @@ namespace LoopRogue
         /// 한 층 한 번 만나는 마석 상인에게서도 판당 유물 22개를 뽑았다).</summary>
         public const float EliteDropChance = 0.25f;
 
+        /// <summary>마석 운 보정(11-02 사용자) - 정예를 이만큼째 연속으로 못 얻으면 그 정예는 확정.</summary>
+        public const int EliteDropPity = 4;
+        private const string PityKey = "LoopRogue_ManaStonePity";
+
+        /// <summary>정예 처치 - 25%(EliteDropPity째 연속 실패면 확정)로 true.</summary>
+        public static bool RollEliteDrop(System.Random rng)
+        {
+            var misses = Prefs.GetInt(PityKey, 0);
+            if (misses + 1 < EliteDropPity && rng.NextDouble() >= EliteDropChance)
+            {
+                Prefs.SetInt(PityKey, misses + 1);
+                return false;
+            }
+            Prefs.SetInt(PityKey, 0);
+            return true;
+        }
+
         /// <summary>환전 - 마석 1개 = 1만 골드(10-29 사용자, 층과 상관없이 고정).</summary>
         public const int ExchangeCost = 10000;
 

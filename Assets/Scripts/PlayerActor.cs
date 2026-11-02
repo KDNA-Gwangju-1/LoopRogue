@@ -1060,19 +1060,75 @@ namespace LoopRogue
                 return null;
             var go = new GameObject("ShadowEchoMark");
             go.transform.SetParent(target.transform, false);
-            var r = VisualUtil.CreateSpriteVisual(go, _renderer.sprite, GridConstants.CellSize * 0.85f / Mathf.Max(0.01f, target.transform.lossyScale.x), sortingOrder: 6);
-            r.color = new Color(0.6f, 0.45f, 1f, 0.55f);
             go.transform.localPosition = new Vector3(-0.22f, 0.12f, -0.05f);
-            go.AddComponent<ShadowMarkBob>();
+            var size = GridConstants.CellSize * 0.85f / Mathf.Max(0.01f, target.transform.lossyScale.x);
+            var mat = SilhouetteMaterial;
+            if (mat == null)
+            {
+                // 실루엣 셰이더가 없으면 예전처럼 보라를 곱한 반투명 그림
+                var r = VisualUtil.CreateSpriteVisual(go, _renderer.sprite, size, sortingOrder: 6);
+                r.color = new Color(0.6f, 0.45f, 1f, 0.55f);
+                go.AddComponent<ShadowMarkBob>();
+                return go;
+            }
+            go.transform.localScale = new Vector3(size, size, 1f);
+            // 11-02 사용자 시안(shadow_mark_compare.gif) - 짙은 보라 실루엣 + 일렁이는 밝은 테두리 + 빛나는 눈 + 발치 그림자 연기
+            var sprite = _renderer.sprite;
+            var texel = 1f / Mathf.Max(1f, sprite.rect.width); // 그림 1칸(스프라이트 전체가 1유닛)
+            var outlines = new SpriteRenderer[4];
+            var offsets = new[] { Vector2.left, Vector2.right, Vector2.up, Vector2.down };
+            for (var i = 0; i < 4; i++)
+                outlines[i] = SilhouettePart(go.transform, "Outline", sprite, mat, offsets[i] * texel, 5, new Color(0.75f, 0.55f, 1f, 1f));
+            SilhouettePart(go.transform, "Body", sprite, mat, Vector2.zero, 6, new Color(0.3f, 0.15f, 0.55f, 0.93f));
+            foreach (var x in new[] { -0.045f, 0.015f }) // 머리 높이 눈 두 개
+            {
+                var eye = new GameObject("Eye");
+                eye.transform.SetParent(go.transform, false);
+                eye.transform.localPosition = new Vector3(x, 0.17f, -0.02f);
+                VisualUtil.CreateSquareVisual(eye, new Color(1f, 0.94f, 1f), texel * 2.5f, sortingOrder: 7);
+            }
+            go.AddComponent<ShadowMarkBob>().Outlines = outlines;
             return go;
         }
 
-        /// <summary>붙어 있는 그림자가 숨 쉬듯 살짝 흔들리고 깜빡인다.</summary>
+        private static SpriteRenderer SilhouettePart(Transform parent, string name, Sprite sprite, Material mat, Vector2 offset, int order, Color color)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = new Vector3(offset.x, offset.y, 0f);
+            var r = go.AddComponent<SpriteRenderer>();
+            r.sprite = sprite;
+            r.sharedMaterial = mat;
+            r.color = color;
+            r.sortingOrder = order;
+            return r;
+        }
+
+        private static Material _silhouetteMaterial;
+
+        /// <summary>그림의 알파만 쓰고 색은 SpriteRenderer.color 한 색으로 칠하는 재질 - 글자(TextMesh)용 기본 셰이더라 빌드에 늘 들어 있다.</summary>
+        private static Material SilhouetteMaterial
+        {
+            get
+            {
+                if (_silhouetteMaterial != null)
+                    return _silhouetteMaterial;
+                var font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+                var shader = font != null && font.material != null ? font.material.shader : Shader.Find("GUI/Text Shader");
+                if (shader != null)
+                    _silhouetteMaterial = new Material(shader);
+                return _silhouetteMaterial;
+            }
+        }
+
+        /// <summary>붙어 있는 그림자 - 숨 쉬듯 흔들리고, 테두리가 밝아졌다 어두워지고, 발치에서 그림자 연기가 피어오른다.</summary>
         private sealed class ShadowMarkBob : MonoBehaviour
         {
+            public SpriteRenderer[] Outlines;
             private SpriteRenderer _r;
             private Vector3 _base;
             private float _phase;
+            private float _smokeTimer;
 
             private void Start()
             {
@@ -1085,8 +1141,54 @@ namespace LoopRogue
             {
                 var t = Time.time * 3f + _phase;
                 transform.localPosition = _base + new Vector3(0f, Mathf.Sin(t) * 0.03f, 0f);
+                if (Outlines == null)
+                {
+                    if (_r != null)
+                        _r.color = new Color(0.6f, 0.45f, 1f, 0.42f + 0.18f * Mathf.Sin(t * 1.3f));
+                    return;
+                }
+                var pulse = 0.5f + 0.5f * Mathf.Sin(t * 2f);
+                var c = new Color(0.6f + 0.3f * pulse, 0.4f + 0.25f * pulse, 1f, 1f);
+                foreach (var o in Outlines)
+                    if (o != null)
+                        o.color = c;
+                if (!HitFeedback.Enabled || (_smokeTimer -= Time.deltaTime) > 0f)
+                    return;
+                _smokeTimer = 0.12f;
+                var puff = new GameObject("ShadowSmoke");
+                puff.transform.position = transform.position + new Vector3(UnityEngine.Random.Range(-0.22f, 0.22f), -0.3f, -0.03f);
+                VisualUtil.CreateSquareVisual(puff, new Color(0.3f, 0.17f, 0.55f, 0.65f), 0.07f, sortingOrder: 5);
+                puff.AddComponent<ShadowSmoke>();
+            }
+        }
+
+        /// <summary>그림자 연기 한 점 - 위로 0.4칸쯤 떠오르며 작아지고 흐려진다.</summary>
+        private sealed class ShadowSmoke : MonoBehaviour
+        {
+            private const float Life = 0.8f;
+            private float _age;
+            private SpriteRenderer _r;
+            private float _size;
+
+            private void Start()
+            {
+                _r = GetComponent<SpriteRenderer>();
+                _size = transform.localScale.x;
+            }
+
+            private void Update()
+            {
+                _age += Time.deltaTime;
+                var k = _age / Life;
+                if (k >= 1f)
+                {
+                    Destroy(gameObject);
+                    return;
+                }
+                transform.position += new Vector3(0f, 0.5f * Time.deltaTime, 0f);
+                transform.localScale = Vector3.one * _size * (1f - k * 0.6f);
                 if (_r != null)
-                    _r.color = new Color(0.6f, 0.45f, 1f, 0.42f + 0.18f * Mathf.Sin(t * 1.3f));
+                    _r.color = new Color(0.3f, 0.17f, 0.55f, 0.65f * (1f - k));
             }
         }
 

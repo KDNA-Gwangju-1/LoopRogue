@@ -172,12 +172,24 @@ namespace LoopRogue
         /// <summary>정예를 잡았다(RoomController) - 10% 확률로 1점(지금 상한이면 안 굴린다). 얻었으면 true.</summary>
         public static bool TryEliteDrop(System.Random rng)
         {
-            if (ElitePoints >= ElitePointCap || rng.NextDouble() >= EliteDropChance)
+            if (ElitePoints >= ElitePointCap)
+                return false; // 상한이면 굴리지도 않는다(보정 횟수도 안 쌓임)
+            // 운 보정(11-02 사용자) - EliteDropPity마리 연속 못 얻으면 그다음은 확정
+            var misses = Prefs.GetInt(ElitePityKey, 0);
+            if (misses + 1 < EliteDropPity && rng.NextDouble() >= EliteDropChance)
+            {
+                Prefs.SetInt(ElitePityKey, misses + 1);
                 return false;
+            }
+            Prefs.SetInt(ElitePityKey, 0);
             Prefs.SetInt(ElitePointsKey, ElitePoints + 1);
             Prefs.Save();
             return true;
         }
+
+        private const string ElitePityKey = "LoopRogue_TraitElitePity";
+        /// <summary>정예 특성 포인트 운 보정 - 이만큼째 정예는 확정(앞에서 한 번도 못 얻었으면).</summary>
+        public const int EliteDropPity = 10;
 
         public static int EarnedPoints => BossPoints + ElitePoints + Prefs.GetInt(BonusPointsKey, 0);
 

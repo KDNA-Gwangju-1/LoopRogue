@@ -521,14 +521,15 @@ namespace LoopRogue
             CreateCurrencyBox(parent, anchor, pivot, position, "Effects/coin/0", new Color(1f, 0.85f, 0.4f));
 
         /// <summary>골드 칸과 같은 모양의 재화 칸 - 왼쪽 그림(16px 도트 2배) + 오른쪽 숫자. 마석 칸(로비)도 이걸로.</summary>
-        public static Text CreateCurrencyBox(Transform parent, Vector2 anchor, Vector2 pivot, Vector2 position, string iconPath, Color textColor)
+        public static Text CreateCurrencyBox(Transform parent, Vector2 anchor, Vector2 pivot, Vector2 position, string iconPath, Color textColor,
+            float width = 150f)
         {
             var box = CreateImage(parent, "GoldBox", HudSlot.FillNormal);
             PixelUi.Slice(box, "Slot");
             var rect = box.rectTransform;
             rect.anchorMin = rect.anchorMax = anchor;
             rect.pivot = pivot;
-            rect.sizeDelta = new Vector2(150f, 40f);
+            rect.sizeDelta = new Vector2(width, 40f);
             rect.anchoredPosition = position;
             var coin = CreateImage(box.transform, "Coin", Color.white);
             coin.sprite = PixelUi.Get(iconPath);

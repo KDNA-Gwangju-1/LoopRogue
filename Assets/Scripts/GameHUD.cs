@@ -422,6 +422,11 @@ namespace LoopRogue
             _levelText.text = title != null
                 ? $"Lv.{levels.Level} <size=12><color=#FFD966>「{title.Title}」</color></size>"
                 : $"Lv.{levels.Level}  (ATK {stats.AttackPower:0})";
+            if (_stoneText != null && _shownStones != ManaStoneWallet.Stones)
+            {
+                _shownStones = ManaStoneWallet.Stones;
+                _stoneText.text = _shownStones.ToString("N0");
+            }
             if (_shownGold != GoldWallet.Gold)
             {
                 _shownGold = GoldWallet.Gold;
@@ -1412,8 +1417,16 @@ namespace LoopRogue
 
         /// <summary>보유 골드(10-28 테스터 의견) - 아래 띠 오른쪽 끝(가방 칸 오른쪽 빈자리, 게임 화면 밖). 코인 그림 + 숫자.
         /// 터치 버튼(능력치 x -250)보다 오른쪽이라 모바일에서도 안 겹친다.</summary>
-        private void BuildGoldBox(Transform parent) =>
+        private void BuildGoldBox(Transform parent)
+        {
             _goldText = HudUi.CreateGoldBox(parent, new Vector2(1f, 0f), new Vector2(1f, 0.5f), new Vector2(-12f, ActionBarLayout.SlotCenterY));
+            // 마석 칸(11-02 사용자 "던전에서도 골드 옆에 마석") - 골드 칸 왼쪽, 가방 칸(1280 기준 오른쪽 끝 ~1014)과 안 겹치게 폭 96
+            _stoneText = HudUi.CreateCurrencyBox(parent, new Vector2(1f, 0f), new Vector2(1f, 0.5f), new Vector2(-12f - 150f - 6f, ActionBarLayout.SlotCenterY),
+                "UI/Icons/ManaStone", new Color(0.79f, 0.63f, 1f), width: 96f);
+        }
+
+        private Text _stoneText;
+        private int _shownStones = -1;
 
         private void BuildStatPanel(Transform parent)
         {
