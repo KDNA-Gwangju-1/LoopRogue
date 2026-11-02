@@ -159,6 +159,7 @@ namespace LoopRogue
                 _shownHubStones = ManaStoneWallet.Stones;
                 _hubStoneText.text = _shownHubStones.ToString("N0");
             }
+            RefreshHubTraitButton();
             UpdateHover();
 
             // 안내자와 대화 중이거나 업적 창이 열려 있으면(닫은 프레임 포함) 로비 버튼·단축키를 안 받는다 - 그 창들이 Esc/숫자/클릭을 직접 처리한다.
@@ -891,6 +892,23 @@ namespace LoopRogue
             // 골드 칸(던전 HUD와 같은 모양) - 방(가로 약 224~1056px) 오른쪽 위 빈 모서리, 아래 안내 줄(~1140px)과도 안 겹친다
             _hubGoldText = HudUi.CreateGoldBox(view, Vector2.one, Vector2.one, new Vector2(-12f, -8f));
             _hubStoneText = HudUi.CreateCurrencyBox(view, Vector2.one, Vector2.one, new Vector2(-12f, -52f), "UI/Icons/ManaStone", new Color(0.79f, 0.63f, 1f));
+            // 특성 창 버튼(11-02 - 모바일엔 T키가 없다) - 마석 칸 아래, 남은 포인트가 있으면 초록 숫자
+            CreateButton(view, "TraitButton", ButtonColor, 236f, 180f, 44f, out _hubTraitText, string.Empty, 16, Color.white,
+                () => _traitPanel.Open(), x: 538f);
+            _hubTraitText.supportRichText = true;
+            RefreshHubTraitButton();
+        }
+
+        private Text _hubTraitText;
+        private int _shownTraitPoints = int.MinValue;
+
+        private void RefreshHubTraitButton()
+        {
+            var free = Traits.FreePoints;
+            if (_hubTraitText == null || free == _shownTraitPoints)
+                return;
+            _shownTraitPoints = free;
+            _hubTraitText.text = free > 0 ? Loc.F("특성 [T]  <color=#8CE08C>+{0}</color>", free) : Loc.T("특성 [T]");
         }
 
         private Text _hubHint;

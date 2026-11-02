@@ -105,6 +105,13 @@ namespace LoopRogue
                 var pos = GameInput.PointerPosition;
                 for (var i = 0; i < Prefs.SlotCount; i++)
                 {
+                    // 카드 오른쪽 [지우기] - 카드 누르기(시작)보다 먼저 본다(모바일엔 Delete 키가 없다)
+                    if (_deleteButtons[i].gameObject.activeSelf && RectTransformUtility.RectangleContainsScreenPoint(_deleteButtons[i], pos, null))
+                    {
+                        if (GameInput.PointerDown)
+                            Delete(i + 1);
+                        continue;
+                    }
                     if (!RectTransformUtility.RectangleContainsScreenPoint(_cardRects[i], pos, null))
                         continue;
                     if (GameInput.PointerDelta.sqrMagnitude > 0f)
@@ -180,10 +187,18 @@ namespace LoopRogue
                 if (slot == Prefs.Slot)
                     title += Loc.T("  <size=12><color=#8CE08C>마지막으로 한 슬롯</color></size>");
                 _cardTexts[i].text = deleting
-                    ? title + "\n" + Loc.T("<color=#FF9A80>정말 지울까요? Delete를 한 번 더</color>")
+                    ? title + "\n" + Loc.T("<color=#FF9A80>정말 지울까요? 한 번 더 누르면 지워요</color>")
                     : title + "\n<size=14>" + Summary(slot) + "</size>";
+                var empty = IsEmpty(slot);
+                _deleteButtons[i].gameObject.SetActive(!empty);
+                _deleteTexts[i].text = deleting ? Loc.T("정말 지우기") : Loc.T("지우기");
+                _deleteImages[i].color = deleting ? new Color(0.85f, 0.25f, 0.25f, 1f) : new Color(0.45f, 0.18f, 0.18f, 0.95f);
             }
         }
+
+        private readonly RectTransform[] _deleteButtons = new RectTransform[Prefs.SlotCount];
+        private readonly Image[] _deleteImages = new Image[Prefs.SlotCount];
+        private readonly Text[] _deleteTexts = new Text[Prefs.SlotCount];
 
         private void Build(Transform canvas)
         {
@@ -225,14 +240,27 @@ namespace LoopRogue
                 text.gameObject.AddComponent<Shadow>().effectColor = new Color(0f, 0f, 0f, 0.9f);
                 HudUi.Stretch(text.rectTransform, 0f);
                 text.rectTransform.offsetMin = new Vector2(18f, 0f);
-                text.rectTransform.offsetMax = new Vector2(-12f, 0f);
+                text.rectTransform.offsetMax = new Vector2(-104f, 0f); // 오른쪽은 [지우기] 자리
+
+                // [지우기] - 두 번 눌러야 지운다(Delete 키와 같은 확인)
+                var del = HudUi.CreateImage(card.transform, "DeleteButton", new Color(0.45f, 0.18f, 0.18f, 0.95f));
+                var delRect = del.rectTransform;
+                delRect.anchorMin = delRect.anchorMax = delRect.pivot = new Vector2(1f, 0.5f);
+                delRect.sizeDelta = new Vector2(88f, 32f);
+                delRect.anchoredPosition = new Vector2(-10f, 0f);
+                var delText = HudUi.CreateText(del.transform, "Text", 13, TextAnchor.MiddleCenter);
+                HudUi.Stretch(delText.rectTransform, 0f);
+                _deleteButtons[i] = delRect;
+                _deleteImages[i] = del;
+                _deleteTexts[i] = delText;
+
                 _cardRects[i] = cardRect;
                 _cardImages[i] = card;
                 _cardTexts[i] = text;
             }
 
             _hint = HudUi.CreateText(panelImage.transform, "Hint", 12, TextAnchor.MiddleCenter);
-            _hint.text = Loc.T("W/S·마우스: 고르기   Enter·클릭·숫자: 시작   Delete: 슬롯 지우기(두 번)   Esc: 닫기   ·   설정은 모든 슬롯 공용");
+            _hint.text = Loc.T("W/S·마우스: 고르기   Enter·클릭·숫자: 시작   Delete·[지우기]: 슬롯 지우기(두 번)   Esc: 닫기   ·   설정은 모든 슬롯 공용");
             _hint.color = new Color(0.6f, 0.63f, 0.7f);
             var hintRect = _hint.rectTransform;
             hintRect.anchorMin = Vector2.zero;

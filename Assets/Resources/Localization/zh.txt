@@ -1413,3 +1413,9 @@ W/S·마우스: 고르기   Enter·클릭·숫자: 시작   Delete: 슬롯 지�
    <size=12><color=#9AA0AA>보스 첫 처치 {0} · 정예 {1}/{2} · 칸 비용 1·1·2·2·3</color></size>	   <size=12><color=#9AA0AA>首领首杀 {0} · 精英 {1}/{2} · 格子花费 1·1·2·2·3</color></size>
   <color=#FFD966>{0}점</color>	  <color=#FFD966>{0}点</color>
 <color=#8CE08C>특성 포인트 +1</color> (정예 {0}/{1}) - 로비에서 T	<color=#8CE08C>特性点数+1</color>（精英 {0}/{1}）——在大厅按T
+특성 [T]  <color=#8CE08C>+{0}</color>	特性 [T]  <color=#8CE08C>+{0}</color>
+특성 [T]	特性 [T]
+지우기	删除
+정말 지우기	确认删除
+W/S·마우스: 고르기   Enter·클릭·숫자: 시작   Delete·[지우기]: 슬롯 지우기(두 번)   Esc: 닫기   ·   설정은 모든 슬롯 공용	W/S·鼠标：选择   Enter·点击·数字：开始   Delete·[删除]：删除存档（按两次）   Esc：关闭   ·   设置为所有存档共用
+<color=#FF9A80>정말 지울까요? 한 번 더 누르면 지워요</color>	<color=#FF9A80>确定删除吗？再按一次即删除</color>

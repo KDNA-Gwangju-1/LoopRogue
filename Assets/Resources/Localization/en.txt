@@ -1413,3 +1413,9 @@ W/S·마우스: 고르기   Enter·클릭·숫자: 시작   Delete: 슬롯 지�
    <size=12><color=#9AA0AA>보스 첫 처치 {0} · 정예 {1}/{2} · 칸 비용 1·1·2·2·3</color></size>	   <size=12><color=#9AA0AA>Boss first kills {0} · Elites {1}/{2} · Slot cost 1·1·2·2·3</color></size>
   <color=#FFD966>{0}점</color>	  <color=#FFD966>{0} pt</color>
 <color=#8CE08C>특성 포인트 +1</color> (정예 {0}/{1}) - 로비에서 T	<color=#8CE08C>Trait point +1</color> (Elites {0}/{1}) - press T in the lobby
+특성 [T]  <color=#8CE08C>+{0}</color>	Traits [T]  <color=#8CE08C>+{0}</color>
+특성 [T]	Traits [T]
+지우기	Delete
+정말 지우기	Confirm
+W/S·마우스: 고르기   Enter·클릭·숫자: 시작   Delete·[지우기]: 슬롯 지우기(두 번)   Esc: 닫기   ·   설정은 모든 슬롯 공용	W/S/mouse: select   Enter/click/number: start   Delete/[Delete]: erase slot (twice)   Esc: close   ·   Settings are shared by all slots
+<color=#FF9A80>정말 지울까요? 한 번 더 누르면 지워요</color>	<color=#FF9A80>Really delete? Press again to delete</color>
