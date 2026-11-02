@@ -906,10 +906,11 @@ namespace LoopRogue
                 TakeEliteShieldTurn(player, claimedSlots, room);
                 return;
             }
-            if (_eliteCharge && Kind != EnemyKind.Caster && Kind != EnemyKind.Charger && TakeEliteChargeTurn(player, room))
+            // 정예 궁수도 일반 화살을 겨눠 둔 턴엔 그 화살부터 쏜다(자세 예고가 겨눈 줄을 덮어쓰지 않게)
+            if (_eliteCharge && Kind != EnemyKind.Caster && Kind != EnemyKind.Charger && _arrowAim == null && TakeEliteChargeTurn(player, room))
                 return;
             if (Kind == EnemyKind.Ranged)
-                TakeRangedTurn(player);
+                TakeRangedTurn(player, room);
             else if (Kind == EnemyKind.Shield)
                 TakeShieldTurn(player, claimedSlots);
             else if (Kind == EnemyKind.Spider)
@@ -2404,12 +2405,24 @@ namespace LoopRogue
 
         /// <summary>궁수: 1) 같은 줄 사거리 안 + 사이가 비었으면 사격 2) 바로 옆이면 물러나기(못 물러나면 근접 공격)
         /// 3) 그 외엔 "줄이 맞고 선호 거리에 가까운" 칸으로 한 칸 이동. 이동(물러나기 포함)은 RetreatCooldownTurns마다 한 번만.</summary>
-        private void TakeRangedTurn(PlayerActor player)
+        // ---- 일반 궁수 겨누기(11-02 사용자) - 쏠 줄이 잡히면 그 턴엔 화살 줄을 보여 주기만 하고, 다음 턴에 그 줄로 쏜다.
+        // 매 턴 자리를 잡으러 오게 바꾼 뒤(사거리 3칸) 근접 몹에 막혀 싸우는 동안 옆에서 계속 쏴서 1~3층 궁수 사망이 2~4배가 됐다(봇 100판).
+        // 줄에서 비켜서면 빗나간다. 쏜 다음엔 다시 겨눠야 해서 두 턴에 한 발.
+        private List<Vector2Int> _arrowAim;
+        private static readonly Color ArrowAimColor = new Color(1f, 0.85f, 0.3f, 0.4f);
+
+        private void TakeRangedTurn(PlayerActor player, RoomController room)
         {
             var diff = _tp - GridPos;
             var dist = Mathf.Abs(diff.x) + Mathf.Abs(diff.y);
             if (_retreatCooldown > 0)
                 _retreatCooldown--;
+
+            if (_arrowAim != null)
+            {
+                ShootArrowAim(player, room);
+                return;
+            }
 
             if (dist == 1)
             {
@@ -2421,13 +2434,56 @@ namespace LoopRogue
 
             if (CanShoot(_tp, RangedAttackRange))
             {
-                SpawnArrowVisual(TargetWorld(player));
-                HitTarget(player, melee: false);
+                AimArrow(room);
                 return;
             }
 
             // 쏠 수 없으면 두 턴 제한 없이 매 턴 자리를 잡으러 간다(11-02 사용자 - 사거리 4→3칸 뒤 근접 몹 뒤에 막혀 서 있기만 했다). 물러나기는 그대로 두 턴에 한 번.
             TryMoveToSpot(mustIncreaseDistance: false, RangedPreferredDistance, requireLine: true, ignoreCooldown: true);
+        }
+
+        /// <summary>노리는 대상(_tp) 쪽 줄을 겨눈다 - 자기 옆 칸부터 RangedAttackRange칸(벽 앞까지)을 노란 예고로.</summary>
+        private void AimArrow(RoomController room)
+        {
+            var d = _tp - GridPos;
+            var dir = new Vector2Int(System.Math.Sign(d.x), System.Math.Sign(d.y));
+            var tiles = new List<Vector2Int>();
+            for (var p = GridPos + dir; tiles.Count < RangedAttackRange && Map.IsInBounds(p) && !Map.IsWall(p); p += dir)
+                tiles.Add(p);
+            if (tiles.Count == 0)
+                return;
+            _arrowAim = tiles;
+            room.ShowEnemyTelegraph(this, tiles, ArrowAimColor);
+            if (TryGetComponent<SpriteAnimator>(out var anim))
+                anim.Face(dir);
+        }
+
+        /// <summary>겨눈 줄로 쏜다 - 줄 위의 첫 대상(미끼 또는 플레이어)이 맞고(다른 몹은 통과), 아무도 없으면 빗나간다.</summary>
+        private void ShootArrowAim(PlayerActor player, RoomController room)
+        {
+            var tiles = _arrowAim;
+            _arrowAim = null;
+            room.ClearEnemyTelegraph(this);
+            Vector2Int? hit = null;
+            foreach (var t in tiles)
+            {
+                if ((_decoyTarget != null && t == _decoyTarget.GridPos) || t == player.GridPos)
+                {
+                    hit = t;
+                    break;
+                }
+            }
+            var end = hit ?? tiles[tiles.Count - 1];
+            SpawnArrowVisual(new Vector3(end.x * GridConstants.CellSize, end.y * GridConstants.CellSize, 0f));
+            if (!hit.HasValue)
+            {
+                if (TryGetComponent<SpriteAnimator>(out var anim))
+                    anim.PlayAttack(tiles[0] - GridPos);
+                return;
+            }
+            if (_decoyTarget != null && hit.Value != _decoyTarget.GridPos)
+                _decoyTarget = null; // 미끼가 아니라 플레이어가 줄 위에 있었다
+            HitTarget(player, melee: false);
         }
 
         private bool CanShoot(Vector2Int target, int range)

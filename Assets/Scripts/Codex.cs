@@ -68,7 +68,7 @@ namespace LoopRogue
             AddMonster(list, "Slime", Loc.T("슬라임"), "Slime", new Color(0.45f, 0.8f, 0.3f),
                 Loc.T("가장 흔한 근접 몹. 붙어서 때린다. 보스가 부르는 졸개도 이 녀석이다."));
             AddMonster(list, "Ranged", Loc.T("해골 궁수"), "SkeletonArcher", new Color(0.85f, 0.85f, 0.8f),
-                Loc.F("같은 줄 {0}칸 안에서 화살을 쏜다. 벽 뒤에선 못 쏘니 대각선으로 다가가자. 몸은 약하다.", EnemyActor.RangedAttackRange));
+                Loc.F("같은 줄 {0}칸 안을 한 턴 겨눈 뒤 화살을 쏜다. 노란 줄에서 비켜서면 빗나간다. 벽 뒤에선 못 쏘니 대각선으로 다가가자. 몸은 약하다.", EnemyActor.RangedAttackRange));
             AddMonster(list, "Shield", Loc.T("해골 방패병"), "ShieldSoldier", new Color(0.55f, 0.65f, 0.85f),
                 Loc.T("방패 정면에서 맞는 피해를 크게 줄인다. 옆이나 뒤로 돌아가거나 회전 베기로 방패를 무시하자."));
             AddMonster(list, "Spider", Loc.T("거미"), "Spider", new Color(0.6f, 0.3f, 0.85f),

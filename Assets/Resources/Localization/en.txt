@@ -100,7 +100,7 @@ X자 베기	X Slash
 슬라임	Slime
 가장 흔한 근접 몹. 붙어서 때린다. 보스가 부르는 졸개도 이 녀석이다.	The most common melee mob. Gets close and hits. The minions bosses summon are these too.
 해골 궁수	Skeleton Archer
-같은 줄 {0}칸 안에서 화살을 쏜다. 벽 뒤에선 못 쏘니 대각선으로 다가가자. 몸은 약하다.	Shoots arrows within {0} tiles in a straight line. Can't shoot through walls, so approach diagonally. Fragile body.
+같은 줄 {0}칸 안을 한 턴 겨눈 뒤 화살을 쏜다. 노란 줄에서 비켜서면 빗나간다. 벽 뒤에선 못 쏘니 대각선으로 다가가자. 몸은 약하다.	Aims at a straight line within {0} tiles for a turn, then shoots. Step off the yellow line to dodge. Can't shoot through walls, so approach diagonally. Fragile body.
 해골 방패병	Skeleton Shieldbearer
 방패 정면에서 맞는 피해를 크게 줄인다. 옆이나 뒤로 돌아가거나 회전 베기로 방패를 무시하자.	Greatly reduces damage taken from the front. Circle to its side or back, or use Spin Slash to ignore the shield.
 거미	Spider
