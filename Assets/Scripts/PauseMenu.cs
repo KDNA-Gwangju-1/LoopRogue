@@ -24,6 +24,15 @@ namespace LoopRogue
         private static readonly Color LobbyButtonColor = new Color(0.2f, 0.45f, 0.25f);
 
         private readonly List<(RectTransform rect, Action onClick)> _buttons = new List<(RectTransform, Action)>();
+        private readonly List<(Image Image, Color Normal)> _buttonImages = new List<(Image, Color)>();
+
+        // W/S·방향키로 고르고 Enter·Space로 누른다(11-02 사용자). 열 때마다 "계속하기"에서 시작 - 잘못 눌러 로비로 나가지 않게.
+        private int _cursor;
+        private int _continueIndex;
+        private static readonly Color CursorTint = new Color(0.75f, 0.85f, 1f);
+
+        private static readonly Key[] NumberKeys = { Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4 };
+        private readonly List<Action> _numberKeys = new List<Action>(); // 계속하기 말고 위에서부터 1, 2, 3…
 
         private Action _goToLobby;
         private Action _goToTitle;
@@ -41,7 +50,7 @@ namespace LoopRogue
             _goToLobby = goToLobby;
             _goToTitle = goToTitle;
             _canOpen = canOpen;
-            BuildUI(showQuit, lobbyLabel ?? Loc.T("로비로 이동  [L]"));
+            BuildUI(showQuit, lobbyLabel ?? Loc.T("로비로 이동"));
             SetOpen(false);
         }
 
@@ -68,36 +77,51 @@ namespace LoopRogue
             if (!IsOpen)
                 return;
 
-            if (GameInput.Down(Key.L))
-            {
-                GoToLobby();
-                return;
-            }
+            // 숫자키 = 그 번호 버튼(11-02 사용자 - 예전 L/T/O 대신 1·2·3, 계속하기는 Esc)
+            for (var i = 0; i < _numberKeys.Count; i++)
+                if (GameInput.Down(NumberKeys[i]))
+                {
+                    _numberKeys[i]();
+                    return;
+                }
 
-            if (GameInput.Down(Key.O))
+            if (GameInput.Down(Key.UpArrow) || GameInput.Down(Key.W))
+                SetCursor((_cursor + _buttons.Count - 1) % _buttons.Count);
+            else if (GameInput.Down(Key.DownArrow) || GameInput.Down(Key.S))
+                SetCursor((_cursor + 1) % _buttons.Count);
+            else if (GameInput.Down(Key.Enter) || GameInput.Down(Key.Space))
             {
-                OptionsPanel.Open();
-                return;
-            }
-
-            if (_goToTitle != null && GameInput.Down(Key.T))
-            {
-                GoToTitle();
+                _buttons[_cursor].onClick();
                 return;
             }
 
             var mouse = Pointer.current;
-            if (mouse == null || !GameInput.PointerDown)
+            if (mouse == null)
                 return;
 
             var screenPos = GameInput.PointerPosition;
-            foreach (var (rect, onClick) in _buttons)
+            var moved = GameInput.PointerDelta.sqrMagnitude > 0f;
+            for (var i = 0; i < _buttons.Count; i++)
             {
-                if (RectTransformUtility.RectangleContainsScreenPoint(rect, screenPos, null))
+                if (!RectTransformUtility.RectangleContainsScreenPoint(_buttons[i].rect, screenPos, null))
+                    continue;
+                if (moved)
+                    SetCursor(i);
+                if (GameInput.PointerDown)
                 {
-                    onClick();
+                    _buttons[i].onClick();
                     return;
                 }
+            }
+        }
+
+        private void SetCursor(int index)
+        {
+            _cursor = index;
+            for (var i = 0; i < _buttonImages.Count; i++)
+            {
+                var (image, normal) = _buttonImages[i];
+                image.color = i == index ? Color.Lerp(normal, CursorTint, 0.55f) : normal;
             }
         }
 
@@ -107,6 +131,8 @@ namespace LoopRogue
                 _closedFrame = Time.frameCount;
             IsOpen = open;
             _panel.SetActive(open);
+            if (open)
+                SetCursor(_continueIndex);
         }
 
         private void GoToLobby()
@@ -178,21 +204,29 @@ namespace LoopRogue
             CreateLabel(_panel.transform, Loc.T("메뉴"), 30, FontStyle.Bold, 110f, 400f, 44f);
 
             var y = 40f;
-            CreateButton(_panel.transform, lobbyLabel, LobbyButtonColor, y, GoToLobby);
+            CreateNumberedButton(lobbyLabel, LobbyButtonColor, y, GoToLobby);
             if (_goToTitle != null)
             {
                 y -= 60f;
-                CreateButton(_panel.transform, Loc.T("타이틀로 이동  [T]"), ButtonColor, y, GoToTitle);
+                CreateNumberedButton(Loc.T("타이틀로 이동"), ButtonColor, y, GoToTitle);
             }
             y -= 60f;
-            CreateButton(_panel.transform, Loc.T("설정  [O]"), ButtonColor, y, () => OptionsPanel.Open());
+            CreateNumberedButton(Loc.T("설정"), ButtonColor, y, () => OptionsPanel.Open());
             y -= 60f;
+            _continueIndex = _buttons.Count;
             CreateButton(_panel.transform, Loc.T("계속하기  [Esc]"), ButtonColor, y, () => SetOpen(false));
             if (showQuit)
             {
                 y -= 60f;
-                CreateButton(_panel.transform, Loc.T("게임 종료"), new Color(0.4f, 0.2f, 0.2f), y, QuitGame);
+                CreateNumberedButton(Loc.T("게임 종료"), new Color(0.4f, 0.2f, 0.2f), y, QuitGame);
             }
+        }
+
+        /// <summary>숫자키가 붙는 버튼 - 붙는 순서대로 [1] [2] [3].</summary>
+        private void CreateNumberedButton(string content, Color bgColor, float y, Action onClick)
+        {
+            _numberKeys.Add(onClick);
+            CreateButton(_panel.transform, $"{content}  [{_numberKeys.Count}]", bgColor, y, onClick);
         }
 
         private static Text CreateLabel(Transform parent, string content, int fontSize, FontStyle style,
@@ -223,6 +257,7 @@ namespace LoopRogue
             go.transform.SetParent(parent, false);
             var image = go.AddComponent<Image>();
             image.color = PixelUi.Slice(image, "Button") ? PixelUi.Tint(bgColor) : bgColor;
+            _buttonImages.Add((image, image.color));
 
             var rect = go.GetComponent<RectTransform>();
             rect.anchorMin = new Vector2(0.5f, 0.5f);

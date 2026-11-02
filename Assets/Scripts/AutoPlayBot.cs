@@ -28,6 +28,23 @@ namespace LoopRogue
         /// (BotLogs/reference_snapshots.tsv, 층마다 "그 층에 들어갈 때 전체 저장 상태"의 중앙값 판)를 불러와서 각 층만
         /// TrialsPerStage번씩 반복한다. 모든 시도가 같은 상태로 시작하니 이전 층 파밍량과 무관한 그 층 자체의 난이도가 나온다.</summary>
         public const string ModePrefKey = "LoopRogue_AutoPlayBot_Mode";
+
+        // ---- 특성 빌드(11-02 사용자 "봇이 특성을 찍게, 대시/회전 × 골드(상인)/탐색" + "한 갈래를 마스터하고 다음 갈래") - 로비마다 남은 포인트로
+        // 첫 갈래 1→5칸을 다 찍고 두 번째 갈래 1→5칸(다음 칸 비용이 모자라면 거기서 멈추고 다음 로비에). 전투 먼저 / 생활 먼저 두 순서.
+        // "" = 특성 안 찍음(예전 봇 그대로). ----
+        public const string TraitBuildPrefKey = "LoopRogue_AutoPlayBot_TraitBuild";
+        public static readonly (string Key, string Name, int First, int Second)[] TraitBuilds =
+        {
+            ("dash_trade", "대시 → 상인", 0, 3),
+            ("trade_dash", "상인 → 대시", 3, 0),
+            ("dash_explore", "대시 → 탐색", 0, 2),
+            ("explore_dash", "탐색 → 대시", 2, 0),
+            ("spin_trade", "회전 → 상인", 1, 3),
+            ("trade_spin", "상인 → 회전", 3, 1),
+            ("spin_explore", "회전 → 탐색", 1, 2),
+            ("explore_spin", "탐색 → 회전", 2, 1),
+        };
+        private int _traitBuild = -1;
         public const string StageTestMode = "stage_test";
 
         /// <summary>"보스 배율 찾기" 모드 - 층마다 그 층 입장 상태(실제 플레이어가 들어오는 상태, 일반 모드가 남긴 기준 파일)로
@@ -351,6 +368,11 @@ namespace LoopRogue
             Directory.CreateDirectory(dir);
             var path = Path.GetFullPath(Path.Combine(dir, $"bot_{DateTime.Now:yyyyMMdd_HHmmss}.txt"));
             var mode = UnityEditor.EditorPrefs.GetString(ModePrefKey, "");
+            var buildKey = UnityEditor.EditorPrefs.GetString(TraitBuildPrefKey, "");
+            _traitBuild = Array.FindIndex(TraitBuilds, b => b.Key == buildKey);
+            UnityEditor.EditorPrefs.SetString(TraitBuildPrefKey, ""); // 한 번만 - 다음에 다른 봇 메뉴(층 측정 등)를 켜도 특성이 따라가지 않게
+            if (_traitBuild >= 0)
+                path = Path.Combine(Path.GetDirectoryName(path), Path.GetFileNameWithoutExtension(path) + "_" + buildKey + ".txt");
             _sweep = mode == BossSweepMode;
             _bossTrial = mode == BossTrialMode;
             _relicTest = mode == RelicTestMode;
@@ -398,7 +420,7 @@ namespace LoopRogue
                 : _bossTrial ? $"=== {_bossTrialStage}층 보스방 반복: {TrialsPerCase}회 ({_testCases[0].Power}층 입장 기준 상태로 보스방에서 시작, 목숨 하나) ==="
                 : $"=== {(_sweep ? "보스 배율 찾기" : "층별 순수 난이도 측정")}: {_testCases.Count}조합 × {TrialsPerCase}회 (기준 상태에서 시작, 그 층 보스를 잡으면 종료) ==="
                 : _handoff ? $"=== {_handoffStage}층 보스방 앞까지 자동 진행 후 인계 ==="
-                : $"=== 자동 플레이 {RunsPerSession}판 연속 시작 ===");
+                : $"=== 자동 플레이 {RunsPerSession}판 연속 시작 ===" + (_traitBuild >= 0 ? $" (특성 빌드: {TraitBuilds[_traitBuild].Name})" : ""));
             BeginRun();
         }
 
@@ -576,9 +598,9 @@ namespace LoopRogue
         private void PrepareRelicTrial(RelicType? relic)
         {
             _run.TestRelic = relic;
-            PlayerPrefs.SetInt("LoopRogue_TotalDeaths", 20);
-            PlayerPrefs.SetInt("LoopRogue_StageDeaths", 3);
-            PlayerPrefs.Save();
+            Prefs.SetInt("LoopRogue_TotalDeaths", 20);
+            Prefs.SetInt("LoopRogue_StageDeaths", 3);
+            Prefs.Save();
             LoopRecord.Reload();
             if (relic.HasValue)
                 Relics.GrantForTest(relic.Value);
@@ -624,13 +646,13 @@ namespace LoopRogue
 
         private static Dictionary<string, object> CapturePrefs()
         {
-            PlayerPrefs.Save();
+            Prefs.Save();
             var d = new Dictionary<string, object>();
             foreach (var (key, isFloat) in SaveKeys())
             {
-                if (!PlayerPrefs.HasKey(key))
+                if (!Prefs.HasKey(key))
                     continue;
-                d[key] = isFloat ? (object)PlayerPrefs.GetFloat(key) : PlayerPrefs.GetInt(key);
+                d[key] = isFloat ? (object)Prefs.GetFloat(key) : Prefs.GetInt(key);
             }
             return d;
         }
@@ -638,17 +660,17 @@ namespace LoopRogue
         /// <summary>저장을 전부 지우고 기준 상태를 써넣은 뒤 각 저장 클래스가 다시 읽게 한다(SaveReset.ResetAll과 같은 순서).</summary>
         private static void ApplyPrefs(Dictionary<string, object> prefs, int stage)
         {
-            GameSettings.Preserve(() => PlayerPrefs.DeleteAll());
+            GameSettings.Preserve(() => Prefs.DeleteAll());
             foreach (var pair in prefs)
             {
                 if (pair.Value is float f)
-                    PlayerPrefs.SetFloat(pair.Key, f);
+                    Prefs.SetFloat(pair.Key, f);
                 else
-                    PlayerPrefs.SetInt(pair.Key, (int)pair.Value);
+                    Prefs.SetInt(pair.Key, (int)pair.Value);
             }
-            PlayerPrefs.SetInt(StageProgress.AttemptsKey, 0);
-            PlayerPrefs.SetInt(StageProgress.StageKey, stage); // 한 층 앞 상태로 시험할 땐 층만 바꿔 끼운다
-            PlayerPrefs.Save();
+            Prefs.SetInt(StageProgress.AttemptsKey, 0);
+            Prefs.SetInt(StageProgress.StageKey, stage); // 한 층 앞 상태로 시험할 땐 층만 바꿔 끼운다
+            Prefs.Save();
             GoldWallet.Reload();
             EquipmentWallet.Reload();
             StatPotionWallet.Reload();
@@ -832,8 +854,37 @@ namespace LoopRogue
         // 이번 로비 방문의 구매 기록(이벤트 로그용) - BuyGacha/BuyPotion이 채운다.
         private readonly List<Dictionary<string, object>> _purchases = new List<Dictionary<string, object>>();
 
+        /// <summary>특성 빌드대로 남은 포인트를 쓴다 - 첫 갈래를 1→5칸 다 찍은 뒤 두 번째 갈래, 다음 칸을 못 사면 멈춘다.</summary>
+        private void LearnBotTraits()
+        {
+            if (_traitBuild < 0)
+                return;
+            var (_, _, first, second) = TraitBuilds[_traitBuild];
+            var learned = new List<string>();
+            foreach (var branch in new[] { first, second })
+            {
+                for (var tier = 0; tier < Traits.TierCount; tier++)
+                {
+                    var def = Traits.At(branch, tier);
+                    if (def == null || Traits.Has(def.Type))
+                        continue;
+                    if (!Traits.Learn(def))
+                        goto Done; // 포인트가 모자라다 - 다음 로비에
+                    learned.Add(def.Name);
+                }
+            }
+            Done:
+            if (learned.Count > 0)
+            {
+                Detail($"[특성] {string.Join(", ", learned)} 배움 | 남은 {Traits.FreePoints}/{Traits.EarnedPoints} (보스 {Traits.BossPoints} · 정예 {Traits.ElitePoints})");
+                Ev("traits", ("learned", learned), ("free", Traits.FreePoints), ("earned", Traits.EarnedPoints),
+                    ("boss_points", Traits.BossPoints), ("elite_points", Traits.ElitePoints));
+            }
+        }
+
         private void DoShopping()
         {
+            LearnBotTraits();
             UseLobbyNpcs();
             var goldBefore = GoldWallet.Gold;
             var bought = new List<string>();

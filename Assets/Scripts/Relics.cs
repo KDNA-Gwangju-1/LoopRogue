@@ -60,7 +60,7 @@ namespace LoopRogue
         /// <summary>그림자 걸음 - 대시로 벤 몹에게 한 턴 뒤 그 피해의 이만큼(10-29 사용자 75%).</summary>
         public const float ShadowStepEchoRate = 0.75f;
         public const float EarthHammerSplashRate = 0.2f;
-        public const int PulseCoreStunTurns = 2; // 파동의 핵 - 회전 베기 기절(10-19 사용자 1 → 2)
+        public const float PulseCoreDamageRate = 0.3f; // 파동의 핵 - 회전 베기 끝 5x5 파동 피해(11-02 사용자, 예전엔 맞은 몹 2턴 기절)
         /// <summary>망령의 깃발(10-27 테스터 제안, 사용자 7턴) - 방마다 1번, 체력이 이 비율 아래로 떨어지면 몹 옆에 허수아비가 생겨 몹들이 그것만 노린다.</summary>
         public const float PhantomBannerHealthRatio = 0.3f;
         public const int PhantomBannerTurns = 7;
@@ -80,11 +80,11 @@ namespace LoopRogue
         public const int TreasureHunterChestGold = 2;
         /// <summary>첫 일격 - 방마다 첫 타격 피해 배율(10-27 사용자, 예전엔 치명타 확정 - 후반엔 치명타 확률이 100%를 넘어 의미가 없었다).</summary>
         public const float FirstStrikeDamage = 1.5f;
-        public const float SpinningBladeDamageRate = 1.2f;
+        public const float SpinningBladeDamageRate = 0.6f; // 11-02 기본 회전 베기 80 → 40%에 맞춰 1.2 → 0.6(기본의 1.5배 그대로)
         public const float HunterEyeVisionBonus = 2f;
         public const float GreedGoldBonus = 0.4f;
         public const float GreedDeathPenaltyRate = 0.6f;
-        public const int GaleDashCooldownReduction = 2;
+        public const int GaleDashCooldownReduction = 1; // 11-02 사용자 2 → 1
         public const float RegenMossHealRate = 0.15f;
         public const float IronSkinDamageFactor = 0.9f;
         public const float IronSkinHealRate = 0.05f; // 철의 피부 - 체력으로 받은 피해의 5%를 곧바로 회복(10-27 사용자)
@@ -115,7 +115,7 @@ namespace LoopRogue
             { RelicType.EarthHammer, (Loc.T("대지의 망치"), Loc.T("일반 공격 시 대상 상하좌우 몹에게도 20% 피해")) },
             { RelicType.CrossCrest, (Loc.T("십자 문장"), Loc.T("회전 베기가 상하좌우 2칸까지 닿음")) },
             { RelicType.PhantomBanner, (Loc.T("망령의 깃발"), Loc.F("방마다 1번, 체력이 {0:0}% 아래로 떨어지면 허수아비가 나타나 {1}턴 동안 몹들의 공격을 받아 낸다", PhantomBannerHealthRatio * 100f, PhantomBannerTurns)) },
-            { RelicType.PulseCore, (Loc.T("파동의 핵"), Loc.F("회전 베기에 맞은 몹 {0}턴 기절", PulseCoreStunTurns)) },
+            { RelicType.PulseCore, (Loc.T("파동의 핵"), Loc.T("회전 베기가 끝날 때 주변 5x5로 파동 - 공격력 30% 피해")) },
             { RelicType.SniperEye, (Loc.T("저격수의 눈"), Loc.T("치명타 피해 +50%p")) },
             { RelicType.PiercingSeal, (Loc.T("관통의 인장"), Loc.T("일반 공격이 대상 뒤 1칸 몹에게도 30% 피해")) },
             { RelicType.TyrantPlate, (Loc.T("폭군의 갑주"), Loc.T("대시로 내려선 자리 주변 8칸 몹에게 30% 피해")) },
@@ -125,16 +125,16 @@ namespace LoopRogue
             { RelicType.ChainBlast, (Loc.T("연쇄 폭발"), Loc.T("일반 몹 처치 시 주변 8칸 몹에게 공격력 20% 피해")) },
             { RelicType.SecondWind, (Loc.T("두 번째 숨"), Loc.T("시도마다 1회, 죽으면 체력 30%로 부활")) },
             { RelicType.TreasureHunter, (Loc.T("오래된 보물지도"), Loc.T("보물상자 골드 2배, 보물상자에서 아이템 2개, 몹 아이템 드롭 +3%p")) },
-            { RelicType.SpinningBlade, (Loc.T("회전 칼날"), Loc.T("회전 베기 피해 80%→120%")) },
+            { RelicType.SpinningBlade, (Loc.T("회전 칼날"), Loc.T("회전 베기 피해 40%→60%")) },
             { RelicType.HunterEye, (Loc.T("사냥꾼의 눈"), Loc.T("시야 +2칸, 출구가 처음부터 보임")) },
             { RelicType.Greed, (Loc.T("탐욕"), Loc.T("골드 +40%, 데스 패널티 40%→60%")) },
-            { RelicType.Gale, (Loc.T("질풍"), Loc.T("대시 쿨타임 -2턴(최소 1턴)")) },
+            { RelicType.Gale, (Loc.T("질풍"), Loc.T("대시 쿨타임 -1턴(최소 1턴)")) },
             { RelicType.RegenMoss, (Loc.T("재생의 이끼"), Loc.T("방 클리어 시 체력 15% 추가 회복")) },
             { RelicType.IronSkin, (Loc.T("철의 피부"), Loc.T("받는 피해 -10%(카드 피해 감소와 별도), 받은 피해의 5%를 곧바로 회복")) },
             { RelicType.Berserker, (Loc.T("광전사"), Loc.T("체력 50% 이하일 때 주는 피해 +30%")) },
             { RelicType.FirstStrike, (Loc.T("첫 일격"), Loc.T("방마다 첫 공격 피해 1.5배")) },
             { RelicType.KnightMemory, (Loc.T("기사의 기억"), Loc.T("몹·보스의 공격을 12% 확률로 간파해 피해를 받지 않음")) },
-            { RelicType.ShadowStep, (Loc.T("그림자 걸음"), Loc.T("대시로 벤 몹에게 한 턴 뒤 그 피해의 75%가 그림자로 한 번 더 들어간다")) },
+            { RelicType.ShadowStep, (Loc.T("그림자 걸음"), Loc.T("대시로 벤 몹에 그림자가 붙고, 다음 행동 때 그림자가 그 피해의 75%로 한 번 더 벤다")) },
             { RelicType.Whirlwind, (Loc.T("소용돌이"), Loc.T("회전 베기에 맞은 몹을 2칸 밀어낸다(막히면 공격력 30% 추가 피해, 보스는 안 밀림)")) },
             { RelicType.StoppedWatch, (Loc.T("멈춘 회중시계"), Loc.T("누적 사망 1회마다 주는 피해 +0.5% (최대 +25%)")) },
             { RelicType.RecurrenceMark, (Loc.T("되풀이의 각인"), Loc.T("지금 층에서 죽을 때마다 받는 피해 -2% (최대 -10%, 다음 층에서 초기화)")) },
@@ -170,10 +170,10 @@ namespace LoopRogue
                 return;
             Owned.Clear();
             OfferedStages.Clear();
-            foreach (var part in PlayerPrefs.GetString(OwnedKey, "").Split(','))
+            foreach (var part in Prefs.GetString(OwnedKey, "").Split(','))
                 if (int.TryParse(part, out var v) && System.Enum.IsDefined(typeof(RelicType), v))
                     Owned.Add((RelicType)v);
-            foreach (var part in PlayerPrefs.GetString(OfferedKey, "").Split(','))
+            foreach (var part in Prefs.GetString(OfferedKey, "").Split(','))
                 if (int.TryParse(part, out var s))
                     OfferedStages.Add(s);
             _loaded = true;
@@ -181,9 +181,9 @@ namespace LoopRogue
 
         private static void Save()
         {
-            PlayerPrefs.SetString(OwnedKey, string.Join(",", Owned.Select(r => (int)r)));
-            PlayerPrefs.SetString(OfferedKey, string.Join(",", OfferedStages));
-            PlayerPrefs.Save();
+            Prefs.SetString(OwnedKey, string.Join(",", Owned.Select(r => (int)r)));
+            Prefs.SetString(OfferedKey, string.Join(",", OfferedStages));
+            Prefs.Save();
         }
 
         public static bool Has(RelicType type)
@@ -304,7 +304,8 @@ namespace LoopRogue
         public static float PermanentAttack => Has(RelicType.CrownOfEnd) ? Mark(RelicType.CrownOfEnd, CrownAttack) : 0f;
         public static float PermanentHealth => Has(RelicType.CrownOfEnd) ? CrownHealth : 0f;
         public static float ExtraGoldBonus => Has(RelicType.Greed) ? Mark(RelicType.Greed, GreedGoldBonus) : 0f;
-        public static float DeathPenaltyRate => Has(RelicType.Greed) ? GreedDeathPenaltyRate : LoopManager.DeathGoldPenaltyRate;
+        public static float DeathPenaltyRate => Mathf.Max(0f, (Has(RelicType.Greed) ? GreedDeathPenaltyRate : LoopManager.DeathGoldPenaltyRate)
+            - (Traits.Has(TraitType.TradeInsurance) ? Traits.TradeInsuranceCut : 0f)); // 특성 "보험"
         public static float DropBonus => Has(RelicType.TreasureHunter) ? Mark(RelicType.TreasureHunter, TreasureHunterDropBonus) : 0f;
         public static float LifeStealCap => Has(RelicType.BloodPact) ? Mark(RelicType.BloodPact, BloodPactLifeStealCap) : CharacterStats.MaxLifeSteal;
         /// <summary>멈춘 회중시계 - 누적 사망 수만큼 주는 피해 배율.</summary>
@@ -314,6 +315,7 @@ namespace LoopRogue
         public static float RecurrenceMultiplier => Has(RelicType.RecurrenceMark) && StageProgress.DeathsThisStage > 0
             ? Mark(RelicType.RecurrenceMark, 1f - Mathf.Min(RecurrenceMax, StageProgress.DeathsThisStage * RecurrencePerDeath)) : 1f;
         public static int ItemCapacity => Has(RelicType.AlchemistPouch) ? AlchemistPouchCapacity : 1;
-        public static float VisionRadius => FogOfWar.VisionRadius + (Has(RelicType.HunterEye) ? Mark(RelicType.HunterEye, HunterEyeVisionBonus) : 0f);
+        public static float VisionRadius => FogOfWar.VisionRadius + (Has(RelicType.HunterEye) ? Mark(RelicType.HunterEye, HunterEyeVisionBonus) : 0f)
+            + (Traits.Has(TraitType.ExploreVision) ? Traits.ExploreVisionBonus : 0f); // 특성 "넓은 시야"
     }
 }

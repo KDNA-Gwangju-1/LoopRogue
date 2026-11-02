@@ -226,14 +226,36 @@ namespace LoopRogue
             SfxPlayer.Play(Sfx.Dash);
         }
 
+        /// <summary>특성 "분신 대시" - 분신이 지나간 길(from → to)에 플레이어 잔상과 대시 궤적. 소리·흔들림은 본체 대시가 낸다.</summary>
+        public static void OnDashClone(PlayerActor player, Vector3 from, Vector3 to)
+        {
+            if (!Enabled)
+                return;
+
+            var renderer = player.GetComponent<SpriteRenderer>();
+            if (renderer != null)
+            {
+                const int ghosts = 4;
+                for (var i = 1; i <= ghosts; i++)
+                {
+                    var pos = Vector3.Lerp(from, to, (float)i / ghosts);
+                    DeathBurst.SpawnGhost(renderer.sprite, pos, player.transform.localScale.x, new Color(0.55f, 0.75f, 1f, 0.1f + 0.1f * i));
+                }
+            }
+            var path = to - from;
+            if (path.sqrMagnitude > 0.01f)
+                Fx.Play("dash", (from + to) * 0.5f, path.magnitude / GridConstants.CellSize + 0.6f,
+                    Mathf.Atan2(path.y, path.x) * Mathf.Rad2Deg, fps: 22f, sortingOrder: 2);
+        }
+
         /// <summary>회전 베기 - 플레이어가 한 바퀴 돌고 주변으로 파편이 퍼진다(타격 연출은 몹마다 OnPlayerHitEnemy가 따로).</summary>
-        public static void OnSpin(PlayerActor player)
+        public static void OnSpin(PlayerActor player, bool wide = false)
         {
             if (!Enabled)
                 return;
 
             ActorJuice.Get(player).Spin();
-            var swirl = Fx.Play("spin", player.transform.position, 3.3f, fps: 22f); // 주변 8칸을 감싸는 고리
+            var swirl = Fx.Play("spin", player.transform.position, wide ? 5.5f : 3.3f, fps: 22f); // 주변 8칸을 감싸는 고리(끝없는 회전 5x5면 크게)
             DeathBurst.Spawn(player.transform.position, new Color(0.7f, 0.9f, 1f), count: swirl != null ? 8 : 16, speed: 7f, size: 0.12f);
             CameraShake.Shake(0.1f, 0.12f);
             SfxPlayer.Play(Sfx.Spin);
@@ -256,6 +278,16 @@ namespace LoopRogue
             if (!Enabled)
                 return;
             Fx.Play("heal", player.transform.position, 1.3f, fps: 14f, sortingOrder: 8);
+        }
+
+        /// <summary>특성 "노다지" - 화면이 금빛으로 살짝 반짝이고 금화가 비처럼 쏟아진다(CoinRain).</summary>
+        public static void OnBonanza(PlayerActor player)
+        {
+            if (!Enabled)
+                return;
+            ScreenFlash.Play(new Color(1f, 0.88f, 0.45f), 0.35f, 0.3f);
+            CoinRain.Play(player.transform.position);
+            SfxPlayer.Play(Sfx.ChestOpen);
         }
 
         /// <summary>퍼즐·미니게임·도전 성공(보너스 카드) - 화면이 금빛으로 반짝이고, 발밑에서 별빛 빛줄기가 퍼지며 금가루가 터진다.

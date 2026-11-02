@@ -58,12 +58,12 @@ namespace LoopRogue
             if (_loaded)
                 return;
 
-            _attackCount = PlayerPrefs.GetInt(AttackCountKey, 0);
-            _healthCount = PlayerPrefs.GetInt(HealthCountKey, 0);
-            _criticalCount = PlayerPrefs.GetInt(CriticalCountKey, 0);
-            _attackBought = PlayerPrefs.GetInt(AttackBoughtKey, _attackCount);
-            _healthBought = PlayerPrefs.GetInt(HealthBoughtKey, _healthCount);
-            _criticalBought = PlayerPrefs.GetInt(CriticalBoughtKey, _criticalCount);
+            _attackCount = Prefs.GetInt(AttackCountKey, 0);
+            _healthCount = Prefs.GetInt(HealthCountKey, 0);
+            _criticalCount = Prefs.GetInt(CriticalCountKey, 0);
+            _attackBought = Prefs.GetInt(AttackBoughtKey, _attackCount);
+            _healthBought = Prefs.GetInt(HealthBoughtKey, _healthCount);
+            _criticalBought = Prefs.GetInt(CriticalBoughtKey, _criticalCount);
             _loaded = true;
         }
 
@@ -122,24 +122,24 @@ namespace LoopRogue
             EnsureLoaded();
             // 구매 키가 없으면 다음 실행 때 "개수 = 구매 횟수"로 읽혀(옛 저장 호환용 기본값) 로비 가격이 갑자기 올랐다(10-28) - 지금 값을 써 둔다
             foreach (var (key, bought) in new[] { (AttackBoughtKey, _attackBought), (HealthBoughtKey, _healthBought), (CriticalBoughtKey, _criticalBought) })
-                if (!PlayerPrefs.HasKey(key))
-                    PlayerPrefs.SetInt(key, bought);
+                if (!Prefs.HasKey(key))
+                    Prefs.SetInt(key, bought);
             switch (type)
             {
                 case PotionType.Attack:
                     _attackCount++;
-                    PlayerPrefs.SetInt(AttackCountKey, _attackCount);
+                    Prefs.SetInt(AttackCountKey, _attackCount);
                     break;
                 case PotionType.Health:
                     _healthCount++;
-                    PlayerPrefs.SetInt(HealthCountKey, _healthCount);
+                    Prefs.SetInt(HealthCountKey, _healthCount);
                     break;
                 default:
                     _criticalCount++;
-                    PlayerPrefs.SetInt(CriticalCountKey, _criticalCount);
+                    Prefs.SetInt(CriticalCountKey, _criticalCount);
                     break;
             }
-            PlayerPrefs.Save();
+            Prefs.Save();
         }
 
         public static float TotalAttackBonus()
@@ -178,18 +178,18 @@ namespace LoopRogue
             {
                 case PotionType.Attack:
                     _attackBought++;
-                    PlayerPrefs.SetInt(AttackBoughtKey, _attackBought);
+                    Prefs.SetInt(AttackBoughtKey, _attackBought);
                     break;
                 case PotionType.Health:
                     _healthBought++;
-                    PlayerPrefs.SetInt(HealthBoughtKey, _healthBought);
+                    Prefs.SetInt(HealthBoughtKey, _healthBought);
                     break;
                 default:
                     _criticalBought++;
-                    PlayerPrefs.SetInt(CriticalBoughtKey, _criticalBought);
+                    Prefs.SetInt(CriticalBoughtKey, _criticalBought);
                     break;
             }
-            PlayerPrefs.Save();
+            Prefs.Save();
             return true;
         }
     }

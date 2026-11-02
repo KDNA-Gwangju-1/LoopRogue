@@ -190,7 +190,7 @@ namespace LoopRogue
         private static float _unsaved;
 
         /// <summary>저장된 시간 + 아직 저장 안 한 시간(초).</summary>
-        public static float PlayTimeSeconds => PlayerPrefs.GetFloat(PlayTimeKey, 0f) + _unsaved;
+        public static float PlayTimeSeconds => Prefs.GetFloat(PlayTimeKey, 0f) + _unsaved;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void StartTimer()
@@ -201,12 +201,15 @@ namespace LoopRogue
             go.AddComponent<Timer>();
         }
 
+        /// <summary>슬롯을 바꾸기 전(Prefs.SelectSlot) - 쌓인 시간을 지금 슬롯에 적는다.</summary>
+        public static void FlushPlayTime() => Flush();
+
         private static void Flush()
         {
             if (_unsaved <= 0f)
                 return;
-            PlayerPrefs.SetFloat(PlayTimeKey, PlayerPrefs.GetFloat(PlayTimeKey, 0f) + _unsaved);
-            PlayerPrefs.Save();
+            Prefs.SetFloat(PlayTimeKey, Prefs.GetFloat(PlayTimeKey, 0f) + _unsaved);
+            Prefs.Save();
             _unsaved = 0f;
         }
 

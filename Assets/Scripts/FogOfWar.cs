@@ -100,7 +100,7 @@ namespace LoopRogue
             {
                 if (revealed || _visible.Contains(_room.ExitPosition.Value))
                     _exitSeen = true;
-                exit.enabled = _exitSeen || Relics.Has(RelicType.HunterEye);
+                exit.enabled = _exitSeen || Relics.Has(RelicType.HunterEye) || Traits.Has(TraitType.ExploreExit); // 특성 "길잡이"
             }
 
             foreach (var enemy in _room.Enemies)

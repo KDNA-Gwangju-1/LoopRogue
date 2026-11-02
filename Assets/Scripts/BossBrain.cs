@@ -83,9 +83,10 @@ namespace LoopRogue
         // 4개를 전부 부수면 단단함이 풀린다(폭탄으로 부숴도 된다).
         public const float BoarPillarHealthRatio = 0.5f;
         public const int BoarPhaseChargeDistance = 8;
-        public const float BoarArmorMultiplier = 0.1f;
-        /// <summary>3·6·7·9·10층 기믹 중(3층은 수정이 떠 있는 동안, 나머지는 RoomController.BossInvulnerable) 보스가 받는 피해 배율 - 10-21 사용자 "기믹 중 보스는 뎀감 90%"(예전엔 0 = 무적).</summary>
-        public const float GimmickArmorMultiplier = 0.1f;
+        public const float BoarArmorMultiplier = 0f; // 11-02 사용자 "기믹 중엔 뎀감 말고 무적" - 기둥이 서 있는 동안 무적
+        /// <summary>3·6·7·9·10층 기믹 중(3층은 수정이 떠 있는 동안, 나머지는 RoomController.BossInvulnerable) 보스가 받는 피해 배율 - 0 = 무적
+        /// (11-02 사용자 "뎀감이 아니라 무적으로", 10-21~11-01엔 뎀감 90%).</summary>
+        public const float GimmickArmorMultiplier = 0f;
         public const int BoarCrashStunTurns = 3;
         private bool _pillarPhase;
 
@@ -126,8 +127,8 @@ namespace LoopRogue
 
         /// <summary>보스가 받는 피해 배율 - 멧돼지 기둥이 서 있으면 BoarArmorMultiplier(EnemyActor.DamageTakenMultiplier).</summary>
         public float ArmorMultiplier(RoomController room) =>
-            room != null && room.BossInvulnerable ? GimmickArmorMultiplier // 6·7·9·10층 기믹 - 촛불·분신·죽음의 낙인·빛이 남아 있는 동안 피해 90% 감소(10-21 사용자, 예전엔 무적)
-            : _stage == 3 && room != null && room.GolemCrystalCount > 0 ? GimmickArmorMultiplier // 3층 - 수정이 떠 있는 동안 90% 감소(10-27 사용자 "기믹 중 딜찍 못 하게").
+            room != null && room.BossInvulnerable ? GimmickArmorMultiplier // 6·7·9·10층 기믹 - 촛불·6층 영혼 과녕·분신·죽음의 낙인·빛이 남아 있는 동안 무적(11-02)
+            : _stage == 3 && room != null && room.GolemCrystalCount > 0 ? GimmickArmorMultiplier // 3층 - 수정이 떠 있는 동안 무적(10-27 사용자 "기믹 중 딜찍 못 하게", 11-02 무적으로).
                                                                                                     // BossInvulnerable과 달리 골렘은 계속 붙어서 때린다
             : IsBoar && _pillarPhase && room != null && room.BoarPillarCount > 0 ? BoarArmorMultiplier
             : IsOgre && room != null ? room.OgreMightMultiplier // 2층 - 구멍을 메워 쌓은 대지의 기세
@@ -153,8 +154,9 @@ namespace LoopRogue
         private int _mirrorPhase; // 10층 - 시작한 기믹 단계 수
         private static float StageGimmickRatio(int stage) => stage == MirrorStage ? MirrorFakeHealthRatio : StageGimmickHealthRatio;
         private bool _stageGimmickStarted;
-        // 7층 그림자 암살자 - 체력 90·80·…·10%마다 분신 3개(무적) 물결(10-15 사용자). 한 대에 여러 칸을 지나면 물결 하나로 합친다.
-        private static readonly float[] CloneWaveHealth = { 0.9f, 0.8f, 0.7f, 0.6f, 0.5f, 0.4f, 0.3f, 0.2f, 0.1f };
+        // 7층 그림자 암살자 - 체력 80·60·20%에 분신 물결(11-02 사용자, 예전 90~10% 10%마다 9번 - 기믹 체력 하한이 생긴 뒤 9번을 다 따로 겪어 보스방 사망 1.0→15.0).
+        // 물결마다 분신 CloneCount개, 그동안 보스 무적. 한 대에 여러 문턱을 지나면 물결 하나로 합친다(체력 하한 때문에 실제로는 하나씩).
+        private static readonly float[] CloneWaveHealth = { 0.8f, 0.6f, 0.2f };
         private int _cloneWave;
         /// <summary>포위 폭발 반경(체비쇼프) - 대시(3칸)면 바깥에 내려선다. 대시가 준비돼 있고 대시로 빠져나갈 길이 있을 때만 쓴다(CanDashEscape).</summary>
         public const int EncircleRadius = 2;
@@ -198,7 +200,7 @@ namespace LoopRogue
             _patterns = patterns != null && patterns.Count > 0 ? patterns : new List<BossPatternType> { BossPatternType.Slam };
             _stage = stage;
             RollNormalTurns();
-            ApplyGimmickFloor();
+            UpdateGimmickFloor(); // 첫 보스 턴 전에 한 방에 잡혀도 기믹 문턱에서 멈추게
         }
 
         private void RollNormalTurns()
@@ -323,37 +325,55 @@ namespace LoopRogue
         /// <summary>예고해 둔 패턴(없으면 null) - 봇이 9층 회피 낙인을 풀 패턴(체스판·영혼 구체)인지 보는 데 쓴다.</summary>
         public BossPatternType? PendingPattern => _pending;
 
-        /// <summary>다음에 시작할 기믹의 체력 문턱(비율, 없으면 0) - 1~9층 보스 체력은 이 아래로 안 깎인다(ApplyGimmickFloor).
-        /// 11-01 사용자 "보스 기믹 확정적으로, 딜찍 없게" - 테스터가 강해진 뒤 1·2층 보스를 8~14턴에 잡아 기믹을 통째로 건너뛰었다.
-        /// 조건은 TryStartGimmick과 같게 둔다(곧 풀리는 조건 - 무적·낙인 진행 중 - 만 빼고). 안 그러면 기믹이 영영 안 나와 보스가 안 죽는다.</summary>
-        private float NextGimmickRatio() => _stage switch
+        /// <summary>체력 조건을 지난 기믹 시작(컷신) - 시작했으면 true(그 턴은 끝). 보스 러시는 입장하자마자 이걸 한 번 부른다.
+        /// 끝나면 다음 기믹 문턱으로 체력 하한을 옮긴다(UpdateGimmickFloor).</summary>
+        public bool TryStartGimmick(RoomController room)
         {
-            1 => _pillarPhase ? 0f : BoarPillarHealthRatio,
-            2 => OgreHolesEnabled && !_holePhase ? OgreHoleHealthRatio : 0f,
-            3 => _golemPhase < GolemWaveHealth.Length ? GolemWaveHealth[_golemPhase] : 0f,
-            6 => !_stageGimmickStarted ? StageGimmickHealthRatio : !_soulTargetStarted ? SoulTargetHealthRatio : 0f,
-            7 => Mathf.Max(_cloneWave < CloneWaveHealth.Length ? CloneWaveHealth[_cloneWave] : 0f,
-                           _stageGimmickStarted && _shadowBeatWave < ShadowBeatHealth.Length ? ShadowBeatHealth[_shadowBeatWave] : 0f),
-            9 => _doomWave < DoomWaveHealth.Length ? DoomWaveHealth[_doomWave] : 0f,
-            4 or 5 or 8 => _stageGimmickStarted ? 0f : StageGimmickHealthRatio,
-            _ => 0f, // 10층은 단계마다 RoomController.SetMirrorFloor
-        };
+            var started = TryStartGimmickCore(room);
+            UpdateGimmickFloor();
+            return started;
+        }
 
-        /// <summary>보스 체력 하한을 다음 기믹 문턱으로 - 문턱에 닿으면 보스 턴에 기믹이 시작되고(TryStartGimmick) 하한이 다음 문턱으로 내려간다.</summary>
-        public void ApplyGimmickFloor()
+        // ---- 기믹 건너뛰기 방지(11-02 사용자 - 공격력이 높으면 1층 멧돼지가 50%를 지나 한 방에 죽어 기둥이 안 나왔다) ----
+        // 기믹은 보스 턴에 체력을 보고 시작하니, 아직 안 나온 기믹 중 가장 높은 체력 문턱에 체력 하한(CharacterStats.HealthFloor)을 건다.
+        // 그 문턱까지만 깎이고 다음 보스 턴에 기믹이 시작되면 하한이 다음 문턱으로 내려간다. 10층 기사는 RoomController.MirrorKnight가 따로 건다.
+
+        private void UpdateGimmickFloor()
         {
             if (_stage >= MirrorStage)
                 return;
             var ratio = NextGimmickRatio();
-            _boss.Stats.HealthFloor = ratio > 0f ? Mathf.Max(1f, _boss.Stats.MaxHealth * ratio) : 0f;
+            // 문턱보다 살짝 아래 - 딱 문턱에 두면 float 반올림으로 "체력 <= 최대 × 비율"이 끝내 거짓이 되어 기믹이 안 시작되고 보스가 영영 안 죽었다
+            // (11-02 봇 100판: 3층 골렘이 매 판 체력 704/880에 멈춰 91판이 턴 제한으로 끝남)
+            _boss.Stats.HealthFloor = ratio > 0f ? Mathf.Max(0f, _boss.Stats.MaxHealth * ratio - GimmickFloorMargin) : 0f;
         }
 
-        /// <summary>체력 조건을 지난 기믹 시작(컷신) - 시작했으면 true(그 턴은 끝). 보스 러시는 입장하자마자 이걸 한 번 부른다.</summary>
-        public bool TryStartGimmick(RoomController room)
+        private const float GimmickFloorMargin = 0.5f;
+
+        /// <summary>아직 안 나온 기믹 중 가장 높은 체력 문턱(없으면 0) - TryStartGimmickCore의 조건과 같게.</summary>
+        private float NextGimmickRatio()
         {
-            var started = TryStartGimmickCore(room);
-            ApplyGimmickFloor();
-            return started;
+            var r = 0f;
+            if (IsBoar && !_pillarPhase)
+                r = Mathf.Max(r, BoarPillarHealthRatio);
+            if (IsGolem && _golemPhase < GolemWaveHealth.Length)
+                r = Mathf.Max(r, GolemWaveHealth[_golemPhase]);
+            if (IsOgre && OgreHolesEnabled && !_holePhase)
+                r = Mathf.Max(r, OgreHoleHealthRatio);
+            if (_stage == 7)
+            {
+                if (_cloneWave < CloneWaveHealth.Length)
+                    r = Mathf.Max(r, CloneWaveHealth[_cloneWave]);
+                if (_stageGimmickStarted && _shadowBeatWave < ShadowBeatHealth.Length)
+                    r = Mathf.Max(r, ShadowBeatHealth[_shadowBeatWave]);
+            }
+            if (_stage == 9 && _doomWave < DoomWaveHealth.Length)
+                r = Mathf.Max(r, DoomWaveHealth[_doomWave]);
+            if (_stage == 6 && _stageGimmickStarted && !_soulTargetStarted && _room != null && _room.GimmickStage == 6)
+                r = Mathf.Max(r, SoulTargetHealthRatio);
+            if (!_stageGimmickStarted && _stage >= 4 && _stage != 7 && _stage != 9)
+                r = Mathf.Max(r, StageGimmickRatio(_stage));
+            return r;
         }
 
         private bool TryStartGimmickCore(RoomController room)
@@ -414,7 +434,7 @@ namespace LoopRogue
             }
 
             if (_stage == MirrorStage && _mirrorPhase < MirrorPhaseHealth.Length && !room.MirrorPhaseActive
-                && _boss.Stats.CurrentHealth <= Mathf.Max(1f, _boss.Stats.MaxHealth * MirrorPhaseHealth[_mirrorPhase]))
+                && _boss.Stats.CurrentHealth <= Mathf.Max(1f, _boss.Stats.MaxHealth * MirrorPhaseHealth[_mirrorPhase]) + GimmickFloorMargin)
             {
                 _mirrorPhase++;
                 _stageGimmickStarted = true;
@@ -488,6 +508,7 @@ namespace LoopRogue
         {
             _room = room;
             _turnsSinceEncircle++;
+            UpdateGimmickFloor(); // 최대 체력이 바뀌었을 수도 있으니 보스 턴마다 다시
             if (room.MirrorLastStand)
                 return TakeLastStandTurn(player, room);
             if (room.ShadowBeatActive)

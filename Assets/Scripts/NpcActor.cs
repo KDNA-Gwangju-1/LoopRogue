@@ -20,6 +20,9 @@ namespace LoopRogue
     public class NpcActor : GridActor
     {
         private const int ItemPriceBase = 35;      // 1회용 아이템 - 스테이지 보상 배율 곱하기 전
+
+        /// <summary>1회용 아이템 한 개 가격 - 던전 떠돌이 상인과 로비 잡화상(11-02)이 같이 쓴다.</summary>
+        public static int ItemPrice(int stage) => Mathf.RoundToInt(ItemPriceBase * StageScaling.RewardMultiplier(stage));
         private const int SlotTicketBundle = 10;   // 슬롯 이용권 묶음 장수
         private const float SlotTicketDiscount = 0.5f; // 일반 베팅 10회 값의 절반
         private const int StockCount = 3;
@@ -363,7 +366,7 @@ namespace LoopRogue
                     Kind = StockKind.SlotTicket,
                     Name = Loc.F("슬롯 이용권 {0}장", SlotTicketBundle),
                     Description = () => Loc.F("로비 도박장 일반 베팅 {0}회 무료 (보유 {1}장)", SlotTicketBundle, SlotMachine.Tickets),
-                    Price = Mathf.RoundToInt(SlotMachine.GetBet(false) * SlotTicketBundle * SlotTicketDiscount),
+                    Price = Mathf.RoundToInt(SlotMachine.TicketBet * SlotTicketBundle * SlotTicketDiscount),
                     Apply = () => SlotMachine.AddTickets(SlotTicketBundle),
                 },
                 new StockEntry
@@ -391,7 +394,7 @@ namespace LoopRogue
                 });
             }
 
-            var itemPrice = Mathf.RoundToInt(ItemPriceBase * StageScaling.RewardMultiplier(stage));
+            var itemPrice = ItemPrice(stage);
             for (var i = 0; i < ItemInfo.Count; i++)
             {
                 var item = (ItemType)i;
@@ -408,6 +411,9 @@ namespace LoopRogue
                 });
             }
 
+            if (Traits.Has(TraitType.TradeMerchant)) // 특성 "흥정" - 던전 상인만
+                foreach (var e in pool)
+                    e.Price = Mathf.RoundToInt(e.Price * Traits.TradeMerchantDiscount);
             if (Relics.Has(RelicType.MerchantSeal)) // 유물 "상인의 인장" - 던전 상인만
             {
                 Relics.Mark(RelicType.MerchantSeal);

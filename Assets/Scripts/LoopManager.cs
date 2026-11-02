@@ -91,7 +91,7 @@ namespace LoopRogue
                       && InventoryUI.LastCloseFrame != Time.frameCount // 가방을 Esc로 닫은 그 프레임에 메뉴가 바로 열리지 않게
                       && !NpcDialogUI.BlocksInput // 대화창을 Esc로 닫은 그 프레임에 메뉴가 바로 열리지 않게
                       && !GachaReveal.BlocksInput, // Unknown 벼리기 연출을 Esc로 닫은 프레임도
-                lobbyLabel: Loc.F("로비로 이동 (이번 시도 골드 {0:0}% 손실)  [L]", Relics.DeathPenaltyRate * 100f),
+                lobbyLabel: Loc.F("로비로 이동 (이번 시도 골드 {0:0}% 손실)", Relics.DeathPenaltyRate * 100f),
                 goToTitle: RetreatToTitle);
 
             Tutorial.Attach(_roomController, _player, _hud); // 첫 판 안내(봇·테스트 맵에선 안 만든다)
@@ -285,7 +285,10 @@ namespace LoopRogue
             PlayLog.BossDefeated(_stage, _player);
             StageProgress.AdvanceStage();
             if (_stage >= StageProgress.MaxStage)
+            {
                 Achievements.Unlock("ACH_CLEAR_10");
+                StageProgress.MarkFinalBossCleared(); // 로비 층 선택이 열린다(엔딩에서 "그대로 계속"을 고르면)
+            }
             if (_roomController.NoDamageThisRoom && !BossRush.Active && !TestMap.Active)
                 Achievements.Unlock("ACH_NOHIT_" + _stage); // 층 보스 무피격
             Achievements.Check(); // 층 도달 업적
@@ -323,6 +326,10 @@ namespace LoopRogue
                         PlayLog.Note($"엔딩 - 다음 회차로 가져간 유물: {Relics.Name(carried.Value)}");
                     SaveReset.ResetForNewGame(carried);
                     UnityEngine.SceneManagement.SceneManager.LoadScene("Title");
+                }, () =>
+                {
+                    PlayLog.Note("엔딩 - 그대로 계속(진행 유지, 로비 층 선택)");
+                    SaveProgressAndLoadLobby();
                 });
                 return;
             }

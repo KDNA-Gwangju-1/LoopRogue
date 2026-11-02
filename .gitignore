@@ -93,3 +93,6 @@ crashlytics-build.properties
 # 빌드 결과물(다른 이름으로 뽑은 빌드 폴더·압축)
 /RoopRPG/
 /RoopRPG*.zip
+
+# 이펙트 확인 캡처(테스트 메뉴)
+Screenshots/

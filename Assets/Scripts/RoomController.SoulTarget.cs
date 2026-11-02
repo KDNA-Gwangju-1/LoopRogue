@@ -5,7 +5,7 @@ using UnityEngine;
 namespace LoopRogue
 {
     /// <summary>6층 망령 궁수 두 번째 기믹 "영혼 과녁"(10-23 사용자) - 촛불 뒤 체력 SoulTargetHealthRatio 아래에서 한 번.
-    /// 플레이어의 영혼이 과녁 SoulTargetCount개로 흩어져 방 곳곳에 박힌다. SoulTargetTurns턴 동안 궁수는 단단해지고(받는 피해 90% 감소)
+    /// 플레이어의 영혼이 과녁 SoulTargetCount개로 흩어져 방 곳곳에 박힌다. SoulTargetTurns턴 동안 궁수는 무적(BossInvulnerable)이고
     /// 저격(X자 → 마름모)만 쏜다 - 저격이 덮은 과녁은 부서지고, 다 부서지면 즉사. 버티면 궁수가 기절하고
     /// 남은 과녁 하나당 궁수가 받는 피해 +SoulTargetBonusPerTarget(방 끝까지). 저격은 나를 노리니 과녁에서 떨어져 서야 지킨다.</summary>
     public partial class RoomController

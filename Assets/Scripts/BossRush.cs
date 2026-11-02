@@ -80,17 +80,17 @@ namespace LoopRogue
             }
             foreach (var key in snapshots.Values.SelectMany(s => s.Keys).Distinct())
                 if (!snap.ContainsKey(key) && System.Array.IndexOf(KeepKeys, key) < 0)
-                    PlayerPrefs.DeleteKey(key);
+                    Prefs.DeleteKey(key);
             foreach (var pair in snap)
             {
                 if (System.Array.IndexOf(KeepKeys, pair.Key) >= 0)
                     continue;
                 if (pair.Value.IsFloat)
-                    PlayerPrefs.SetFloat(pair.Key, float.Parse(pair.Value.Text, System.Globalization.CultureInfo.InvariantCulture));
+                    Prefs.SetFloat(pair.Key, float.Parse(pair.Value.Text, System.Globalization.CultureInfo.InvariantCulture));
                 else
-                    PlayerPrefs.SetInt(pair.Key, int.Parse(pair.Value.Text, System.Globalization.CultureInfo.InvariantCulture));
+                    Prefs.SetInt(pair.Key, int.Parse(pair.Value.Text, System.Globalization.CultureInfo.InvariantCulture));
             }
-            PlayerPrefs.Save();
+            Prefs.Save();
             SaveReset.ReloadAll();
             player.ReloadStatsFromSave();
             Debug.Log($"[보스 러시] {bossStage}층 보스 - {source}층 입장 기준 상태(봇 중간값): Lv{RunProgress.Level} " +

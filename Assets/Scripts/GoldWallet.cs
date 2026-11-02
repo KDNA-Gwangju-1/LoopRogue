@@ -34,7 +34,7 @@ namespace LoopRogue
             if (_loaded)
                 return;
 
-            _gold = PlayerPrefs.GetInt(PrefKey, 0);
+            _gold = Prefs.GetInt(PrefKey, 0);
             _loaded = true;
         }
 
@@ -45,8 +45,8 @@ namespace LoopRogue
 
             EnsureLoaded();
             _gold += amount;
-            PlayerPrefs.SetInt(PrefKey, _gold);
-            PlayerPrefs.Save();
+            Prefs.SetInt(PrefKey, _gold);
+            Prefs.Save();
         }
 
         /// <summary>골드 차감(상점·뽑기·영약·데스 패널티 등) - 모자라면 false.</summary>
@@ -57,8 +57,8 @@ namespace LoopRogue
                 return false;
 
             _gold -= amount;
-            PlayerPrefs.SetInt(PrefKey, _gold);
-            PlayerPrefs.Save();
+            Prefs.SetInt(PrefKey, _gold);
+            Prefs.Save();
             return true;
         }
     }

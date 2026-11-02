@@ -13,8 +13,74 @@ namespace LoopRogue.EditorTools
                 return;
             EditorPrefs.SetBool(AutoPlayBot.EnabledPrefKey, true);
             EditorPrefs.SetString(AutoPlayBot.ModePrefKey, "");
+            EditorPrefs.SetString(AutoPlayBot.TraitBuildPrefKey, ""); // 특성 없이(예전 봇 그대로)
             EditorApplication.isPlaying = true;
         }
+
+        // ---- 특성 빌드 봇(11-02 사용자) - 일반 100판과 같고, 로비마다 정해진 빌드로 특성을 찍는다(한 갈래 마스터 → 다음 갈래).
+        // 로그 이름 끝에 빌드(bot_시각_dash_trade.txt). "8가지 전부 차례로"는 한 판 세트가 끝나 Play가 멈추면 다음 빌드를 저절로 켠다. ----
+        private const string BuildMenu = "LoopRogue/자동 플레이 봇 - 특성 빌드 (저장 백업 후 초기화)/";
+        private const string BuildQueueKey = "LoopRogue_AutoPlayBot_BuildQueue";
+        [MenuItem(BuildMenu + "대시 → 상인(골드)")] private static void Bot1() => StartBotWithBuild("dash_trade");
+        [MenuItem(BuildMenu + "상인(골드) → 대시")] private static void Bot2() => StartBotWithBuild("trade_dash");
+        [MenuItem(BuildMenu + "대시 → 탐색")] private static void Bot3() => StartBotWithBuild("dash_explore");
+        [MenuItem(BuildMenu + "탐색 → 대시")] private static void Bot4() => StartBotWithBuild("explore_dash");
+        [MenuItem(BuildMenu + "회전 → 상인(골드)")] private static void Bot5() => StartBotWithBuild("spin_trade");
+        [MenuItem(BuildMenu + "상인(골드) → 회전")] private static void Bot6() => StartBotWithBuild("trade_spin");
+        [MenuItem(BuildMenu + "회전 → 탐색")] private static void Bot7() => StartBotWithBuild("spin_explore");
+        [MenuItem(BuildMenu + "탐색 → 회전")] private static void Bot8() => StartBotWithBuild("explore_spin");
+
+        [MenuItem(BuildMenu + "8가지 전부 차례로 (오래 걸림)", false, 100)]
+        private static void BotAllBuilds()
+        {
+            if (EditorApplication.isPlaying || !BackupBeforeBot())
+                return;
+            var keys = System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Select(AutoPlayBot.TraitBuilds, b => b.Key));
+            EditorPrefs.SetString(BuildQueueKey, string.Join(",", keys, 1, keys.Length - 1));
+            StartBuild(keys[0]);
+            UnityEngine.Debug.Log($"[봇] 특성 빌드 {keys.Length}가지를 차례로 - 첫 빌드 {keys[0]}");
+        }
+
+        [MenuItem(BuildMenu + "차례로 돌리기 멈추기 (지금 세트까지만)", false, 101)]
+        private static void StopBuildQueue()
+        {
+            EditorPrefs.DeleteKey(BuildQueueKey);
+            UnityEngine.Debug.Log("[봇] 남은 특성 빌드 차례를 지웠습니다 - 지금 도는 세트가 끝나면 멈춥니다");
+        }
+
+        private static void StartBotWithBuild(string build)
+        {
+            if (EditorApplication.isPlaying || !BackupBeforeBot())
+                return;
+            EditorPrefs.DeleteKey(BuildQueueKey);
+            StartBuild(build);
+        }
+
+        private static void StartBuild(string build)
+        {
+            EditorPrefs.SetBool(AutoPlayBot.EnabledPrefKey, true);
+            EditorPrefs.SetString(AutoPlayBot.ModePrefKey, "");
+            EditorPrefs.SetString(AutoPlayBot.TraitBuildPrefKey, build);
+            EditorApplication.isPlaying = true;
+        }
+
+        /// <summary>차례로 돌리기 - 봇이 한 세트를 끝내고 Play를 멈추면(저장 백업은 첫 세트 전에 한 번) 다음 빌드를 켠다.</summary>
+        [InitializeOnLoadMethod]
+        private static void HookBuildQueue() => EditorApplication.playModeStateChanged += state =>
+        {
+            if (state != PlayModeStateChange.EnteredEditMode)
+                return;
+            var queue = EditorPrefs.GetString(BuildQueueKey, "");
+            if (string.IsNullOrEmpty(queue))
+                return;
+            var parts = queue.Split(',');
+            if (parts.Length > 1)
+                EditorPrefs.SetString(BuildQueueKey, string.Join(",", parts, 1, parts.Length - 1));
+            else
+                EditorPrefs.DeleteKey(BuildQueueKey);
+            UnityEngine.Debug.Log($"[봇] 다음 특성 빌드 {parts[0]} (남은 {parts.Length - 1}개)");
+            EditorApplication.delayCall += () => StartBuild(parts[0]);
+        };
 
         /// <summary>층별 순수 난이도 측정 - 일반 모드 봇이 마지막으로 남긴 기준 상태(BotLogs/reference_snapshots.tsv)로
         /// 각 층만 반복한다. 기준 파일이 없으면 바로 멈춘다(일반 모드를 먼저 한 번 돌릴 것).</summary>

@@ -104,19 +104,19 @@ namespace LoopRogue
                 return;
             _loaded = true;
 
-            var owned = PlayerPrefs.GetString(OwnedKey, "");
+            var owned = Prefs.GetString(OwnedKey, "");
             for (var i = 0; i < ItemInfo.Count; i++)
                 Owned[i] = i < owned.Length && owned[i] >= '0' && owned[i] <= '9' ? owned[i] - '0' : 0; // 예전 저장('0'/'1')도 그대로 읽힌다
 
-            var quick = PlayerPrefs.GetString(QuickKey, "-1,-1,-1").Split(',');
+            var quick = Prefs.GetString(QuickKey, "-1,-1,-1").Split(',');
             for (var i = 0; i < QuickSlotCount; i++)
                 Quick[i] = i < quick.Length && int.TryParse(quick[i], out var v) && v >= 0 && v < ItemInfo.Count ? v : -1;
         }
 
         private static void Save()
         {
-            PlayerPrefs.SetString(OwnedKey, new string(Owned.Select(o => (char)('0' + Mathf.Clamp(o, 0, 9))).ToArray()));
-            PlayerPrefs.SetString(QuickKey, string.Join(",", Quick));
+            Prefs.SetString(OwnedKey, new string(Owned.Select(o => (char)('0' + Mathf.Clamp(o, 0, 9))).ToArray()));
+            Prefs.SetString(QuickKey, string.Join(",", Quick));
         }
 
         public static bool Has(ItemType type)

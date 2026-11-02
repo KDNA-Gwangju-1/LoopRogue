@@ -164,8 +164,8 @@ namespace LoopRogue
 
         private void ShowMural(int stage)
         {
-            PlayerPrefs.SetInt(MuralSeenKey, PlayerPrefs.GetInt(MuralSeenKey, 0) | (1 << Mathf.Clamp(stage, 1, 10)));
-            PlayerPrefs.Save();
+            Prefs.SetInt(MuralSeenKey, Prefs.GetInt(MuralSeenKey, 0) | (1 << Mathf.Clamp(stage, 1, 10)));
+            Prefs.Save();
             var title = Loc.F("잊힌 벽화 - {0}층", stage);
             if (GameHUD.AutoPlayActive || NpcDialogUI.Instance == null)
             {

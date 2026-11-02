@@ -58,32 +58,32 @@ namespace LoopRogue
 
         private static void Load()
         {
-            Master = Mathf.Clamp(PlayerPrefs.GetInt(MasterKey, 100), 0, 100);
-            Sfx = Mathf.Clamp(PlayerPrefs.GetInt(SfxKey, 100), 0, 100);
-            Bgm = Mathf.Clamp(PlayerPrefs.GetInt(BgmKey, 70), 0, 100);
-            Mode = (ScreenMode)Mathf.Clamp(PlayerPrefs.GetInt(ScreenModeKey, (int)FromUnity(Screen.fullScreenMode)), 0, 2);
-            var w = PlayerPrefs.GetInt(ResWidthKey, 0);
-            var h = PlayerPrefs.GetInt(ResHeightKey, 0);
+            Master = Mathf.Clamp(Prefs.GetInt(MasterKey, 100), 0, 100);
+            Sfx = Mathf.Clamp(Prefs.GetInt(SfxKey, 100), 0, 100);
+            Bgm = Mathf.Clamp(Prefs.GetInt(BgmKey, 70), 0, 100);
+            Mode = (ScreenMode)Mathf.Clamp(Prefs.GetInt(ScreenModeKey, (int)FromUnity(Screen.fullScreenMode)), 0, 2);
+            var w = Prefs.GetInt(ResWidthKey, 0);
+            var h = Prefs.GetInt(ResHeightKey, 0);
             Resolution = w > 0 && h > 0 ? new Vector2Int(w, h) : new Vector2Int(Screen.width, Screen.height);
-            VSync = PlayerPrefs.GetInt(VSyncKey, 1) == 1;
-            ScreenShake = PlayerPrefs.GetInt(ShakeKey, 1) == 1;
-            DamageNumbers = PlayerPrefs.GetInt(DamageNumbersKey, 1) == 1;
-            GachaAnimation = PlayerPrefs.GetInt(GachaAnimationKey, 1) == 1;
+            VSync = Prefs.GetInt(VSyncKey, 1) == 1;
+            ScreenShake = Prefs.GetInt(ShakeKey, 1) == 1;
+            DamageNumbers = Prefs.GetInt(DamageNumbersKey, 1) == 1;
+            GachaAnimation = Prefs.GetInt(GachaAnimationKey, 1) == 1;
         }
 
         private static void Save()
         {
-            PlayerPrefs.SetInt(MasterKey, Master);
-            PlayerPrefs.SetInt(SfxKey, Sfx);
-            PlayerPrefs.SetInt(BgmKey, Bgm);
-            PlayerPrefs.SetInt(ScreenModeKey, (int)Mode);
-            PlayerPrefs.SetInt(ResWidthKey, Resolution.x);
-            PlayerPrefs.SetInt(ResHeightKey, Resolution.y);
-            PlayerPrefs.SetInt(VSyncKey, VSync ? 1 : 0);
-            PlayerPrefs.SetInt(ShakeKey, ScreenShake ? 1 : 0);
-            PlayerPrefs.SetInt(DamageNumbersKey, DamageNumbers ? 1 : 0);
-            PlayerPrefs.SetInt(GachaAnimationKey, GachaAnimation ? 1 : 0);
-            PlayerPrefs.Save();
+            Prefs.SetInt(MasterKey, Master);
+            Prefs.SetInt(SfxKey, Sfx);
+            Prefs.SetInt(BgmKey, Bgm);
+            Prefs.SetInt(ScreenModeKey, (int)Mode);
+            Prefs.SetInt(ResWidthKey, Resolution.x);
+            Prefs.SetInt(ResHeightKey, Resolution.y);
+            Prefs.SetInt(VSyncKey, VSync ? 1 : 0);
+            Prefs.SetInt(ShakeKey, ScreenShake ? 1 : 0);
+            Prefs.SetInt(DamageNumbersKey, DamageNumbers ? 1 : 0);
+            Prefs.SetInt(GachaAnimationKey, GachaAnimation ? 1 : 0);
+            Prefs.Save();
         }
 
         // ---- 바꾸기(옵션 메뉴) - 바꾸는 즉시 적용하고 저장 ----
@@ -153,11 +153,11 @@ namespace LoopRogue
         /// <summary>저장을 통째로 지우는 일(데이터 초기화 등) 앞뒤로 감싸서 설정만 살려둔다.</summary>
         public static void Preserve(Action wipe)
         {
-            var saved = IntKeys.Where(PlayerPrefs.HasKey).ToDictionary(k => k, PlayerPrefs.GetInt);
+            var saved = IntKeys.Where(Prefs.HasKey).ToDictionary(k => k, Prefs.GetInt);
             wipe();
             foreach (var pair in saved)
-                PlayerPrefs.SetInt(pair.Key, pair.Value);
-            PlayerPrefs.Save();
+                Prefs.SetInt(pair.Key, pair.Value);
+            Prefs.Save();
         }
     }
 }

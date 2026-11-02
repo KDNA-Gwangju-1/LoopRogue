@@ -62,7 +62,7 @@ namespace LoopRogue
         private float _hintUntil;
         private float _praiseUntil;
 
-        public static bool BasicsDone => (PlayerPrefs.GetInt(BasicsKey, 0) & AllBasics) == AllBasics;
+        public static bool BasicsDone => (Prefs.GetInt(BasicsKey, 0) & AllBasics) == AllBasics;
 
         /// <summary>튜토리얼 스테이지에서 막을 수 있는 행동. 이동은 이동 단계와 몹에게 다가가야 하는 단계(공격·대시·회전 베기)에서만 된다.</summary>
         public enum Act
@@ -127,9 +127,9 @@ namespace LoopRogue
         /// <summary>설정 "튜토리얼 다시 보기" - 기본 조작과 상황 안내를 처음부터.</summary>
         public static void ResetAll()
         {
-            PlayerPrefs.DeleteKey(BasicsKey);
-            PlayerPrefs.DeleteKey(HintsKey);
-            PlayerPrefs.Save();
+            Prefs.DeleteKey(BasicsKey);
+            Prefs.DeleteKey(HintsKey);
+            Prefs.Save();
         }
 
         /// <summary>메인 씬에서 한 번(LoopManager.Initialize) - 이미 있으면 참조만 바꾼다.</summary>
@@ -167,22 +167,22 @@ namespace LoopRogue
 
         private static bool Touch => TouchControls.Enabled;
 
-        private static int Basics => PlayerPrefs.GetInt(BasicsKey, 0);
+        private static int Basics => Prefs.GetInt(BasicsKey, 0);
         private static bool IsDone(Basic b) => (Basics & (1 << (int)b)) != 0;
 
         private static void MarkDone(Basic b)
         {
-            PlayerPrefs.SetInt(BasicsKey, Basics | (1 << (int)b));
-            PlayerPrefs.Save();
+            Prefs.SetInt(BasicsKey, Basics | (1 << (int)b));
+            Prefs.Save();
         }
 
-        private static Hint Hints => (Hint)PlayerPrefs.GetInt(HintsKey, 0);
+        private static Hint Hints => (Hint)Prefs.GetInt(HintsKey, 0);
         private static bool Shown(Hint h) => (Hints & h) != 0;
 
         private static void MarkShown(Hint h)
         {
-            PlayerPrefs.SetInt(HintsKey, (int)(Hints | h));
-            PlayerPrefs.Save();
+            Prefs.SetInt(HintsKey, (int)(Hints | h));
+            Prefs.Save();
         }
 
         // ---- 매 프레임 ----
@@ -489,8 +489,8 @@ namespace LoopRogue
                 return;
             if (!RectTransformUtility.RectangleContainsScreenPoint(_skipRect, GameInput.PointerPosition, null))
                 return;
-            PlayerPrefs.SetInt(BasicsKey, AllBasics); // 기본 조작 건너뛰기(상황 안내는 계속)
-            PlayerPrefs.Save();
+            Prefs.SetInt(BasicsKey, AllBasics); // 기본 조작 건너뛰기(상황 안내는 계속)
+            Prefs.Save();
             SetVisible(false);
         }
 

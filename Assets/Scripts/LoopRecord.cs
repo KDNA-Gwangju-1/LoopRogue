@@ -34,12 +34,12 @@ namespace LoopRogue
             if (_loaded)
                 return;
             _loaded = true;
-            _deaths = PlayerPrefs.GetInt(DeathsKey, 0);
-            _milestoneSeen = PlayerPrefs.GetInt(MilestoneSeenKey, 0);
+            _deaths = Prefs.GetInt(DeathsKey, 0);
+            _milestoneSeen = Prefs.GetInt(MilestoneSeenKey, 0);
         }
 
         /// <summary>예전 저장(평생 사망 키가 없을 때)은 이번 회차 사망 수에서 시작한다.</summary>
-        public static int LifetimeDeaths => Mathf.Max(PlayerPrefs.GetInt(LifetimeDeathsKey, 0), TotalDeaths);
+        public static int LifetimeDeaths => Mathf.Max(Prefs.GetInt(LifetimeDeathsKey, 0), TotalDeaths);
 
         public static int TotalDeaths
         {
@@ -67,10 +67,10 @@ namespace LoopRogue
         public static void AddDeath()
         {
             EnsureLoaded();
-            PlayerPrefs.SetInt(LifetimeDeathsKey, LifetimeDeaths + 1);
+            Prefs.SetInt(LifetimeDeathsKey, LifetimeDeaths + 1);
             _deaths++;
-            PlayerPrefs.SetInt(DeathsKey, _deaths);
-            PlayerPrefs.Save();
+            Prefs.SetInt(DeathsKey, _deaths);
+            Prefs.Save();
             Achievements.Check(); // 사망 횟수 업적
         }
 
@@ -92,8 +92,8 @@ namespace LoopRogue
         {
             EnsureLoaded();
             _milestoneSeen = Mathf.Max(_milestoneSeen, milestone);
-            PlayerPrefs.SetInt(MilestoneSeenKey, _milestoneSeen);
-            PlayerPrefs.Save();
+            Prefs.SetInt(MilestoneSeenKey, _milestoneSeen);
+            Prefs.Save();
         }
     }
 }

@@ -293,6 +293,8 @@ namespace LoopRogue
             var glove = Relics.Has(RelicType.PuzzleGlove) ? Relics.PuzzleGloveRewardMultiplier : 1; // 유물 "퍼즐 장인의 장갑"
             if (glove > 1) Relics.Mark(RelicType.PuzzleGlove);
             var gold = PuzzleBase.BonusGold(type, _stage) * glove;
+            if (Traits.Has(TraitType.ExplorePuzzle))
+                gold = Mathf.RoundToInt(gold * Traits.ExplorePuzzleGoldRate); // 특성 "퍼즐 달인"
             if (gold > 0)
             {
                 GoldWallet.Add(gold);
@@ -552,6 +554,8 @@ namespace LoopRogue
         private const float CurseChance = 0.07f; // 상인도 안 나오면 그림자 거래상
         /// <summary>떠돌이 마석 상인(10-29) - 마석이 1개 이상일 때만, 모험가 다음·상인 앞에서 굴린다.</summary>
         private const float RelicDealerChance = 0.08f;
+        /// <summary>특성 "행운의 손님" - 떠돌이 상인·그림자 거래상·마석 상인 등장 확률 +10%p씩.</summary>
+        private static float NpcLuck => Traits.Has(TraitType.TradeLuck) ? Traits.TradeLuckNpcBonus : 0f;
 
         /// <summary>일반 방을 비운 직후(출구가 생긴 뒤) - 확률로 NPC를 플레이어 근처에 세운다. 봇도 걸어가서 말을 건다(AutoPlayBot).</summary>
         private void TrySpawnRoomClearNpc()
@@ -568,11 +572,11 @@ namespace LoopRogue
                 type = NpcType.Blacksmith; // 히든 - 조각을 들고 있으면 반드시
             else if (report || (!RunQuest.Active && room == RunQuest.AcceptRoom && Rng.NextDouble() < WandererChance))
                 type = NpcType.Wanderer;
-            else if (ManaStoneWallet.Stones >= 1 && !ManaStoneWallet.DealerMetOnStage(_stage) && Rng.NextDouble() < RelicDealerChance)
+            else if (ManaStoneWallet.Stones >= 1 && ManaStoneWallet.DealersMetOnStage(_stage) < (Traits.Has(TraitType.TradeLuck) ? Traits.TradeLuckDealersPerStage : 1) && Rng.NextDouble() < RelicDealerChance + NpcLuck)
                 type = NpcType.RelicDealer;
-            else if (Rng.NextDouble() < MerchantChance)
+            else if (Rng.NextDouble() < MerchantChance + NpcLuck)
                 type = NpcType.Merchant;
-            else if (Rng.NextDouble() < CurseChance)
+            else if (Rng.NextDouble() < CurseChance + NpcLuck)
                 type = NpcType.Curse;
             else
                 return;
@@ -588,7 +592,7 @@ namespace LoopRogue
             Map.PlaceActor(_npc, pos.Value);
             _npc.PlayAppearEffect();
             if (type == NpcType.RelicDealer)
-                ManaStoneWallet.MarkDealerMet(_stage); // 한 층에 한 번만(죽고 다시 돌아도)
+                ManaStoneWallet.MarkDealerMet(_stage); // 한 층에 한 번만(죽고 다시 돌아도, 특성 "행운의 손님"이면 두 번)
             if (type == NpcType.Blacksmith)
                 Achievements.Unlock("ACH_SMITH_MET");
             ShowMessage(report
@@ -600,10 +604,13 @@ namespace LoopRogue
         /// <summary>처치·방 클리어 골드 배율 - 골드 카드(하한 -50%) + 반지 "행운" + 유물 "탐욕" + 칭호, × 저주 계약(황금·무모).</summary>
         private float GoldBonus =>
             (1f + _player.Stats.EffectiveGoldBonus + EquipmentEffects.ExtraGoldBonus + Relics.ExtraGoldBonus + Achievements.TitleGoldBonus)
-            * Curses.GoldMultiplier;
+            * Curses.GoldMultiplier * TradeGoldMultiplier;
+
+        /// <summary>특성 "큰손" - 골드 ×1.3. 골드 카드 상한(100%)과 따로 곱한다(11-02 사용자).</summary>
+        private static float TradeGoldMultiplier => Traits.Has(TraitType.TradeGold) ? 1f + Traits.TradeGoldBonus : 1f;
 
         public int RoomClearGold =>
-            Mathf.RoundToInt(GoldPerRoomClear * StageScaling.RewardMultiplier(_stage) * (1f + _player.Stats.EffectiveGoldBonus));
+            Mathf.RoundToInt(GoldPerRoomClear * StageScaling.RewardMultiplier(_stage) * (1f + _player.Stats.EffectiveGoldBonus) * TradeGoldMultiplier);
 
         /// <summary>NPC가 볼일을 마치고 떠날 때(그림자 거래상의 계약 성립 등) - 연기 속에 사라지고 칸을 비운다.</summary>
         public void DismissNpc(NpcActor npc)
@@ -894,6 +901,8 @@ namespace LoopRogue
                 ManaStoneWallet.Add(1);
                 ShowMessage(Loc.F("<color=#C9A0FF>마석 +{0}</color> (보유 {1})", 1, ManaStoneWallet.Stones));
             }
+            if (enemy.IsElite && !enemy.NoReward && Traits.TryEliteDrop(Rng)) // 특성 포인트 - 10%, 최대 9점(11-02 사용자)
+                ShowMessage(Loc.F("<color=#8CE08C>특성 포인트 +1</color> (정예 {0}/{1}) - 로비에서 T", Traits.ElitePoints, Traits.ElitePointCap));
             if (enemy.IsMimic)
             {
                 if (Relics.Has(RelicType.EliteHunter)) Relics.Mark(RelicType.EliteHunter);
@@ -994,7 +1003,7 @@ namespace LoopRogue
 
         /// <summary>분열체가 죽은 자리(이미 맵에서 빠진 뒤) 근처 빈 칸에 작은 분열 조각을 만든다 - 조각은 더 갈라지지 않는다.
         /// 처치 처리(NotifyEnemyDefeated) 전에 불러야 방이 비었다고 판정되지 않는다.</summary>
-        public void SpawnSplitChildren(EnemyActor parent)
+        public void SpawnSplitChildren(EnemyActor parent, int count = 0)
         {
             var cells = new List<Vector2Int>();
             if (Map.IsWalkable(parent.GridPos) && ExitPosition != parent.GridPos)
@@ -1003,7 +1012,7 @@ namespace LoopRogue
                 if (Map.IsWalkable(p) && ExitPosition != p)
                     cells.Add(p);
 
-            foreach (var pos in cells.Take(parent.IsElite ? EnemyActor.EliteSplitCount : EnemyActor.SplitCount)) // 정예는 셋으로
+            foreach (var pos in cells.Take(count > 0 ? count : parent.IsElite ? EnemyActor.EliteSplitCount : EnemyActor.SplitCount)) // 정예는 셋으로(정예 산개는 count)
             {
                 var go = new GameObject("SplitChild");
                 go.transform.SetParent(transform, false);
@@ -1430,7 +1439,7 @@ namespace LoopRogue
             _secretWall = null;
             if (_loadCleared || def.IsBossRoom || def.IsTestRoom || def.IsTutorialRoom || def.RoomNumber < 2)
                 return;
-            if (PlayerPrefs.GetInt(SecretFoundStageKey, 0) == _stage || Rng.NextDouble() >= SecretWallChance)
+            if (Prefs.GetInt(SecretFoundStageKey, 0) == _stage || Rng.NextDouble() >= SecretWallChance)
                 return;
 
             // 방 가장자리(또는 기존 벽 옆) 빈 칸 중, 플레이어 시작 칸에서 3칸 이상 떨어지고 주변 빈 칸이 2개 이상인 곳(길을 막지 않게)
@@ -1517,8 +1526,8 @@ namespace LoopRogue
         private void OnSecretWallBroken(Vector2Int cell)
         {
             _secretWall = null;
-            PlayerPrefs.SetInt(SecretFoundStageKey, _stage);
-            PlayerPrefs.Save();
+            Prefs.SetInt(SecretFoundStageKey, _stage);
+            Prefs.Save();
             SpawnEvent(cell, RoomEventType.SecretChest);
             ShowMessage(Loc.T("<color=#FFD966>무너진 벽 너머에 무언가 있다!</color> 숨겨진 보물상자를 찾았다"));
             Achievements.Unlock("ACH_SECRET_WALL");
@@ -2690,6 +2699,13 @@ namespace LoopRogue
                 SpawnExit();
                 if (ExitPosition.HasValue)
                     TrySpawnRoomClearNpc(); // 안내는 같은 프레임의 "출구가 열렸다" 아래 줄에 붙는다(GameHUD.ShowBanner)
+                if (Traits.Has(TraitType.ExploreFind) && Rng.NextDouble() < Traits.ExploreFindChance)
+                {
+                    var bonus = RoomClearGold * Traits.ExploreFindGoldRooms; // 특성 "노다지"(11-02 사용자 - 일반 방 클리어 시 대량 골드)
+                    GoldWallet.Add(bonus);
+                    ShowMessage(Loc.F("<color=#FFD966>노다지!</color> 골드 +{0}", bonus));
+                    HitFeedback.OnBonanza(_player); // 금화 비
+                }
             }
         }
 
@@ -2817,8 +2833,6 @@ namespace LoopRogue
                 if (dead != null && _player.ClaimKill(dead))
                     return;
             }
-            if (_player.ResolveShadowEchoes())
-                return; // 유물 "그림자 걸음" - 지난 대시로 벤 몹에게 그림자 베기(그걸로 방이 끝났다)
 
             if (TickBoarDeadline())
                 return; // 1층 멧돼지 기둥 제한 턴 - 즉사

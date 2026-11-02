@@ -128,6 +128,9 @@ namespace LoopRogue
         /// <summary>봇 통계용 - 유물 "기사의 기억"으로 피한 횟수.</summary>
         public static int KnightMemoryReadCount;
 
+        /// <summary>특성 "칼날 방패" - 플레이어가 이번 턴에 돌았으면 1보다 작다(PlayerActor.SpinActive).</summary>
+        public float GuardDamageFactor = 1f;
+
         public float TakeIncomingDamage(float rawDamage)
         {
             if (BlockNextHit)
@@ -152,6 +155,7 @@ namespace LoopRogue
             damage *= Relics.RecurrenceMultiplier; // 유물 "되풀이의 각인"
             damage *= Curses.DamageTakenMultiplier; // 저주 계약(분노·무모) - 플레이어만 이 함수로 맞는다
             damage *= RunBuffs.DamageTakenMultiplier; // 방 이벤트 "모루"
+            damage *= GuardDamageFactor; // 특성 "칼날 방패" - 이번 턴에 돌았으면(PlayerActor가 켜고 끈다)
 
             var absorbed = Mathf.Min(Shield, damage);
             Shield -= absorbed;

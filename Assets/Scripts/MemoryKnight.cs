@@ -82,7 +82,7 @@ namespace LoopRogue
                 return true;
             if (stage < MinStage)
                 return false;
-            if (!Blacksmith.QuestActive && PlayerPrefs.GetInt(SeenStageKey, 0) == stage)
+            if (!Blacksmith.QuestActive && Prefs.GetInt(SeenStageKey, 0) == stage)
                 return false; // 이 층에선 이미 한 번 나왔다
             return rng.NextDouble() < (Blacksmith.QuestActive ? Blacksmith.QuestKnightChance : RoomChance);
         }
@@ -96,26 +96,26 @@ namespace LoopRogue
         /// <summary>기사가 실제로 나타났다(방을 비운 순간) - 이 층 기회는 끝.</summary>
         public static void MarkAppeared(int stage)
         {
-            PlayerPrefs.SetInt(SeenStageKey, stage);
-            PlayerPrefs.Save();
+            Prefs.SetInt(SeenStageKey, stage);
+            Prefs.Save();
         }
 
         /// <summary>대장장이 의뢰를 받은 직후 - 이 층에서 이미 잡았어도 다시 나올 수 있게.</summary>
         public static void AllowAgainThisStage()
         {
-            PlayerPrefs.DeleteKey(SeenStageKey);
-            PlayerPrefs.Save();
+            Prefs.DeleteKey(SeenStageKey);
+            Prefs.Save();
         }
 
-        public static bool EverDefeated => PlayerPrefs.GetInt(DefeatedKey, 0) == 1;
+        public static bool EverDefeated => Prefs.GetInt(DefeatedKey, 0) == 1;
 
         /// <summary>기사를 잡았다 - 처음이면 true(히든 유물).</summary>
         public static bool MarkDefeated(int stage)
         {
             if (EverDefeated)
                 return false;
-            PlayerPrefs.SetInt(DefeatedKey, 1);
-            PlayerPrefs.Save();
+            Prefs.SetInt(DefeatedKey, 1);
+            Prefs.Save();
             return true;
         }
 

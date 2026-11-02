@@ -23,7 +23,7 @@ namespace LoopRogue
         public static bool DashPierces => Relics.Has(RelicType.ChargeHorn);
         public const int DashCooldownTurns = 5;
         public const int SpinCooldownTurns = 6;
-        public static float SpinDamageRate => Relics.Has(RelicType.SpinningBlade) ? Relics.SpinningBladeDamageRate : 0.8f; // 유물 "회전 칼날"
+        public static float SpinDamageRate => Relics.Has(RelicType.SpinningBlade) ? Relics.SpinningBladeDamageRate : 0.4f; // 유물 "회전 칼날"(11-02 사용자 너프 80 → 40%)
 
         private static readonly Vector2Int[] SpinOffsetsBase =
         {
@@ -454,6 +454,18 @@ namespace LoopRogue
             InSmoke = false;
             _smokedEnemies.Clear();
             LastSkill = AttackStyle.Other;
+            _spinHoldTurns = 0; // 회전 유지는 그 방에서만
+            _spinJustUsed = false;
+            _dashMarks.Clear();
+            ClearShadowEchoes();
+            if (_dashChaining) // 연속 대시 중 방이 넘어갔으면 끊는다(새 방에서 조준이 켜진 채로 시작하지 않게)
+            {
+                _dashChaining = false;
+                IsAimingDash = false;
+                DashCooldown = DashCooldownMax;
+            }
+            _spinCount = 0;
+            SpinActive = false;
 
             var shieldRate = (EquipmentEffects.Has(ItemSlot.Armor, 1) ? EquipmentEffects.RoomShieldRate : 0f) + Stats.RoomShieldCardRate; // 갑옷 효과 + 수호막 카드
             Stats.Shield = Stats.MaxHealth * shieldRate;
@@ -520,6 +532,13 @@ namespace LoopRogue
             WebImmuneTurns = 0;
             DashCooldown = 0;
             SpinCooldown = 0;
+            _dashReturnTurns = 0;
+            _spinHoldTurns = 0;
+            _spinJustUsed = false;
+            _spinCount = 0;
+            SpinActive = false;
+            _dashChaining = false;
+            ClearShadowEchoes();
             IsAimingDash = false;
             AimingItem = null;
             _comboCount = 0;
@@ -557,7 +576,9 @@ namespace LoopRogue
         }
 
         /// <summary>지금 이동/공격 입력을 받을 수 있는 상태인지(키 입력과 자동 플레이 봇이 같은 조건을 쓴다).</summary>
-        public bool CanAct => _room != null && !_room.IsInputLocked && !Levels.IsChoosingUpgrade && !Stats.IsDead && !PauseMenu.BlocksInput && !InventoryUI.IsOpen
+        public bool CanAct => CanActBase && !IsSpinLocked; // 회전 유지 중엔 Update가 저절로 턴을 넘긴다(봇도 기다린다)
+
+        private bool CanActBase => _room != null && !_room.IsInputLocked && !Levels.IsChoosingUpgrade && !Stats.IsDead && !PauseMenu.BlocksInput && !InventoryUI.IsOpen
                               && !NpcDialogUI.BlocksInput // 대화창을 닫은 키(Space/숫자)가 대기/퀵슬롯으로 또 읽히지 않게 닫힌 프레임까지
                               && !GachaReveal.BlocksInput; // Unknown 벼리기 연출(대장장이)
 
@@ -615,6 +636,14 @@ namespace LoopRogue
                 Wait(); // 발악 시간이 다 됐다 - 한 턴 넘겨 기사가 바로 쓰러지게
                 return true;
             }
+            if (GameInput.Down(Key.R) && !IsAimingDash && CanDashReturn)
+            {
+                if (TryDashReturn())
+                {
+                    _realtimeClock = 0f;
+                    return true;
+                }
+            }
             if (GameInput.Down(Key.Q))
             {
                 if (RootedTurns > 0)
@@ -664,8 +693,20 @@ namespace LoopRogue
 
         private void Update()
         {
-            if (!CanAct)
+            if (!CanActBase)
                 return;
+            if (IsSpinLocked)
+            {
+                _spinHoldClock += Time.deltaTime;
+                if (_spinHoldClock < SpinHoldTickSeconds)
+                    return;
+                _spinHoldClock = 0f;
+                BeginAction();
+                PlayLog.Act("회전 유지");
+                EndTurn(); // 여기서 한 바퀴(SpinHoldTick)
+                return;
+            }
+            _spinHoldClock = 0f;
 
 
             Vector2Int? direction = null;
@@ -748,6 +789,12 @@ namespace LoopRogue
             if (GameInput.Down(Key.E) && TutorialStage.Blocks(Tutorial.Act.Spin, _room))
                 return;
 
+            if (GameInput.Down(Key.R) && !IsAimingDash && CanDashReturn)
+            {
+                TryDashReturn(); // 특성 "되돌아오기"(11-02 사용자 - 예전엔 Q를 한 번 더, 이제 R)
+                return;
+            }
+
             if (GameInput.Down(Key.Q))
             {
                 if (IsAimingDash)
@@ -779,6 +826,8 @@ namespace LoopRogue
                     if (!TryDash(direction.Value))
                         _room.ShowMessage(Loc.T("그쪽으로는 대시할 수 없다"));
                 }
+                else if (_dashChaining && GameInput.Down(Key.Space))
+                    StopDashChain(); // 연속 대시 중 대기 키 = 연속 대시 그만(턴은 안 쓴다, 11-02 사용자)
                 return; // 방향 고르는 중엔 대기 키도 무시
             }
 
@@ -960,7 +1009,10 @@ namespace LoopRogue
                 blocked = true;
             }
             enemy.Stats.TakeDamage(damage);
-            DamagePopup.Spawn(enemy.transform.position, damage, blocked ? new Color(0.6f, 0.65f, 0.75f) : Color.white, isCritical && !blocked);
+            if (enemy.IsBoss && enemy.DamageTakenMultiplier <= 0f)
+                DamagePopup.SpawnText(enemy.transform.position, Loc.T("무적"), new Color(0.7f, 0.75f, 0.85f)); // 기믹 중 보스(11-02 무적)
+            else
+                DamagePopup.Spawn(enemy.transform.position, damage, blocked ? new Color(0.6f, 0.65f, 0.75f) : Color.white, isCritical && !blocked);
             HitFeedback.OnPlayerHitEnemy(this, enemy, direction, isCritical, blocked);
             OnAttackedEnemy?.Invoke(enemy);
             BreakSmoke(); // 때리는 순간 연막이 걷힌다(일반 공격·대시·회전 베기 공통)
@@ -975,25 +1027,148 @@ namespace LoopRogue
             return ClaimKill(enemy);
         }
 
-        // ---- 유물 "그림자 걸음"(10-29 사용자) - 대시로 벤 몹에게 한 턴 뒤(그 몹 턴이 끝날 때) 그 대시 피해의 75%가 그림자로 한 번 더 ----
-        private readonly List<(EnemyActor Enemy, float Damage)> _shadowEchoes = new List<(EnemyActor, float)>();
+        // ---- 유물 "그림자 걸음"(10-29 사용자) - 대시로 벤 몹에게 그 대시 피해의 75%가 그림자로 한 번 더.
+        // 11-02 사용자: 맞고 살아남은 몹에 그림자가 붙어 있는 게 보이고(ShadowEchoMark), 내 "다음 행동"이 끝나는 순간(EndTurn, 몹 턴 전) 그림자들이 같이 벤다.
+        // 예전엔 대시한 그 몹 턴이 끝날 때 바로 들어갔다. Armed = 다음 행동에서 터질 준비가 됐다(그 대시 행동 안에서 붙은 그림자는 아직). ----
+        private sealed class ShadowEcho
+        {
+            public EnemyActor Enemy;
+            public float Damage;
+            public bool Armed;
+            public GameObject Mark;
+        }
 
-        /// <summary>몹 턴이 끝난 뒤(RoomController) - 쌓인 그림자 베기를 넣는다. 방이 넘어갔으면 true.</summary>
-        public bool ResolveShadowEchoes()
+        private readonly List<ShadowEcho> _shadowEchoes = new List<ShadowEcho>();
+
+        private static readonly Color ShadowEchoColor = new Color(0.55f, 0.35f, 0.95f);
+
+        /// <summary>그림자 걸음 예약 - 벤 몹에 보랏빛 그림자가 달라붙는다(다음 행동 때 ResolveShadowEchoes에서 다시 벤다).</summary>
+        private void AddShadowEcho(EnemyActor target, float damage)
+        {
+            var echo = new ShadowEcho { Enemy = target, Damage = damage };
+            _shadowEchoes.Add(echo);
+            if (!HitFeedback.Enabled || target == null)
+                return;
+            PlayShadowMarkFx(target.transform.position, target);
+            echo.Mark = CreateShadowMark(target);
+        }
+
+        /// <summary>몹에 붙어 따라다니는 그림자 - 플레이어 실루엣을 반투명 보라로, 몹 왼쪽 위에 살짝 겹쳐서. 터지거나 몹이 죽으면 사라진다.</summary>
+        private GameObject CreateShadowMark(EnemyActor target)
+        {
+            if (_renderer == null || _renderer.sprite == null)
+                return null;
+            var go = new GameObject("ShadowEchoMark");
+            go.transform.SetParent(target.transform, false);
+            var r = VisualUtil.CreateSpriteVisual(go, _renderer.sprite, GridConstants.CellSize * 0.85f / Mathf.Max(0.01f, target.transform.lossyScale.x), sortingOrder: 6);
+            r.color = new Color(0.6f, 0.45f, 1f, 0.55f);
+            go.transform.localPosition = new Vector3(-0.22f, 0.12f, -0.05f);
+            go.AddComponent<ShadowMarkBob>();
+            return go;
+        }
+
+        /// <summary>붙어 있는 그림자가 숨 쉬듯 살짝 흔들리고 깜빡인다.</summary>
+        private sealed class ShadowMarkBob : MonoBehaviour
+        {
+            private SpriteRenderer _r;
+            private Vector3 _base;
+            private float _phase;
+
+            private void Start()
+            {
+                _r = GetComponent<SpriteRenderer>();
+                _base = transform.localPosition;
+                _phase = UnityEngine.Random.value * 6f;
+            }
+
+            private void Update()
+            {
+                var t = Time.time * 3f + _phase;
+                transform.localPosition = _base + new Vector3(0f, Mathf.Sin(t) * 0.03f, 0f);
+                if (_r != null)
+                    _r.color = new Color(0.6f, 0.45f, 1f, 0.42f + 0.18f * Mathf.Sin(t * 1.3f));
+            }
+        }
+
+        private static void RemoveMark(ShadowEcho echo)
+        {
+            if (echo.Mark != null)
+                Destroy(echo.Mark);
+            echo.Mark = null;
+        }
+
+        /// <summary>방을 옮기거나 새 시도 - 붙어 있던 그림자를 전부 지운다.</summary>
+        private void ClearShadowEchoes()
+        {
+            foreach (var echo in _shadowEchoes)
+                RemoveMark(echo);
+            _shadowEchoes.Clear();
+        }
+
+        /// <summary>그림자 걸음 - 벤 순간(보랏빛 그림자 갈라짐 + 플레이어 실루엣이 달라붙음). 테스트 메뉴 "그림자 걸음 이펙트 캡처"도 이걸 부른다.</summary>
+        public void PlayShadowMarkFx(Vector3 position, EnemyActor enemy = null)
+        {
+            // 11-02 사용자 "어두운 방에서 잘 안 보인다" - 밝은 보라로, 실루엣 더 진하게, 몹이 보랏빛으로 번쩍 + 작은 파편
+            Fx.Play("shadow_split", position, 1.2f, tint: new Color(0.8f, 0.6f, 1f, 1f), fps: 16f, sortingOrder: 6);
+            if (_renderer != null)
+                DeathBurst.SpawnGhost(_renderer.sprite, position, transform.localScale.x, new Color(0.7f, 0.55f, 1f, 0.65f));
+            DeathBurst.Spawn(position, new Color(0.75f, 0.55f, 1f), count: 6, speed: 4f, size: 0.1f);
+            if (enemy != null)
+                ActorJuice.Get(enemy).Flash(new Color(0.8f, 0.6f, 1f));
+        }
+
+        // ---- 테스트 메뉴 "그림자 걸음 이펙트 캡처" - 피해 없이 붙기 → 베기만 보여 준다 ----
+        private GameObject _previewShadowMark;
+
+        public void PreviewShadowMark(Vector3 position, EnemyActor enemy)
+        {
+            PlayShadowMarkFx(position, enemy);
+            if (enemy != null)
+                _previewShadowMark = CreateShadowMark(enemy);
+        }
+
+        public void PreviewShadowStrike(Vector3 position, EnemyActor enemy)
+        {
+            if (_previewShadowMark != null)
+                Destroy(_previewShadowMark);
+            PlayShadowStrikeFx(position, enemy);
+        }
+
+        /// <summary>그림자 걸음 - 다음 행동 때 다시 벨 때(실루엣 잔상 + 보라색 그림자 베기 + 연기 + 파편, 몹이 있으면 보랏빛 번쩍).</summary>
+        public void PlayShadowStrikeFx(Vector3 position, EnemyActor enemy)
+        {
+            if (_renderer != null)
+                DeathBurst.SpawnGhost(_renderer.sprite, position + new Vector3(-0.25f, 0.1f, 0f), transform.localScale.x, new Color(0.6f, 0.45f, 1f, 0.7f));
+            // 보라색 전용 베기(Effects/shadow_slash - 치명타 베기를 보라로 다시 칠함, shadow_slash.py). 없으면 예전처럼 치명타 베기에 보라를 곱한다
+            if (Fx.Play("shadow_slash", position, 1.4f, fps: 20f, sortingOrder: 7) == null)
+                Fx.Play("slash_crit", position, 1.4f, tint: ShadowEchoColor, fps: 20f, sortingOrder: 7);
+            Fx.Play("death_smoke", position, 0.9f, tint: new Color(0.35f, 0.25f, 0.55f));
+            DeathBurst.Spawn(position, ShadowEchoColor, count: 10, speed: 6f, size: 0.12f);
+            if (enemy != null)
+                ActorJuice.Get(enemy).Flash(ShadowEchoColor);
+        }
+
+        /// <summary>내 행동이 끝날 때(EndTurn, 몹 턴 전) - 준비된(지난 행동 때 붙은) 그림자들이 같이 벤다. 이번 행동에서 새로 붙은 그림자는
+        /// 준비만 해 두고 다음 행동 때. 그새 죽은 몹의 그림자는 그냥 사라진다. 방이 넘어갔으면 true.</summary>
+        private bool ResolveShadowEchoes()
         {
             if (_shadowEchoes.Count == 0)
                 return false;
-            var echoes = _shadowEchoes.ToArray();
-            _shadowEchoes.Clear();
-            foreach (var (enemy, damage) in echoes)
+            var ready = _shadowEchoes.Where(e => e.Armed).ToList();
+            _shadowEchoes.RemoveAll(e => e.Armed || e.Enemy == null || e.Enemy.Stats.IsDead);
+            foreach (var echo in _shadowEchoes)
+                echo.Armed = true; // 이번 행동에서 붙은 그림자 - 다음 행동 때
+            foreach (var echo in ready)
             {
+                RemoveMark(echo);
+                var enemy = echo.Enemy;
                 if (enemy == null || enemy.Stats.IsDead || !_room.Enemies.Contains(enemy))
                     continue; // 그새 죽었거나 방이 바뀌었다
                 Relics.Mark(RelicType.ShadowStep);
-                enemy.Stats.TakeDamage(damage);
-                DamagePopup.Spawn(enemy.transform.position, damage, new Color(0.62f, 0.48f, 0.95f));
+                enemy.Stats.TakeDamage(echo.Damage);
+                DamagePopup.Spawn(enemy.transform.position, echo.Damage, new Color(0.62f, 0.48f, 0.95f));
                 if (HitFeedback.Enabled)
-                    Fx.Play("death_smoke", enemy.transform.position, 0.9f, tint: new Color(0.35f, 0.25f, 0.55f));
+                    PlayShadowStrikeFx(enemy.transform.position, enemy); // 그림자가 보랏빛 칼날로 다시 벤다
                 if (enemy.Stats.IsDead && ClaimKill(enemy))
                     return true;
             }
@@ -1004,6 +1179,13 @@ namespace LoopRogue
         /// 폭탄/반사 부적 공통. 방이 넘어갔으면 true.</summary>
         public bool ClaimKill(EnemyActor enemy)
         {
+            if (Traits.Has(TraitType.SpinStorm) && (_spinHoldTurns > 0 || _spinActive) && _spinCount > 0
+                && ++_spinStormKills >= Traits.SpinStormKillsPerTurn)
+            {
+                _spinStormKills = 0;
+                _spinHoldTurns++; // 특성 "끝없는 회전" - 도는 동안 3마리 처치마다 회전 +1턴(마지막 바퀴에서 잡아도 이어진다)
+                DamagePopup.SpawnText(transform.position + Vector3.up * 0.4f, Loc.T("회오리 +1"), new Color(0.7f, 0.9f, 1f));
+            }
             EnemyKilled?.Invoke(enemy);
             HitFeedback.OnEnemyKilled(enemy);
             var blastTargets = CollectChainBlastTargets(enemy);
@@ -1137,15 +1319,19 @@ namespace LoopRogue
 
         /// <summary>passed = 유물 "돌진의 뿔"일 때 뚫고 지나가며 벨 몹들(가는 길 순서, 첫 몹 = hit). 돌진의 뿔이면 몹을 지나 방 끝/벽/다른 칸 앞까지
         /// 가서 마지막 빈칸에 내려선다(몹 칸엔 안 내려섬).</summary>
-        public bool PreviewDash(Vector2Int dir, out Vector2Int landing, out EnemyActor hit, out List<EnemyActor> passed)
+        public bool PreviewDash(Vector2Int dir, out Vector2Int landing, out EnemyActor hit, out List<EnemyActor> passed) =>
+            PreviewDashFrom(GridPos, dir, out landing, out hit, out passed);
+
+        /// <summary>start에서 dir로 대시했을 때 - 특성 "분신 대시"의 분신 길도 같은 규칙(돌진의 뿔 포함)으로 잰다.</summary>
+        private bool PreviewDashFrom(Vector2Int start, Vector2Int dir, out Vector2Int landing, out EnemyActor hit, out List<EnemyActor> passed)
         {
             passed = null;
             if (DashPierces)
             {
-                landing = GridPos;
+                landing = start;
                 hit = null;
                 passed = new List<EnemyActor>();
-                var at = GridPos;
+                var at = start;
                 for (var i = 0; i < DashRange; i++)
                 {
                     var next = at + dir;
@@ -1164,11 +1350,11 @@ namespace LoopRogue
                         landing = next;
                 }
                 hit = passed.Count > 0 ? passed[0] : null;
-                return landing != GridPos || hit != null;
+                return landing != start || hit != null;
             }
-            landing = GridPos;
+            landing = start;
             hit = null;
-            var cursor = GridPos;
+            var cursor = start;
             for (var i = 0; i < DashRange; i++)
             {
                 var next = cursor + dir;
@@ -1188,12 +1374,113 @@ namespace LoopRogue
                     break;
                 landing = next;
             }
-            return landing != GridPos || hit != null;
+            return landing != start || hit != null;
         }
 
         /// <summary>대시를 쓰면 걸리는 쿨타임(장비·유물 감소 포함) - 6층 포위 폭발 간격도 이걸 기준으로 한다(BossBrain).</summary>
         public static int DashCooldownMax => Mathf.Max(1, DashCooldownTurns - EquipmentEffects.SkillCooldownReduction // 반지 "민첩"
             - (Relics.Has(RelicType.Gale) ? Relics.GaleDashCooldownReduction : 0)); // 유물 "질풍"
+
+        // ---- 특성 "되돌아오기"(11-02 사용자) - 대시 바로 다음 행동(Traits.DashReturnTurns)에 R을 누르면 대시를 시작한 자리로 돌아온다.
+        // 한 턴을 쓰고, 가는 길엔 공격 없음. 시작 자리가 막혔거나 묶였으면 못 돌아온다. 다른 방(새 GridMap)으로 넘어가면 사라진다. ----
+        private Vector2Int _dashReturnPos;
+        private GridMap _dashReturnMap;
+        private int _dashReturnTurns;
+
+        /// <summary>지금 R을 누르면 되돌아오기가 되는지(HUD 대시 칸이 되돌아오기 그림·R로 바뀐다).</summary>
+        public bool CanDashReturn => _dashReturnTurns > 0 && _dashReturnMap == Map && _dashReturnPos != GridPos;
+
+        private bool TryDashReturn()
+        {
+            if (RootedTurns > 0)
+            {
+                _room.ShowMessage(Loc.T("거미줄에 묶여 돌아갈 수 없다!"));
+                return false;
+            }
+            if (!Map.IsWalkable(_dashReturnPos))
+            {
+                _room.ShowMessage(Loc.T("돌아갈 자리가 막혀 있다"));
+                return false;
+            }
+            BeginAction();
+            PlayLog.Act("되돌아오기");
+            _dashReturnTurns = 0;
+            var from = transform.position;
+            Map.MoveActor(this, _dashReturnPos);
+            HitFeedback.OnDash(this, from);
+            _room.CheckPlayerCrack();
+            _room.CheckSlimePuddle();
+            _room.Puzzle?.PlayerMoved(GridPos);
+            EndTurn();
+            return true;
+        }
+
+        /// <summary>연속 대시를 여기서 끝낸다 - 조준을 풀고 쿨타임(턴은 안 쓴다).</summary>
+        private void StopDashChain()
+        {
+            _dashChaining = false;
+            IsAimingDash = false;
+            DashCooldown = DashCooldownMax;
+            _room.ShowMessage(Loc.T("연속 대시를 멈췄다"));
+        }
+
+        // ---- 특성 "연속 대시"(대시 3, 11-02 사용자 "3번 연속 대시") ----
+        private bool _inDash;          // TryDash 안의 BeginAction - 연속 대시를 끊지 않게
+        private bool _dashChaining;    // 연속 대시 중(다음 행동이 대시면 이어진다)
+        private int _dashChainLeft;    // 이어서 더 쓸 수 있는 대시 수
+
+        // ---- 특성 "대시 파동"(대시 4, 11-02 사용자 "대시한 방향으로 3줄에 대시 데미지") - 대시로 지나온 길(출발 다음 칸 ~ 내려선 자리)과 그 양옆 줄,
+        // 폭 3줄 안의 몹에게 공격력 × Traits.DashWaveDamageRate(대시와 같은 100%). 대시 본타로 이미 벤 몹·같은 몹은 한 번(3x3 보스도). 방이 넘어갔으면 true. ----
+        private bool DashWave(Vector2Int start, Vector2Int dir, ICollection<EnemyActor> alreadyHit)
+        {
+            if (GridPos == start)
+                return false; // 제자리 대시(바로 앞 몹만 침) - 지나온 길이 없다
+            var struck = new HashSet<EnemyActor>(alreadyHit);
+            var side = new Vector2Int(-dir.y, dir.x);
+            var angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+            for (var cell = start + dir; ; cell += dir)
+            {
+                foreach (var c in new[] { cell, cell + side, cell - side })
+                {
+                    if (!Map.IsInBounds(c) || Map.IsWall(c))
+                        continue;
+                    if (HitFeedback.Enabled && c != GridPos)
+                        Fx.Play("slash", new Vector3(c.x, c.y, 0f) * GridConstants.CellSize, 1.1f, angle, fps: 22f, sortingOrder: 6);
+                    if (!(Map.GetActorAt(c) is EnemyActor e) || e.Stats.IsDead || !struck.Add(e))
+                        continue;
+                    if (StrikeEnemy(e, dir, Traits.DashWaveDamageRate, isSkill: true))
+                        return true;
+                }
+                if (cell == GridPos || (cell - start).sqrMagnitude > (GridPos - start).sqrMagnitude)
+                    break; // 내려선 자리까지
+            }
+            return false;
+        }
+
+        // ---- 특성 "표식 폭발"(대시 5 대표, 11-02 사용자) - 대시로 친 몹에 표식이 하나씩 쌓이고 Traits.DashMarkCount개가 되면 터져
+        // 공격력 × Traits.DashMarkDamageRate 추가 피해(표식은 처음부터). 분신·파동 타격은 안 센다. 방을 옮기면 사라진다. ----
+        private readonly Dictionary<EnemyActor, int> _dashMarks = new Dictionary<EnemyActor, int>();
+
+        /// <summary>방이 넘어갔으면 true.</summary>
+        private bool DashMark(EnemyActor target, Vector2Int dir)
+        {
+            if (target == null || target.Stats.IsDead)
+                return false;
+            _dashMarks.TryGetValue(target, out var marks);
+            marks++;
+            if (marks < Traits.DashMarkCount)
+            {
+                _dashMarks[target] = marks;
+                DamagePopup.SpawnText(target.transform.position + Vector3.up * 0.4f, Loc.F("표식 {0}/{1}", marks, Traits.DashMarkCount),
+                    new Color(1f, 0.55f, 0.85f));
+                return false;
+            }
+            _dashMarks.Remove(target);
+            DamagePopup.SpawnText(target.transform.position + Vector3.up * 0.4f, Loc.T("표식 폭발!"), new Color(1f, 0.4f, 0.75f));
+            if (HitFeedback.Enabled)
+                Fx.Play("slash_crit", target.transform.position, 1.4f, fps: 18f, sortingOrder: 7);
+            return StrikeEnemy(target, dir, Traits.DashMarkDamageRate, isSkill: true);
+        }
 
         /// <summary>Q 대시 - 한 턴에 최대 3칸 이동, 가는 길에 몹이 있으면 그 앞까지 가서 한 대. 쓸 수 없으면 false(턴 소모 없음).</summary>
         private bool TryDash(Vector2Int dir)
@@ -1201,10 +1488,19 @@ namespace LoopRogue
             if (DashCooldown > 0 || RootedTurns > 0 || !PreviewDash(dir, out var landing, out var hit, out var passed))
                 return false;
 
+            _inDash = true;
             BeginAction();
+            _inDash = false;
             PlayLog.Act("대시");
             if (Relics.Has(RelicType.Gale)) Relics.Mark(RelicType.Gale);
-            DashCooldown = DashCooldownMax;
+            if (Traits.Has(TraitType.DashChain)) // 특성 "연속 대시" - 쿨타임 없이 Traits.DashChainCount번까지 이어서, 다른 행동을 하거나 다 쓰면 쿨타임
+            {
+                _dashChainLeft = _dashChaining ? _dashChainLeft - 1 : Traits.DashChainCount - 1;
+                _dashChaining = _dashChainLeft > 0;
+                DashCooldown = _dashChaining ? 0 : DashCooldownMax;
+            }
+            else
+                DashCooldown = DashCooldownMax;
             var from = transform.position;
             var startPos = GridPos;
             LastSkill = AttackStyle.Dash;
@@ -1216,7 +1512,15 @@ namespace LoopRogue
             _room.CheckPlayerCrack(); // 대시로 내려선 칸이 균열이면 묶인다
             _room.CheckSlimePuddle(); // 4층 슬라임 킹 점액 - 걸어서 밟을 때와 같게
             if (landing != startPos)
+            {
                 _room.Puzzle?.PlayerMoved(landing); // 룬·보물 찾기처럼 밟은 칸에 반응하는 퍼즐
+                if (Traits.Has(TraitType.DashReturn))
+                {
+                    _dashReturnPos = startPos;
+                    _dashReturnMap = Map;
+                    _dashReturnTurns = Traits.DashReturnTurns;
+                }
+            }
 
             if (hit != null)
             {
@@ -1231,27 +1535,76 @@ namespace LoopRogue
                     if (StrikeEnemy(target, dir, 1f, isSkill: true, style: AttackStyle.Dash))
                         return true;
                     if (Relics.Has(RelicType.ShadowStep) && !target.Stats.IsDead && before > target.Stats.CurrentHealth)
-                        _shadowEchoes.Add((target, (before - target.Stats.CurrentHealth) * Relics.ShadowStepEchoRate)); // 유물 "그림자 걸음"
-                }
-            }
-
-            if (Relics.Has(RelicType.TyrantPlate)) // 유물 "폭군의 갑주" - 내려선 자리 주변 8칸(같은 몹은 한 번만)
-            {
-                var struck = new HashSet<EnemyActor>();
-                if (hit != null)
-                    struck.Add(hit);
-                foreach (var d in Around8)
-                {
-                    if (!(Map.GetActorAt(GridPos + d) is EnemyActor e) || e.Stats.IsDead || !struck.Add(e))
-                        continue;
-                    Relics.Mark(RelicType.TyrantPlate);
-                    if (StrikeEnemy(e, d, Relics.TyrantLandingRate, ignoreShield: true, isSkill: true))
+                        AddShadowEcho(target, (before - target.Stats.CurrentHealth) * Relics.ShadowStepEchoRate); // 유물 "그림자 걸음"
+                    if (Traits.Has(TraitType.DashMark) && DashMark(target, dir))
                         return true;
                 }
             }
 
+            if (TyrantLanding(GridPos, hit, 1f))
+                return true;
+
+            if (Traits.Has(TraitType.DashWave) && DashWave(startPos, dir, passed ?? (hit != null ? new List<EnemyActor> { hit } : new List<EnemyActor>())))
+                return true;
+
+            if (Traits.Has(TraitType.DashClone) && DashClones(startPos, dir))
+                return true;
+
+            if (_dashChaining)
+                IsAimingDash = true; // 연속 대시 - Q를 다시 누를 필요 없이 방향키만(11-02 사용자). Q를 누르면 조준이 풀리고, 다른 행동을 하면 끊긴다
+
             EndTurn();
             return true;
+        }
+
+        /// <summary>유물 "폭군의 갑주" - 내려선 자리 주변 8칸(같은 몹은 한 번만). rate = 분신이면 분신 피해 배율. 방이 넘어갔으면 true.</summary>
+        private bool TyrantLanding(Vector2Int at, EnemyActor hit, float rate)
+        {
+            if (!Relics.Has(RelicType.TyrantPlate))
+                return false;
+            var struck = new HashSet<EnemyActor>();
+            if (hit != null)
+                struck.Add(hit);
+            foreach (var d in Around8)
+            {
+                if (!(Map.GetActorAt(at + d) is EnemyActor e) || e.Stats.IsDead || !struck.Add(e))
+                    continue;
+                Relics.Mark(RelicType.TyrantPlate);
+                if (StrikeEnemy(e, d, Relics.TyrantLandingRate * rate, ignoreShield: true, isSkill: true))
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>특성 "분신 대시"(11-02 사용자) - 대시를 시작한 자리에서 분신 둘이 대시 방향의 앞 대각선 두 갈래로 같이 돌진한다.
+        /// 길·멈추는 규칙은 대시와 같고(돌진의 뿔이면 관통), 피해는 대시의 Traits.DashCloneDamageRate. 그림자 걸음·폭군의 갑주도 분신에 적용.
+        /// 분신은 칸을 차지하지 않는 잔상이라 출구·퍼즐·균열엔 반응하지 않는다. 기억하는 기사는 분신 공격을 간파하지 못한다. 방이 넘어갔으면 true.</summary>
+        private bool DashClones(Vector2Int start, Vector2Int dir)
+        {
+            var rate = Traits.DashCloneDamageRate;
+            var offset = GridWorldPosition - new Vector3(GridPos.x, GridPos.y, 0f) * GridConstants.CellSize;
+            foreach (var side in new[] { dir + new Vector2Int(-dir.y, dir.x), dir + new Vector2Int(dir.y, -dir.x) }) // 대시 방향 앞 대각선 둘
+            {
+                if (!PreviewDashFrom(start, side, out var landing, out var hit, out var passed))
+                    continue;
+                var from = new Vector3(start.x, start.y, 0f) * GridConstants.CellSize + offset;
+                var end = hit != null && landing == start ? start + side : landing; // 바로 옆 몹을 치면 그 칸까지 뻗는 잔상
+                HitFeedback.OnDashClone(this, from, new Vector3(end.x, end.y, 0f) * GridConstants.CellSize + offset);
+                if (hit != null)
+                    foreach (var target in passed ?? new List<EnemyActor> { hit })
+                    {
+                        if (target == null || target.Stats.IsDead)
+                            continue;
+                        var before = target.Stats.CurrentHealth;
+                        if (StrikeEnemy(target, side, rate, isSkill: true))
+                            return true;
+                        if (Relics.Has(RelicType.ShadowStep) && !target.Stats.IsDead && before > target.Stats.CurrentHealth)
+                            AddShadowEcho(target, (before - target.Stats.CurrentHealth) * Relics.ShadowStepEchoRate);
+                    }
+                if (TyrantLanding(landing, hit, rate))
+                    return true;
+            }
+            return false;
         }
 
         /// <summary>회전 베기 대상 수(주변 8칸의 살아있는 몹) - 봇 판단용.</summary>
@@ -1279,10 +1632,7 @@ namespace LoopRogue
             if (SpinCooldown > 0)
                 return false;
 
-            var targets = new List<(EnemyActor Enemy, Vector2Int Offset)>();
-            foreach (var offset in SpinOffsets)
-                if (Map.GetActorAt(GridPos + offset) is EnemyActor e && !e.Stats.IsDead && !targets.Any(t => t.Enemy == e))
-                    targets.Add((e, offset)); // 3x3 보스는 처음 걸린 칸 방향으로 한 번만
+            var targets = SpinTargets();
             if (targets.Count == 0)
                 return false;
 
@@ -1294,32 +1644,154 @@ namespace LoopRogue
             LastSkill = AttackStyle.Spin;
             PlayAttackFlash();
             HitFeedback.OnSpin(this);
-            // 보스를 맨 뒤에 - 보스가 먼저 죽으면 남은 졸개가 같이 치워져서 그 뒤 타격이 의미 없어진다.
-            foreach (var (enemy, offset) in targets.OrderBy(t => t.Enemy.IsBoss))
+            SpinActive = true;
+            if (SpinHoldMode) // 회전 2 "회전 중 행동" - 여러 턴 이어지는 회전(타격 전에 - 첫 바퀴 처치도 끝없는 회전으로 늘어나게)
             {
-                if (enemy == null || enemy.Stats.IsDead)
-                    continue;
-                if (StrikeEnemy(enemy, offset, SpinDamageRate, ignoreShield: true, isSkill: true, style: AttackStyle.Spin))
-                    return true; // 방 전환 - 남은 대상은 이미 정리됐다
+                _spinHoldTurns = Traits.SpinHoldTurns - 1; // 이번 회전이 첫 턴
+                _spinCount = 1;
+                _spinStormKills = 0;
+                _spinJustUsed = true;
             }
-            _whirlwindWait = 0f;
-            if (Relics.Has(RelicType.Whirlwind) && WhirlwindPush(targets))
+            if (SpinStrikes(targets))
+                return true; // 방 전환 - 남은 대상은 이미 정리됐다
+            if (Traits.Has(TraitType.SpinHold) && !SpinHoldMode) // 회전 1 "삼연 회전" - 한 턴에 Traits.SpinTripleCount번(매번 기본 피해)
+            {
+                var wait = _whirlwindWait;
+                for (var i = 1; i < Traits.SpinTripleCount; i++)
+                {
+                    var more = SpinTargets();
+                    if (more.Count == 0)
+                        break;
+                    HitFeedback.OnSpin(this);
+                    if (SpinStrikes(more))
+                        return true;
+                    wait = Mathf.Max(wait, _whirlwindWait);
+                }
+                _whirlwindWait = wait;
+            }
+            if (PulseWave())
                 return true;
-            if (Relics.Has(RelicType.PulseCore)) // 유물 "파동의 핵" - 맞고 살아남은 몹 기절(10-19 사용자 1 → 2턴)
-            {
-                foreach (var (enemy, _) in targets)
-                    if (enemy != null && !enemy.Stats.IsDead)
-                    {
-                        Relics.Mark(RelicType.PulseCore);
-                        enemy.Stun(Relics.PulseCoreStunTurns);
-                    }
-            }
 
             if (_whirlwindWait > 0f && HitFeedback.Enabled)
                 StartCoroutine(EndTurnAfter(_whirlwindWait)); // 유물 "소용돌이" - 밀려난 몹 그림이 다 보이고 나서 몹 턴
             else
                 EndTurn();
             return true;
+        }
+
+        /// <summary>회전 베기가 닿는 몹(3x3 보스는 처음 걸린 칸 방향으로 한 번만).</summary>
+        private List<(EnemyActor Enemy, Vector2Int Offset)> SpinTargets()
+        {
+            var targets = new List<(EnemyActor Enemy, Vector2Int Offset)>();
+            foreach (var offset in SpinOffsets)
+                if (Map.GetActorAt(GridPos + offset) is EnemyActor e && !e.Stats.IsDead && !targets.Any(t => t.Enemy == e))
+                    targets.Add((e, offset));
+            return targets;
+        }
+
+        /// <summary>회전 베기 한 바퀴의 타격 + 소용돌이·파동의 핵. 특성 "회전 유지"면 피해 Traits.SpinHoldDamageRate배(매 바퀴 같게). 방이 넘어갔으면 true.</summary>
+        private bool SpinStrikes(List<(EnemyActor Enemy, Vector2Int Offset)> targets)
+        {
+            var rate = SpinDamageRate * (SpinHoldMode ? Traits.SpinHoldDamageRate : 1f); // 여러 턴 회전은 바퀴마다 깎고, 삼연 회전은 매번 기본 피해
+            // 보스를 맨 뒤에 - 보스가 먼저 죽으면 남은 졸개가 같이 치워져서 그 뒤 타격이 의미 없어진다.
+            foreach (var (enemy, offset) in targets.OrderBy(t => t.Enemy.IsBoss))
+            {
+                if (enemy == null || enemy.Stats.IsDead)
+                    continue;
+                if (StrikeEnemy(enemy, offset, rate, ignoreShield: true, isSkill: true, style: AttackStyle.Spin))
+                    return true;
+            }
+            _whirlwindWait = 0f;
+            if (Relics.Has(RelicType.Whirlwind) && WhirlwindPush(targets))
+                return true;
+            return false;
+        }
+
+        /// <summary>유물 "파동의 핵"(11-02 사용자 - 기절에서 바꿈: 삼연 회전·이어지는 회전으로 몹이 계속 기절했다) - 회전 베기가 끝날 때
+        /// 주변 5x5로 파동, 그 안의 몹(같은 몹은 한 번)에게 공격력 × Relics.PulseCoreDamageRate. 방이 넘어갔으면 true.</summary>
+        private bool PulseWave()
+        {
+            if (!Relics.Has(RelicType.PulseCore))
+                return false;
+            var struck = new HashSet<EnemyActor>();
+            var hits = new List<(EnemyActor Enemy, Vector2Int Offset)>();
+            for (var dx = -2; dx <= 2; dx++)
+            for (var dy = -2; dy <= 2; dy++)
+            {
+                var offset = new Vector2Int(dx, dy);
+                if (offset != Vector2Int.zero && Map.GetActorAt(GridPos + offset) is EnemyActor e && !e.Stats.IsDead && struck.Add(e))
+                    hits.Add((e, offset));
+            }
+            if (HitFeedback.Enabled)
+                Fx.Play("boss_ring", transform.position, 5.5f, tint: new Color(0.6f, 0.85f, 1f, 0.85f), fps: 20f, sortingOrder: 2);
+            if (hits.Count == 0)
+                return false;
+            Relics.Mark(RelicType.PulseCore);
+            foreach (var (enemy, offset) in hits)
+            {
+                if (enemy == null || enemy.Stats.IsDead)
+                    continue;
+                if (StrikeEnemy(enemy, offset, Relics.PulseCoreDamageRate, ignoreShield: true, isSkill: true))
+                    return true;
+            }
+            return false;
+        }
+
+        // ---- 특성 "회전 유지"(11-02 사용자) - 회전 베기가 Traits.SpinHoldTurns턴 동안 이어진다(매 바퀴 피해 50%). 그동안은 제자리에서 돌기만 하고
+        // (Update가 SpinHoldTickSeconds마다 저절로 한 턴), 특성 "회전 중 행동"이 있으면 걷기·공격·대시를 하면서 내 턴이 끝날 때마다 그 자리에서 한 바퀴. ----
+        private const float SpinHoldTickSeconds = 0.35f;
+        private int _spinHoldTurns;  // 남은 추가 바퀴
+        private bool _spinJustUsed;  // 회전 베기를 쓴 그 턴 - EndTurn에서 한 바퀴 더 돌지 않게
+        private float _spinHoldClock;
+
+        /// <summary>회전이 이어지는 동안 다른 행동을 못 하는지(특성 "회전 중 행동"이 없을 때) - 11-02부터 여러 턴 회전은 회전 2를 찍어야만 생겨서 사실상 늘 false.</summary>
+        public bool IsSpinLocked => _spinHoldTurns > 0 && !Traits.Has(TraitType.SpinFree);
+
+        /// <summary>여러 턴 이어지는 회전인지 - 회전 2 "회전 중 행동"을 찍었을 때만(11-02 사용자: 회전 1은 한 턴 3연타, 2를 찍으면 예전처럼 이어지는 회전).</summary>
+        private static bool SpinHoldMode => Traits.Has(TraitType.SpinHold) && Traits.Has(TraitType.SpinFree);
+
+        // ---- 특성 "칼날 방패"(회전 4) - 이번 턴에 돌았으면(회전 베기·이어지는 바퀴) 그 몹 턴 동안 받는 피해 감소 + 화살·거미줄을 쳐낸다.
+        // 특성 "끝없는 회전"(회전 5, 대표) - 도는 동안 몹을 Traits.SpinStormKillsPerTurn마리 처치할 때마다 회전 +1턴(11-02 사용자 - 예전엔 처치마다 +1, 7바퀴 뒤 5x5). ----
+        private bool _spinActive;   // 이번 턴에 돌았다 - 다음 행동(BeginAction)에서 꺼진다
+        private int _spinCount;     // 이번 회전에서 돈 바퀴 수(첫 바퀴 포함)
+        private int _spinStormKills; // 끝없는 회전 - +1턴까지 모은 처치 수
+
+        private bool SpinActive
+        {
+            set
+            {
+                _spinActive = value;
+                Stats.GuardDamageFactor = value && Traits.Has(TraitType.SpinGuard) ? Traits.SpinGuardDamageFactor : 1f;
+            }
+        }
+
+        /// <summary>몹의 화살·거미줄을 쳐내는지(EnemyActor가 쏘기 전에 본다).</summary>
+        public bool DeflectsRanged => _spinActive && Traits.Has(TraitType.SpinGuard);
+
+
+        /// <summary>쳐낸 화살·거미줄 표시(EnemyActor에서).</summary>
+        public void OnDeflected()
+        {
+            DamagePopup.SpawnText(transform.position, Loc.T("쳐냄!"), new Color(0.75f, 0.9f, 1f));
+            if (HitFeedback.Enabled)
+                SfxPlayer.Play(Sfx.Block);
+        }
+
+        /// <summary>이어지는 회전 한 바퀴(EndTurn에서). 방이 넘어갔으면 true.</summary>
+        private bool SpinHoldTick()
+        {
+            _spinHoldTurns--;
+            _spinCount++;
+            SpinActive = true;
+            HitFeedback.OnSpin(this);
+            var targets = SpinTargets();
+            if (targets.Count > 0)
+            {
+                PlayAttackFlash();
+                if (SpinStrikes(targets))
+                    return true;
+            }
+            return PulseWave();
         }
 
         /// <summary>유물 "소용돌이" - 회전 베기에 맞고 살아남은 몹을 나에게서 먼 쪽으로 2칸까지 민다(10-27 사용자 1 → 2). 가다가 벽·다른 몹·방 끝에 막히면 거기서 멈추고 공격력 30% 추가 피해.
@@ -1431,6 +1903,15 @@ namespace LoopRogue
                 DashCooldown--;
             if (SpinCooldown > 0)
                 SpinCooldown--;
+            if (_dashReturnTurns > 0)
+                _dashReturnTurns--;
+            if (_spinActive)
+                SpinActive = false; // 이번 행동에서 다시 돌면 다시 켜진다
+            if (_dashChaining && !_inDash)
+            {
+                _dashChaining = false; // 대시 말고 다른 행동 - 연속 대시가 끊기고 쿨타임
+                DashCooldown = DashCooldownMax;
+            }
         }
 
         /// <summary>제자리 대기 - 아무것도 안 하고 한 턴 넘긴다(보스 저격 2발 같은 "움직이면 맞는" 공격 피하기용).</summary>
@@ -1457,6 +1938,12 @@ namespace LoopRogue
 
         private void EndTurn()
         {
+            if (_spinJustUsed)
+                _spinJustUsed = false;
+            else if (_spinHoldTurns > 0 && SpinHoldTick())
+                return; // 방 전환
+            if (ResolveShadowEchoes())
+                return; // 유물 "그림자 걸음" - 내 행동과 함께 그림자들이 벴고, 그걸로 방이 끝났다
             PlayLog.Turn();
             _room.RunEnemyTurns();
         }

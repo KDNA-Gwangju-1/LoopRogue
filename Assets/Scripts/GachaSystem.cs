@@ -68,7 +68,7 @@ namespace LoopRogue
                 return;
 
             foreach (ItemSlot slot in Enum.GetValues(typeof(ItemSlot)))
-                PullCounts[(int)slot] = PlayerPrefs.GetInt(PrefKey(slot), 0);
+                PullCounts[(int)slot] = Prefs.GetInt(PrefKey(slot), 0);
 
             _loaded = true;
         }
@@ -124,7 +124,7 @@ namespace LoopRogue
             {
                 if (!_ticketsLoaded)
                 {
-                    _tickets = PlayerPrefs.GetInt(TicketKey, 0);
+                    _tickets = Prefs.GetInt(TicketKey, 0);
                     _ticketsLoaded = true;
                 }
                 return _tickets;
@@ -134,8 +134,8 @@ namespace LoopRogue
         public static void AddTickets(int count)
         {
             _tickets = Tickets + count;
-            PlayerPrefs.SetInt(TicketKey, _tickets);
-            PlayerPrefs.Save();
+            Prefs.SetInt(TicketKey, _tickets);
+            Prefs.Save();
         }
 
         /// <summary>상인의 뽑기권 가격 - 어느 슬롯에든 쓸 수 있으니 세 슬롯 중 가장 비싼 1회 가격.</summary>
@@ -187,8 +187,8 @@ namespace LoopRogue
             var grade = RollGrade(GradeWeightsByLevel[levelBefore - 1]);
 
             PullCounts[(int)slot]++;
-            PlayerPrefs.SetInt(PrefKey(slot), PullCounts[(int)slot]);
-            PlayerPrefs.Save();
+            Prefs.SetInt(PrefKey(slot), PullCounts[(int)slot]);
+            Prefs.Save();
 
             var equipped = EquipmentWallet.TryEquipIfBetter(slot, grade);
             if (equipped)

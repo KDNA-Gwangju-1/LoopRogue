@@ -69,7 +69,7 @@ namespace LoopRogue
         // ------------------------------------------------------------------ 시작
         public void BeginStageGimmick(int stage, EnemyActor boss)
         {
-            // 7층은 체력 10%마다 분신 물결이 다시 온다(BossBrain.CloneWaveHealth) - 두 번째부터는 지우지 않고 분신만 더한다
+            // 7층은 체력 80·60·20%에 분신 물결이 다시 온다(BossBrain.CloneWaveHealth) - 두 번째부터는 지우지 않고 분신만 더한다
             var cloneAgain = stage == 7 && _gimmickStage == 7 && _gimmickBoss == boss;
             if (!cloneAgain)
                 ClearStageGimmick();

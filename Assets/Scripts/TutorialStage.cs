@@ -18,15 +18,15 @@ namespace LoopRogue
         public const int RewardGold = 100;
         /// <summary>10-28 사용자 - 처음 튜토리얼을 마치면 바로 1층 대신 로비로, 보상 골드로 뽑기나 영약을 하나라도 사기 전엔 던전 문이 잠긴다.</summary>
         public const string FirstShopKey = "LoopRogue_TutorialFirstShopPending";
-        public static bool FirstShopPending => PlayerPrefs.GetInt(FirstShopKey, 0) == 1;
+        public static bool FirstShopPending => Prefs.GetInt(FirstShopKey, 0) == 1;
 
         /// <summary>로비에서 뽑기·영약을 샀다 - 첫 구매 잠금을 푼다. 방금 풀었으면 true.</summary>
         public static bool CompleteFirstShop()
         {
             if (!FirstShopPending)
                 return false;
-            PlayerPrefs.DeleteKey(FirstShopKey);
-            PlayerPrefs.Save();
+            Prefs.DeleteKey(FirstShopKey);
+            Prefs.Save();
             return true;
         }
         private const float CompleteDelaySeconds = 2.8f;
@@ -190,7 +190,7 @@ namespace LoopRogue
         private static bool _requestedFromTitle;
         private static bool _fromTitle;
 
-        public static bool Done => PlayerPrefs.GetInt(DoneKey, 0) == 1;
+        public static bool Done => Prefs.GetInt(DoneKey, 0) == 1;
 
         /// <summary>타이틀 [튜토리얼] - 다음 Main 진입을 튜토리얼로(안내 상자도 처음부터).</summary>
         public static void RequestFromTitle()
@@ -215,8 +215,8 @@ namespace LoopRogue
             _requestedFromTitle = false;
             Active = true;
             Tutorial.ResetAll(); // 기본 조작 안내를 처음부터 - 예전에 끝냈거나 건너뛴 기록이 남아 있으면 안내 단계 잠금이 아예 안 걸렸다
-            PlayerPrefs.SetInt(DoneKey, 1);
-            PlayerPrefs.Save();
+            Prefs.SetInt(DoneKey, 1);
+            Prefs.Save();
             return true;
         }
 
@@ -235,14 +235,14 @@ namespace LoopRogue
         /// <summary>마지막 방 출구를 밟았다(LoopManager.AdvanceToNextRoom) - "튜토리얼 완료" 알림 + 처음이면 골드, 잠깐 보여준 뒤 넘어간다.</summary>
         public static void Complete(RoomController room)
         {
-            var firstReward = PlayerPrefs.GetInt(RewardKey, 0) == 0;
+            var firstReward = Prefs.GetInt(RewardKey, 0) == 0;
             if (firstReward)
             {
                 GoldWallet.Add(RewardGold);
-                PlayerPrefs.SetInt(RewardKey, 1);
+                Prefs.SetInt(RewardKey, 1);
                 if (!_fromTitle && !BossRush.Trailer)
-                    PlayerPrefs.SetInt(FirstShopKey, 1);
-                PlayerPrefs.Save();
+                    Prefs.SetInt(FirstShopKey, 1);
+                Prefs.Save();
             }
             room.ShowMessage(firstReward
                 ? Loc.F("<color=#FFD966>튜토리얼 완료!</color>  골드 +{0}", RewardGold)

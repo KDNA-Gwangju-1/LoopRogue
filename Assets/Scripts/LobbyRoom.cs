@@ -331,6 +331,15 @@ namespace LoopRogue
                 MoveTo(target);
         }
 
+        /// <summary>문 칸에 들어선 뒤 취소했으면(층 선택 창 Esc) 문 앞으로 한 칸 물러난다.</summary>
+        public void StepBackFromDoor()
+        {
+            if (_player.GridPos != DoorCell)
+                return;
+            _facing = Vector2Int.down;
+            MoveTo(DoorCell + Vector2Int.down);
+        }
+
         private void MoveTo(Vector2Int cell)
         {
             _player.GridPos = cell; // 그림 위치는 SpriteAnimator가 걸어가듯 옮긴다

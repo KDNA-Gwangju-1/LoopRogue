@@ -11,7 +11,7 @@ namespace LoopRogue
         /// <summary>게임을 끝까지 깬 횟수(엔딩을 본 횟수) - 처음으로 돌아가도 남는다.</summary>
         private const string ClearsKey = "LoopRogue_GameClears";
 
-        public static int GameClears => PlayerPrefs.GetInt(ClearsKey, 0);
+        public static int GameClears => Prefs.GetInt(ClearsKey, 0);
 
         private const string PlayTimeKey = "LoopRogue_PlayTimeSeconds";
 
@@ -37,34 +37,34 @@ namespace LoopRogue
         /// 엔딩 뒤 남긴 도감·유물·이용권이나 초기화 뒤 한 진행이 한 번 더 통째로 지워졌다(10-28).</summary>
         private static void WipeAll()
         {
-            var stamp = PlayerPrefs.GetString(BuildStampKey, "");
-            GameSettings.Preserve(() => PlayerPrefs.DeleteAll());
+            var stamp = Prefs.GetString(BuildStampKey, "");
+            GameSettings.Preserve(() => Prefs.DeleteAll());
             if (stamp.Length > 0)
-                PlayerPrefs.SetString(BuildStampKey, stamp);
-            PlayerPrefs.Save();
+                Prefs.SetString(BuildStampKey, stamp);
+            Prefs.Save();
         }
 
         /// <summary>10층 보스를 잡고 엔딩을 본 뒤 - 클리어 횟수를 하나 올리고, 도감·이용권(+엔딩에서 고른 유물 하나)만 남기고 초기화한다.</summary>
         public static void ResetForNewGame(RelicType? carried = null)
         {
-            PlayerPrefs.SetInt(ClearsKey, GameClears + 1);
+            Prefs.SetInt(ClearsKey, GameClears + 1);
             var strings = new Dictionary<string, string>();
             var ints = new Dictionary<string, int>();
             foreach (var key in KeptStrings)
-                if (PlayerPrefs.HasKey(key))
-                    strings[key] = PlayerPrefs.GetString(key);
+                if (Prefs.HasKey(key))
+                    strings[key] = Prefs.GetString(key);
             foreach (var key in KeptInts)
-                if (PlayerPrefs.HasKey(key))
-                    ints[key] = PlayerPrefs.GetInt(key);
+                if (Prefs.HasKey(key))
+                    ints[key] = Prefs.GetInt(key);
 
-            var playTime = PlayerPrefs.GetFloat(PlayTimeKey, 0f); // 누적 플레이 시간(테스트 기록용)도 엔딩 뒤에 남긴다
+            var playTime = Prefs.GetFloat(PlayTimeKey, 0f); // 누적 플레이 시간(테스트 기록용)도 엔딩 뒤에 남긴다
             WipeAll();
-            PlayerPrefs.SetFloat(PlayTimeKey, playTime);
+            Prefs.SetFloat(PlayTimeKey, playTime);
             foreach (var pair in strings)
-                PlayerPrefs.SetString(pair.Key, pair.Value);
+                Prefs.SetString(pair.Key, pair.Value);
             foreach (var pair in ints)
-                PlayerPrefs.SetInt(pair.Key, pair.Value);
-            PlayerPrefs.Save();
+                Prefs.SetInt(pair.Key, pair.Value);
+            Prefs.Save();
             ReloadAll();
             if (carried.HasValue)
                 Relics.KeepOnly(carried.Value); // 엔딩에서 고른 유물 하나는 다음 회차로
@@ -93,11 +93,12 @@ namespace LoopRogue
             if (Application.isEditor)
                 return;
             var stamp = BuildStamp;
-            if (string.IsNullOrEmpty(stamp) || PlayerPrefs.GetString(BuildStampKey, "") == stamp)
+            if (string.IsNullOrEmpty(stamp) || Prefs.GetString(BuildStampKey, "") == stamp)
                 return;
-            ResetAll();
-            PlayerPrefs.SetString(BuildStampKey, stamp);
-            PlayerPrefs.Save();
+            GameSettings.Preserve(Prefs.DeleteEverySlot); // 새 빌드 - 슬롯 셋 다(11-02 세이브 슬롯)
+            ReloadAll();
+            Prefs.SetString(BuildStampKey, stamp);
+            Prefs.Save();
             Debug.Log($"[SaveReset] 새 빌드({stamp}) - 저장 초기화");
         }
 

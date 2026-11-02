@@ -90,24 +90,24 @@ namespace LoopRogue
             if (_loaded)
                 return;
 
-            HasSavedRun = PlayerPrefs.GetInt(HasSavedKey, 0) == 1;
-            Level = PlayerPrefs.GetInt(LevelKey, 1);
-            Exp = PlayerPrefs.GetInt(ExpKey, 0);
-            ExpToNext = PlayerPrefs.GetInt(ExpToNextKey, 10);
-            AttackPower = PlayerPrefs.GetFloat(AttackPowerKey, 0f);
-            MaxHealth = PlayerPrefs.GetFloat(MaxHealthKey, 0f);
-            CurrentHealth = PlayerPrefs.GetFloat(CurrentHealthKey, 0f);
-            CriticalChanceRate = PlayerPrefs.GetFloat(CriticalChanceKey, 0f);
-            DamageReductionRate = PlayerPrefs.GetFloat(DamageReductionKey, 0f);
-            LifeStealRate = PlayerPrefs.GetFloat(LifeStealKey, 0f);
-            RoomShieldCardRate = PlayerPrefs.GetFloat(RoomShieldKey, 0f);
-            KillHealRate = PlayerPrefs.GetFloat(KillHealKey, 0f);
-            ExpBonusRate = PlayerPrefs.GetFloat(ExpBonusKey, 0f);
-            GoldBonusRate = PlayerPrefs.GetFloat(GoldBonusKey, 0f);
+            HasSavedRun = Prefs.GetInt(HasSavedKey, 0) == 1;
+            Level = Prefs.GetInt(LevelKey, 1);
+            Exp = Prefs.GetInt(ExpKey, 0);
+            ExpToNext = Prefs.GetInt(ExpToNextKey, 10);
+            AttackPower = Prefs.GetFloat(AttackPowerKey, 0f);
+            MaxHealth = Prefs.GetFloat(MaxHealthKey, 0f);
+            CurrentHealth = Prefs.GetFloat(CurrentHealthKey, 0f);
+            CriticalChanceRate = Prefs.GetFloat(CriticalChanceKey, 0f);
+            DamageReductionRate = Prefs.GetFloat(DamageReductionKey, 0f);
+            LifeStealRate = Prefs.GetFloat(LifeStealKey, 0f);
+            RoomShieldCardRate = Prefs.GetFloat(RoomShieldKey, 0f);
+            KillHealRate = Prefs.GetFloat(KillHealKey, 0f);
+            ExpBonusRate = Prefs.GetFloat(ExpBonusKey, 0f);
+            GoldBonusRate = Prefs.GetFloat(GoldBonusKey, 0f);
             // 이 키들이 생기기 전에 저장된 스냅샷이면 기본값을 "지금 합계"로 둬서(=차이 0) 중복 적용을 막는다.
-            PermanentAttackAtSave = PlayerPrefs.GetFloat(PermAttackKey, CurrentPermanentAttack());
-            PermanentHealthAtSave = PlayerPrefs.GetFloat(PermHealthKey, CurrentPermanentHealth());
-            PermanentCriticalAtSave = PlayerPrefs.GetFloat(PermCriticalKey, CurrentPermanentCritical());
+            PermanentAttackAtSave = Prefs.GetFloat(PermAttackKey, CurrentPermanentAttack());
+            PermanentHealthAtSave = Prefs.GetFloat(PermHealthKey, CurrentPermanentHealth());
+            PermanentCriticalAtSave = Prefs.GetFloat(PermCriticalKey, CurrentPermanentCritical());
             _loaded = true;
         }
 
@@ -132,24 +132,24 @@ namespace LoopRogue
             PermanentCriticalAtSave = CurrentPermanentCritical();
             _loaded = true;
 
-            PlayerPrefs.SetInt(HasSavedKey, 1);
-            PlayerPrefs.SetInt(LevelKey, Level);
-            PlayerPrefs.SetInt(ExpKey, Exp);
-            PlayerPrefs.SetInt(ExpToNextKey, ExpToNext);
-            PlayerPrefs.SetFloat(AttackPowerKey, AttackPower);
-            PlayerPrefs.SetFloat(MaxHealthKey, MaxHealth);
-            PlayerPrefs.SetFloat(CurrentHealthKey, CurrentHealth);
-            PlayerPrefs.SetFloat(CriticalChanceKey, CriticalChanceRate);
-            PlayerPrefs.SetFloat(DamageReductionKey, DamageReductionRate);
-            PlayerPrefs.SetFloat(LifeStealKey, LifeStealRate);
-            PlayerPrefs.SetFloat(RoomShieldKey, RoomShieldCardRate);
-            PlayerPrefs.SetFloat(KillHealKey, KillHealRate);
-            PlayerPrefs.SetFloat(ExpBonusKey, ExpBonusRate);
-            PlayerPrefs.SetFloat(GoldBonusKey, GoldBonusRate);
-            PlayerPrefs.SetFloat(PermAttackKey, PermanentAttackAtSave);
-            PlayerPrefs.SetFloat(PermHealthKey, PermanentHealthAtSave);
-            PlayerPrefs.SetFloat(PermCriticalKey, PermanentCriticalAtSave);
-            PlayerPrefs.Save();
+            Prefs.SetInt(HasSavedKey, 1);
+            Prefs.SetInt(LevelKey, Level);
+            Prefs.SetInt(ExpKey, Exp);
+            Prefs.SetInt(ExpToNextKey, ExpToNext);
+            Prefs.SetFloat(AttackPowerKey, AttackPower);
+            Prefs.SetFloat(MaxHealthKey, MaxHealth);
+            Prefs.SetFloat(CurrentHealthKey, CurrentHealth);
+            Prefs.SetFloat(CriticalChanceKey, CriticalChanceRate);
+            Prefs.SetFloat(DamageReductionKey, DamageReductionRate);
+            Prefs.SetFloat(LifeStealKey, LifeStealRate);
+            Prefs.SetFloat(RoomShieldKey, RoomShieldCardRate);
+            Prefs.SetFloat(KillHealKey, KillHealRate);
+            Prefs.SetFloat(ExpBonusKey, ExpBonusRate);
+            Prefs.SetFloat(GoldBonusKey, GoldBonusRate);
+            Prefs.SetFloat(PermAttackKey, PermanentAttackAtSave);
+            Prefs.SetFloat(PermHealthKey, PermanentHealthAtSave);
+            Prefs.SetFloat(PermCriticalKey, PermanentCriticalAtSave);
+            Prefs.Save();
         }
     }
 }

@@ -28,7 +28,7 @@ namespace LoopRogue
             if (_loaded)
                 return;
             _loaded = true;
-            _active = PlayerPrefs.GetInt(ActiveKey, 0) == 1;
+            _active = Prefs.GetInt(ActiveKey, 0) == 1;
         }
 
         public static bool Active
@@ -69,8 +69,8 @@ namespace LoopRogue
         {
             EnsureLoaded();
             _active = active;
-            PlayerPrefs.SetInt(ActiveKey, active ? 1 : 0);
-            PlayerPrefs.Save();
+            Prefs.SetInt(ActiveKey, active ? 1 : 0);
+            Prefs.Save();
         }
     }
 
@@ -102,9 +102,9 @@ namespace LoopRogue
             if (_loaded)
                 return;
             _loaded = true;
-            _stageClaimed = PlayerPrefs.GetInt(StageClaimedKey, 1);
-            _kills = PlayerPrefs.GetInt(KillsKey, 0);
-            _killClaimed = PlayerPrefs.GetInt(KillClaimedKey, 0);
+            _stageClaimed = Prefs.GetInt(StageClaimedKey, 1);
+            _kills = Prefs.GetInt(KillsKey, 0);
+            _killClaimed = Prefs.GetInt(KillClaimedKey, 0);
         }
 
         public static int LifetimeKills
@@ -116,12 +116,12 @@ namespace LoopRogue
             }
         }
 
-        /// <summary>몹을 잡을 때마다(PlayerActor.ClaimKill, 졸개 제외). 저장은 다른 지갑이 PlayerPrefs.Save를 부를 때 같이 된다.</summary>
+        /// <summary>몹을 잡을 때마다(PlayerActor.ClaimKill, 졸개 제외). 저장은 다른 지갑이 Prefs.Save를 부를 때 같이 된다.</summary>
         public static void AddKill()
         {
             EnsureLoaded();
             _kills++;
-            PlayerPrefs.SetInt(KillsKey, _kills);
+            Prefs.SetInt(KillsKey, _kills);
         }
 
         public static int PendingStageRewards
@@ -173,9 +173,9 @@ namespace LoopRogue
             total += killRewards * KillReward;
             _killClaimed += killRewards;
 
-            PlayerPrefs.SetInt(StageClaimedKey, _stageClaimed);
-            PlayerPrefs.SetInt(KillClaimedKey, _killClaimed);
-            GoldWallet.Add(total); // 안에서 PlayerPrefs.Save
+            Prefs.SetInt(StageClaimedKey, _stageClaimed);
+            Prefs.SetInt(KillClaimedKey, _killClaimed);
+            GoldWallet.Add(total); // 안에서 Prefs.Save
             if (total > 0)
                 PlayLog.Lobby($"의뢰 보상 받기: {total}골드");
             return total;

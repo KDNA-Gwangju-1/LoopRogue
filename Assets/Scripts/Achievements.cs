@@ -178,10 +178,10 @@ namespace LoopRogue
                 return;
             _loaded = true;
             UnlockedIds.Clear();
-            foreach (var id in PlayerPrefs.GetString(UnlockedKey, "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+            foreach (var id in Prefs.GetString(UnlockedKey, "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
                 UnlockedIds.Add(id);
-            _title = PlayerPrefs.GetString(TitleKey, "");
-            _merchantBuys = PlayerPrefs.GetInt(MerchantBuysKey, 0);
+            _title = Prefs.GetString(TitleKey, "");
+            _merchantBuys = Prefs.GetInt(MerchantBuysKey, 0);
         }
 
         public static bool IsUnlocked(AchievementDef def)
@@ -222,7 +222,7 @@ namespace LoopRogue
         {
             EnsureLoaded();
             _merchantBuys++;
-            PlayerPrefs.SetInt(MerchantBuysKey, _merchantBuys);
+            Prefs.SetInt(MerchantBuysKey, _merchantBuys);
             Check();
         }
 
@@ -253,8 +253,8 @@ namespace LoopRogue
 
         private static void Save()
         {
-            PlayerPrefs.SetString(UnlockedKey, string.Join(",", UnlockedIds));
-            PlayerPrefs.Save();
+            Prefs.SetString(UnlockedKey, string.Join(",", UnlockedIds));
+            Prefs.Save();
         }
 
         // ===================== 칭호 =====================
@@ -275,8 +275,8 @@ namespace LoopRogue
         {
             EnsureLoaded();
             _title = def != null && IsUnlocked(def) ? def.SteamId : "";
-            PlayerPrefs.SetString(TitleKey, _title);
-            PlayerPrefs.Save();
+            Prefs.SetString(TitleKey, _title);
+            Prefs.Save();
         }
 
         private static float TitleValue(TitleEffect effect)

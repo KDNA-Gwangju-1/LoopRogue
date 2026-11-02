@@ -50,8 +50,8 @@ namespace LoopRogue
             if (roomNumber <= _roomsCleared)
                 return;
             _roomsCleared = roomNumber;
-            PlayerPrefs.SetInt(RoomsClearedKey, _roomsCleared);
-            PlayerPrefs.Save();
+            Prefs.SetInt(RoomsClearedKey, _roomsCleared);
+            Prefs.Save();
         }
 
         /// <summary>이 층에서 이미 퍼즐 확률을 굴린 방(방 번호) - 방마다 처음 들어갈 때 한 번만 굴리고, 죽고 다시 와도 그 방은 전투(사용자 결정).
@@ -70,8 +70,8 @@ namespace LoopRogue
             EnsureLoaded();
             if (!_puzzleRooms.Add(roomNumber))
                 return;
-            PlayerPrefs.SetString(PuzzleRoomsKey, string.Join(",", _puzzleRooms));
-            PlayerPrefs.Save();
+            Prefs.SetString(PuzzleRoomsKey, string.Join(",", _puzzleRooms));
+            Prefs.Save();
         }
 
         private static readonly System.Collections.Generic.HashSet<int> _puzzleRooms = new System.Collections.Generic.HashSet<int>();
@@ -88,8 +88,8 @@ namespace LoopRogue
             if (_glitchRoom >= 0)
                 return _glitchRoom;
             _glitchRoom = GlitchRng.NextDouble() < chance ? GlitchRng.Next(2, Mathf.Max(3, roomCount + 1)) : 0;
-            PlayerPrefs.SetInt(GlitchRoomKey, _glitchRoom);
-            PlayerPrefs.Save();
+            Prefs.SetInt(GlitchRoomKey, _glitchRoom);
+            Prefs.Save();
             return _glitchRoom;
         }
 
@@ -107,8 +107,8 @@ namespace LoopRogue
         {
             EnsureLoaded();
             _glitchCleared = true;
-            PlayerPrefs.SetInt(GlitchClearedKey, 1);
-            PlayerPrefs.Save();
+            Prefs.SetInt(GlitchClearedKey, 1);
+            Prefs.Save();
         }
 
         private static int _altarRoom;
@@ -121,8 +121,8 @@ namespace LoopRogue
             if (_altarRoom > 0)
                 return _altarRoom;
             _altarRoom = GlitchRng.Next(2, Mathf.Max(3, roomCount));
-            PlayerPrefs.SetInt(AltarRoomKey, _altarRoom);
-            PlayerPrefs.Save();
+            Prefs.SetInt(AltarRoomKey, _altarRoom);
+            Prefs.Save();
             return _altarRoom;
         }
 
@@ -140,8 +140,8 @@ namespace LoopRogue
         {
             EnsureLoaded();
             _altarUsed = true;
-            PlayerPrefs.SetInt(AltarUsedKey, 1);
-            PlayerPrefs.Save();
+            Prefs.SetInt(AltarUsedKey, 1);
+            Prefs.Save();
         }
 
         private static bool _loaded;
@@ -168,15 +168,15 @@ namespace LoopRogue
             if (_loaded)
                 return;
 
-            _stage = PlayerPrefs.GetInt(StageKey, 1);
-            _attempts = PlayerPrefs.GetInt(AttemptsKey, 0);
-            _roomsCleared = PlayerPrefs.GetInt(RoomsClearedKey, 0);
-            _glitchRoom = PlayerPrefs.GetInt(GlitchRoomKey, -1);
-            _glitchCleared = PlayerPrefs.GetInt(GlitchClearedKey, 0) == 1;
-            _altarRoom = PlayerPrefs.GetInt(AltarRoomKey, 0);
-            _altarUsed = PlayerPrefs.GetInt(AltarUsedKey, 0) == 1;
+            _stage = Prefs.GetInt(StageKey, 1);
+            _attempts = Prefs.GetInt(AttemptsKey, 0);
+            _roomsCleared = Prefs.GetInt(RoomsClearedKey, 0);
+            _glitchRoom = Prefs.GetInt(GlitchRoomKey, -1);
+            _glitchCleared = Prefs.GetInt(GlitchClearedKey, 0) == 1;
+            _altarRoom = Prefs.GetInt(AltarRoomKey, 0);
+            _altarUsed = Prefs.GetInt(AltarUsedKey, 0) == 1;
             _puzzleRooms.Clear();
-            foreach (var part in PlayerPrefs.GetString(PuzzleRoomsKey, string.Empty).Split(','))
+            foreach (var part in Prefs.GetString(PuzzleRoomsKey, string.Empty).Split(','))
                 if (int.TryParse(part, out var room))
                     _puzzleRooms.Add(room);
             _loaded = true;
@@ -187,24 +187,63 @@ namespace LoopRogue
         public static void AdvanceStage()
         {
             EnsureLoaded();
-            _stage = Mathf.Min(_stage + 1, MaxStage);
+            SetStage(Mathf.Min(_stage + 1, MaxStage));
+        }
+
+        // ---- 층 선택(11-02 사용자) - 10층을 깨고 엔딩에서 "그대로 계속"을 고르면 로비 문에서 1~10층 중 아무 층으로 들어간다.
+        // 지금 층(CurrentStage)과 따로 "올라가 본 가장 높은 층"·"10층 보스를 잡았는지"를 남겨 둔다(특성 포인트가 층을 내려가도 안 줄게). ----
+        private const string MaxReachedKey = "LoopRogue_MaxStageReached";
+        private const string FinalClearedKey = "LoopRogue_FinalBossCleared";
+
+        /// <summary>올라가 본 가장 높은 층(지금 층 이상).</summary>
+        public static int MaxStageReached => Mathf.Max(CurrentStage, Prefs.GetInt(MaxReachedKey, 1));
+
+        /// <summary>마지막 층 보스를 잡았는지 - 이번 회차에서(처음으로 돌아가면 지워진다). 로비 층 선택이 열린다.</summary>
+        public static bool FinalBossCleared => Prefs.GetInt(FinalClearedKey, 0) != 0;
+
+        public static void MarkFinalBossCleared()
+        {
+            Prefs.SetInt(FinalClearedKey, 1);
+            Prefs.Save();
+        }
+
+        /// <summary>테스트 메뉴 - 10층 클리어 표시를 끈다(켜는 건 MarkFinalBossCleared).</summary>
+        public static void ClearFinalBossClearedForTest()
+        {
+            Prefs.DeleteKey(FinalClearedKey);
+            Prefs.Save();
+        }
+
+        /// <summary>로비 층 선택 - 다른 층이면 그 층 처음부터(방 진행·시도 수 초기화), 같은 층이면 그대로.</summary>
+        public static void SelectStage(int stage)
+        {
+            EnsureLoaded();
+            stage = Mathf.Clamp(stage, 1, MaxStage);
+            if (stage != _stage)
+                SetStage(stage);
+        }
+
+        private static void SetStage(int stage)
+        {
+            _stage = stage;
+            Prefs.SetInt(MaxReachedKey, Mathf.Max(Prefs.GetInt(MaxReachedKey, 1), stage));
             _attempts = 0;
-            PlayerPrefs.DeleteKey(StageDeathsKey); // 되풀이의 각인 - 층마다 새로
+            Prefs.DeleteKey(StageDeathsKey); // 되풀이의 각인 - 층마다 새로
             _roomsCleared = 0;
             _puzzleRooms.Clear();
-            PlayerPrefs.SetInt(StageKey, _stage);
-            PlayerPrefs.SetInt(AttemptsKey, _attempts);
-            PlayerPrefs.SetInt(RoomsClearedKey, _roomsCleared);
-            PlayerPrefs.DeleteKey(PuzzleRoomsKey);
+            Prefs.SetInt(StageKey, _stage);
+            Prefs.SetInt(AttemptsKey, _attempts);
+            Prefs.SetInt(RoomsClearedKey, _roomsCleared);
+            Prefs.DeleteKey(PuzzleRoomsKey);
             _glitchRoom = -1;
             _glitchCleared = false;
-            PlayerPrefs.DeleteKey(GlitchRoomKey);
-            PlayerPrefs.DeleteKey(GlitchClearedKey);
+            Prefs.DeleteKey(GlitchRoomKey);
+            Prefs.DeleteKey(GlitchClearedKey);
             _altarRoom = 0;
             _altarUsed = false;
-            PlayerPrefs.DeleteKey(AltarRoomKey);
-            PlayerPrefs.DeleteKey(AltarUsedKey);
-            PlayerPrefs.Save();
+            Prefs.DeleteKey(AltarRoomKey);
+            Prefs.DeleteKey(AltarUsedKey);
+            Prefs.Save();
         }
 
         /// <summary>지금 스테이지를 몇 번째 시도 중인지(1부터). 로비를 오가도, Play를 껐다 켜도 유지된다.</summary>
@@ -220,17 +259,17 @@ namespace LoopRogue
         private const string StageDeathsKey = "LoopRogue_StageDeaths";
 
         /// <summary>지금 층에서 죽은 횟수(유물 "되풀이의 각인") - 다음 층으로 가면 0.</summary>
-        public static int DeathsThisStage => PlayerPrefs.GetInt(StageDeathsKey, 0);
+        public static int DeathsThisStage => Prefs.GetInt(StageDeathsKey, 0);
 
-        public static void AddStageDeath() => PlayerPrefs.SetInt(StageDeathsKey, DeathsThisStage + 1);
+        public static void AddStageDeath() => Prefs.SetInt(StageDeathsKey, DeathsThisStage + 1);
 
         /// <summary>새 시도 시작(Main 입장 또는 사망 후 방1부터 재시작) - LoopManager가 부른다.</summary>
         public static void BeginAttempt()
         {
             EnsureLoaded();
             _attempts++;
-            PlayerPrefs.SetInt(AttemptsKey, _attempts);
-            PlayerPrefs.Save();
+            Prefs.SetInt(AttemptsKey, _attempts);
+            Prefs.Save();
         }
 
         /// <summary>이번 시도의 일반 몹/방 클리어 보상 배율.</summary>

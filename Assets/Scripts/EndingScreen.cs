@@ -43,13 +43,48 @@ namespace LoopRogue
         private bool _done;
         private Text _prompt;
 
-        public static void Show(Record record, Func<bool> canShow, Action<RelicType?> onDone)
+        /// <param name="onDone">"처음으로" - 다음 회차로 가져갈 유물(없으면 null)</param>
+        /// <param name="onContinue">"그대로 계속"(11-02 사용자) - 진행을 그대로 두고 로비로(로비 문에서 층을 고를 수 있다)</param>
+        public static void Show(Record record, Func<bool> canShow, Action<RelicType?> onDone, Action onContinue)
         {
             var go = new GameObject("EndingScreen");
             var screen = go.AddComponent<EndingScreen>();
             screen._record = record;
             screen._canShow = canShow;
             screen._onDone = onDone;
+            screen._onContinue = onContinue;
+        }
+
+        private Action _onContinue;
+
+        // ---- 마지막 선택(11-02 사용자) - [1] 처음으로 / [2] 그대로 계속. W/S·숫자·클릭으로 고르고 Enter ----
+        private readonly List<(RectTransform Rect, Text Text, string Content)> _options = new List<(RectTransform, Text, string)>();
+        private int _option;
+
+        private void RefreshOptions()
+        {
+            for (var i = 0; i < _options.Count; i++)
+            {
+                var (_, text, content) = _options[i];
+                text.text = i == _option ? $"<color=#FFD966>▶ {content}</color>" : $"<color=#9A9EAA>   {content}</color>";
+            }
+        }
+
+        private void ChooseOption(int index)
+        {
+            if (index == 1)
+            {
+                _done = true;
+                _onContinue?.Invoke();
+                return;
+            }
+            if (_relics.Count > 0)
+            {
+                BuildPick();
+                return;
+            }
+            _done = true;
+            _onDone?.Invoke(null);
         }
 
         private IEnumerator Start()
@@ -110,15 +145,24 @@ namespace LoopRogue
             var stats = Loc.F("{0}번째 클리어   ·   누적 사망 {1}회   ·   레벨 {2}   ·   도감 {3}/{4}", r.Clears, r.TotalDeaths, r.Level, r.CodexFound, r.CodexTotal);
             yield return FadeIn(Label(canvasGo.transform, stats, 20, new Vector2(0f, -110f), new Color(1f, 0.85f, 0.45f)));
             _relics = Relics.OwnedRelics().ToList();
-            yield return FadeIn(Label(canvasGo.transform,
+            var contents = new[]
+            {
                 _relics.Count > 0
-                    ? Loc.T("처음으로 돌아갑니다 - <color=#B9A0FF>도감</color>과 <color=#FFD966>유물 하나</color>가 남고, 골드·장비·레벨·업적·칭호는 처음부터.")
-                    : Loc.T("처음으로 돌아갑니다 - <color=#B9A0FF>도감</color>은 남고, 골드·장비·유물·레벨·업적·칭호는 처음부터."),
-                16, new Vector2(0f, -160f), new Color(0.75f, 0.77f, 0.85f)));
+                    ? Loc.T("[1] 처음으로 - 도감과 유물 하나만 남기고 1층부터 새 모험")
+                    : Loc.T("[1] 처음으로 - 도감만 남기고 1층부터 새 모험"),
+                Loc.T("[2] 그대로 계속 - 지금 진행을 그대로 두고 로비로, 원하는 층을 골라 들어간다"),
+            };
+            for (var i = 0; i < contents.Length; i++)
+            {
+                var text = Label(canvasGo.transform, string.Empty, 19, new Vector2(0f, -160f - i * 38f), Color.white);
+                text.color = Color.white;
+                text.rectTransform.sizeDelta = new Vector2(820f, 34f);
+                _options.Add((text.rectTransform, text, contents[i]));
+            }
+            RefreshOptions();
 
             _canvas = canvasGo.transform;
-            _prompt = Label(canvasGo.transform, _relics.Count > 0 ? Loc.T("[Enter] 가져갈 유물 고르기") : Loc.T("[Enter] 처음으로"), 22, new Vector2(0f, -250f), Color.white);
-            _prompt.fontStyle = FontStyle.Bold;
+            _prompt = Label(canvasGo.transform, Loc.T("[W/S] 고르기   [Enter] 결정"), 18, new Vector2(0f, -262f), Color.white);
             _ready = true;
         }
 
@@ -132,15 +176,34 @@ namespace LoopRogue
                 UpdatePick();
                 return;
             }
-            if (!(GameInput.Down(Key.Enter) || GameInput.Down(Key.NumpadEnter)))
-                return;
-            if (_relics.Count > 0)
+            if (GameInput.Down(Key.UpArrow) || GameInput.Down(Key.W) || GameInput.Down(Key.DownArrow) || GameInput.Down(Key.S))
             {
-                BuildPick();
+                _option = 1 - _option;
+                RefreshOptions();
+            }
+            if (GameInput.Down(Key.Digit1) || GameInput.Down(Key.Digit2))
+            {
+                ChooseOption(GameInput.Down(Key.Digit1) ? 0 : 1);
                 return;
             }
-            _done = true;
-            _onDone?.Invoke(null);
+            var pos = GameInput.PointerPosition;
+            for (var i = 0; i < _options.Count; i++)
+            {
+                if (!RectTransformUtility.RectangleContainsScreenPoint(_options[i].Rect, pos, null))
+                    continue;
+                if (GameInput.PointerDelta.sqrMagnitude > 0f && _option != i)
+                {
+                    _option = i;
+                    RefreshOptions();
+                }
+                if (GameInput.PointerDown)
+                {
+                    ChooseOption(i);
+                    return;
+                }
+            }
+            if (GameInput.Down(Key.Enter) || GameInput.Down(Key.NumpadEnter))
+                ChooseOption(_option);
         }
 
         // ---- 다음 회차로 가져갈 유물 고르기(10-27 사용자) - 가진 유물을 4줄 격자로, 방향키·클릭으로 고르고 Enter로 결정 ----

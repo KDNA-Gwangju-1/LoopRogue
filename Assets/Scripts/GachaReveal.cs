@@ -22,6 +22,7 @@ namespace LoopRogue
 
         private bool _playing;
         private bool _skipAll;          // 건너뛰기 - 남은 연출(등급 오르기·열림·카드 깔기)을 한 번에 끝낸다
+        private bool _forced;           // 11-02 사용자 - 지금보다 좋은 장비(장착)가 나오면 연출 끄기·건너뛰기와 상관없이 끝까지
         private RectTransform _skipButton;
         private RectTransform _root;
         private RectTransform _shakeRoot;
@@ -91,8 +92,11 @@ namespace LoopRogue
         {
             _playing = true;
             _hint.gameObject.SetActive(false);
-            _skipAll = !GameSettings.GachaAnimation; // 설정에서 끄면 처음부터 건너뛴 것처럼 바로 결과
-            _skipButton.gameObject.SetActive(!_skipAll);
+            _forced = false;
+            foreach (var res in results)
+                _forced |= res.Equipped; // 더 좋은 장비를 끼웠다 - 강제 연출
+            _skipAll = !_forced && !GameSettings.GachaAnimation; // 설정에서 끄면 처음부터 건너뛴 것처럼 바로 결과
+            _skipButton.gameObject.SetActive(!_skipAll && !_forced);
             var best = results[0];
             foreach (var res in results)
                 if (res.Grade > best.Grade)
@@ -453,6 +457,7 @@ namespace LoopRogue
             _playing = true;
             _hint.gameObject.SetActive(false);
             _skipAll = false;
+            _forced = false;
             _skipButton.gameObject.SetActive(true);
             var cyan = EquipmentData.Grades[ItemGrade.Unknown].Color;
             var spark = new Color(1f, 0.72f, 0.35f);
@@ -596,6 +601,7 @@ namespace LoopRogue
             _playing = true;
             _hint.gameObject.SetActive(false);
             _skipAll = false;
+            _forced = false;
             _skipButton.gameObject.SetActive(true);
             var center = new Vector2(0f, 40f);
 
@@ -691,6 +697,8 @@ namespace LoopRogue
         /// <summary>건너뛰기 버튼·클릭·Space - 한 번 누르면 남은 연출 전부 생략(_skipAll).</summary>
         private bool CheckSkip()
         {
+            if (_forced)
+                return false; // 더 좋은 장비 - 건너뛸 수 없다
             if (!_skipAll && SkipPressed())
                 _skipAll = true;
             return _skipAll;

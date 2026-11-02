@@ -128,6 +128,118 @@ namespace LoopRogue.EditorTools
                 Relics.GrantForTest(type);
         }
 
+        // ---- 특성 테스트(11-02) - 포인트·로비 화면이 생기기 전까지 여기서 켜고 끈다. ----
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/대시 1 분신 대시")] private static void TraitDashClone() => ToggleTrait(TraitType.DashClone);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/대시 2 되돌아오기")] private static void TraitDashReturn() => ToggleTrait(TraitType.DashReturn);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/대시 3 연속 대시")] private static void TraitDashChain() => ToggleTrait(TraitType.DashChain);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/대시 4 대시 파동")] private static void TraitDashWave() => ToggleTrait(TraitType.DashWave);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/대시 5 표식 폭발")] private static void TraitDashMark() => ToggleTrait(TraitType.DashMark);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/회전 1 삼연 회전")] private static void TraitSpinHold() => ToggleTrait(TraitType.SpinHold);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/회전 2 회전 중 행동")] private static void TraitSpinFree() => ToggleTrait(TraitType.SpinFree);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/회전 3 긴 회전")] private static void TraitSpinLong() => ToggleTrait(TraitType.SpinLong);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/회전 4 칼날 방패")] private static void TraitSpinGuard() => ToggleTrait(TraitType.SpinGuard);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/회전 5 끝없는 회전")] private static void TraitSpinStorm() => ToggleTrait(TraitType.SpinStorm);
+
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/탐색 1 넓은 시야")] private static void TraitExploreVision() => ToggleTrait(TraitType.ExploreVision);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/탐색 2 길잡이")] private static void TraitExploreExit() => ToggleTrait(TraitType.ExploreExit);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/탐색 3 보물 감각")] private static void TraitExploreChest() => ToggleTrait(TraitType.ExploreChest);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/탐색 4 퍼즐 달인")] private static void TraitExplorePuzzle() => ToggleTrait(TraitType.ExplorePuzzle);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/탐색 5 노다지")] private static void TraitExploreFind() => ToggleTrait(TraitType.ExploreFind);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/상인 1 흥정")] private static void TraitTradeMerchant() => ToggleTrait(TraitType.TradeMerchant);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/상인 2 단골")] private static void TraitTradeShop() => ToggleTrait(TraitType.TradeShop);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/상인 3 큰손")] private static void TraitTradeGold() => ToggleTrait(TraitType.TradeGold);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/상인 4 보험")] private static void TraitTradeInsurance() => ToggleTrait(TraitType.TradeInsurance);
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/상인 5 행운의 손님")] private static void TraitTradeLuck() => ToggleTrait(TraitType.TradeLuck);
+
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/특성 포인트 +1", false, 100)]
+        private static void AddTraitPoint()
+        {
+            Traits.AddBonusPoints(1);
+            PlayerPrefs.Save();
+            Debug.Log($"[테스트] 특성 포인트 +1 → 남은 {Traits.FreePoints} / 전체 {Traits.EarnedPoints}");
+        }
+
+        [MenuItem("LoopRogue/테스트: 특성 켜고 끄기/특성 전부 되돌리기", false, 101)]
+        private static void ResetTraits()
+        {
+            Traits.ResetAll();
+            Debug.Log("[테스트] 특성 전부 되돌림");
+        }
+
+        private static void ToggleTrait(TraitType type)
+        {
+            Traits.Set(type, !Traits.Has(type));
+            PlayerPrefs.Save();
+            Debug.Log($"[테스트] 특성 {type} {(Traits.Has(type) ? "켬" : "끔")}");
+        }
+
+        /// <summary>10층 클리어 표시(로비 층 선택) 켜고 끄기 - 엔딩을 안 보고도 로비 문 층 선택 창을 확인할 수 있다.</summary>
+        [MenuItem("LoopRogue/테스트: 10층 클리어 표시 켜고 끄기 (로비 층 선택)")]
+        private static void ToggleFinalCleared()
+        {
+            if (StageProgress.FinalBossCleared)
+                StageProgress.ClearFinalBossClearedForTest();
+            else
+                StageProgress.MarkFinalBossCleared();
+            Debug.Log($"[테스트] 10층 클리어 표시 {(StageProgress.FinalBossCleared ? "켬" : "끔")} - 로비를 다시 열면 문이 {(StageProgress.FinalBossCleared ? "층 선택" : "지금 층 시작")}");
+        }
+
+        /// <summary>그림자 걸음 이펙트를 실제 게임 화면에서 재생하며 프레임마다 PNG로 찍는다(11-02 - 이펙트 확인용). 던전에서 Play 중에만.
+        /// 가장 가까운 몹(없으면 플레이어 오른쪽 칸)에 벤 순간 → 잠시 뒤 다시 베기. 저장 위치: 프로젝트/Screenshots/shadowstep_00.png…</summary>
+        [MenuItem("LoopRogue/테스트: 그림자 걸음 이펙트 캡처 (던전 Play 중)")]
+        private static void CaptureShadowStep()
+        {
+            var player = Object.FindFirstObjectByType<PlayerActor>();
+            if (player == null)
+            {
+                Debug.LogWarning("[테스트] 던전에서 Play 중에만 됩니다(플레이어가 없음)");
+                return;
+            }
+            EnemyActor target = null;
+            var best = float.MaxValue;
+            foreach (var e in Object.FindObjectsByType<EnemyActor>(FindObjectsSortMode.None))
+            {
+                if (e.Stats == null || e.Stats.IsDead)
+                    continue;
+                var d = (e.transform.position - player.transform.position).sqrMagnitude;
+                if (d < best)
+                {
+                    best = d;
+                    target = e;
+                }
+            }
+            var pos = target != null ? target.transform.position : player.transform.position + Vector3.right * GridConstants.CellSize;
+            var folder = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath) ?? ".", "Screenshots");
+            FxCapture.Run(folder, "shadowstep", 0.9f, 0.06f,
+                () => player.PreviewShadowMark(pos, target),
+                () => player.PreviewShadowStrike(pos, target));
+        }
+
+        [MenuItem("LoopRogue/테스트: 그림자 걸음 이펙트 캡처 (던전 Play 중)", true)]
+        private static bool CaptureShadowStepValid() => EditorApplication.isPlaying;
+
+        /// <summary>특성 "노다지" 연출을 실제 화면에서 재생하며 PNG로 찍는다(골드는 안 준다). 프로젝트/Screenshots/bonanza_00.png…</summary>
+        [MenuItem("LoopRogue/테스트: 노다지 연출 캡처 (던전 Play 중)")]
+        private static void CaptureBonanza()
+        {
+            var player = Object.FindFirstObjectByType<PlayerActor>();
+            var room = Object.FindFirstObjectByType<RoomController>();
+            if (player == null || room == null)
+            {
+                Debug.LogWarning("[테스트] 던전에서 Play 중에만 됩니다");
+                return;
+            }
+            var folder = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath) ?? ".", "Screenshots");
+            FxCapture.Run(folder, "bonanza", 1.4f, 0.06f, () =>
+            {
+                room.ShowMessage(Loc.F("<color=#FFD966>노다지!</color> 골드 +{0}", room.RoomClearGold * Traits.ExploreFindGoldRooms));
+                HitFeedback.OnBonanza(player);
+            });
+        }
+
+        [MenuItem("LoopRogue/테스트: 노다지 연출 캡처 (던전 Play 중)", true)]
+        private static bool CaptureBonanzaValid() => EditorApplication.isPlaying;
+
         [MenuItem("LoopRogue/테스트: 골드 +10000")]
         private static void AddGold()
         {

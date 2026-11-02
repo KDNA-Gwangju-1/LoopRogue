@@ -28,6 +28,8 @@ namespace LoopRogue
         private HudSlot _dashSlot;
         private HudSlot _spinSlot;
         private int _dashCooldownMax = PlayerActor.DashCooldownTurns;
+        private Sprite _dashIcon;
+        private Sprite _dashReturnIcon; // 특성 "되돌아오기"
         private int _spinCooldownMax = PlayerActor.SpinCooldownTurns;
         private int _lastDashCooldown;
         private int _lastSpinCooldown;
@@ -335,7 +337,7 @@ namespace LoopRogue
             ClickedCard(_deathButtons); // 마우스를 올린 버튼만 밝게(클릭은 RegisterTap이 키로 바꿔 준다)
             if (_roomMap.HandleInput())
                 ChooseDeathContinue(_roomMap.Selected);
-            else if (GameInput.Down(Key.L))
+            else if (GameInput.Down(Key.Digit1)) // 11-02 사용자 L → 1(Esc 메뉴와 같게)
                 ChooseDeathLobby();
         }
 
@@ -1327,8 +1329,19 @@ namespace LoopRogue
         /// <summary>Q/E 칸 - 쿨다운 덮개 비율의 분모는 "막 썼을 때의 남은 턴"(반지 효과로 줄어들 수 있어서 상수 대신 관찰값).</summary>
         private void RefreshSkillSlots()
         {
-            UpdateSkillSlot(_dashSlot, _player.DashCooldown, ref _dashCooldownMax, ref _lastDashCooldown,
-                _player.IsAimingDash, _player.RootedTurns > 0);
+            // 특성 "되돌아오기" - 돌아올 수 있는 동안 Q 칸은 되돌아오기 그림 + 쓸 수 있는 칸(쿨다운 덮개 없음)
+            var returning = _player.CanDashReturn;
+            _dashSlot.SetIcon(returning && _dashReturnIcon != null ? _dashReturnIcon : _dashIcon);
+            _dashSlot.Key.text = returning ? "R" : "Q";
+            if (returning)
+            {
+                _dashSlot.SetCooldown(0, _dashCooldownMax);
+                _dashSlot.Frame.color = _player.RootedTurns > 0 ? HudSlot.FrameNormal : HudSlot.FrameReady;
+                _dashSlot.Label.color = Color.white;
+            }
+            else
+                UpdateSkillSlot(_dashSlot, _player.DashCooldown, ref _dashCooldownMax, ref _lastDashCooldown,
+                    _player.IsAimingDash, _player.RootedTurns > 0);
             UpdateSkillSlot(_spinSlot, _player.SpinCooldown, ref _spinCooldownMax, ref _lastSpinCooldown, false, false);
         }
 
@@ -1361,13 +1374,16 @@ namespace LoopRogue
 
             _dashSlot = new HudSlot(parent, "DashSlot", bottom,
                 new Vector2(ActionBarLayout.SkillX(0), ActionBarLayout.SlotCenterY), slotSize, "Q");
-            _dashSlot.SetIcon(PixelUi.Icon("Skill_Dash"));
+            _dashIcon = PixelUi.Icon("Skill_Dash");
+            _dashReturnIcon = PixelUi.Icon("Skill_DashReturn");
+            _dashSlot.SetIcon(_dashIcon);
             _dashSlot.Label.text = _dashSlot.Icon.enabled ? string.Empty : Loc.T("대시");
             _spinSlot = new HudSlot(parent, "SpinSlot", bottom,
                 new Vector2(ActionBarLayout.SkillX(1), ActionBarLayout.SlotCenterY), slotSize, "E");
             _spinSlot.SetIcon(PixelUi.Icon("Skill_Spin"));
             // 모바일 - 스킬 칸을 탭하면 Q/E(행동할 수 있을 때만)
-            GameInput.RegisterTap(_dashSlot.Rect, Key.Q, () => _player != null && _player.CanAct);
+            GameInput.RegisterTap(_dashSlot.Rect, Key.Q, () => _player != null && _player.CanAct && !_player.CanDashReturn);
+            GameInput.RegisterTap(_dashSlot.Rect, Key.R, () => _player != null && _player.CanAct && _player.CanDashReturn); // 되돌아오기 중엔 R
             GameInput.RegisterTap(_spinSlot.Rect, Key.E, () => _player != null && _player.CanAct);
             _spinSlot.Label.text = _spinSlot.Icon.enabled ? string.Empty : Loc.T("회전\n베기");
 
@@ -1698,7 +1714,7 @@ namespace LoopRogue
             // 누르면 그 키를 누른 것과 같다(GameInput.RegisterTap) - Enter = 고른 방에서 계속, L = 로비.
             _deathButtons.Clear();
             _deathButtons.Add(CreateDeathButton(Loc.T("계속하기  [Enter]"), -115f, new Color(0.22f, 0.3f, 0.42f), Key.Enter));
-            _deathButtons.Add(CreateDeathButton(Loc.T("로비로 이동  [L]"), 115f, new Color(0.45f, 0.33f, 0.16f), Key.L));
+            _deathButtons.Add(CreateDeathButton(Loc.T("로비로 이동  [1]"), 115f, new Color(0.45f, 0.33f, 0.16f), Key.Digit1));
 
             // 맨 아래 - 노인의 조언 한 줄(LobbyGuide.DeathTip). 패널을 그만큼 늘렸다.
             _deathTipText = CreateLabel(_deathPanel.transform, string.Empty, new Vector2(30f, -315f - DeathTipHeight), new Vector2(-30f, -318f));

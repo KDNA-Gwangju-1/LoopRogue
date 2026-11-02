@@ -35,12 +35,12 @@ namespace LoopRogue
             }
         }
 
-        public static Stage Current => (Stage)PlayerPrefs.GetInt(StageKey, 0);
+        public static Stage Current => (Stage)Prefs.GetInt(StageKey, 0);
 
         private static void Set(Stage stage)
         {
-            PlayerPrefs.SetInt(StageKey, (int)stage);
-            PlayerPrefs.Save();
+            Prefs.SetInt(StageKey, (int)stage);
+            Prefs.Save();
         }
 
         /// <summary>장비 3개가 전부 영원 이상인지(출현 조건).</summary>

@@ -162,7 +162,7 @@ namespace LoopRogue
                 return;
             _loaded = true;
             Found.Clear();
-            foreach (var k in PlayerPrefs.GetString(Key, "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+            foreach (var k in Prefs.GetString(Key, "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
                 Found.Add(k);
         }
 
@@ -187,7 +187,7 @@ namespace LoopRogue
             var entry = All.FirstOrDefault(e => e.Key == key);
             if (entry == null || !Found.Add(key))
                 return;
-            PlayerPrefs.SetString(Key, string.Join(",", Found));
+            Prefs.SetString(Key, string.Join(",", Found));
             Discovered?.Invoke(entry);
             Achievements.Check(); // 도감 업적
         }
@@ -203,7 +203,7 @@ namespace LoopRogue
             for (var s = 1; s < StageProgress.CurrentStage && s <= StageProgress.MaxStage; s++)
                 changed |= Found.Add(BossKey(s));
             if (changed)
-                PlayerPrefs.SetString(Key, string.Join(",", Found));
+                Prefs.SetString(Key, string.Join(",", Found));
         }
     }
 }

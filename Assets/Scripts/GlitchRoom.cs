@@ -45,13 +45,13 @@ namespace LoopRogue
         public static int EnemyPhase;
 
         /// <summary>지금까지 모은 오류 조각(스토리용 재화 - 저장에 남는다).</summary>
-        public static int Fragments => PlayerPrefs.GetInt(FragmentsKey, 0);
+        public static int Fragments => Prefs.GetInt(FragmentsKey, 0);
 
         public static int AddFragment()
         {
             var total = Fragments + 1;
-            PlayerPrefs.SetInt(FragmentsKey, total);
-            PlayerPrefs.Save();
+            Prefs.SetInt(FragmentsKey, total);
+            Prefs.Save();
             return total;
         }
 

@@ -29,7 +29,7 @@ namespace LoopRogue
 
         // 로비(허브)에서 상점 3곳으로 들어가 그 안에서만 사고판다 - 한 화면에 다 몰려 있던 걸 나눔.
         // 화면마다 GameObject 하나, 꺼진 화면의 버튼은 클릭·단축키 둘 다 안 받는다.
-        private enum LobbyView { Hub, Gacha, Potion, Casino }
+        private enum LobbyView { Hub, Gacha, Potion, Casino, Items }
         private LobbyView _view;
         private readonly Dictionary<LobbyView, GameObject> _viewRoots = new Dictionary<LobbyView, GameObject>();
         private Text _titleText;
@@ -80,7 +80,9 @@ namespace LoopRogue
         private Sprite _slotFrameSprite;
         private Sprite _slotFrameWinSprite;
         private Text _slotButtonText;
-        private Text _slotHighButtonText;
+        private Text _slotHighButtonText; // 11-02 - 거는 돈 줄(예전 고액 베팅 버튼 자리)
+        private Text _slotRiskButtonText;
+        private Text _slotTitleText;
         private Text _slotBulkButtonText;
         private Text _slotAllButtonText;
         private RectTransform _slotBulkButton;
@@ -121,6 +123,8 @@ namespace LoopRogue
             NpcDialogUI.Create();
             _achievementPanel = AchievementPanel.Create();
             _codexPanel = CodexPanel.Create();
+            _traitPanel = TraitPanel.Create();
+            _stageSelectPanel = StageSelectPanel.Create();
             Achievements.Unlocked += OnAchievementUnlocked;
             Codex.SyncOwned();    // 도감이 생기기 전 저장으로 이미 가진 유물/아이템
             Achievements.Check(); // 업적이 생기기 전 저장으로 이미 조건을 채운 것들
@@ -128,6 +132,8 @@ namespace LoopRogue
 
         private AchievementPanel _achievementPanel;
         private CodexPanel _codexPanel;
+        private TraitPanel _traitPanel; // 11-02 특성 창 - 허브에서 T
+        private StageSelectPanel _stageSelectPanel; // 11-02 층 선택 - 10층 클리어 뒤 문으로
 
         private void OnDestroy() => Achievements.Unlocked -= OnAchievementUnlocked;
 
@@ -156,7 +162,7 @@ namespace LoopRogue
             UpdateHover();
 
             // 안내자와 대화 중이거나 업적 창이 열려 있으면(닫은 프레임 포함) 로비 버튼·단축키를 안 받는다 - 그 창들이 Esc/숫자/클릭을 직접 처리한다.
-            if (NpcDialogUI.BlocksInput || AchievementPanel.BlocksInput || CodexPanel.BlocksInput || GachaReveal.BlocksInput)
+            if (NpcDialogUI.BlocksInput || AchievementPanel.BlocksInput || CodexPanel.BlocksInput || TraitPanel.BlocksInput || StageSelectPanel.BlocksInput || GachaReveal.BlocksInput)
                 return;
 
             // 클릭으로 화면이 바뀐 프레임엔 단축키를 안 읽는다(같은 프레임에 새 화면 키가 먹지 않게).
@@ -180,6 +186,10 @@ namespace LoopRogue
                         _achievementPanel.Open();
                     else if (GameInput.Down(Key.Digit6))
                         _codexPanel.Open();
+                    else if (GameInput.Down(Key.Digit7))
+                        ShowView(LobbyView.Items);
+                    else if (GameInput.Down(Key.T))
+                        _traitPanel.Open();
                     // Esc = 타이틀로(로비엔 진행 중인 전투가 없어서 확인 없이 바로 이동 - 골드/장비는 전부 영구 저장).
                     else if (GameInput.Down(Key.Escape))
                         SceneManager.LoadScene("Title");
@@ -213,6 +223,12 @@ namespace LoopRogue
                         DoGacha(ItemSlot.Accessory, shift);
                     break;
 
+                case LobbyView.Items:
+                    for (var i = 0; i < ItemInfo.Count; i++)
+                        if (GameInput.Down(i == 9 ? Key.Digit0 : Key.Digit1 + i))
+                            DoItemBuy((ItemType)i);
+                    break;
+
                 case LobbyView.Potion:
                     // 10-28 사용자 - A/H/C 대신 뽑기 상점처럼 숫자 1/2/3
                     if (GameInput.Down(Key.Digit1))
@@ -225,7 +241,15 @@ namespace LoopRogue
 
                 case LobbyView.Casino:
                     if (GameInput.Down(Key.S))
-                        DoSlotSpin(shift);
+                        DoSlotSpin();
+                    if (GameInput.Down(Key.A) || GameInput.Down(Key.LeftArrow))
+                        AdjustSlotBet(-(shift ? SlotMachine.BigBetStep : SlotMachine.BetStep));
+                    if (GameInput.Down(Key.D) || GameInput.Down(Key.RightArrow))
+                        AdjustSlotBet(shift ? SlotMachine.BigBetStep : SlotMachine.BetStep);
+                    if (GameInput.Down(Key.Q))
+                        AdjustSlotMultiplier(-SlotMachine.MultiplierStep);
+                    if (GameInput.Down(Key.E))
+                        AdjustSlotMultiplier(SlotMachine.MultiplierStep);
                     if (GameInput.Down(Key.T))
                         DoSlotTicketBulk(shift ? int.MaxValue : SlotBulkCount);
                     if (GameInput.Down(Key.K))
@@ -275,6 +299,8 @@ namespace LoopRogue
             _equipmentGroup.SetActive(view == LobbyView.Gacha);
             _headerGroup.SetActive(view != LobbyView.Hub);
             _potionGroup.SetActive(view == LobbyView.Potion);
+            if (view == LobbyView.Items)
+                RefreshItemShopDisplay();
             // 허브는 배경 그림 대신 방(LobbyRoom)이 보인다. 상점 안은 배경 그림 + 어둡게(그림이 없으면 방이 어둡게 비침).
             var hub = view == LobbyView.Hub;
             _background.enabled = !hub && _backgrounds.TryGetValue(view, out var background) && background != null;
@@ -286,11 +312,27 @@ namespace LoopRogue
                 LobbyView.Gacha => Loc.T("뽑기 상점"),
                 LobbyView.Potion => Loc.T("영약 상점"),
                 LobbyView.Casino => Loc.T("도박장"),
+                LobbyView.Items => Loc.T("잡화점"),
                 _ => $"Stage {StageProgress.CurrentStage}/{StageProgress.MaxStage}",
             };
         }
 
         private void StartRun() => SceneManager.LoadScene(MainSceneName);
+
+        /// <summary>로비 문 - 10층 보스를 잡고 "그대로 계속"을 골랐으면 층 선택 창부터(11-02 사용자), 아니면 바로 지금 층.</summary>
+        private void EnterDoor()
+        {
+            if (!StageProgress.FinalBossCleared)
+            {
+                StartRun();
+                return;
+            }
+            _stageSelectPanel.Open(stage =>
+            {
+                StageProgress.SelectStage(stage);
+                StartRun();
+            }, () => _room.StepBackFromDoor());
+        }
 
         private void DoPotionBuy(PotionType type, string label)
         {
@@ -454,7 +496,7 @@ namespace LoopRogue
             }
         }
 
-        private void DoSlotSpin(bool high)
+        private void DoSlotSpin()
         {
             if (_slotSpinning)
             {
@@ -462,10 +504,10 @@ namespace LoopRogue
                 return;
             }
 
-            var result = SlotMachine.Spin(high);
+            var result = SlotMachine.Spin(useTicket: false);
             if (result == null)
             {
-                ShowResult(Loc.F("골드가 모자랍니다! (베팅액: {0})", SlotMachine.GetBet(high)), Color.white);
+                ShowResult(Loc.F("골드가 모자랍니다! (베팅액: {0})", SlotMachine.Bet), Color.white);
                 return;
             }
 
@@ -488,9 +530,9 @@ namespace LoopRogue
             var results = new List<SlotMachine.SpinResult>();
             while (results.Count < count && SlotMachine.Tickets > 0)
             {
-                var result = SlotMachine.Spin(false);
-                if (result == null || !result.Value.UsedTicket)
-                    break; // 이용권이 다 떨어졌다(골드로 돌리지 않게 - Spin은 이용권이 없으면 골드를 쓴다)
+                var result = SlotMachine.Spin(useTicket: true);
+                if (result == null)
+                    break;
                 results.Add(result.Value);
             }
             if (results.Count == 0)
@@ -503,12 +545,11 @@ namespace LoopRogue
         private IEnumerator SlotBulkRoutine(List<SlotMachine.SpinResult> results)
         {
             var best = results[0];
-            int total = 0, jackpots = 0, pairs = 0;
+            int total = 0, wins = 0;
             foreach (var r in results)
             {
                 total += r.Payout;
-                if (r.MatchCount == 3) jackpots++;
-                else if (r.MatchCount == 2) pairs++;
+                if (r.Payout > 0) wins++;
                 if (r.MatchCount > best.MatchCount)
                     best = r;
             }
@@ -517,9 +558,8 @@ namespace LoopRogue
             yield return SlotSpinRoutine(best, showResult: false);
             _slotPendingPayout = 0;
 
-            var misses = results.Count - jackpots - pairs;
-            var summary = Loc.F("이용권 {0}장 사용 - 잭팟 {1} / 2개 일치 {2} / 꽝 {3}  →  총 {4}골드 획득", results.Count, jackpots, pairs, misses, total);
-            ShowResult(summary, jackpots > 0 ? new Color(1f, 0.85f, 0.3f) : total > 0 ? new Color(0.6f, 0.9f, 1f) : new Color(1f, 0.5f, 0.5f));
+            var summary = Loc.F("이용권 {0}장 사용 ({1}배) - 당첨 {2} / 꽝 {3}  →  총 {4}골드 획득", results.Count, best.Multiplier, wins, results.Count - wins, total);
+            ShowResult(summary, wins > 0 ? new Color(1f, 0.85f, 0.3f) : new Color(1f, 0.5f, 0.5f));
         }
 
         /// <summary>결과는 이미 정해졌고 연출만 한다 - 전부 돌다가 왼쪽 릴부터 하나씩 멈춘다.</summary>
@@ -566,9 +606,9 @@ namespace LoopRogue
             if (result.MatchCount == 3)
             {
                 SetSlotLook(dim: false, win: true);
-                ShowResult(Loc.F("잭팟! 3개 일치 - {0}골드 획득!", result.Payout), new Color(1f, 0.85f, 0.3f));
+                ShowResult(Loc.F("당첨! {0}배 - {1}골드 획득!", result.Multiplier, result.Payout), new Color(1f, 0.85f, 0.3f));
             }
-            else if (result.MatchCount == 2)
+            else if (result.MatchCount == 2 && result.Payout > 0) // 대박 배율은 2개 일치가 꽝
             {
                 ShowResult(Loc.F("2개 일치 - {0}골드 돌려받음 (베팅 {1})", result.Payout, result.Bet), new Color(0.6f, 0.9f, 1f));
             }
@@ -608,14 +648,15 @@ namespace LoopRogue
 
         private void RefreshSlotDisplay()
         {
-            _slotButtonText.text = SlotMachine.Tickets > 0 // 이용권이 있으면 먼저 쓴다
-                ? Loc.F("[S] 돌리기 (이용권 {0}장)", SlotMachine.Tickets)
-                : Loc.F("[S] 돌리기 ({0}G)", SlotMachine.GetBet(false));
-            _slotHighButtonText.text = Loc.F("[Shift+S] {0}배 베팅 ({1}G)", SlotMachine.HighBetMultiplier, SlotMachine.GetBet(true));
+            var multiplier = SlotMachine.Multiplier;
+            _slotTitleText.text = Loc.T("운명의 슬롯") + "\n" + Loc.F("3개 일치 {0}배 · 당첨 확률 {1:0.#}%", multiplier, SlotMachine.WinChance(multiplier) * 100f);
+            _slotButtonText.text = Loc.F("[S] 돌리기 ({0}G)", SlotMachine.Bet);
+            _slotHighButtonText.text = Loc.F("[A] ◀  거는 돈 {0}G  ▶ [D]   <size=12>(최대 {1}G, Shift = 100씩)</size>", SlotMachine.Bet, SlotMachine.MaxBet);
+            _slotRiskButtonText.text = Loc.F("[Q] ◀  배율 {0}배  ▶ [E]", multiplier);
 
-            // 이용권 한 번에 쓰기 - 2장 이상일 때만, 전부 쓰기는 10장보다 많을 때만(10장 이하면 [T]가 곧 전부)
+            // 이용권 - 1장 이상이면 [T](10장씩, 모자라면 남은 전부), 전부 쓰기는 10장보다 많을 때만. 이용권 한 장 = {TicketBet}G를 지금 배율로
             var tickets = SlotMachine.Tickets;
-            _slotBulkButton.gameObject.SetActive(tickets >= 2);
+            _slotBulkButton.gameObject.SetActive(tickets >= 1);
             _slotAllButton.gameObject.SetActive(tickets > SlotBulkCount);
             _slotBulkButton.anchoredPosition = new Vector2(tickets > SlotBulkCount ? -84f : 0f, _slotBulkButton.anchoredPosition.y); // 혼자면 가운데
             _slotBulkButtonText.text = tickets >= SlotBulkCount
@@ -625,11 +666,29 @@ namespace LoopRogue
             _slotSkipButtonText.text = _slotSkipAnim ? Loc.T("[K] 연출 스킵: 켬") : Loc.T("[K] 연출 스킵: 끔");
         }
 
+        /// <summary>거는 돈 ± (A/D, Shift면 100씩) - 최소 10, 최대 100 + 층 × 100(11-02 사용자).</summary>
+        private void AdjustSlotBet(int delta)
+        {
+            if (_slotSpinning)
+                return;
+            SlotMachine.Bet += delta;
+            RefreshSlotDisplay();
+        }
+
+        /// <summary>배율 ± 0.5(Q/E) - 2~5배, 높을수록 당첨 확률이 낮다(11-02 사용자).</summary>
+        private void AdjustSlotMultiplier(float delta)
+        {
+            if (_slotSpinning)
+                return;
+            SlotMachine.Multiplier += delta;
+            RefreshSlotDisplay();
+        }
+
         private void ToggleSlotSkip()
         {
             _slotSkipAnim = !_slotSkipAnim;
-            PlayerPrefs.SetInt(SlotSkipPrefKey, _slotSkipAnim ? 1 : 0);
-            PlayerPrefs.Save();
+            Prefs.SetInt(SlotSkipPrefKey, _slotSkipAnim ? 1 : 0);
+            Prefs.Save();
             if (_slotSpinning && _slotSkipAnim)
                 _slotSkipNow = true;
             RefreshSlotDisplay();
@@ -720,6 +779,7 @@ namespace LoopRogue
             BuildGachaView(root);
             BuildPotionView(root);
             BuildCasinoView(root);
+            BuildItemShopView(root);
         }
 
         private void LoadArt()
@@ -841,7 +901,7 @@ namespace LoopRogue
             var shopFirst = FirstShopLocked;
             _hubHint.text = shopFirst
                 ? Loc.T("받은 골드로 먼저 강해지자!  [1] 보물 상인: 장비 뽑기 · [2] 연금술사: 영약 - 하나라도 사면 문이 열린다")
-                : Loc.T("방향키 이동 · NPC에게 부딪히거나 Space로 말 걸기 · 위쪽 문으로 들어가면 시작 · 숫자 1~6 바로 열기 · Esc 타이틀");
+                : Loc.T("방향키 이동 · NPC에게 부딪히거나 Space로 말 걸기 · 위쪽 문으로 들어가면 시작 · 숫자 1~7 바로 열기 · T 특성 · Esc 타이틀");
             _hubHint.color = shopFirst ? new Color(1f, 0.85f, 0.4f) : new Color(0.85f, 0.85f, 0.9f);
         }
 
@@ -864,7 +924,7 @@ namespace LoopRogue
         /// <summary>로비 방에 NPC 6명을 세운다(예전 허브 카드 6개와 같은 기능·같은 숫자키).</summary>
         private void BuildLobbyRoom()
         {
-            _room = LobbyRoom.Create(StartRun, Loc.F("스테이지 {0} 시작", StageProgress.CurrentStage));
+            _room = LobbyRoom.Create(EnterDoor, StageProgress.FinalBossCleared ? Loc.T("층 선택") : Loc.F("스테이지 {0} 시작", StageProgress.CurrentStage));
             const int left = 1, right = LobbyRoom.Width - 2, top = LobbyRoom.Height - 2, upper = top - 2, lower = top - 5;
             _room.AddNpc("LobbyGacha", new Vector2Int(left, upper), () => Loc.T("[1] 보물 상인"), FirstShopBadge, () => ShowView(LobbyView.Gacha));
             _room.AddNpc("LobbyAlchemist", new Vector2Int(left, lower), () => Loc.T("[2] 연금술사"), FirstShopBadge, () => ShowView(LobbyView.Potion));
@@ -874,6 +934,7 @@ namespace LoopRogue
                 () => $"<color=#FFD966>{Achievements.UnlockedCount} / {Achievements.All.Length}</color>", () => _achievementPanel.Open());
             _room.AddNpc("LobbyScholar", new Vector2Int(right, lower), () => Loc.T("[6] 도감 학자"),
                 () => $"<color=#B9A0FF>{Codex.FoundCount()} / {Codex.TotalCount()}</color>", () => _codexPanel.Open());
+            _room.AddNpc("LobbyGrocer", new Vector2Int(3, 3), () => Loc.T("[7] 잡화상"), () => string.Empty, () => ShowView(LobbyView.Items)); // 11-02 소비 아이템
             _room.DoorLocked = () => FirstShopLocked;
             _room.OnDoorLocked = () => ShowResult(Loc.T("아직 문이 잠겨 있다 - 보물 상인(1)에서 장비를 뽑거나 연금술사(2)에게 영약을 사서 먼저 강해지자!"), new Color(1f, 0.85f, 0.4f));
             _room.Build();
@@ -997,26 +1058,110 @@ namespace LoopRogue
             return rect;
         }
 
+        // ---- 잡화점(11-02 사용자 "로비에서 소비 아이템 구매") - 1회용 아이템 10종, 가격은 던전 떠돌이 상인과 같은 공식(NpcActor.ItemPrice).
+        // 종류마다 가질 수 있는 만큼(1개, 연금술사의 주머니면 2개)까지. 숫자 1~9·0 또는 클릭으로 산다. ----
+        private readonly Text[] _itemShopTexts = new Text[ItemInfo.Count];
+        private readonly Image[] _itemShopImages = new Image[ItemInfo.Count];
+
+        private void BuildItemShopView(Transform parent)
+        {
+            var view = CreateView(parent, LobbyView.Items);
+            const float width = 470f, height = 50f, gapY = 56f, top = 60f;
+            for (var i = 0; i < ItemInfo.Count; i++)
+            {
+                var type = (ItemType)i;
+                var x = i < 5 ? -245f : 245f;
+                var y = top - (i % 5) * gapY;
+                var rect = CreateButton(view, $"Item{i}", ButtonColor, y, width, height, out _itemShopTexts[i], string.Empty, 15, Color.white,
+                    () => DoItemBuy(type), x: x);
+                _itemShopImages[i] = rect.GetComponent<Image>();
+                _itemShopTexts[i].supportRichText = true;
+                _itemShopTexts[i].alignment = TextAnchor.MiddleLeft;
+                _itemShopTexts[i].rectTransform.sizeDelta = new Vector2(width - 64f, height - 6f);
+                _itemShopTexts[i].rectTransform.anchoredPosition = new Vector2(24f, 0f);
+                var sprite = PixelUi.Icon($"Item_{type}");
+                if (sprite == null)
+                    continue;
+                var go = new GameObject("Icon", typeof(RectTransform));
+                go.transform.SetParent(rect, false);
+                var icon = go.AddComponent<Image>();
+                icon.sprite = sprite;
+                var iconRect = go.GetComponent<RectTransform>();
+                iconRect.sizeDelta = new Vector2(sprite.rect.width, sprite.rect.height) * 2f;
+                iconRect.anchoredPosition = new Vector2(-width / 2f + 26f, 0f);
+            }
+            CreateBackButton(view);
+        }
+
+        /// <summary>잡화점 가격 - 던전 상인과 같은 공식, 특성 "단골"이면 -20%.</summary>
+        private static int LobbyItemPrice => Mathf.RoundToInt(NpcActor.ItemPrice(StageProgress.CurrentStage) * (Traits.Has(TraitType.TradeShop) ? Traits.TradeShopDiscount : 1f));
+
+        private void RefreshItemShopDisplay()
+        {
+            var price = LobbyItemPrice;
+            for (var i = 0; i < ItemInfo.Count; i++)
+            {
+                var type = (ItemType)i;
+                var key = i == 9 ? "0" : (i + 1).ToString();
+                var canHold = Inventory.CanHold(type);
+                var affordable = GoldWallet.Gold >= price;
+                var status = !canHold ? Loc.T("<color=#8A8A92>가득 참</color>")
+                    : $"<color={(affordable ? "#FFD966" : "#FF8080")}>{price}G</color>";
+                _itemShopTexts[i].text = $"[{key}] <b>{ItemInfo.Name(type)}</b>  {status}  " +
+                                         Loc.F("<size=12><color=#9AA0AA>보유 {0}/{1}</color></size>", Inventory.Count(type), Relics.ItemCapacity) +
+                                         $"\n<size=11><color=#C8CCD6>{ItemInfo.Description(type)}</color></size>";
+                _itemShopImages[i].color = ButtonTint(canHold && affordable ? ButtonColor : ButtonLockedColor);
+            }
+        }
+
+        private void DoItemBuy(ItemType type)
+        {
+            var price = LobbyItemPrice;
+            if (!Inventory.CanHold(type))
+            {
+                ShowResult(Loc.F("{0}은(는) 더 가질 수 없습니다.", ItemInfo.Name(type)), Color.white);
+                return;
+            }
+            if (!GoldWallet.TrySpend(price))
+            {
+                ShowResult(Loc.F("골드가 모자랍니다! (가격: {0})", price), Color.white);
+                return;
+            }
+            Inventory.Give(type);
+            Prefs.Save();
+            PlayLog.Lobby($"잡화점 구매: {ItemInfo.Name(type)} ({price}골드)");
+            ShowResult(Loc.F("{0} 구매! ({1}골드)", ItemInfo.Name(type), price), new Color(0.6f, 1f, 0.7f));
+            RefreshItemShopDisplay();
+        }
+
         private void BuildCasinoView(Transform parent)
         {
             var view = CreateView(parent, LobbyView.Casino);
             CreatePanel(view, 0f, 115f, 440f, 170f);
 
-            var slotTitle = CreateLabel(view, "SlotTitle", Loc.T("운명의 슬롯\n3개 일치 10배 / 2개 일치 0.5배"),
+            _slotTitleText = CreateLabel(view, "SlotTitle", string.Empty,
                 18, FontStyle.Bold, new Color(1f, 0.85f, 0.3f), 168f, 400f);
-            slotTitle.rectTransform.sizeDelta = new Vector2(400f, 52f);
+            _slotTitleText.rectTransform.sizeDelta = new Vector2(400f, 52f);
 
             BuildSlotReels(view, 86f);
 
             CreateButton(view, "SlotButton", new Color(0.45f, 0.3f, 0.15f), -12f, 300f, 42f,
-                out _slotButtonText, string.Empty, 17, Color.white, () => DoSlotSpin(false));
-            CreateButton(view, "SlotHighButton", new Color(0.5f, 0.2f, 0.15f), -62f, 300f, 42f,
-                out _slotHighButtonText, string.Empty, 17, Color.white, () => DoSlotSpin(true));
+                out _slotButtonText, string.Empty, 17, Color.white, DoSlotSpin);
+            // 거는 돈 줄 - 왼쪽 반을 누르면 -, 오른쪽 반을 누르면 +(11-02, 예전 고액 베팅 자리)
+            CreateButton(view, "SlotBetMinus", new Color(0.3f, 0.22f, 0.15f), -62f, 60f, 42f,
+                out _, "◀", 17, Color.white, () => AdjustSlotBet(-SlotMachine.BetStep), x: -200f);
+            CreateButton(view, "SlotBetPlus", new Color(0.3f, 0.22f, 0.15f), -62f, 60f, 42f,
+                out _, "▶", 17, Color.white, () => AdjustSlotBet(SlotMachine.BetStep), x: 200f);
+            _slotHighButtonText = CreateLabel(view, "SlotBet", string.Empty, 16, FontStyle.Normal, Color.white, -62f, 330f);
+            _slotHighButtonText.supportRichText = true;
+            CreateButton(view, "SlotRiskButton", new Color(0.5f, 0.2f, 0.15f), -212f, 300f, 36f,
+                out _slotRiskButtonText, string.Empty, 15, Color.white, () => AdjustSlotMultiplier(SlotMachine.Multiplier >= SlotMachine.MaxMultiplier
+                    ? SlotMachine.MinMultiplier - SlotMachine.MaxMultiplier : SlotMachine.MultiplierStep)); // 누르면 한 칸 위로, 5배에서 누르면 2배로
             _slotBulkButton = CreateButton(view, "SlotBulkButton", new Color(0.35f, 0.3f, 0.15f), -112f, 160f, 42f,
                 out _slotBulkButtonText, string.Empty, 14, Color.white, () => DoSlotTicketBulk(SlotBulkCount), x: -84f);
             _slotAllButton = CreateButton(view, "SlotAllButton", new Color(0.35f, 0.3f, 0.15f), -112f, 160f, 42f,
                 out _slotAllButtonText, string.Empty, 14, Color.white, () => DoSlotTicketBulk(int.MaxValue), x: 84f);
-            _slotSkipAnim = PlayerPrefs.GetInt(SlotSkipPrefKey, 0) == 1;
+            _slotSkipAnim = Prefs.GetInt(SlotSkipPrefKey, 0) == 1;
             CreateButton(view, "SlotSkipButton", new Color(0.25f, 0.28f, 0.35f), -162f, 220f, 36f,
                 out _slotSkipButtonText, string.Empty, 14, Color.white, ToggleSlotSkip);
 

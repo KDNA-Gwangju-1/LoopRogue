@@ -42,12 +42,17 @@ namespace LoopRogue
             MusicPlayer.Play(MusicPlayer.Dungeon); // 타이틀은 일반 방과 같은 곡
             StageProgress.EnsureLoaded();
             BuildUI();
-            gameObject.AddComponent<PauseMenu>().Setup(StartGame, showQuit: true);
+            _slotPanel = SaveSlotPanel.Create();
+            gameObject.AddComponent<PauseMenu>().Setup(StartGame, () => !SaveSlotPanel.BlocksInput, showQuit: true);
         }
+
+        private SaveSlotPanel _slotPanel; // 11-02 세이브 슬롯 - "게임 시작"을 누르면 슬롯부터
+
+        private void OnStartPressed() => _slotPanel.Open(StartGame);
 
         private void Update()
         {
-            if (PauseMenu.BlocksInput || OptionsPanel.BlocksInput || Playtest.QuitPromptOpen)
+            if (PauseMenu.BlocksInput || OptionsPanel.BlocksInput || Playtest.QuitPromptOpen || SaveSlotPanel.BlocksInput)
                 return; // Esc 메뉴·설정 창이 열려 있으면 뒤의 타이틀 버튼은 안 눌리게.
 
             HandleMouseClick();
@@ -61,7 +66,7 @@ namespace LoopRogue
 
 
             if (GameInput.Down(Key.Enter) || GameInput.Down(Key.Space))
-                StartGame();
+                OnStartPressed();
         }
 
         private void HandleMouseClick()
@@ -194,7 +199,7 @@ namespace LoopRogue
 
             // 크기는 4의 배수 - 도트 그림(80x14 / 80x12 / 60x10)을 정확히 4배로.
             CreateButton(canvasGo.transform, "StartButton", StartButtonColor, -50f, 320f, 56f,
-                Loc.T("게임 시작  [Enter]"), 24, StartGame, "Start", new Color(1f, 0.9f, 0.65f));
+                Loc.T("게임 시작  [Enter]"), 24, OnStartPressed, "Start", new Color(1f, 0.9f, 0.65f));
             CreateButton(canvasGo.transform, "OptionsButton", ButtonColor, -122f, 320f, 48f,
                 Loc.T("설정"), 20, () => OptionsPanel.Open(), "Quit");
             CreateButton(canvasGo.transform, "QuitButton", ButtonColor, -184f, 320f, 48f,

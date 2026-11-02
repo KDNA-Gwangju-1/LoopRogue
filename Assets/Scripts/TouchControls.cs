@@ -129,7 +129,7 @@ namespace LoopRogue
             Add(root, "2", Corner.Bottom, new Vector2(0f, 135f), 84f, Key.Digit2, Choosing);
             Add(root, "3", Corner.Bottom, new Vector2(130f, 135f), 84f, Key.Digit3, Choosing);
             Add(root, "확인", Corner.Bottom, new Vector2(-90f, 135f), 120f, Key.Enter, ConfirmOpen, wide: true);
-            Add(root, "로비", Corner.Bottom, new Vector2(90f, 135f), 120f, Key.L, DeathOpen, wide: true);
+            Add(root, "로비", Corner.Bottom, new Vector2(90f, 135f), 120f, Key.Digit1, DeathOpen, wide: true);
         }
 
         private enum Corner { BottomLeft, BottomRight, TopRight, Bottom }

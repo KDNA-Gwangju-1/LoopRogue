@@ -46,8 +46,8 @@ namespace LoopRogue
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void Init()
         {
-            Current = PlayerPrefs.HasKey(PrefKey)
-                ? (GameLanguage)Mathf.Clamp(PlayerPrefs.GetInt(PrefKey), 0, 3)
+            Current = Prefs.HasKey(PrefKey)
+                ? (GameLanguage)Mathf.Clamp(Prefs.GetInt(PrefKey), 0, 3)
                 : FromSystem(Application.systemLanguage);
             _table = null;
             Version++; // 다른 BeforeSceneLoad(저장 초기화 등)가 먼저 번역 표(LocCache)를 한국어로 만들어 뒀을 수 있다
@@ -65,8 +65,8 @@ namespace LoopRogue
 
         public static void SetLanguage(GameLanguage language)
         {
-            PlayerPrefs.SetInt(PrefKey, (int)language);
-            PlayerPrefs.Save();
+            Prefs.SetInt(PrefKey, (int)language);
+            Prefs.Save();
             if (language == Current)
                 return;
             Current = language;

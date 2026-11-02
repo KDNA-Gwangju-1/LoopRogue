@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace LoopRogue
@@ -38,7 +39,7 @@ namespace LoopRogue
     public class EnemyActor : GridActor
     {
         /// <summary>궁수 사거리(같은 가로/세로 줄, 칸 수).</summary>
-        public const int RangedAttackRange = 4;
+        public const int RangedAttackRange = 3; // 11-02 사용자 "일반 궁수 3칸" (예전 4)
 
         /// <summary>궁수가 가장 선호하는 플레이어와의 거리(맨해튼) - 너무 붙지도 너무 멀지도 않게.</summary>
         private const int RangedPreferredDistance = 3;
@@ -905,7 +906,7 @@ namespace LoopRogue
                 TakeEliteShieldTurn(player, claimedSlots, room);
                 return;
             }
-            if (_eliteCharge && Kind != EnemyKind.Caster && TakeEliteChargeTurn(player, room))
+            if (_eliteCharge && Kind != EnemyKind.Caster && Kind != EnemyKind.Charger && TakeEliteChargeTurn(player, room))
                 return;
             if (Kind == EnemyKind.Ranged)
                 TakeRangedTurn(player);
@@ -990,6 +991,14 @@ namespace LoopRogue
             if (_chargeDir.HasValue)
             {
                 ResolveCharge(player, room);
+                // 정예 돌진병(11-02 사용자 "연속 돌진") - 돌진이 끝나면 숨 고르기 없이 플레이어 쪽으로 한 번 더 예고(두 번째가 끝나면 평소처럼)
+                if (_eliteCharge && !_eliteComboUsed && !Stats.IsDead)
+                {
+                    _eliteComboUsed = true;
+                    AimCharge(_tp, room);
+                }
+                else
+                    _eliteComboUsed = false;
                 return;
             }
             if (_chargeCooldown > 0)
@@ -1001,20 +1010,35 @@ namespace LoopRogue
 
             if (_chargeCooldown == 0 && !IsAdjacentTo(_tp) && CanShoot(_tp, ChargeRange))
             {
-                var dir = new Vector2Int(System.Math.Sign(_tp.x - GridPos.x), System.Math.Sign(_tp.y - GridPos.y));
-                var tiles = new List<Vector2Int>();
-                for (var p = GridPos + dir; tiles.Count < ChargeRange && Map.IsInBounds(p) && !Map.IsWall(p); p += dir)
-                    tiles.Add(p);
-                _chargeDir = dir;
-                _chargeTiles = tiles;
-                if (TryGetComponent<SpriteAnimator>(out var anim))
-                    anim.Face(dir);
-                room.ShowEnemyTelegraph(this, tiles, RoomController.ChargeTelegraphColor);
-                HitFeedback.OnTelegraph(); // 보스 예고와 같은 경고음
+                AimCharge(_tp, room);
                 return;
             }
 
             TakeMeleeTurn(player, claimedSlots);
+        }
+
+        private bool _eliteComboUsed; // 정예 돌진병 - 이번 돌진이 연속 돌진의 두 번째인지
+
+        /// <summary>target 쪽(가로·세로 중 먼 축)으로 돌진 줄을 예고한다 - 같은 줄이 아니어도(연속 돌진의 두 번째) 그 축으로.</summary>
+        private void AimCharge(Vector2Int target, RoomController room)
+        {
+            var diff = target - GridPos;
+            var dir = Mathf.Abs(diff.x) >= Mathf.Abs(diff.y)
+                ? new Vector2Int(System.Math.Sign(diff.x), 0)
+                : new Vector2Int(0, System.Math.Sign(diff.y));
+            if (dir == Vector2Int.zero)
+                dir = Vector2Int.down;
+            var tiles = new List<Vector2Int>();
+            for (var p = GridPos + dir; tiles.Count < ChargeRange && Map.IsInBounds(p) && !Map.IsWall(p); p += dir)
+                tiles.Add(p);
+            if (tiles.Count == 0)
+                return;
+            _chargeDir = dir;
+            _chargeTiles = tiles;
+            if (TryGetComponent<SpriteAnimator>(out var anim))
+                anim.Face(dir);
+            room.ShowEnemyTelegraph(this, tiles, RoomController.ChargeTelegraphColor);
+            HitFeedback.OnTelegraph(); // 보스 예고와 같은 경고음
         }
 
         /// <summary>예고한 줄을 따라 달린다 - 플레이어(또는 미끼)를 만나면 들이받고 그 앞에서, 다른 몹/벽이면 그 앞에서 멈춘다.</summary>
@@ -1223,10 +1247,175 @@ namespace LoopRogue
         public const float EliteChargeMaxHealthRate = 1f;
         private bool _eliteCharge;
         private int _eliteChargeCooldown;
+        private bool _eliteSecondStrike; // 정예 근접 몹 - 연속 베기 두 번째가 남았다
+
+        // ---- 정예마다 다른 자세 공격(11-02 사용자 "각자 다른 공격 방식") - 자세 5턴, 2턴 전 예고(EliteChargeWarnTurns)는 그대로 ----
+        // 근접 몹: 앞쪽 3x3을 두 번 연속 벤다(EliteDoubleSlashRate씩) / 거미: 플레이어 십자(2칸) 거미줄 그물 - 맞으면 피해 + 묶임
+        // 도적: 플레이어 X자 - 그 옆으로 순간이동해 벤다 / 반격병: 자세 내내 반격 자세, 끝나면 자기 둘레 5x5 강타
+        // 치유사: 예고 없음 - 끝나면 근처 아군 회복 + 버팀 / 분열체: 예고 없음 - 끝나면 미리 갈라져 조각 둘(한 번만)
+        // 궁수(관통 화살)·방패병(돌진)·돌진병(연속 돌진)·주문술사(빠른 주문)는 따로.
+        public const float EliteDoubleSlashRate = 0.6f;
+        public const float EliteNetRate = 0.5f;
+        public const int EliteNetRootTurns = 2;
+        public const float EliteSacrificeHealRate = 0.3f;
+        public const int EliteScatterCount = 2;
+
+        private List<Vector2Int> EliteAttackArea(RoomController room, PlayerActor player)
+        {
+            var map = room.Map;
+            var tiles = new List<Vector2Int>();
+            void Add(Vector2Int c)
+            {
+                if (map.IsInBounds(c) && !map.IsWall(c) && c != GridPos && !tiles.Contains(c))
+                    tiles.Add(c);
+            }
+            var p = player.GridPos;
+            switch (Kind)
+            {
+                case EnemyKind.Melee:
+                {
+                    var diff = p - GridPos;
+                    var dir = Mathf.Abs(diff.x) >= Mathf.Abs(diff.y) ? new Vector2Int(System.Math.Sign(diff.x), 0) : new Vector2Int(0, System.Math.Sign(diff.y));
+                    var center = GridPos + dir * 2;
+                    for (var dx = -1; dx <= 1; dx++)
+                    for (var dy = -1; dy <= 1; dy++)
+                        Add(center + new Vector2Int(dx, dy));
+                    break;
+                }
+                case EnemyKind.Spider:
+                    Add(p);
+                    foreach (var d in new[] { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right })
+                    {
+                        Add(p + d);
+                        Add(p + d * 2);
+                    }
+                    break;
+                case EnemyKind.Assassin:
+                    Add(p);
+                    foreach (var d in new[] { new Vector2Int(1, 1), new Vector2Int(1, -1), new Vector2Int(-1, 1), new Vector2Int(-1, -1) })
+                        Add(p + d);
+                    break;
+                case EnemyKind.Sentinel:
+                    for (var dx = -2; dx <= 2; dx++)
+                    for (var dy = -2; dy <= 2; dy++)
+                        Add(GridPos + new Vector2Int(dx, dy));
+                    break;
+                case EnemyKind.Healer:
+                case EnemyKind.Splitter:
+                    break; // 예고 없음 - 자세를 잡는 동안 잡아야 한다
+                default:
+                    return CasterBlastArea(map, p);
+            }
+            return tiles;
+        }
+
+        private void ResolveEliteAttack(PlayerActor player, RoomController room)
+        {
+            var tiles = _casterBlastTiles ?? new List<Vector2Int>();
+            switch (Kind)
+            {
+                case EnemyKind.Melee:
+                    ResolveEliteHit(player, room, tiles, EliteDoubleSlashRate, "slash", keepTelegraph: true);
+                    _eliteSecondStrike = true; // 다음 몹 턴에 같은 칸을 한 번 더
+                    return;
+                case EnemyKind.Spider:
+                    ResolveEliteHit(player, room, tiles, EliteNetRate, "web_bind", rootTurns: EliteNetRootTurns);
+                    return;
+                case EnemyKind.Assassin:
+                {
+                    // 예고 칸 가운데(그때 플레이어 자리) 옆 빈 칸으로 순간이동 - 지금 자리에서 먼 쪽부터
+                    var center = tiles.Count > 0 ? tiles[0] : player.GridPos;
+                    var spots = new[] { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right }
+                        .Select(d => center + d).Where(c => room.Map.IsWalkable(c))
+                        .OrderByDescending(c => Distance(c, GridPos)).ToList();
+                    if (spots.Count > 0)
+                    {
+                        var from = transform.position;
+                        Map.MoveActor(this, spots[0]);
+                        if (HitFeedback.Enabled)
+                        {
+                            Fx.Play("shadow_split", from, 1.2f, fps: 16f);
+                            Fx.Play("shadow_split", GridWorldPosition, 1.2f, fps: 16f);
+                        }
+                    }
+                    ResolveEliteHit(player, room, tiles, EliteChargeMaxHealthRate, "slash_crit");
+                    return;
+                }
+                case EnemyKind.Sentinel:
+                    SetGuard(false);
+                    ResolveEliteHit(player, room, tiles, EliteChargeMaxHealthRate, "boss_slam");
+                    return;
+                case EnemyKind.Healer:
+                    room.ClearEnemyTelegraph(this);
+                    _casterBlastTiles = null;
+                    foreach (var ally in room.Enemies)
+                    {
+                        if (ally == null || ally.Stats.IsDead || ally.IsBoss || Distance(ally.GridPos, GridPos) > HealRange)
+                            continue;
+                        var heal = Mathf.Min(ally.Stats.MaxHealth - ally.Stats.CurrentHealth, ally.Stats.MaxHealth * EliteSacrificeHealRate);
+                        if (heal > 0f)
+                        {
+                            ally.Stats.Heal(heal);
+                            DamagePopup.Spawn(ally.transform.position, heal, new Color(0.45f, 1f, 0.5f));
+                        }
+                        ally.GrantSurviveGuard();
+                        if (HitFeedback.Enabled)
+                            Fx.Play("heal", ally.transform.position, 1.2f, tint: new Color(0.75f, 1f, 0.7f), fps: 14f, sortingOrder: 8);
+                    }
+                    if (TryGetComponent<SpriteAnimator>(out var healAnim))
+                        healAnim.PlayAttack(Vector2Int.down);
+                    return;
+                case EnemyKind.Splitter:
+                    room.ClearEnemyTelegraph(this);
+                    _casterBlastTiles = null;
+                    room.SpawnSplitChildren(this, EliteScatterCount);
+                    _eliteCharge = false; // 산개는 한 번만 - 그 뒤로는 평소처럼(죽으면 셋으로 갈라지는 건 그대로)
+                    if (HitFeedback.Enabled)
+                        Fx.Play("slime_splash", transform.position, 1.6f, fps: 14f);
+                    return;
+                default:
+                    ResolveCasterBlast(player, room);
+                    return;
+            }
+        }
+
+        /// <summary>정예 자세 공격 한 번 - 예고 칸 위에 서 있으면 최대 체력 × rate(반사 부적이면 되돌림), rootTurns면 묶임.</summary>
+        private void ResolveEliteHit(PlayerActor player, RoomController room, List<Vector2Int> tiles, float rate, string fx,
+            bool keepTelegraph = false, int rootTurns = 0)
+        {
+            tiles = tiles ?? new List<Vector2Int>();
+            if (!keepTelegraph)
+            {
+                room.ClearEnemyTelegraph(this);
+                _casterBlastTiles = null;
+            }
+            CasterBlastCount++;
+            if (TryGetComponent<SpriteAnimator>(out var anim))
+                anim.PlayAttack(player.GridPos - GridPos);
+            if (HitFeedback.Enabled)
+            {
+                foreach (var t in tiles)
+                    Fx.Play(fx, new Vector3(t.x * GridConstants.CellSize, t.y * GridConstants.CellSize, 0f), 1f, fps: 18f, sortingOrder: 6);
+                CameraShake.Shake(0.3f, 0.35f);
+                SfxPlayer.Play(Sfx.Slam);
+            }
+            if (!tiles.Contains(player.GridPos))
+                return;
+            CasterBlastHitCount++;
+            if (player.ReflectInto(this, room))
+                return;
+            DeathCause.Set("elite_charge");
+            var dealt = player.Stats.TakeIncomingDamage(player.Stats.MaxHealth * rate);
+            PlayLog.PlayerHit($"{PlayLog.EnemyLabel(this)} 정예 자세 공격", dealt, player.Stats);
+            DamagePopup.Spawn(player.transform.position, dealt, new Color(0.95f, 0.4f, 0.85f), isCritical: true);
+            HitFeedback.OnPlayerHurt(player, this);
+            if (rootTurns > 0 && !player.Stats.IsDead)
+                player.ApplyRoot(rootTurns);
+        }
 
         /// <summary>정예 궁수 - 차지 공격이 3x3 폭발 대신 화살 줄(자기 칸에서 플레이어 쪽 상하좌우 한 줄, 벽까지 최대 ElitePierceRange칸)이고,
         /// 자세를 잡는 동안 그 줄을 계속 보여 준다(사용자 "원거리 몹은 공격 범위를 보여 줘야").</summary>
-        public const int ElitePierceRange = 8;
+        public const int ElitePierceRange = 8; // 11-02 사용자 - 정예 궁수는 8칸 유지(일반 궁수만 3칸)
         private static readonly Color PierceAimColor = new Color(0.85f, 0.25f, 0.8f, 0.25f);
         private static readonly Color PierceLockColor = new Color(0.85f, 0.25f, 0.8f, 0.6f);
 
@@ -1433,6 +1622,15 @@ namespace LoopRogue
         /// <summary>정예 차지 공격 턴이면 true(이번 턴 행동은 이걸로 끝). 쿨타임이거나 플레이어가 안 보이면 false - 평소 행동.</summary>
         private bool TakeEliteChargeTurn(PlayerActor player, RoomController room)
         {
+            if (_eliteSecondStrike) // 정예 근접 몹 연속 베기 - 같은 칸을 한 번 더
+            {
+                _eliteSecondStrike = false;
+                ResolveEliteHit(player, room, _casterBlastTiles, EliteDoubleSlashRate, "slash");
+                _chant = -1;
+                _eliteChargeCooldown = EliteChargeCooldown;
+                UpdateChantLabel();
+                return true;
+            }
             if (_chant < 0)
             {
                 if (_eliteChargeCooldown > 0)
@@ -1444,6 +1642,8 @@ namespace LoopRogue
                     return false;
                 _chant = EliteChargeTurns; // 공격 준비 자세 - 그 자리에 멈춰 선다
                 DamagePopup.SpawnText(transform.position, Loc.T("공격 준비!"), new Color(1f, 0.45f, 0.9f));
+                if (Kind == EnemyKind.Sentinel)
+                    SetGuard(true); // 반격 진형 - 자세 내내 반격 자세
                 SfxPlayer.Play(Sfx.Slam);
                 if (Kind == EnemyKind.Ranged)
                     AimElitePierce(player, room, locked: false);
@@ -1467,17 +1667,21 @@ namespace LoopRogue
                 {
                     // 정예 3x3은 2턴 전에 예고(10-29 사용자) - 플레이어 둘레 3x3이라 걸어서 빠지려면 두 칸이 필요한데, 1턴 전 예고면 대시·보호막 없이는
                     // 못 피했다(봇 100판: 2·3층 일반 방에서 판당 1.5~2.7번 죽음). 예고한 칸은 그 뒤 따라오지 않는다.
-                    _casterBlastTiles = CasterBlastArea(room.Map, player.GridPos);
+                    _casterBlastTiles = EliteAttackArea(room, player);
                     _fireballTarget = new Vector3(player.GridPos.x * GridConstants.CellSize, player.GridPos.y * GridConstants.CellSize, 0f);
-                    room.ShowEnemyTelegraph(this, _casterBlastTiles, new Color(0.85f, 0.25f, 0.8f, 0.55f));
-                    HitFeedback.OnTelegraph();
+                    if (_casterBlastTiles.Count > 0)
+                    {
+                        room.ShowEnemyTelegraph(this, _casterBlastTiles, new Color(0.85f, 0.25f, 0.8f, 0.55f));
+                        HitFeedback.OnTelegraph();
+                    }
                     _chantCircle?.Flash();
                 }
                 else if (_chant <= 0)
                 {
-                    ResolveCasterBlast(player, room);
+                    ResolveEliteAttack(player, room);
                     _chant = -1;
-                    _eliteChargeCooldown = EliteChargeCooldown;
+                    if (!_eliteSecondStrike)
+                        _eliteChargeCooldown = EliteChargeCooldown;
                 }
             }
             if (TryGetComponent<SpriteAnimator>(out var anim))
@@ -1763,6 +1967,11 @@ namespace LoopRogue
                 if (_decoyTarget != null)
                 {
                     _decoyTarget.TakeHit(this, Stats.AttackPower * WebDamageRate);
+                    return;
+                }
+                if (player.DeflectsRanged) // 특성 "칼날 방패" - 거미줄도 쳐낸다(묶이지 않음)
+                {
+                    player.OnDeflected();
                     return;
                 }
                 DeathCause.Set("spider");
@@ -2217,7 +2426,8 @@ namespace LoopRogue
                 return;
             }
 
-            TryMoveToSpot(mustIncreaseDistance: false, RangedPreferredDistance, requireLine: true);
+            // 쏠 수 없으면 두 턴 제한 없이 매 턴 자리를 잡으러 간다(11-02 사용자 - 사거리 4→3칸 뒤 근접 몹 뒤에 막혀 서 있기만 했다). 물러나기는 그대로 두 턴에 한 번.
+            TryMoveToSpot(mustIncreaseDistance: false, RangedPreferredDistance, requireLine: true, ignoreCooldown: true);
         }
 
         private bool CanShoot(Vector2Int target, int range)
@@ -2243,10 +2453,10 @@ namespace LoopRogue
         /// <summary>이웃 빈 칸 중 점수가 제일 좋은 곳으로 한 칸 - 지금 자리보다 나을 때만 움직인다.
         /// 점수: 줄 어긋남(작을수록 좋음, 궁수만)이 최우선, 플레이어에게 붙는 칸(거리 1)은 금지, 그다음 선호 거리와의 차이.
         /// 궁수·치유사 공통(둘 다 두 턴에 한 번만 이동).</summary>
-        private bool TryMoveToSpot(bool mustIncreaseDistance, int preferredDistance, bool requireLine)
+        private bool TryMoveToSpot(bool mustIncreaseDistance, int preferredDistance, bool requireLine, bool ignoreCooldown = false)
         {
             var currentDist = Distance(GridPos, _tp);
-            if (_retreatCooldown > 0)
+            if (_retreatCooldown > 0 && !ignoreCooldown)
                 return false; // 두 턴에 한 번만 이동
 
             var bestScore = mustIncreaseDistance ? int.MaxValue : SpotScore(GridPos, _tp, preferredDistance, requireLine);
@@ -2305,6 +2515,11 @@ namespace LoopRogue
             if (_decoyTarget != null)
             {
                 _decoyTarget.TakeHit(this, Stats.AttackPower * rate);
+                return;
+            }
+            if (!melee && player.DeflectsRanged) // 특성 "칼날 방패" - 도는 칼날이 화살을 쳐낸다
+            {
+                player.OnDeflected();
                 return;
             }
             HitPlayer(player, melee, rate);

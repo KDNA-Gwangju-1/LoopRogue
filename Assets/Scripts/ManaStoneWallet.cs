@@ -21,19 +21,24 @@ namespace LoopRogue
         /// <summary>유물 뽑기(떠돌이 마석 상인) - 첫 뽑기 마석 1개, 뽑을 때마다 1개씩 비싸진다(10-29 사용자 1·2·3…).</summary>
         public const int RelicDrawBaseCost = 1;
         public const int RelicDrawCostStep = 1;
-        public static int RelicDraws => PlayerPrefs.GetInt(RelicDrawsKey, 0);
+        public static int RelicDraws => Prefs.GetInt(RelicDrawsKey, 0);
 
         /// <summary>떠돌이 마석 상인은 한 층에 한 번만(10-29 사용자 - 봇 100판에서 판당 53번 만나 일반 유물을 거의 다 뽑았다).
         /// 마지막으로 나온 층을 저장해 두고, 그 층에선 죽고 다시 돌아도 안 나온다. 저장 초기화(새 게임)면 지워진다.</summary>
         private const string DealerStageKey = "LoopRogue_RelicDealerStage";
-        public static bool DealerMetOnStage(int stage) => PlayerPrefs.GetInt(DealerStageKey, 0) == stage;
+        private const string DealerCountKey = "LoopRogue_RelicDealerCount"; // 그 층에서 만난 횟수(11-02 특성 "행운의 손님" - 한 층 2번까지)
+        public static bool DealerMetOnStage(int stage) => DealersMetOnStage(stage) > 0;
+
+        public static int DealersMetOnStage(int stage) => Prefs.GetInt(DealerStageKey, 0) == stage ? Mathf.Max(1, Prefs.GetInt(DealerCountKey, 1)) : 0;
 
         public static void MarkDealerMet(int stage)
         {
-            PlayerPrefs.SetInt(DealerStageKey, stage);
-            PlayerPrefs.Save();
+            var count = DealersMetOnStage(stage) + 1;
+            Prefs.SetInt(DealerStageKey, stage);
+            Prefs.SetInt(DealerCountKey, count);
+            Prefs.Save();
         }
-        public static int RelicDrawCost => RelicDrawBaseCost + RelicDrawCostStep * PlayerPrefs.GetInt(RelicDrawsKey, 0);
+        public static int RelicDrawCost => RelicDrawBaseCost + RelicDrawCostStep * Prefs.GetInt(RelicDrawsKey, 0);
 
         private static int _stones;
         private static bool _loaded;
@@ -58,7 +63,7 @@ namespace LoopRogue
         {
             if (_loaded)
                 return;
-            _stones = PlayerPrefs.GetInt(PrefKey, 0);
+            _stones = Prefs.GetInt(PrefKey, 0);
             _loaded = true;
         }
 
@@ -68,8 +73,8 @@ namespace LoopRogue
                 return;
             EnsureLoaded();
             _stones += amount;
-            PlayerPrefs.SetInt(PrefKey, _stones);
-            PlayerPrefs.Save();
+            Prefs.SetInt(PrefKey, _stones);
+            Prefs.Save();
         }
 
         public static bool TrySpend(int amount)
@@ -78,8 +83,8 @@ namespace LoopRogue
             if (amount <= 0 || _stones < amount)
                 return false;
             _stones -= amount;
-            PlayerPrefs.SetInt(PrefKey, _stones);
-            PlayerPrefs.Save();
+            Prefs.SetInt(PrefKey, _stones);
+            Prefs.Save();
             return true;
         }
 
@@ -112,7 +117,7 @@ namespace LoopRogue
                 fail = DrawFail.NotEnough;
                 return null;
             }
-            PlayerPrefs.SetInt(RelicDrawsKey, PlayerPrefs.GetInt(RelicDrawsKey, 0) + 1);
+            Prefs.SetInt(RelicDrawsKey, Prefs.GetInt(RelicDrawsKey, 0) + 1);
             var relic = candidates[Random.Range(0, candidates.Length)];
             Relics.Acquire(relic, player);
             fail = DrawFail.None;

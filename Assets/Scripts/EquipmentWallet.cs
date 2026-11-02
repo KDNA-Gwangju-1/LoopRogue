@@ -25,7 +25,7 @@ namespace LoopRogue
                 return;
 
             foreach (ItemSlot slot in System.Enum.GetValues(typeof(ItemSlot)))
-                EquippedGrade[(int)slot] = PlayerPrefs.GetInt(PrefKey(slot), -1);
+                EquippedGrade[(int)slot] = Prefs.GetInt(PrefKey(slot), -1);
 
             _loaded = true;
         }
@@ -49,8 +49,8 @@ namespace LoopRogue
                 return false;
 
             EquippedGrade[(int)slot] = (int)grade;
-            PlayerPrefs.SetInt(PrefKey(slot), (int)grade);
-            PlayerPrefs.Save();
+            Prefs.SetInt(PrefKey(slot), (int)grade);
+            Prefs.Save();
             return true;
         }
 
@@ -108,7 +108,7 @@ namespace LoopRogue
             if (_loaded)
                 return;
             foreach (ItemSlot slot in System.Enum.GetValues(typeof(ItemSlot)))
-                Exp[(int)slot] = PlayerPrefs.GetInt(ExpKey(slot), 0);
+                Exp[(int)slot] = Prefs.GetInt(ExpKey(slot), 0);
             _loaded = true;
         }
 
@@ -145,8 +145,8 @@ namespace LoopRogue
                 return 0;
             gained = ExpFor(grade);
             Exp[(int)slot] = Mathf.Min(Exp[(int)slot] + gained, ExpToReach(MaxLevel));
-            PlayerPrefs.SetInt(ExpKey(slot), Exp[(int)slot]);
-            PlayerPrefs.Save();
+            Prefs.SetInt(ExpKey(slot), Exp[(int)slot]);
+            Prefs.Save();
             return GetLevel(slot) - before;
         }
 

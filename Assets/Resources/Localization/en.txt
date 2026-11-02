@@ -959,7 +959,7 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 [3] 도박꾼	[3] Gambler
 [5] 기록관	[5] Archivist
 [6] 도감 학자	[6] Codex Scholar
-방향키 이동 · NPC에게 부딪히거나 Space로 말 걸기 · 위쪽 문으로 들어가면 시작 · 숫자 1~6 바로 열기 · Esc 타이틀	Arrows: move · Bump an NPC or press Space to talk · Enter the top door to start · 1-6: open directly · Esc: title
+방향키 이동 · NPC에게 부딪히거나 Space로 말 걸기 · 위쪽 문으로 들어가면 시작 · 숫자 1~7 바로 열기 · T 특성 · Esc 타이틀	Arrows: move · Bump an NPC or press Space to talk · Enter the top door to start · 1-7: open directly · T: traits · Esc: title
 클릭 / Space - 넘기기	Click / Space - skip
 장착!	Equipped!
 [P] 등급 확률 보기	[P] Grade odds
@@ -1280,3 +1280,136 @@ X자 칼날이 교차하는 자리에서 베여 죽었다	Cut down where the X-s
 공격력 +2% (최소 +1), 최대체력 +5% (최소 +15) / 경험치 -5%	ATK +2% (min +1), Max HP +5% (min +15) / EXP -5%
 투지	Fighting Spirit
 공격력 +4%, 최대체력 +8% / 받는 피해 +3%	ATK +4%, Max HP +8% / Damage taken +3%
+거미줄에 묶여 돌아갈 수 없다!	Stuck in a web - can't go back!
+돌아갈 자리가 막혀 있다	The way back is blocked
+기동	Mobility
+회전	Spin
+분신 대시	Clone Dash
+대시하면 분신 둘이 앞 대각선 두 갈래로 함께 돌진해 처음 만난 몹을 벤다(대시 피해의 50%, 대시 유물 효과도 적용)	When you dash, two clones charge along the forward diagonals and slash the first enemy they meet (50% of dash damage, dash relics apply)
+되돌아오기	Return
+대시 바로 다음 턴에 Q를 다시 누르면 대시를 시작한 자리로 돌아온다	Press Q again on the turn right after a dash to return to where the dash began
+회전 유지	Sustained Spin
+회전 베기가 3턴 동안 이어진다(매 바퀴 회전 베기 피해의 50%). 도는 동안은 제자리	Spin Slash lasts 3 turns (each spin deals 50% of Spin Slash damage). You stay in place while spinning
+회전 중 행동	Spin on the Move
+회전이 이어지는 동안에도 걷고 공격하고 대시할 수 있다 - 내 턴이 끝날 때마다 그 자리에서 한 바퀴	You can walk, attack and dash while the spin continues - you spin once where you stand at the end of each turn
+아직 준비 중인 칸이다	This slot isn't ready yet
+{0} 외 {1}칸을 되돌렸다	Unlearned {0} and {1} more
+{0}을(를) 되돌렸다	Unlearned {0}
+{0}을(를) 배웠다!	Learned {0}!
+특성을 전부 되돌렸다 - 포인트가 모두 돌아왔다	All traits unlearned - all points refunded
+배움	Learned
+배울 수 있음	Can learn
+앞 칸을 먼저 배워야 한다	Learn the previous slot first
+대표 특성은 하나만 배울 수 있다	You can only learn one signature trait
+포인트가 부족하다	Not enough points
+<b>특성</b>   남은 포인트 <color=#8CE08C>{0}</color> / {1}	<b>Traits</b>   Points left <color=#8CE08C>{0}</color> / {1}
+   <size=12><color=#9AA0AA>포인트는 층 보스를 처음 쓰러뜨릴 때마다 1</color></size>	   <size=12><color=#9AA0AA>+1 point each time you first defeat a floor boss</color></size>
+<color=#B9A0FF>★ 대표</color> 	<color=#B9A0FF>★ Sig.</color> 
+준비 중	Coming soon
+<color=#8CE08C>배움</color>	<color=#8CE08C>Learned</color>
+<color=#9FC4FF>배울 수 있음</color>	<color=#9FC4FF>Can learn</color>
+<b>{0} {1}번째 칸</b>\n<color=#8A8A92>아직 준비 중인 특성이다.</color>	<b>{0} slot {1}</b>\n<color=#8A8A92>This trait isn't ready yet.</color>
+\n<size=12><color=#B9A0FF>대표 특성 - 모든 갈래를 통틀어 하나만 배울 수 있다</color></size>	\n<size=12><color=#B9A0FF>Signature trait - only one can be learned across all branches</color></size>
+방향키·마우스: 고르기   Enter·클릭: 배우기 / 배운 칸은 되돌리기   R: 전부 되돌리기   T·Esc: 닫기   ·   다음 던전 입장부터 적용	Arrows/mouse: select   Enter/click: learn / unlearn if learned   R: unlearn all   T/Esc: close   ·   Applies from your next dungeon run
+로비로 이동	Go to Lobby
+로비로 이동 (이번 시도 골드 {0:0}% 손실)	Go to Lobby (lose {0:0}% of this attempt's Gold)
+타이틀로 이동	Go to Title
+긴 회전	Long Spin
+회전 유지가 3턴에서 5턴으로 늘어난다	Sustained Spin lasts 5 turns instead of 3
+칼날 방패	Blade Guard
+도는 턴에는 받는 피해 -30%, 화살과 거미줄을 쳐낸다	On turns you spin, damage taken -30% and arrows and webs are deflected
+끝없는 회전	Endless Spin
+도는 동안 몹을 처치할 때마다 회전이 1턴 늘어난다. 한 번에 7바퀴를 넘게 돌면 그 뒤로는 범위가 5x5로 커진다	Each kill while spinning extends the spin by 1 turn. After more than 7 spins in a row, the range grows to 5x5
+쳐냄!	Deflected!
+회오리 +1	Whirl +1
+[1] 처음으로 - 도감과 유물 하나만 남기고 1층부터 새 모험	[1] Start over - keep only the Codex and one relic, new adventure from floor 1
+[1] 처음으로 - 도감만 남기고 1층부터 새 모험	[1] Start over - keep only the Codex, new adventure from floor 1
+[2] 그대로 계속 - 지금 진행을 그대로 두고 로비로, 원하는 층을 골라 들어간다	[2] Keep going - keep your progress, return to the lobby and choose any floor
+[W/S] 고르기   [Enter] 결정	[W/S] Select   [Enter] Confirm
+층 선택	Choose Floor
+<b>들어갈 층 고르기</b>	<b>Choose a floor to enter</b>
+<b>{0}층</b>  <size=12><color=#9AA0AA>[{1}]</color></size>	<b>Floor {0}</b>  <size=12><color=#9AA0AA>[{1}]</color></size>
+방향키·마우스: 고르기   Enter·클릭·숫자: 들어가기   Esc: 취소   ·   초록 칸 = 지금 층(다른 층은 방 1부터)	Arrows/mouse: select   Enter/click/number: enter   Esc: cancel   ·   Green = current floor (other floors start from room 1)
+무적	Immune
+운명의 슬롯	Slot of Fate
+3개 일치 {0}배 / 2개 일치 {1}배	3 of a kind x{0} / 2 of a kind x{1}
+3개 일치 {0}배 / 2개 일치 꽝	3 of a kind x{0} / 2 of a kind: nothing
+안정	Safe
+보통	Normal
+대박	Jackpot
+[A] ◀  거는 돈 {0}G  ▶ [D]   <size=12>(최대 {1}G, Shift = 100씩)</size>	[A] ◀  Bet {0}G  ▶ [D]   <size=12>(max {1}G, Shift = ±100)</size>
+[R] 배율: {0}	[R] Odds: {0}
+잡화점	General Store
+[7] 잡화상	[7] Peddler
+<color=#8A8A92>가득 참</color>	<color=#8A8A92>Full</color>
+<size=12><color=#9AA0AA>보유 {0}/{1}</color></size>	<size=12><color=#9AA0AA>Owned {0}/{1}</color></size>
+{0}은(는) 더 가질 수 없습니다.	You can't carry any more {0}.
+골드가 모자랍니다! (가격: {0})	Not enough Gold! (Price: {0})
+{0} 구매! ({1}골드)	Bought {0}! ({1} Gold)
+<color=#8A8A92>비어 있음 - 새 모험</color>	<color=#8A8A92>Empty - New adventure</color>
+{0}층 · 레벨 {1} · 골드 {2:N0} · 플레이 {3}시간 {4}분	Floor {0} · Lv {1} · Gold {2:N0} · Played {3}h {4}m
+  · <color=#FFD966>클리어 {0}회</color>	  · <color=#FFD966>Cleared {0}x</color>
+<b>슬롯 {0}</b>  <size=12><color=#9AA0AA>[{0}]</color></size>	<b>Slot {0}</b>  <size=12><color=#9AA0AA>[{0}]</color></size>
+  <size=12><color=#8CE08C>마지막으로 한 슬롯</color></size>	  <size=12><color=#8CE08C>Last played</color></size>
+<color=#FF9A80>정말 지울까요? Delete를 한 번 더</color>	<color=#FF9A80>Really delete? Press Delete again</color>
+<b>세이브 슬롯</b>	<b>Save Slots</b>
+W/S·마우스: 고르기   Enter·클릭·숫자: 시작   Delete: 슬롯 지우기(두 번)   Esc: 닫기   ·   설정은 모든 슬롯 공용	W/S/mouse: select   Enter/click/number: start   Delete: erase slot (press twice)   Esc: close   ·   Settings are shared by all slots
+3개 일치 {0}배 · 당첨 확률 {1:0.#}%	3 of a kind x{0} · Win chance {1:0.#}%
+[Q] ◀  배율 {0}배  ▶ [E]	[Q] ◀  Odds x{0}  ▶ [E]
+이용권 {0}장 사용 ({1}배) - 당첨 {2} / 꽝 {3}  →  총 {4}골드 획득	Used {0} tickets (x{1}) - Wins {2} / Misses {3}  →  {4} Gold total
+당첨! {0}배 - {1}골드 획득!	Win! x{0} - {1} Gold!
+대시 바로 다음 턴에 R을 누르면 대시를 시작한 자리로 돌아온다	Press R on the turn right after a dash to return to where the dash began
+연속 대시	Chain Dash
+대시를 쿨타임 없이 3번까지 이어서 쓸 수 있다. 다른 행동을 하거나 3번을 다 쓰면 쿨타임	Dash up to 3 times in a row without cooldown. Doing anything else or using all 3 starts the cooldown
+대시 파동	Dash Wave
+대시하면 내려선 자리에서 대시 방향으로 3칸 안의 몹에게 공격력의 50% 피해	After a dash, deal 50% of ATK to enemies within 3 tiles ahead in the dash direction
+회전 베기 피해 40%→60%	Spin Slash damage 40% → 60%
+삼연 회전	Triple Spin
+회전 베기가 한 턴에 3번 벤다(매번 회전 베기 피해 그대로)	Spin Slash strikes 3 times in one turn (full Spin Slash damage each time)
+회전 베기가 3턴 동안 이어지고(매 바퀴 회전 베기 피해의 50%), 그동안 걷고 공격하고 대시할 수 있다 - 내 턴이 끝날 때마다 그 자리에서 한 바퀴	Spin Slash continues for 3 turns (50% of Spin Slash damage per spin), and you can walk, attack and dash meanwhile - you spin once where you stand at the end of each turn
+표식 폭발	Mark Burst
+대시로 친 몹에 표식이 쌓이고, 같은 몹에 3개가 쌓이면 터져 공격력의 100% 추가 피해	Dash hits leave a mark; at 3 marks on the same enemy it bursts for an extra 100% of ATK
+표식 {0}/{1}	Mark {0}/{1}
+표식 폭발!	Mark Burst!
+대시 쿨타임 -1턴(최소 1턴)	Dash cooldown -1 turn (min 1)
+회전 베기가 끝날 때 주변 5x5로 파동 - 공격력 30% 피해	When Spin Slash ends, a shockwave hits the surrounding 5x5 for 30% of ATK
+대표 특성은 {0}개까지 배울 수 있다	You can learn up to {0} signature traits
+\n<size=12><color=#B9A0FF>대표 특성 - 모든 갈래를 통틀어 {0}개까지 배울 수 있다</color></size>	\n<size=12><color=#B9A0FF>Signature trait - up to {0} can be learned across all branches</color></size>
+대시를 쿨타임 없이 3번까지 이어서 쓸 수 있다 - Q는 처음 한 번만, 그 뒤엔 방향키만. 다른 행동을 하거나 3번을 다 쓰면 쿨타임	Dash up to 3 times in a row without cooldown - press Q only once, then just the arrow keys. Doing anything else or using all 3 starts the cooldown
+연속 대시를 멈췄다	Stopped the chain dash
+대시로 지나온 길과 그 양옆 줄(폭 3줄)에 있는 몹에게도 대시 피해	Enemies on the path you dashed through and the lines on either side (3 wide) also take dash damage
+도는 동안 몹을 3마리 처치할 때마다 회전이 1턴 늘어난다	Every 3 kills while spinning extends the spin by 1 turn
+대시로 벤 몹에 그림자가 붙고, 다음 행동 때 그림자가 그 피해의 75%로 한 번 더 벤다	A shadow clings to enemies you dash through; on your next action it strikes again for 75% of that damage
+로비로 이동  [1]	Go to Lobby  [1]
+탐색	Explore
+상인	Trade
+넓은 시야	Wide Sight
+시야 +1칸	Vision +1 tile
+길잡이	Pathfinder
+방에 들어가면 출구가 처음부터 보인다	The exit is visible as soon as you enter a room
+보물 감각	Treasure Sense
+보물상자에서 얻는 골드 +50%	Gold from treasure chests +50%
+퍼즐 달인	Puzzle Master
+퍼즐·미니게임 성공 골드 +50%	Gold from puzzles/minigames +50%
+탐험가의 감	Explorer's Instinct
+일반 방을 비우면 15% 확률로 아이템 1개를 줍는다	Clearing a normal room has a 15% chance to find 1 item
+탐험가의 감! {0}을(를) 주웠다	Explorer's Instinct! Found {0}
+흥정	Haggle
+던전 떠돌이 상인 가격 -15%	Wandering merchant prices -15%
+단골	Regular
+로비 잡화점 가격 -20%	Lobby general store prices -20%
+큰손	Big Spender
+골드 획득 +15%	Gold gain +15%
+보험	Insurance
+데스 패널티(이번 시도 골드 손실) -15%p	Death penalty (Gold lost this attempt) -15%p
+행운의 손님	Lucky Visitor
+떠돌이 NPC(상인·그림자 거래상·마석 상인) 등장 확률 1.5배	Wandering NPCs (merchant, shadow dealer, mana stone dealer) appear 1.5x as often
+골드 획득 +30%(골드 카드 상한과 따로 적용)	Gold gain +30% (applied separately from the Gold card cap)
+떠돌이 상인·그림자 거래상·마석 상인 등장 확률 각 +10%p, 마석 상인은 한 층에 2번까지	Wandering merchant, shadow dealer and mana stone dealer each +10%p to appear; the mana stone dealer can appear up to twice per floor
+전투 갈래는 하나만 3번째 칸부터 - 다른 전투 갈래는 2번째 칸까지	Only one combat branch can go past slot 2 - the other combat branch stops at slot 2
+노다지	Bonanza
+일반 방을 비우면 20% 확률로 방 클리어 골드의 5배를 더 얻는다	Clearing a normal room has a 20% chance to grant 5x the room-clear Gold
+<color=#FFD966>노다지!</color> 골드 +{0}	<color=#FFD966>Bonanza!</color> Gold +{0}
+   <size=12><color=#9AA0AA>보스 첫 처치 {0} · 정예 {1}/{2} · 칸 비용 1·1·2·2·3</color></size>	   <size=12><color=#9AA0AA>Boss first kills {0} · Elites {1}/{2} · Slot cost 1·1·2·2·3</color></size>
+  <color=#FFD966>{0}점</color>	  <color=#FFD966>{0} pt</color>
+<color=#8CE08C>특성 포인트 +1</color> (정예 {0}/{1}) - 로비에서 T	<color=#8CE08C>Trait point +1</color> (Elites {0}/{1}) - press T in the lobby
