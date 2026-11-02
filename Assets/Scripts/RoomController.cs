@@ -117,6 +117,7 @@ namespace LoopRogue
             new Dictionary<EnemyActor, (List<Vector2Int>, List<GameObject>)>();
         /// <summary>보스 예고 + 폭발 예고 합집합(봇 회피/맵 표시용).</summary>
         private readonly HashSet<Vector2Int> _dangerTiles = new HashSet<Vector2Int>();
+        private readonly HashSet<Vector2Int> _botDangerTiles = new HashSet<Vector2Int>();
 
         private static readonly Color BombTelegraphColor = new Color(1f, 0.6f, 0.1f, 0.45f);
 
@@ -164,6 +165,9 @@ namespace LoopRogue
 
         /// <summary>예고된 공격 칸(보스 예고 + 불 붙은 폭발병 3x3, 다음 그 몹 턴에 발동) - 비어 있으면 예고 중인 공격 없음.</summary>
         public IReadOnlyCollection<Vector2Int> DangerTiles => _dangerTiles;
+        /// <summary>봇 판단용 - DangerTiles에서 일반 궁수 화살 줄(IsAimingArrow)만 뺀 것. 봇이 화살 줄을 피하면 궁수가 제자리에서
+        /// 겨눔·사격만 번갈아 해서 3000턴 왕복했다(11-02) - 화살은 맞으면서 다가가고, 대시가 되면 대시로 붙는다.</summary>
+        public IReadOnlyCollection<Vector2Int> BotDangerTiles => _botDangerTiles;
         public bool IsDangerTile(Vector2Int pos) => _dangerTiles.Contains(pos);
 
         // ===================== 퍼즐·미니게임 방 =====================
@@ -1227,6 +1231,17 @@ namespace LoopRogue
             foreach (var tel in _crystalTelegraphs.Values)
                 _dangerTiles.UnionWith(tel.Tiles);
             _dangerTiles.UnionWith(_beatTiles); // 7층 그림자 박자(10-23)
+
+            _botDangerTiles.Clear();
+            _botDangerTiles.UnionWith(_bossDangerTiles);
+            foreach (var bomb in _bombs)
+            {
+                if (bomb.Key == null || !bomb.Key.IsAimingArrow)
+                    _botDangerTiles.UnionWith(bomb.Value.Tiles);
+            }
+            foreach (var tel in _crystalTelegraphs.Values)
+                _botDangerTiles.UnionWith(tel.Tiles);
+            _botDangerTiles.UnionWith(_beatTiles);
         }
 
         /// <summary>폭발병이 불을 붙였을 때 - 3x3 주황 예고.</summary>

@@ -2409,6 +2409,8 @@ namespace LoopRogue
         // 매 턴 자리를 잡으러 오게 바꾼 뒤(사거리 3칸) 근접 몹에 막혀 싸우는 동안 옆에서 계속 쏴서 1~3층 궁수 사망이 2~4배가 됐다(봇 100판).
         // 줄에서 비켜서면 빗나간다. 쏜 다음엔 다시 겨눠야 해서 두 턴에 한 발.
         private List<Vector2Int> _arrowAim;
+        /// <summary>일반 화살을 겨눠 둔 상태(노란 줄) - 봇은 이 줄을 피하지 않고 맞으면서 다가간다(RoomController.BotDangerTiles).</summary>
+        public bool IsAimingArrow => _arrowAim != null;
         private static readonly Color ArrowAimColor = new Color(1f, 0.85f, 0.3f, 0.4f);
 
         private void TakeRangedTurn(PlayerActor player, RoomController room)

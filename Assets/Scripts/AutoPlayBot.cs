@@ -1561,11 +1561,11 @@ namespace LoopRogue
                 return false; // 대시로 예고 칸을 빠져나가지 않게
             var map = _room.Map;
             var start = _player.GridPos;
-            var danger = _room.DangerTiles;
+            var danger = _room.BotDangerTiles; // 일반 궁수 화살 줄은 빠져 있다 - 맞으면서 다가가고, 대시가 되면 아래 대시 공격으로 붙는다
 
             if (danger.Contains(start))
             {
-                var canStepOut = Directions.Any(d => map.IsWalkable(start + d) && !danger.Contains(start + d));
+                var canStepOut =Directions.Any(d => map.IsWalkable(start + d) && !danger.Contains(start + d));
                 if (canStepOut || _player.DashCooldown > 0)
                     return false; // 평소처럼 한 칸 회피(ChooseDirection)
                 // 피하는 방향은 주문·자세를 잡는 몹(없으면 가장 가까운 몹) 쪽 착지부터 - 아무 쪽으로나 피하면 멀리 있는 정예 주문술사(5턴)에게
@@ -1620,7 +1620,7 @@ namespace LoopRogue
         {
             var map = _room.Map;
             var start = _player.GridPos;
-            var danger = _room.DangerTiles;
+            var danger = _room.BotDangerTiles;
             var hpRate = _player.Stats.CurrentHealth / Mathf.Max(1f, _player.Stats.MaxHealth);
             var boss = _room.Enemies.FirstOrDefault(e => e != null && e.IsBoss && !e.Stats.IsDead);
             var adjacent = Directions.Count(d => map.GetActorAt(start + d) is EnemyActor);
@@ -1727,7 +1727,7 @@ namespace LoopRogue
         {
             var map = _room.Map;
             var start = _player.GridPos;
-            var danger = _room.DangerTiles;
+            var danger = _room.BotDangerTiles;
 
             if (LichMustTakeHit && danger.Count > 0)
             {
@@ -1749,13 +1749,18 @@ namespace LoopRogue
             {
                 Vector2Int? safest = null;
                 var fewestAdjacent = int.MaxValue;
+                // 11-02 궁수 겨눔은 옆으로(궁수와 대각선 쪽으로) 피한다 - 뒤로 물러나면 다시 궁수 줄 위라서
+                // 걸어 들어감 → 겨눔 → 뒤로 회피를 끝없이 되풀이했다. 몹 인접(×2)이 더 중요하고, 궁수 줄은 동점일 때만 가른다.
+                var aimArchers = _room.Enemies.Where(e => e != null && !e.Stats.IsDead && e.Kind == EnemyKind.Ranged).ToList();
                 foreach (var d in Directions)
                 {
                     var next = start + d;
                     if (!map.IsWalkable(next) || danger.Contains(next))
                         continue;
-                    var adjacentEnemies = Directions.Count(dd => map.GetActorAt(next + dd) is EnemyActor)
-                                          + (_room.IsSlimePuddle(next) ? 2 : 0); // 4층 점액 - 밟으면 한 턴 묶인다
+                    var onArcherLine = aimArchers.Any(a => ArcherCanShoot(map, a.GridPos, next, EnemyActor.RangedAttackRange + 1));
+                    var adjacentEnemies = 2 * (Directions.Count(dd => map.GetActorAt(next + dd) is EnemyActor)
+                                          + (_room.IsSlimePuddle(next) ? 2 : 0)) // 4층 점액 - 밟으면 한 턴 묶인다
+                                          + (onArcherLine ? 1 : 0);
                     if (adjacentEnemies < fewestAdjacent)
                     {
                         fewestAdjacent = adjacentEnemies;
@@ -1936,6 +1941,16 @@ namespace LoopRogue
                         _lastDecision = "적에게(십자포화 우회)";
                     }
                 }
+            }
+            if (!toEnemy.HasValue && archers.Count > 0)
+            {
+                // 11-02 궁수 겨누기 뒤(사용자): 궁수 사격 줄을 피해 대각선으로 다가가다가, 궁수가 줄을 맞춰 오면 대시 거리 안에서
+                // 대시로 붙는다(대시 공격은 TryUseSkill이 먼저 처리 - 같은 줄, 대시 거리 안, 착지 칸이 예고 칸이 아닐 때).
+                // 매 걸음 "적까지 거리가 실제로 줄어드는 칸"만 고르고, 그중 궁수가 쏠 수 있는 칸이 아닌 쪽을 먼저 고른다.
+                // 거리가 안 줄면 안 움직이므로 옆걸음 왕복이 없다(경로 비용 방식은 4칸 궁수가 옆으로 따라와서 제자리 왕복했다).
+                toEnemy = ArcherAwareStep(isEnemyAdjacent, passable, c => archers.Any(a => ArcherCanShoot(map, a.GridPos, c)));
+                if (toEnemy.HasValue)
+                    _lastDecision = "적에게(궁수 대각선)";
             }
             if (!toEnemy.HasValue)
             {
@@ -2583,6 +2598,55 @@ namespace LoopRogue
         private static readonly Dictionary<Vector2Int, Vector2Int> FirstStepBuffer = new Dictionary<Vector2Int, Vector2Int>();
         private static readonly Queue<Vector2Int> QueueBuffer = new Queue<Vector2Int>();
 
+        /// <summary>목표까지 걸음 수가 1 줄어드는 첫 걸음들 중 inLine(궁수가 쏠 수 있는 칸)이 아닌 쪽을 먼저 고른다 - 없으면 줄 위라도 간다.</summary>
+        private Vector2Int? ArcherAwareStep(Func<Vector2Int, bool> isGoal, Func<Vector2Int, bool> passable, Func<Vector2Int, bool> inLine)
+        {
+            var start = _player.GridPos;
+            Vector2Int? best = null;
+            var bestSteps = int.MaxValue;
+            var bestInLine = true;
+            foreach (var d in Directions)
+            {
+                var next = start + d;
+                if (!passable(next))
+                    continue;
+                var steps = StepsToGoal(next, start, isGoal, passable);
+                if (steps < 0)
+                    continue;
+                var line = inLine(next);
+                if (steps < bestSteps || (steps == bestSteps && bestInLine && !line))
+                {
+                    best = d;
+                    bestSteps = steps;
+                    bestInLine = line;
+                }
+            }
+            return best;
+        }
+
+        /// <summary>from에서 목표 칸까지 걸음 수(BFS, from이 목표면 0, 못 가면 -1). exclude(플레이어 자리)는 지나가지 않는다.</summary>
+        private static int StepsToGoal(Vector2Int from, Vector2Int exclude, Func<Vector2Int, bool> isGoal, Func<Vector2Int, bool> passable)
+        {
+            var dist = new Dictionary<Vector2Int, int> { [from] = 0 };
+            var queue = new Queue<Vector2Int>();
+            queue.Enqueue(from);
+            while (queue.Count > 0)
+            {
+                var cur = queue.Dequeue();
+                if (isGoal(cur))
+                    return dist[cur];
+                foreach (var d in Directions)
+                {
+                    var next = cur + d;
+                    if (next == exclude || dist.ContainsKey(next) || !passable(next))
+                        continue;
+                    dist[next] = dist[cur] + 1;
+                    queue.Enqueue(next);
+                }
+            }
+            return -1;
+        }
+
         private Vector2Int? FirstStepTo(Func<Vector2Int, bool> isGoal, Func<Vector2Int, bool> passable)
         {
             var start = _player.GridPos;
@@ -2660,13 +2724,13 @@ namespace LoopRogue
         private const int CrossfireGiveUpTurns = 12;
 
         /// <summary>EnemyActor.CanShoot과 같은 규칙 - 같은 줄, 거리 2~RangedAttackRange, 사이에 벽 없음(몹은 통과).</summary>
-        private static bool ArcherCanShoot(GridMap map, Vector2Int from, Vector2Int target)
+        private static bool ArcherCanShoot(GridMap map, Vector2Int from, Vector2Int target, int range = EnemyActor.RangedAttackRange)
         {
             var diff = target - from;
             if (diff.x != 0 && diff.y != 0)
                 return false;
             var dist = Mathf.Abs(diff.x) + Mathf.Abs(diff.y);
-            if (dist < 2 || dist > EnemyActor.RangedAttackRange)
+            if (dist < 2 || dist > range)
                 return false;
             var step = new Vector2Int(Math.Sign(diff.x), Math.Sign(diff.y));
             for (var p = from + step; p != target; p += step)
