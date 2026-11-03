@@ -127,6 +127,7 @@ namespace LoopRogue
             _achievementPanel = AchievementPanel.Create();
             _codexPanel = CodexPanel.Create();
             _traitPanel = TraitPanel.Create();
+            _appearancePanel = AppearancePanel.Create(); // 11-03 [9] 재봉사
             _stageSelectPanel = StageSelectPanel.Create();
             Achievements.Unlocked += OnAchievementUnlocked;
             Codex.SyncOwned();    // 도감이 생기기 전 저장으로 이미 가진 유물/아이템
@@ -136,6 +137,7 @@ namespace LoopRogue
         private AchievementPanel _achievementPanel;
         private CodexPanel _codexPanel;
         private TraitPanel _traitPanel; // 11-02 특성 창 - 허브에서 T
+        private AppearancePanel _appearancePanel; // 11-03 외형 창 - [9] 재봉사
         private StageSelectPanel _stageSelectPanel; // 11-02 층 선택 - 10층 클리어 뒤 문으로
 
         private void OnDestroy() => Achievements.Unlocked -= OnAchievementUnlocked;
@@ -166,7 +168,7 @@ namespace LoopRogue
             UpdateHover();
 
             // 안내자와 대화 중이거나 업적 창이 열려 있으면(닫은 프레임 포함) 로비 버튼·단축키를 안 받는다 - 그 창들이 Esc/숫자/클릭을 직접 처리한다.
-            if (NpcDialogUI.BlocksInput || AchievementPanel.BlocksInput || CodexPanel.BlocksInput || TraitPanel.BlocksInput || StageSelectPanel.BlocksInput || GachaReveal.BlocksInput)
+            if (NpcDialogUI.BlocksInput || AchievementPanel.BlocksInput || CodexPanel.BlocksInput || TraitPanel.BlocksInput || AppearancePanel.BlocksInput || StageSelectPanel.BlocksInput || GachaReveal.BlocksInput)
                 return;
 
             // 클릭으로 화면이 바뀐 프레임엔 단축키를 안 읽는다(같은 프레임에 새 화면 키가 먹지 않게).
@@ -194,6 +196,8 @@ namespace LoopRogue
                         ShowView(LobbyView.Items);
                     else if (GameInput.Down(Key.Digit8))
                         TalkSkillHelper();
+                    else if (GameInput.Down(Key.Digit9))
+                        _appearancePanel.Open();
                     else if (GameInput.Down(Key.T))
                         _traitPanel.Open();
                     // Esc = 타이틀로(로비엔 진행 중인 전투가 없어서 확인 없이 바로 이동 - 골드/장비는 전부 영구 저장).
@@ -1025,6 +1029,7 @@ namespace LoopRogue
                 () => $"<color=#B9A0FF>{Codex.FoundCount()} / {Codex.TotalCount()}</color>", () => _codexPanel.Open());
             _room.AddNpc("LobbyGrocer", new Vector2Int(3, 3), () => Loc.T("[7] 잡화상"), () => string.Empty, () => ShowView(LobbyView.Items)); // 11-02 소비 아이템
             _room.AddNpc("LobbySkillHelper", new Vector2Int(7, 3), () => Loc.T("[8] 스킬 도우미"), SkillHelperBadge, TalkSkillHelper); // 11-03 특성 갈래 고르기
+            _room.AddNpc("LobbyTailor", new Vector2Int(7, 1), () => Loc.T("[9] 재봉사"), () => string.Empty, () => _appearancePanel.Open()); // 11-03 장비 외형·이펙트 고르기
             _room.DoorLocked = () => FirstShopLocked;
             _room.OnDoorLocked = () => ShowResult(Loc.T("아직 문이 잠겨 있다 - 보물 상인(1)에서 장비를 뽑거나 연금술사(2)에게 영약을 사서 먼저 강해지자!"), new Color(1f, 0.85f, 0.4f));
             _room.Build();

@@ -199,6 +199,7 @@ namespace LoopRogue
         {
             var levelBefore = GetShopLevel(slot);
             var grade = RollGrade(GradeWeightsByLevel[levelBefore - 1]);
+            Appearance.MarkOwned(slot, grade); // 재봉사 외형 - 한 번이라도 얻어 본 등급
 
             PullCounts[(int)slot]++;
             Prefs.SetInt(PrefKey(slot), PullCounts[(int)slot]);

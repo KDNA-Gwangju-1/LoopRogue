@@ -52,6 +52,7 @@ namespace LoopRogue
             EquippedGrade[(int)slot] = (int)grade;
             Prefs.SetInt(PrefKey(slot), (int)grade);
             Prefs.Save();
+            Appearance.MarkOwned(slot, grade); // 재봉사 외형(대장장이 Unknown 등 뽑기 밖 장착도)
             HeroLook.Bump(); // 용사 그림(방어구·무기 등급)
             return true;
         }
@@ -62,7 +63,10 @@ namespace LoopRogue
             EnsureLoaded();
             EquippedGrade[(int)slot] = grade.HasValue ? (int)grade.Value : -1;
             if (grade.HasValue)
+            {
                 Prefs.SetInt(PrefKey(slot), (int)grade.Value);
+                Appearance.MarkOwned(slot, grade.Value);
+            }
             else
                 Prefs.DeleteKey(PrefKey(slot));
             Prefs.Save();

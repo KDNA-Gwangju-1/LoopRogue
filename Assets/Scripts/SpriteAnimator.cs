@@ -35,7 +35,11 @@ namespace LoopRogue
 
         // ---- 한 번 재생하는 연출 클립(Resources/Sprites/{세트}/{이름}_south_{번호}, 4층 슬라임 킹 분열 split 등) - 마지막 장에서 hold초 멈춘다 ----
         private Sprite[] _clip;
+        private Sprite[] _overlayClip; // 겹(무기)도 같은 이름의 클립이 있으면 같은 번호로(11-03 회전 베기)
         private float _clipStart, _clipSeconds, _clipUntil = -1f;
+
+        /// <summary>연출 클립을 재생 중인지.</summary>
+        public bool IsPlayingClip => _clip != null && Time.time < _clipUntil;
 
         /// <summary>클립을 seconds초에 걸쳐 한 번 재생하고 마지막 장을 hold초 보여 준다. 그림이 없으면 false.</summary>
         public bool PlayClip(string name, float seconds, float hold = 0.2f)
@@ -46,6 +50,8 @@ namespace LoopRogue
             if (frames.Length == 0)
                 return false;
             _clip = frames;
+            _overlayClip = string.IsNullOrEmpty(_overlayName) ? null : LoadSequence($"Sprites/{_overlayName}/{name}_south_");
+            _attackUntil = -1f; // 클립이 공격 모션을 덮는다(끝난 뒤 남은 공격 장면이 이어 나오지 않게)
             _clipStart = Time.time;
             _clipSeconds = seconds;
             _clipUntil = Time.time + seconds + hold;
@@ -164,8 +170,11 @@ namespace LoopRogue
         private System.Func<int, int, int, bool> _overlayBehind; // (종류 0 대기·1 걷기·2 공격, 방향, 번호) → 몸 뒤?
 
         /// <summary>겹 세트를 붙인다(null이면 뗀다). behind가 true인 프레임은 몸 그림 뒤에.</summary>
+        private string _overlayName;
+
         public void SetOverlay(string setName, SpriteRenderer renderer, System.Func<int, int, int, bool> behind)
         {
+            _overlayName = setName;
             _overlay = string.IsNullOrEmpty(setName) ? null : Load(setName);
             _overlayRenderer = renderer;
             _overlayBehind = behind;
@@ -180,7 +189,12 @@ namespace LoopRogue
             if (_overlayRenderer == null)
                 return;
             Sprite over = null;
-            if (_overlay != null && kind >= 0)
+            if (kind == 3) // 연출 클립 - 겹 클립의 같은 번호
+            {
+                if (_overlayClip != null && index >= 0 && index < _overlayClip.Length)
+                    over = _overlayClip[index];
+            }
+            else if (_overlay != null && kind >= 0)
             {
                 var byDir = kind == 0 ? _overlay.Idle : kind == 1 ? _overlay.Walk : _overlay.Attack;
                 var frames = Frames(byDir);
@@ -199,7 +213,7 @@ namespace LoopRogue
         /// <summary>그 종류에 지금 방향 그림이 있는지(없으면 Frames가 남쪽 그림을 쓴다 - 뒤/앞 표도 남쪽 것으로).</summary>
         private bool byDirHasOwn(int kind)
         {
-            if (_set == null || kind < 0)
+            if (_set == null || kind < 0 || kind > 2)
                 return false;
             var byDir = kind == 0 ? _set.Idle : kind == 1 ? _set.Walk : _set.Attack;
             return byDir[_dir] != null && byDir[_dir].Length > 0;
@@ -277,7 +291,7 @@ namespace LoopRogue
             if (_clip != null && Time.time < _clipUntil)
             {
                 var k = Mathf.Min(_clip.Length - 1, (int)((Time.time - _clipStart) / Mathf.Max(0.01f, _clipSeconds) * _clip.Length));
-                Show(_clip[k], -1, 0);
+                Show(_clip[k], 3, k);
                 return;
             }
             if (Time.time < _jumpUntil)

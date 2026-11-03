@@ -18,13 +18,12 @@ namespace LoopRogue
 
         public static bool Available => SpriteAnimator.FirstFrame("HeroBody0") != null && SpriteAnimator.FirstFrame("HeroWeapon0") != null;
 
-        private static int GradeIndex(ItemSlot slot) => (int)(EquipmentWallet.GetEquipped(slot) ?? ItemGrade.Common);
+        // 11-03 재봉사(Appearance) - 방어구 외형·무기 외형·이펙트를 장착 장비와 따로 고를 수 있다(안 골랐으면 장비 따라감, 미장착 = 일반)
+        public static string BodySet => $"HeroBody{(int)Appearance.Resolved(Appearance.Part.Armor)}";
+        public static string WeaponSet => $"HeroWeapon{(int)Appearance.Resolved(Appearance.Part.Weapon)}";
 
-        public static string BodySet => $"HeroBody{GradeIndex(ItemSlot.Armor)}";
-        public static string WeaponSet => $"HeroWeapon{GradeIndex(ItemSlot.Weapon)}";
-
-        /// <summary>그 자리 무기 등급(미장착 = 일반) - 베기 이펙트 고르기용.</summary>
-        public static int WeaponGrade => GradeIndex(ItemSlot.Weapon);
+        /// <summary>이펙트 등급(베기·회전·대시·잔상 색) - 재봉사에서 고른 이펙트, 안 골랐으면 장착 무기.</summary>
+        public static int WeaponGrade => (int)Appearance.Resolved(Appearance.Part.Effect);
 
         // kind 0 대기 / 1 걷기 / 2 공격, dir 0 남 / 1 동 / 2 서 / 3 북(SpriteAnimator와 같은 순서), 프레임 8장
         private static readonly string[,] Behind =
@@ -33,9 +32,23 @@ namespace LoopRogue
             { "00000000", "00000000", "00000000", "00000000" },
             { "01000000", "11000000", "11000000", "00111100" },
         };
+        /// <summary>회전 베기 클립(spin_south_0~7, kind 3) - 등을 보이는 5번째 장(4)만 칼이 몸 뒤.</summary>
+        private const string SpinBehind = "00001000";
 
-        public static bool WeaponBehind(int kind, int dir, int index) =>
-            kind >= 0 && kind < 3 && dir >= 0 && dir < 4 && index >= 0 && index < 8 && Behind[kind, dir][index] == '1';
+        public static bool WeaponBehind(int kind, int dir, int index)
+        {
+            if (index < 0 || index >= 8)
+                return false;
+            if (kind == 3)
+                return SpinBehind[index] == '1';
+            return kind >= 0 && kind < 3 && dir >= 0 && dir < 4 && Behind[kind, dir][index] == '1';
+        }
+
+        /// <summary>회전 베기 용사 스프라이트(HeroBody·HeroWeapon의 spin_south_0~7) 재생 - 그림이 없으면 false(예전처럼 그림 통째 회전).</summary>
+        public static bool PlaySpin(SpriteAnimator anim) => anim != null && anim.PlayClip("spin", SpinClipSeconds, 0.02f);
+
+        /// <summary>회전 한 바퀴 시간 - 8장. 예전 통째 회전(0.18초)보다 조금 길게 해야 자세가 읽힌다.</summary>
+        public const float SpinClipSeconds = 0.3f;
 
         /// <summary>용사 그림을 붙인다 - renderer는 몸 겹(이미 있는 것), 무기 겹은 자식으로 만든다. 등급 그림이 없으면 예전 세트.</summary>
         public static void Attach(GameObject owner, SpriteAnimator anim, SpriteRenderer renderer)

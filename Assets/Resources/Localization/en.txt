@@ -1450,3 +1450,15 @@ W/S·마우스: 고르기   Enter·클릭·숫자: 시작   Delete·[지우기]:
 뽑기권 {0}장 사용 - 최고: {1} - 장착했습니다!	Used {0} tickets - best: {1} - equipped!
 뽑기권 {0}장 사용 - 최고: {1}... 이미 더 좋은 장비가 있음.	Used {0} tickets - best: {1}... you already have better gear.
 [Ctrl+{0}] 뽑기권 전부 ({1}장)	[Ctrl+{0}] Use all tickets ({1})
+<color=#FF9A80>아직 얻어 본 적 없는 등급이다 - 뽑기로 한 번이라도 얻으면 고를 수 있다</color>	<color=#FF9A80>You haven't obtained this grade yet - get it once from the gacha to unlock it</color>
+<color=#8CE08C>{0}: 장착한 장비를 따라간다</color>	<color=#8CE08C>{0}: follows equipped gear</color>
+<color=#8CE08C>{0}: {1}</color>	<color=#8CE08C>{0}: {1}</color>
+방어구 외형	Armor look
+무기 외형	Weapon look
+공격·스킬 이펙트	Attack & skill effects
+장비	Gear
+지금: {0}	Now: {0}
+장비 따라감	follows gear
+<b>재봉사</b>   <size=14><color=#9AA0AA>얻어 본 등급의 외형·이펙트로 갈아입는다 (능력치는 장착한 장비 그대로)</color></size>	<b>Tailor</b>   <size=14><color=#9AA0AA>Change to the look and effects of any grade you have obtained (stats stay with your equipped gear)</color></size>
+↑↓ 줄 · ←→ 칸 · Enter·클릭 고르기 · 9·Esc 닫기   (? = 아직 얻어 본 적 없는 등급)	↑↓ row · ←→ slot · Enter/click to choose · 9/Esc to close   (? = grade not obtained yet)
+[9] 재봉사	[9] Tailor

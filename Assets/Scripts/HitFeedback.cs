@@ -217,7 +217,8 @@ namespace LoopRogue
                 for (var i = 0; i < ghosts; i++)
                 {
                     var pos = Vector3.Lerp(from, to, (float)i / ghosts);
-                    DeathBurst.SpawnGhost(renderer.sprite, pos, player.transform.localScale.x, new Color(0.5f, 0.8f, 1f, 0.15f + 0.1f * i));
+                    var gc = WeaponTint;
+                    DeathBurst.SpawnGhost(renderer.sprite, pos, player.transform.localScale.x, new Color(gc.r, gc.g, gc.b, 0.15f + 0.1f * i)); // 무기 등급 색(11-03 - 예전엔 늘 하늘색)
                 }
             }
             var path = to - from;
@@ -285,6 +286,16 @@ namespace LoopRogue
         /// <summary>십자 문장 회오리 그림 크기(칸) - spin_cross_g 그림(160px)이 5.5칸 폭 기준으로 그려졌다(한 칸 ≈ 29px).</summary>
         private const float SpinCrossSize = 5.5f;
 
+        /// <summary>대시 잔상·회전 파편 색 = 무기 등급 색(11-03 사용자 "하나로 통일") - 일반(흰색)은 예전 하늘색, 영원은 그 순간의 무지개 색.</summary>
+        private static Color WeaponTint
+        {
+            get
+            {
+                var grade = (ItemGrade)HeroLook.WeaponGrade;
+                return grade == ItemGrade.Common ? new Color(0.6f, 0.85f, 1f) : EquipmentData.GradeColor(grade);
+            }
+        }
+
         /// <summary>무기 등급별 스킬 이펙트(11-03 - Effects/{name}_g0~9, 무기 미장착 = 일반) - 그림이 없으면 예전 {name}.</summary>
         private static Fx PlayGraded(string name, Vector3 position, float size, float angle, float fps, int sortingOrder) =>
             Fx.Play($"{name}_g{HeroLook.WeaponGrade}", position, size, angle, fps: fps, sortingOrder: sortingOrder)
@@ -296,7 +307,8 @@ namespace LoopRogue
             if (!Enabled)
                 return;
 
-            ActorJuice.Get(player).Spin();
+            if (!HeroLook.PlaySpin(player.GetComponent<SpriteAnimator>())) // 11-03 회전 베기 전용 용사 스프라이트(돌아서며 휘두름) - 없으면 예전 그림 통째 회전
+                ActorJuice.Get(player).Spin();
             // 주변 8칸을 감싸는 고리(끝없는 회전 5x5면 크게). 3층 보스 유물 "십자 문장"(가운데 3x3 + 상하좌우 끝 1칸)이면 그 모양대로 휘도는 전용 그림
             // spin_cross_g{등급}(11-03 사용자 - 안 베는 칸은 안 지나가게 그림, 160px = 5.5칸). 그림만, 공격 범위 PlayerActor.SpinOffsets는 그대로.
             Fx swirl = null;
@@ -304,7 +316,7 @@ namespace LoopRogue
                 swirl = Fx.Play($"spin_cross_g{HeroLook.WeaponGrade}", player.transform.position, SpinCrossSize, fps: 22f, sortingOrder: 7);
             if (swirl == null)
                 swirl = PlayGraded("spin", player.transform.position, wide ? 5.5f : 3.3f, 0f, 22f, 7);
-            DeathBurst.Spawn(player.transform.position, new Color(0.7f, 0.9f, 1f), count: swirl != null ? 8 : 16, speed: 7f, size: 0.12f);
+            DeathBurst.Spawn(player.transform.position, WeaponTint, count: swirl != null ? 8 : 16, speed: 7f, size: 0.12f); // 파편도 무기 등급 색(11-03 - 예전엔 늘 하늘색)
             CameraShake.Shake(0.1f, 0.12f);
             SfxPlayer.Play(Sfx.Spin);
         }
