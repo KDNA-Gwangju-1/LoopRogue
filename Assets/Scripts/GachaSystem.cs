@@ -177,6 +177,20 @@ namespace LoopRogue
             return results;
         }
 
+        /// <summary>뽑기권 전부를 그 부위에 한꺼번에(11-03 사용자 "일괄 소모") - 뽑기권이 없으면 null. 한 번씩 굴려서 도중에 상점 레벨이 오르면 남은 뽑기는 오른 확률표로.</summary>
+        public static List<GachaResult> PullAllTickets(ItemSlot slot)
+        {
+            var count = Tickets;
+            if (count <= 0)
+                return null;
+            AddTickets(-count);
+            var results = new List<GachaResult>(count);
+            for (var i = 0; i < count; i++)
+                results.Add(PullOnce(slot));
+            PlayLog.Lobby($"뽑기권 {count}장 {slot}: {string.Join(", ", results.ConvertAll(Describe))}");
+            return results;
+        }
+
         /// <summary>플레이 기록용 한 줄 - 등급(장착/강화).</summary>
         private static string Describe(GachaResult r) =>
             EquipmentData.Grades[r.Grade].Name + (r.Equipped ? "(장착)" : r.EnhanceLevelsGained > 0 ? $"(강화 +{r.EnhanceLevelsGained})" : string.Empty);

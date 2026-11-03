@@ -40,7 +40,9 @@ namespace LoopRogue
             // 베기 - 몹 자리에서 플레이어 쪽으로 살짝 당겨서, 때린 방향을 향하게(치명타는 크고 붉은 금빛).
             var cell = GridConstants.CellSize;
             var slashPos = enemy.transform.position - new Vector3(direction.x, direction.y, 0f) * cell * 0.2f;
-            Fx.Play(isCritical ? "slash_crit" : "slash", slashPos, isCritical ? 1.7f : 1.2f, Fx.Angle(direction));
+            var graded = (isCritical ? "slash_crit_g" : "slash_g") + HeroLook.WeaponGrade; // 11-03 무기 등급별 베기(Effects/slash_g0~9, slash_crit_g0~9)
+            if (Fx.Play(graded, slashPos, isCritical ? 1.7f : 1.2f, Fx.Angle(direction)) == null)
+                Fx.Play(isCritical ? "slash_crit" : "slash", slashPos, isCritical ? 1.7f : 1.2f, Fx.Angle(direction));
             Fx.Play("hit_spark", enemy.transform.position, isCritical ? 0.9f : 0.6f);
 
             if (isCritical)
@@ -220,10 +222,32 @@ namespace LoopRogue
             }
             var path = to - from;
             if (path.sqrMagnitude > 0.01f)
-                Fx.Play("dash", (from + to) * 0.5f, path.magnitude / GridConstants.CellSize + 0.6f,
-                    Mathf.Atan2(path.y, path.x) * Mathf.Rad2Deg, fps: 22f, sortingOrder: 2);
+                PlayGraded("dash", (from + to) * 0.5f, path.magnitude / GridConstants.CellSize + 0.6f,
+                    Mathf.Atan2(path.y, path.x) * Mathf.Rad2Deg, 12f, 2); // 11-03 분신·그림자 속도선과 같은 속도(22 → 12)
             CameraShake.Shake(0.05f, 0.08f);
             SfxPlayer.Play(Sfx.Dash);
+        }
+
+        /// <summary>특성 "대시 파동"(11-03 사용자) - 대시하는 순간 양옆 줄에서 그림자 용사 둘이 튀어나와 본체와 나란히 돌진한다(피해 칸 폭 3줄이 보이게).
+        /// from·to = 본체 출발·도착(세계 좌표), side = 옆 한 칸(세계 좌표 벡터). 그림은 지금 용사 몸 그림 + 무기 겹을 짙은 보라로.</summary>
+        public static void OnDashWaveShadows(PlayerActor player, Vector3 from, Vector3 to, Vector3 side)
+        {
+            if (!Enabled || (to - from).sqrMagnitude < 0.01f)
+                return;
+            var body = player.GetComponent<SpriteRenderer>();
+            if (body == null || body.sprite == null)
+                return;
+            Sprite weapon = null;
+            var weaponTf = player.transform.Find("HeroWeapon");
+            if (weaponTf != null && weaponTf.TryGetComponent<SpriteRenderer>(out var wr))
+                weapon = wr.sprite;
+            foreach (var s in new[] { side, -side })
+            {
+                var a = from + s;
+                var b = to + s;
+                DashShadowRunner.Spawn(body.sprite, weapon, body.flipX, player.transform.localScale.x, a, b,
+                    DashShadowRunner.ShadowBody, DashShadowRunner.ShadowTrail, () => PlayDashStreak(a, b, 12f));
+            }
         }
 
         /// <summary>특성 "분신 대시" - 분신이 지나간 길(from → to)에 플레이어 잔상과 대시 궤적. 소리·흔들림은 본체 대시가 낸다.</summary>
@@ -233,20 +257,38 @@ namespace LoopRogue
                 return;
 
             var renderer = player.GetComponent<SpriteRenderer>();
-            if (renderer != null)
+            if (renderer != null && renderer.sprite != null && (to - from).sqrMagnitude > 0.01f)
             {
-                const int ghosts = 4;
-                for (var i = 1; i <= ghosts; i++)
-                {
-                    var pos = Vector3.Lerp(from, to, (float)i / ghosts);
-                    DeathBurst.SpawnGhost(renderer.sprite, pos, player.transform.localScale.x, new Color(0.55f, 0.75f, 1f, 0.1f + 0.1f * i));
-                }
+                // 11-03 사용자 "분신도 대시 이펙트" - 멈춰 있던 잔상 4개 대신, 푸른 분신(몸 + 무기 겹)이 대각선으로 달려 나가며 잔상을 남긴다
+                Sprite weapon = null;
+                var weaponTf = player.transform.Find("HeroWeapon");
+                if (weaponTf != null && weaponTf.TryGetComponent<SpriteRenderer>(out var wr))
+                    weapon = wr.sprite;
+                var cloneFrom = from;
+                var cloneTo = to;
+                DashShadowRunner.Spawn(renderer.sprite, weapon, renderer.flipX, player.transform.localScale.x, from, to,
+                    DashShadowRunner.CloneBody, DashShadowRunner.CloneTrail, () => PlayDashStreak(cloneFrom, cloneTo, 12f));
             }
+            else
+                PlayDashStreak(from, to, 12f); // 분신 그림이 없을 때만 바로
+        }
+
+        /// <summary>대시 속도선(무기 등급 그림) - from → to 길 위에.</summary>
+        private static void PlayDashStreak(Vector3 from, Vector3 to, float fps)
+        {
             var path = to - from;
             if (path.sqrMagnitude > 0.01f)
-                Fx.Play("dash", (from + to) * 0.5f, path.magnitude / GridConstants.CellSize + 0.6f,
-                    Mathf.Atan2(path.y, path.x) * Mathf.Rad2Deg, fps: 22f, sortingOrder: 2);
+                PlayGraded("dash", (from + to) * 0.5f, path.magnitude / GridConstants.CellSize + 0.6f,
+                    Mathf.Atan2(path.y, path.x) * Mathf.Rad2Deg, fps, 2);
         }
+
+        /// <summary>십자 문장 회오리 그림 크기(칸) - spin_cross_g 그림(160px)이 5.5칸 폭 기준으로 그려졌다(한 칸 ≈ 29px).</summary>
+        private const float SpinCrossSize = 5.5f;
+
+        /// <summary>무기 등급별 스킬 이펙트(11-03 - Effects/{name}_g0~9, 무기 미장착 = 일반) - 그림이 없으면 예전 {name}.</summary>
+        private static Fx PlayGraded(string name, Vector3 position, float size, float angle, float fps, int sortingOrder) =>
+            Fx.Play($"{name}_g{HeroLook.WeaponGrade}", position, size, angle, fps: fps, sortingOrder: sortingOrder)
+            ?? Fx.Play(name, position, size, angle, fps: fps, sortingOrder: sortingOrder);
 
         /// <summary>회전 베기 - 플레이어가 한 바퀴 돌고 주변으로 파편이 퍼진다(타격 연출은 몹마다 OnPlayerHitEnemy가 따로).</summary>
         public static void OnSpin(PlayerActor player, bool wide = false)
@@ -255,7 +297,13 @@ namespace LoopRogue
                 return;
 
             ActorJuice.Get(player).Spin();
-            var swirl = Fx.Play("spin", player.transform.position, wide ? 5.5f : 3.3f, fps: 22f); // 주변 8칸을 감싸는 고리(끝없는 회전 5x5면 크게)
+            // 주변 8칸을 감싸는 고리(끝없는 회전 5x5면 크게). 3층 보스 유물 "십자 문장"(가운데 3x3 + 상하좌우 끝 1칸)이면 그 모양대로 휘도는 전용 그림
+            // spin_cross_g{등급}(11-03 사용자 - 안 베는 칸은 안 지나가게 그림, 160px = 5.5칸). 그림만, 공격 범위 PlayerActor.SpinOffsets는 그대로.
+            Fx swirl = null;
+            if (!wide && Relics.Has(RelicType.CrossCrest))
+                swirl = Fx.Play($"spin_cross_g{HeroLook.WeaponGrade}", player.transform.position, SpinCrossSize, fps: 22f, sortingOrder: 7);
+            if (swirl == null)
+                swirl = PlayGraded("spin", player.transform.position, wide ? 5.5f : 3.3f, 0f, 22f, 7);
             DeathBurst.Spawn(player.transform.position, new Color(0.7f, 0.9f, 1f), count: swirl != null ? 8 : 16, speed: 7f, size: 0.12f);
             CameraShake.Shake(0.1f, 0.12f);
             SfxPlayer.Play(Sfx.Spin);
@@ -446,6 +494,98 @@ namespace LoopRogue
                 _image.enabled = false;
                 enabled = false;
             }
+        }
+    }
+
+    /// <summary>대시 파동 그림자 용사 - from에서 튀어나와(작게 → 크게) to까지 짧게 돌진하고, 지나는 길에 잔상을 남긴 뒤 흐려진다.</summary>
+    public class DashShadowRunner : MonoBehaviour
+    {
+        private const float PopSeconds = 0.05f;
+        private const float RunSeconds = 0.16f;
+        private const float FadeSeconds = 0.22f;
+        public static readonly Color ShadowBody = new Color(0.22f, 0.12f, 0.42f, 0.9f);   // 대시 파동 그림자(짙은 보라)
+        public static readonly Color ShadowTrail = new Color(0.4f, 0.25f, 0.8f, 0.55f);
+        public static readonly Color CloneBody = new Color(0.6f, 0.85f, 1f, 0.7f);        // 분신 대시 분신(푸른빛 반투명)
+        public static readonly Color CloneTrail = new Color(0.45f, 0.75f, 1f, 0.6f); // 11-03 "분신 잔상이 안 보인다" - 0.3은 바닥에서 거의 안 보였다
+        private Color Body = ShadowBody;
+        private Color Trail = ShadowTrail;
+
+        private SpriteRenderer _body;
+        private SpriteRenderer _weapon;
+        private Vector3 _from, _to;
+        private float _size, _start, _lastGhost;
+        private Sprite _sprite;
+        private System.Action _onRun; // 달리기 시작하는 순간 한 번(분신 대시 속도선)
+
+        public static void Spawn(Sprite body, Sprite weapon, bool flipX, float size, Vector3 from, Vector3 to) =>
+            Spawn(body, weapon, flipX, size, from, to, ShadowBody, ShadowTrail);
+
+        public static void Spawn(Sprite body, Sprite weapon, bool flipX, float size, Vector3 from, Vector3 to, Color bodyColor, Color trailColor,
+            System.Action onRun = null)
+        {
+            var go = new GameObject("DashShadow");
+            var runner = go.AddComponent<DashShadowRunner>();
+            runner.Body = bodyColor;
+            runner.Trail = trailColor;
+            runner._onRun = onRun;
+            runner._body = VisualUtil.CreateSpriteVisual(go, body, size, sortingOrder: 1);
+            runner._body.flipX = flipX;
+            runner._body.color = bodyColor;
+            RoomClip.Apply(runner._body);
+            if (weapon != null)
+            {
+                var w = new GameObject("Weapon");
+                w.transform.SetParent(go.transform, false);
+                runner._weapon = w.AddComponent<SpriteRenderer>();
+                runner._weapon.sprite = weapon;
+                runner._weapon.flipX = flipX;
+                runner._weapon.sortingOrder = 1;
+                runner._weapon.color = bodyColor;
+                RoomClip.Apply(runner._weapon);
+            }
+            runner._sprite = body;
+            runner._from = from;
+            runner._to = to;
+            runner._size = size;
+            runner._start = Time.time;
+            go.transform.position = from + new Vector3(0f, 0f, 0.05f);
+            go.transform.localScale = new Vector3(size * 0.6f, size * 0.6f, 1f);
+        }
+
+        private void Update()
+        {
+            var t = Time.time - _start;
+            if (t < PopSeconds) // 튀어나옴 - 작게 → 제 크기
+            {
+                var k = t / PopSeconds;
+                transform.localScale = new Vector3(_size * Mathf.Lerp(0.6f, 1.1f, k), _size * Mathf.Lerp(0.6f, 1.1f, k), 1f);
+                return;
+            }
+            t -= PopSeconds;
+            if (_onRun != null)
+            {
+                var onRun = _onRun;
+                _onRun = null;
+                onRun();
+            }
+            if (t < RunSeconds) // 돌진
+            {
+                var k = 1f - (1f - t / RunSeconds) * (1f - t / RunSeconds); // 빨리 나가서 감속
+                transform.position = Vector3.Lerp(_from, _to, k) + new Vector3(0f, 0f, 0.05f);
+                transform.localScale = new Vector3(_size, _size, 1f); // 잔상은 안 남긴다(11-03 사용자) - 지나간 길엔 무기 등급 대시 속도선(onRun)
+                return;
+            }
+            t -= RunSeconds;
+            if (t < FadeSeconds) // 흐려짐
+            {
+                var a = Body.a * (1f - t / FadeSeconds);
+                var c = new Color(Body.r, Body.g, Body.b, a);
+                _body.color = c;
+                if (_weapon != null)
+                    _weapon.color = c;
+                return;
+            }
+            Destroy(gameObject);
         }
     }
 }

@@ -61,6 +61,9 @@ namespace LoopRogue
         private Text _resultText;
         private readonly Dictionary<ItemSlot, Text> _gachaButtonTexts = new Dictionary<ItemSlot, Text>();
         private readonly Dictionary<ItemSlot, Text> _gachaMultiButtonTexts = new Dictionary<ItemSlot, Text>();
+        private readonly Dictionary<ItemSlot, GameObject> _gachaTicketButtons = new Dictionary<ItemSlot, GameObject>(); // 뽑기권 전부(있을 때만 보임)
+        private readonly Dictionary<ItemSlot, Text> _gachaTicketButtonTexts = new Dictionary<ItemSlot, Text>();
+        private const int TicketRevealMax = 10; // 뽑기권 일괄 - 카드 연출은 좋은 순서로 이만큼까지
         // 왼쪽 빈 공간의 등급 확률표 - 칸마다 글자 하나(등급 이름 열 + 슬롯 3열, 각 열은 등급 수만큼 줄).
         private readonly Dictionary<ItemSlot, Text> _chanceColumns = new Dictionary<ItemSlot, Text>();
         private Text _attackButtonText;
@@ -189,6 +192,8 @@ namespace LoopRogue
                         _codexPanel.Open();
                     else if (GameInput.Down(Key.Digit7))
                         ShowView(LobbyView.Items);
+                    else if (GameInput.Down(Key.Digit8))
+                        TalkSkillHelper();
                     else if (GameInput.Down(Key.T))
                         _traitPanel.Open();
                     // Esc = 타이틀로(로비엔 진행 중인 전투가 없어서 확인 없이 바로 이동 - 골드/장비는 전부 영구 저장).
@@ -215,13 +220,14 @@ namespace LoopRogue
                     }
                     if (GameInput.Down(Key.E))
                         DoManaExchange(shift ? ExchangeBulkCount : 1);
-                    // 숫자키 = 1회, Shift+숫자키 = 10연차
+                    // 숫자키 = 1회, Shift+숫자키 = 10연차, Ctrl+숫자키 = 뽑기권 전부(11-03)
+                    var ctrl = GameInput.Held(Key.LeftCtrl) || GameInput.Held(Key.RightCtrl);
                     if (GameInput.Down(Key.Digit1))
-                        DoGacha(ItemSlot.Weapon, shift);
+                        DoGachaKey(ItemSlot.Weapon, shift, ctrl);
                     if (GameInput.Down(Key.Digit2))
-                        DoGacha(ItemSlot.Armor, shift);
+                        DoGachaKey(ItemSlot.Armor, shift, ctrl);
                     if (GameInput.Down(Key.Digit3))
-                        DoGacha(ItemSlot.Accessory, shift);
+                        DoGachaKey(ItemSlot.Accessory, shift, ctrl);
                     break;
 
                 case LobbyView.Items:
@@ -390,7 +396,7 @@ namespace LoopRogue
 
             var r = result.Value;
             var name = EquipmentData.DisplayName(r.Slot, r.Grade);
-            var color = EquipmentData.Grades[r.Grade].Color;
+            var color = EquipmentData.GradeColor(r.Grade);
 
             var message = r.Equipped ? Loc.F("{0} 획득! 장착했습니다.", name)
                 : r.EnhanceExp > 0 ? Loc.F("{0}... 이미 더 좋은 장비가 있어 강화 경험치 +{1}", name, r.EnhanceExp)
@@ -407,6 +413,66 @@ namespace LoopRogue
             GachaReveal.Play(slot, new[] { (r.Grade, r.Equipped, r.EnhanceExp) }, () =>
             {
                 ShowResult(message, color);
+                RefreshEquipmentDisplay();
+                OnShopPurchase();
+            });
+        }
+
+        private void DoGachaKey(ItemSlot slot, bool shift, bool ctrl)
+        {
+            if (ctrl)
+                DoGachaAllTickets(slot);
+            else
+                DoGacha(slot, shift);
+        }
+
+        /// <summary>뽑기권 전부를 그 부위에(11-03 사용자) - 결과 한 줄 요약 + 카드 연출은 좋은 순서로 TicketRevealMax장까지.</summary>
+        private void DoGachaAllTickets(ItemSlot slot)
+        {
+            var results = GachaSystem.PullAllTickets(slot);
+            if (results == null)
+            {
+                ShowResult(Loc.T("뽑기권이 없습니다 - 던전의 떠돌이 상인에게서 살 수 있다"), Color.white);
+                return;
+            }
+            var best = results[0];
+            var anyEquipped = false;
+            var leveledUp = false;
+            var expTotal = 0;
+            var enhanceUp = 0;
+            foreach (var r in results)
+            {
+                if (r.Grade > best.Grade)
+                    best = r;
+                anyEquipped |= r.Equipped;
+                leveledUp |= r.ShopLeveledUp;
+                expTotal += r.EnhanceExp;
+                enhanceUp += r.EnhanceLevelsGained;
+            }
+            var name = EquipmentData.DisplayName(slot, best.Grade);
+            var message = anyEquipped
+                ? Loc.F("뽑기권 {0}장 사용 - 최고: {1} - 장착했습니다!", results.Count, name)
+                : Loc.F("뽑기권 {0}장 사용 - 최고: {1}... 이미 더 좋은 장비가 있음.", results.Count, name);
+            if (expTotal > 0)
+                message += Loc.F("  강화 경험치 +{0}", expTotal);
+            if (enhanceUp > 0)
+                message += "  " + EnhanceLevelMessage(slot);
+            if (leveledUp)
+                message += Loc.F("  {0} 상점 Lv{1} 달성!", EquipmentData.Templates[slot].BaseName, GachaSystem.GetShopLevel(slot));
+
+            RefreshGachaDisplay();
+            var shown = new List<GachaResult>(results);
+            if (shown.Count > TicketRevealMax) // 카드는 좋은 등급부터(장착된 것 먼저)
+            {
+                shown.Sort((a, b) => b.Grade != a.Grade ? b.Grade.CompareTo(a.Grade) : b.Equipped.CompareTo(a.Equipped));
+                shown.RemoveRange(TicketRevealMax, shown.Count - TicketRevealMax);
+            }
+            var reveal = new List<(ItemGrade, bool, int)>();
+            foreach (var r in shown)
+                reveal.Add((r.Grade, r.Equipped, r.EnhanceExp));
+            GachaReveal.Play(slot, reveal, () =>
+            {
+                ShowResult(message, EquipmentData.GradeColor(best.Grade));
                 RefreshEquipmentDisplay();
                 OnShopPurchase();
             });
@@ -463,7 +529,7 @@ namespace LoopRogue
                 reveal.Add((r.Grade, r.Equipped, r.EnhanceExp));
             GachaReveal.Play(slot, reveal, () =>
             {
-                ShowResult(message, EquipmentData.Grades[best.Grade].Color);
+                ShowResult(message, EquipmentData.GradeColor(best.Grade));
                 RefreshEquipmentDisplay();
                 OnShopPurchase();
             });
@@ -484,6 +550,11 @@ namespace LoopRogue
 
             foreach (var pair in _gachaMultiButtonTexts)
                 pair.Value.text = Loc.F("[Shift+{0}] 10연차 ({1}G)", (int)pair.Key + 1, GachaSystem.GetMultiPullCost(pair.Key));
+            foreach (var pair in _gachaTicketButtons)
+            {
+                pair.Value.SetActive(GachaSystem.Tickets > 0);
+                _gachaTicketButtonTexts[pair.Key].text = Loc.F("[Ctrl+{0}] 뽑기권 전부 ({1}장)", (int)pair.Key + 1, GachaSystem.Tickets);
+            }
 
             // 확률표 - 그 슬롯 지금 상점 레벨 기준, 아직 안 열린 등급은 "-".
             foreach (var pair in _chanceColumns)
@@ -953,10 +1024,28 @@ namespace LoopRogue
             _room.AddNpc("LobbyScholar", new Vector2Int(right, lower), () => Loc.T("[6] 도감 학자"),
                 () => $"<color=#B9A0FF>{Codex.FoundCount()} / {Codex.TotalCount()}</color>", () => _codexPanel.Open());
             _room.AddNpc("LobbyGrocer", new Vector2Int(3, 3), () => Loc.T("[7] 잡화상"), () => string.Empty, () => ShowView(LobbyView.Items)); // 11-02 소비 아이템
+            _room.AddNpc("LobbySkillHelper", new Vector2Int(7, 3), () => Loc.T("[8] 스킬 도우미"), SkillHelperBadge, TalkSkillHelper); // 11-03 특성 갈래 고르기
             _room.DoorLocked = () => FirstShopLocked;
             _room.OnDoorLocked = () => ShowResult(Loc.T("아직 문이 잠겨 있다 - 보물 상인(1)에서 장비를 뽑거나 연금술사(2)에게 영약을 사서 먼저 강해지자!"), new Color(1f, 0.85f, 0.4f));
             _room.Build();
         }
+
+        /// <summary>[8] 스킬 도우미(11-03 사용자) - 1층 보스를 잡기 전엔 한마디만, 그 뒤 아직 안 고른 갈래가 있으면 고르는 창, 다 골랐으면 그냥 특성 창.</summary>
+        private void TalkSkillHelper()
+        {
+            if (!Traits.ChoiceUnlocked)
+            {
+                ShowResult(Loc.T("스킬 도우미: \"1층 보스를 쓰러뜨리고 오게. 그때 자네에게 맞는 길을 보여 주지.\""), new Color(1f, 0.85f, 0.4f));
+                return;
+            }
+            if (Traits.PendingChoice.HasValue)
+                _traitPanel.OpenChoice();
+            else
+                _traitPanel.Open();
+        }
+
+        /// <summary>스킬 도우미 머리 위 - 고를 갈래가 남았으면 노란 "!".</summary>
+        private static string SkillHelperBadge() => Traits.ChoiceUnlocked && Traits.PendingChoice.HasValue ? "<color=#FFD966>!</color>" : string.Empty;
 
         /// <summary>노인 머리 위 - 받을 의뢰 보상이 있으면 노란 글씨, 회차 특별 대사가 있으면 "!".</summary>
         private static string GuideBadge()
@@ -987,6 +1076,12 @@ namespace LoopRogue
                 CreateButton(view, $"Gacha{slot}MultiButton", new Color(0.35f, 0.3f, 0.45f), -56f, 245f, 50f,
                     out var multiLabel, string.Empty, 16, Color.white, () => DoGachaMultiPull(captured), x);
                 _gachaMultiButtonTexts[slot] = multiLabel;
+
+                // 그 아래 뽑기권 전부(11-03) - 뽑기권이 있을 때만(RefreshGachaDisplay)
+                var ticketButton = CreateButton(view, $"Gacha{slot}TicketButton", new Color(0.25f, 0.36f, 0.3f), -104f, 245f, 38f,
+                    out var ticketLabel, string.Empty, 14, Color.white, () => DoGachaAllTickets(captured), x);
+                _gachaTicketButtons[slot] = ticketButton.gameObject;
+                _gachaTicketButtonTexts[slot] = ticketLabel;
             }
 
             // 등급 확률표는 바로 보여주지 않고 버튼으로 여는 창(사용자 요청) - 어둡게 덮고 가운데에 표, 닫기 버튼·P·Esc로 닫음

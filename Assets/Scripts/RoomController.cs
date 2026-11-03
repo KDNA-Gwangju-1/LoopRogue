@@ -715,6 +715,7 @@ namespace LoopRogue
         public const float EliteHealthRatio = 1.8f;
         public const float EliteAttackRatio = 1.3f;
         public const int ChallengeGoldRooms = 6;   // 도전 성공 골드 = 방 클리어 골드 × 이 값(+ 레벨업 카드 1장)
+        public const int ChallengeManaStones = 1;  // 도전 성공 마석(11-03 사용자 - 정예 셋은 마석을 안 주는 대신 확정)
         private readonly HashSet<EnemyActor> _challengeEnemies = new HashSet<EnemyActor>();
 
         // ---- 일반 방 정예(10-29 사용자) - 방마다 한 번 굴려서 몹 하나가 특수 능력을 가진 정예가 된다. 잡으면 마석 ----
@@ -831,13 +832,15 @@ namespace LoopRogue
         /// <summary>봇 통계용 - 기사가 나온 횟수, 잡은 횟수.</summary>
         public static int KnightSpawnCount, KnightKillCount;
 
-        /// <summary>도전의 깃발 - 정예 몹 한 무리. 전부 잡으면 보상(GiveEventEnemyReward).</summary>
+        /// <summary>도전의 깃발 - 정예 몹 한 무리. 전부 잡으면 보상(GiveEventEnemyReward).
+        /// 11-03 사용자: 일반 방 정예와 똑같이 특수 능력 + 자세 공격(예전엔 그림만 정예), 정예 하나하나는 마석을 안 주고 깃발을 다 깨면 마석 1개 확정. 1층엔 안 나온다.</summary>
         public void StartChallenge(Vector2Int flagPos)
         {
             _challengeEnemies.Clear();
             for (var i = 0; i < ChallengeEnemyCount; i++)
             {
-                var enemy = SpawnOneEventEnemy(flagPos, EliteHealthRatio, EliteAttackRatio, elite: true);
+                var affix = (EliteAffix)Rng.Next(1, System.Enum.GetValues(typeof(EliteAffix)).Length);
+                var enemy = SpawnOneEventEnemy(flagPos, EliteHealthRatio, EliteAttackRatio, elite: true, affix);
                 if (enemy != null)
                     _challengeEnemies.Add(enemy);
             }
@@ -854,7 +857,7 @@ namespace LoopRogue
         }
 
         /// <param name="avoid">비워둘 칸(곧 플레이어가 들어갈 이벤트 칸)</param>
-        private EnemyActor SpawnOneEventEnemy(Vector2Int avoid, float healthRatio, float attackRatio, bool elite)
+        private EnemyActor SpawnOneEventEnemy(Vector2Int avoid, float healthRatio, float attackRatio, bool elite, EliteAffix affix = EliteAffix.None)
         {
             var cells = new List<Vector2Int>();
             for (var x = 0; x < Map.Width; x++)
@@ -872,7 +875,7 @@ namespace LoopRogue
             var kind = kinds != null && kinds.Count > 0 ? kinds[Rng.Next(kinds.Count)] : EnemyKind.Melee;
             var enemy = SpawnEnemy(pos, _current, kind, healthRatio, attackRatio);
             if (elite)
-                enemy.MarkAsElite();
+                enemy.MarkAsElite(affix);
             HitFeedback.OnSummon(enemy.transform.position);
             return enemy;
         }
@@ -900,7 +903,7 @@ namespace LoopRogue
         /// <summary>미믹·도전 정예를 잡았을 때의 추가 보상.</summary>
         private void GiveEventEnemyReward(EnemyActor enemy)
         {
-            if (enemy.IsElite && !enemy.NoReward && ManaStoneWallet.RollEliteDrop(Rng)) // 25%, 4마리째 연속 실패면 확정
+            if (enemy.IsElite && !enemy.NoReward && !_challengeEnemies.Contains(enemy) && ManaStoneWallet.RollEliteDrop(Rng)) // 25%, 4마리째 연속 실패면 확정(도전 정예는 깃발 보상으로 따로)
             {
                 ManaStoneWallet.Add(1);
                 ShowMessage(Loc.F("<color=#C9A0FF>마석 +{0}</color> (보유 {1})", 1, ManaStoneWallet.Stones));
@@ -950,7 +953,8 @@ namespace LoopRogue
                 var gold = RoomClearGold * ChallengeGoldRooms * (Relics.Has(RelicType.EliteHunter) ? Relics.EliteHunterGoldMultiplier : 1);
                 GoldWallet.Add(gold);
                 _player.Levels.GrantBonusUpgrade();
-                ShowMessage(Loc.F("도전 성공! 골드 +{0}, 레벨업 카드 1장", gold));
+                ManaStoneWallet.Add(ChallengeManaStones);
+                ShowMessage(Loc.F("도전 성공! 골드 +{0}, 레벨업 카드 1장, <color=#C9A0FF>마석 +{1}</color> (보유 {2})", gold, ChallengeManaStones, ManaStoneWallet.Stones));
                 HitFeedback.OnBonusReward(_player);
             }
         }

@@ -1419,3 +1419,34 @@ W/S·마우스: 고르기   Enter·클릭·숫자: 시작   Delete: 슬롯 지�
 정말 지우기	Confirm
 W/S·마우스: 고르기   Enter·클릭·숫자: 시작   Delete·[지우기]: 슬롯 지우기(두 번)   Esc: 닫기   ·   설정은 모든 슬롯 공용	W/S/mouse: select   Enter/click/number: start   Delete/[Delete]: erase slot (twice)   Esc: close   ·   Settings are shared by all slots
 <color=#FF9A80>정말 지울까요? 한 번 더 누르면 지워요</color>	<color=#FF9A80>Really delete? Press again to delete</color>
+특성	Traits
+포인트	Points
+전투	Combat
+생활	Utility
+★ 대표	★ Sig.
+{0}점	{0} pt
+보스 첫 처치 {0} · 정예 {1}/{2}	Boss first kills {0} · Elites {1}/{2}
+전투·생활은 각각 한 갈래만 - 다른 갈래를 되돌리면 고를 수 있다	Combat and Utility: one branch each - reset the other branch to switch
+전투 갈래부터 고르자	Pick a combat branch first
+{0} 갈래를 골랐다 - 이 갈래만 배울 수 있다	Chose {0} - only this branch can be learned
+특성을 전부 되돌렸다 - 포인트가 모두 돌아왔고 갈래도 다시 고를 수 있다	All traits reset - points refunded and branches can be chosen again
+고르지 않은 갈래다 - R로 전부 되돌리면 다시 고를 수 있다	Branch not chosen - press R to reset everything and choose again
+먼저 갈래를 골라야 한다	Choose a branch first
+<color=#FFD966><b>전투 갈래 고르기</b> - 대시·회전 중 하나만 배울 수 있다 (←→ 고르고 Enter·클릭)</color>	<color=#FFD966><b>Choose combat branch</b> - only one of Dash / Spin (←→ then Enter·click)</color>
+<color=#FFD966><b>생활 갈래 고르기</b> - 탐색·상인 중 하나만 배울 수 있다 (←→ 고르고 Enter·클릭)</color>	<color=#FFD966><b>Choose utility branch</b> - only one of Explore / Trade (←→ then Enter·click)</color>
+갈래는 로비의 [8] 스킬 도우미에게서 고른다	Branches are chosen at the [8] Skill Mentor in the lobby
+특성을 전부 되돌렸다 - 포인트가 모두 돌아왔다. 갈래는 [8] 스킬 도우미에게서 다시 고르자	All traits reset - points refunded. Choose branches again at the [8] Skill Mentor
+<color=#FFD966><b>아직 고른 갈래가 없다</b></color>\n로비의 [8] 스킬 도우미에게 말을 걸어 전투(대시·회전)와 생활(탐색·상인) 갈래를 하나씩 고르자.	<color=#FFD966><b>No branch chosen yet</b></color>\nTalk to the [8] Skill Mentor in the lobby to choose one combat (Dash / Spin) and one utility (Explore / Trade) branch.
+<color=#FFD966><b>아직 고른 갈래가 없다</b></color>\n1층 보스를 쓰러뜨리면 로비의 [8] 스킬 도우미가 특성 갈래를 알려 준다.	<color=#FFD966><b>No branch chosen yet</b></color>\nDefeat the floor 1 boss and the [8] Skill Mentor in the lobby will show you the trait branches.
+<size=12><color=#FFD966>남은 갈래는 [8] 스킬 도우미에게서 고르자</color></size>	<size=12><color=#FFD966>Choose the remaining branch at the [8] Skill Mentor</color></size>
+[8] 스킬 도우미	[8] Skill Mentor
+스킬 도우미: "1층 보스를 쓰러뜨리고 오게. 그때 자네에게 맞는 길을 보여 주지."	Skill Mentor: "Defeat the floor 1 boss first. Then I will show you the path that suits you."
+도전 성공! 골드 +{0}, 레벨업 카드 1장, <color=#C9A0FF>마석 +{1}</color> (보유 {2})	Challenge cleared! Gold +{0}, 1 level-up card, <color=#C9A0FF>Mana Stone +{1}</color> (have {2})
+도전의 깃발! 정예 몹이 나타났다 - 전부 잡으면 골드 + 레벨업 카드 + 마석	Challenge Flag! Elites appeared - defeat them all for gold + a level-up card + a Mana Stone
+방어구	Armor
+로비 뽑기 상점에서 검·방어구·반지 아무거나 1회 무료 (보유 {0}장)	1 free pull of Sword·Armor·Ring at the Lobby Gacha Shop (have {0})
+...흠. 그 검, 그 방어구, 그 반지. 전부 '영원'이로군. 뽑기 상자에서 나올 수 있는 건 거기까지야.\n	...Hm. That sword, that armor, that ring. All Eternal. That's as far as the gacha box goes.\n
+뽑기권이 없습니다 - 던전의 떠돌이 상인에게서 살 수 있다	No gacha tickets - buy them from the wandering merchant in the dungeon
+뽑기권 {0}장 사용 - 최고: {1} - 장착했습니다!	Used {0} tickets - best: {1} - equipped!
+뽑기권 {0}장 사용 - 최고: {1}... 이미 더 좋은 장비가 있음.	Used {0} tickets - best: {1}... you already have better gear.
+[Ctrl+{0}] 뽑기권 전부 ({1}장)	[Ctrl+{0}] Use all tickets ({1})

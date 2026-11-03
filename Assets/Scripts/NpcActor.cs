@@ -373,7 +373,7 @@ namespace LoopRogue
                 {
                     Kind = StockKind.GachaTicket,
                     Name = Loc.T("뽑기권"),
-                    Description = () => Loc.F("로비 뽑기 상점에서 검·갑옷·반지 아무거나 1회 무료 (보유 {0}장)", GachaSystem.Tickets),
+                    Description = () => Loc.F("로비 뽑기 상점에서 검·방어구·반지 아무거나 1회 무료 (보유 {0}장)", GachaSystem.Tickets),
                     Price = GachaSystem.TicketPrice,
                     Apply = () => GachaSystem.AddTickets(1),
                 },
@@ -548,7 +548,7 @@ namespace LoopRogue
             {
                 case LoopRogue.Blacksmith.Stage.NotMet:
                     ui.Show(DisplayName,
-                        Loc.T("...흠. 그 검, 그 갑옷, 그 반지. 전부 '영원'이로군. 뽑기 상자에서 나올 수 있는 건 거기까지야.\n") +
+                        Loc.T("...흠. 그 검, 그 방어구, 그 반지. 전부 '영원'이로군. 뽑기 상자에서 나올 수 있는 건 거기까지야.\n") +
                         Loc.F("그 너머를 원하나? 재료가 하나 필요해. 고리를 기억하는 기사가 쥔 부러진 검 - <color=#7FE0D8>{0}</color>을 가져와.\n", LoopRogue.Blacksmith.FragmentName) +
                         Loc.T("<size=13><color=#9AA0AA>(죽어도 의뢰는 남는다. 의뢰 중엔 기사가 더 자주 나타난다)</color></size>"),
                         new[]

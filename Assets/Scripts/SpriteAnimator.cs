@@ -158,6 +158,53 @@ namespace LoopRogue
         private string _setName;
         public string SetName => _setName;
 
+        // ---- 겹(11-03 장비 등급별 용사) - 몸 그림과 같은 프레임 번호로 다른 세트(무기)를 자식 그림에 그린다 ----
+        private FrameSet _overlay;
+        private SpriteRenderer _overlayRenderer;
+        private System.Func<int, int, int, bool> _overlayBehind; // (종류 0 대기·1 걷기·2 공격, 방향, 번호) → 몸 뒤?
+
+        /// <summary>겹 세트를 붙인다(null이면 뗀다). behind가 true인 프레임은 몸 그림 뒤에.</summary>
+        public void SetOverlay(string setName, SpriteRenderer renderer, System.Func<int, int, int, bool> behind)
+        {
+            _overlay = string.IsNullOrEmpty(setName) ? null : Load(setName);
+            _overlayRenderer = renderer;
+            _overlayBehind = behind;
+            if (_overlayRenderer != null && _overlay == null)
+                _overlayRenderer.sprite = null;
+        }
+
+        /// <summary>몸 그림을 바꾸고 겹도 같은 프레임으로 맞춘다. kind -1 = 겹 없는 그림(연출 클립·점프 등).</summary>
+        private void Show(Sprite sprite, int kind, int index)
+        {
+            _renderer.sprite = sprite;
+            if (_overlayRenderer == null)
+                return;
+            Sprite over = null;
+            if (_overlay != null && kind >= 0)
+            {
+                var byDir = kind == 0 ? _overlay.Idle : kind == 1 ? _overlay.Walk : _overlay.Attack;
+                var frames = Frames(byDir);
+                if (index >= 0 && index < frames.Length)
+                    over = frames[index];
+            }
+            _overlayRenderer.sprite = over;
+            _overlayRenderer.color = _renderer.color;
+            _overlayRenderer.flipX = _renderer.flipX;
+            _overlayRenderer.enabled = _renderer.enabled;
+            var dir = byDirHasOwn(kind) ? _dir : 0;
+            _overlayRenderer.sortingLayerID = _renderer.sortingLayerID;
+            _overlayRenderer.sortingOrder = _renderer.sortingOrder + (_overlayBehind != null && _overlayBehind(kind, dir, index) ? -1 : 1);
+        }
+
+        /// <summary>그 종류에 지금 방향 그림이 있는지(없으면 Frames가 남쪽 그림을 쓴다 - 뒤/앞 표도 남쪽 것으로).</summary>
+        private bool byDirHasOwn(int kind)
+        {
+            if (_set == null || kind < 0)
+                return false;
+            var byDir = kind == 0 ? _set.Idle : kind == 1 ? _set.Walk : _set.Attack;
+            return byDir[_dir] != null && byDir[_dir].Length > 0;
+        }
+
         public void Setup(string setName, SpriteRenderer renderer, Color debrisColor)
         {
             _setName = setName;
@@ -230,7 +277,7 @@ namespace LoopRogue
             if (_clip != null && Time.time < _clipUntil)
             {
                 var k = Mathf.Min(_clip.Length - 1, (int)((Time.time - _clipStart) / Mathf.Max(0.01f, _clipSeconds) * _clip.Length));
-                _renderer.sprite = _clip[k];
+                Show(_clip[k], -1, 0);
                 return;
             }
             if (Time.time < _jumpUntil)
@@ -242,7 +289,7 @@ namespace LoopRogue
                     return;
                 }
                 var t = Time.time - _jumpStart;
-                _renderer.sprite = t >= _jumpFlight ? jump[5] : jump[2 + Mathf.Min(2, (int)(t / _jumpFlight * 3f))];
+                Show(t >= _jumpFlight ? jump[5] : jump[2 + Mathf.Min(2, (int)(t / _jumpFlight * 3f))], -1, 0);
                 return;
             }
             if (_crouch)
@@ -254,7 +301,7 @@ namespace LoopRogue
                     return;
                 }
                 _time += Time.deltaTime;
-                _renderer.sprite = _time % 0.6f < 0.12f ? jump[0] : jump[1]; // 깊이 움츠린 채 가끔 들썩
+                Show(_time % 0.6f < 0.12f ? jump[0] : jump[1], -1, 0); // 깊이 움츠린 채 가끔 들썩
                 return;
             }
 
@@ -264,7 +311,7 @@ namespace LoopRogue
                 if (attack.Length > 0)
                 {
                     var i = Mathf.Min(attack.Length - 1, (int)((Time.time - _attackStart) / FrameTime(AttackFrameSeconds * AttackDurationScale, attack.Length)));
-                    _renderer.sprite = attack[i];
+                    Show(attack[i], 2, i);
                     return;
                 }
             }
@@ -277,10 +324,13 @@ namespace LoopRogue
                     // 한 칸 = 반 바퀴(한쪽 발) - 걸음마다 번갈아 앞·뒤 절반을 한 칸 걷는 시간에 맞춰 돌린다
                     var half = walk.Length / 2;
                     var k = Mathf.Min(half - 1, (int)((Time.time - _stepStart) / (StepSeconds / half)));
-                    _renderer.sprite = walk[_stepParity * half + k];
+                    Show(walk[_stepParity * half + k], 1, _stepParity * half + k);
                 }
                 else
-                    _renderer.sprite = walk[(int)((Time.time - _stepStart) / WalkFrameSeconds) % walk.Length];
+                {
+                    var wi = (int)((Time.time - _stepStart) / WalkFrameSeconds) % walk.Length;
+                    Show(walk[wi], 1, wi);
+                }
                 return;
             }
 
@@ -288,12 +338,15 @@ namespace LoopRogue
             if (_lit)
             {
                 var lit = Frames(_set.Lit);
-                _renderer.sprite = lit[(int)(_time / FrameTime(LitFrameSeconds, lit.Length)) % lit.Length];
+                Show(lit[(int)(_time / FrameTime(LitFrameSeconds, lit.Length)) % lit.Length], -1, 0);
                 return;
             }
             var idle = Frames(_set.Idle);
             if (idle.Length > 0)
-                _renderer.sprite = idle[(int)(_time / FrameTime(IdleFrameSeconds, idle.Length)) % idle.Length];
+            {
+                var ii = (int)(_time / FrameTime(IdleFrameSeconds, idle.Length)) % idle.Length;
+                Show(idle[ii], 0, ii);
+            }
         }
 
         /// <summary>지금 방향의 프레임 - 그 방향 그림이 없으면 남쪽 것.</summary>

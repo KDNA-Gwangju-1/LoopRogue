@@ -142,11 +142,11 @@ namespace LoopRogue
             _player = playerGo.AddComponent<Walker>();
             _player.GridPos = StartCell;
             _player.SyncTransform();
-            var sprite = SpriteAnimator.FirstFrame("Player");
+            var sprite = HeroLook.FirstFrame(); // 11-03 장비 등급별 용사(무기 겹은 HeroLook이 자식으로)
             if (sprite != null)
             {
                 _playerRenderer = VisualUtil.CreateSpriteVisual(playerGo, sprite, GridConstants.CellSize * PlayerSpriteScale, SortingFor(StartCell));
-                playerGo.AddComponent<SpriteAnimator>().Setup("Player", _playerRenderer, new Color(0.4f, 0.5f, 0.75f));
+                HeroLook.Attach(playerGo, playerGo.AddComponent<SpriteAnimator>(), _playerRenderer);
             }
             else
                 _playerRenderer = VisualUtil.CreateSquareVisual(playerGo, new Color(0.3f, 0.5f, 1f), GridConstants.CellSize * 0.65f, SortingFor(StartCell));

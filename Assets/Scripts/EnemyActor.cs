@@ -63,8 +63,8 @@ namespace LoopRogue
         private const int ShieldMoveCooldown = 1;
         private int _shieldMoveCooldown;
 
-        /// <summary>거미: 같은 줄 2~4칸이면 거미줄(공격력 50% + 1턴 속박 = 이동·대시 불가), 쏜 뒤 이 턴 수 동안 다시 못 쏜다.</summary>
-        public const int WebRange = 4;
+        /// <summary>거미: 같은 줄 2칸이면 거미줄(공격력 50% + 1턴 속박 = 이동·대시 불가), 쏜 뒤 이 턴 수 동안 다시 못 쏜다(11-03 사용자 4 → 2칸).</summary>
+        public const int WebRange = 2;
         private const int WebCooldownTurns = 4;
         private const float WebDamageRate = 0.5f;
         private int _webCooldown;
@@ -163,6 +163,9 @@ namespace LoopRogue
         public int VulnerableTurns { get; private set; }
         private float _vulnerableUntil = -1f;
         public bool IsVulnerable => VulnerableTurns > 0 || Time.time < _vulnerableUntil;
+
+        /// <summary>특성 "표식 폭발"로 쌓인 표식 수(0~2) - 머리 위 표식 그림(StatusIcons)용. 값은 PlayerActor.DashMark가 넣는다.</summary>
+        public int DashMarks { get; set; }
 
         public void MarkVulnerable()
         {
@@ -637,7 +640,7 @@ namespace LoopRogue
         }
         private const float MimicSpriteScale = 1.25f;
 
-        // ---- 정예 특수 능력(10-29 사용자) - 일반 방에 가끔 나오는 정예는 하나씩 갖는다(도전의 깃발 정예는 없음) ----
+        // ---- 정예 특수 능력(10-29 사용자) - 정예는 하나씩 갖는다(11-03부터 도전의 깃발 정예도) ----
         public const float EliteRegenRate = 0.05f;     // 재생 - 자기 턴마다 최대 체력의 5% 회복
         public const float EliteArmoredRate = 0.7f;    // 강철 - 받는 피해 ×0.7
         public const float EliteEnrageRatio = 0.5f;    // 광분 - 체력 50% 이하가 되면
@@ -681,7 +684,7 @@ namespace LoopRogue
         {
             IsElite = true;
             Affix = affix;
-            _eliteCharge = affix != EliteAffix.None; // 일반 방 정예만 - 도전의 깃발 정예(셋이 한꺼번에)는 차지 공격 없음
+            _eliteCharge = affix != EliteAffix.None; // 능력이 있는 정예 = 자세 공격도(일반 방 정예 + 11-03부터 도전의 깃발 정예)
             if (Kind == EnemyKind.Assassin)
                 GrantSurviveGuard(); // 정예 도적 - 죽을 피해를 한 번 버티고 달아난다
             var renderer = GetComponent<SpriteRenderer>();
@@ -1473,7 +1476,7 @@ namespace LoopRogue
         public const int EliteGuardCooldown = 3;
         private int _eliteGuardCooldown;
         /// <summary>정예 거미 - 거미줄 사거리보다 한 칸 짧은 원거리 공격.</summary>
-        public const int EliteSpiderRange = WebRange - 1;
+        public const int EliteSpiderRange = 2; // 11-03 거미줄이 2칸이 되면서 "한 칸 짧게"(1칸 = 붙은 칸)는 원거리가 아니라 같게 2칸
         /// <summary>정예 도적 - 버팀이 터지면 플레이어에게서 이만큼 이상 떨어진 칸으로 달아난다(그런 칸이 없으면 가장 먼 칸).</summary>
         public const int EliteEscapeMinDistance = 4;
 
@@ -1735,7 +1738,7 @@ namespace LoopRogue
         private bool CasterSeesPlayer(RoomController room, PlayerActor player)
         {
             var d = player.GridPos - GridPos;
-            var radius = Relics.VisionRadius;
+            var radius = FogOfWar.VisionRadius; // 기본 시야 고정 - 넓은 시야·사냥꾼의 눈은 화면만 넓히고 주문 거리는 안 늘림(11-03 봇 800판: 탐색 빌드 주문술사 사망 ↑)
             return d.x * d.x + d.y * d.y <= radius * radius && FogOfWar.HasLineOfSight(room.Map, player.GridPos, GridPos);
         }
 

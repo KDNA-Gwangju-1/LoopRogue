@@ -28,6 +28,7 @@ namespace LoopRogue
                 EquippedGrade[(int)slot] = Prefs.GetInt(PrefKey(slot), -1);
 
             _loaded = true;
+            HeroLook.Bump(); // 저장을 다시 읽었다(슬롯 바꿈·초기화) - 용사 그림도
         }
 
         /// <summary>그 슬롯에 뭔가 장착돼있으면 등급을, 없으면 null을 반환한다.</summary>
@@ -51,7 +52,21 @@ namespace LoopRogue
             EquippedGrade[(int)slot] = (int)grade;
             Prefs.SetInt(PrefKey(slot), (int)grade);
             Prefs.Save();
+            HeroLook.Bump(); // 용사 그림(방어구·무기 등급)
             return true;
+        }
+
+        /// <summary>테스트 메뉴 전용 - 등급과 상관없이 그대로 끼운다(null = 벗기). 능력치는 다음 방(또는 로비)부터 반영.</summary>
+        public static void ForceForTest(ItemSlot slot, ItemGrade? grade)
+        {
+            EnsureLoaded();
+            EquippedGrade[(int)slot] = grade.HasValue ? (int)grade.Value : -1;
+            if (grade.HasValue)
+                Prefs.SetInt(PrefKey(slot), (int)grade.Value);
+            else
+                Prefs.DeleteKey(PrefKey(slot));
+            Prefs.Save();
+            HeroLook.Bump();
         }
 
         public static float TotalAttackBonus()

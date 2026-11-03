@@ -129,6 +129,8 @@ namespace LoopRogue
                 if (aura != null)
                 {
                     aura.color = new Color(c.r, c.g, c.b, auraAlpha);
+                    if (EquipmentData.IsRainbow(g))
+                        RainbowGraphic.Attach(aura, g);
                     aura.rectTransform.localScale = Vector3.one * (0.75f + 0.08f * (int)g);
                 }
             }
@@ -233,8 +235,10 @@ namespace LoopRogue
                 rays.transform.SetAsFirstSibling();
                 StartCoroutine(Spin(rays.rectTransform, result.Grade >= ItemGrade.Legendary ? 50f : 28f));
             }
+            RainbowGraphic.Attach(rays, result.Grade);
             var icon = MakeImage(_shakeRoot, "Icon", EquipIcon(slot, result.Grade), chestPos);
             var name = MakeText(_shakeRoot, "Name", 30, color, new Vector2(0f, -130f), 700f);
+            RainbowGraphic.Attach(name, result.Grade);
             name.fontStyle = FontStyle.Bold;
             name.text = EquipmentData.DisplayName(slot, result.Grade);
             var sub = MakeText(_shakeRoot, "Sub", 18, result.Equipped ? new Color(0.5f, 1f, 0.55f) : new Color(0.65f, 0.65f, 0.7f), new Vector2(0f, -168f), 700f);
@@ -281,6 +285,7 @@ namespace LoopRogue
                 {
                     var rays = MakeImage(_shakeRoot, "BestRays", _rays, target);
                     rays.color = new Color(color.r, color.g, color.b, 0.85f);
+                    RainbowGraphic.Attach(rays, res.Grade);
                     rays.rectTransform.localScale = Vector3.one * 0.9f;
                     StartCoroutine(Spin(rays.rectTransform, 40f));
                 }
@@ -318,6 +323,7 @@ namespace LoopRogue
                 bg.pixelsPerUnitMultiplier = 1f / Px;
             }
             bg.color = Color.Lerp(Color.white, color, 0.55f);
+            RainbowGraphic.Attach(bg, res.Grade, 0.55f);
             var rect = go.GetComponent<RectTransform>();
             rect.sizeDelta = new Vector2(w, h);
             if (icon != null)
@@ -328,6 +334,7 @@ namespace LoopRogue
             var grade = MakeText(rect, "Grade", 16, color, new Vector2(0f, -46f), w - 10f);
             grade.fontStyle = FontStyle.Bold;
             grade.text = EquipmentData.Grades[res.Grade].Name;
+            RainbowGraphic.Attach(grade, res.Grade);
             if (res.Equipped)
             {
                 var eq = MakeText(rect, "Equipped", 13, new Color(0.5f, 1f, 0.55f), new Vector2(0f, 54f), w - 10f);
@@ -388,7 +395,7 @@ namespace LoopRogue
             if (_sparkle == null)
                 return;
             var img = MakeImage(_shakeRoot, "Spark", _sparkle, at, track: false);
-            img.color = color;
+            img.color = EquipmentData.IsRainbowColor(color) ? EquipmentData.Rainbow(UnityEngine.Random.value) : color; // 영원 - 반짝이 하나하나 다른 색
             img.rectTransform.localScale = Vector3.one * (scale / Px);
             _particles.Add(new Particle { Rect = img.rectTransform, Image = img, Velocity = velocity, Life = life, MaxLife = life });
         }

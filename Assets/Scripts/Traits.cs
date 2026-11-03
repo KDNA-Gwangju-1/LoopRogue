@@ -64,9 +64,35 @@ namespace LoopRogue
         /// <summary>대표 특성(5번째 칸)을 모든 갈래를 통틀어 이만큼까지.</summary>
         public const int MaxSignatures = 2;
 
-        /// <summary>전투 갈래(대시·회전, 11-02 사용자 "전투는 한 갈래") - 주 갈래 하나만 이 칸(3번째)부터 찍을 수 있고, 다른 전투 갈래는 그 앞(1·2번째)까지.</summary>
-        public const int CombatDeepTier = 2;
+        /// <summary>전투 갈래(대시·회전) / 생활 갈래(탐색·상인) - 11-03 사용자 "전투는 한쪽만, 생활도 한쪽만": 같은 무리에서 한 갈래라도 찍었으면
+        /// 다른 갈래는 1번째 칸부터 못 찍는다(되돌리면 다시 고를 수 있다). 예전(11-02)엔 다른 전투 갈래 2번째 칸까지 허용.</summary>
         public static bool IsCombatBranch(int branch) => branch <= 1;
+
+        // ---- 고른 갈래(11-03 사용자 "특성 창에 들어가면 대시/회전 중 하나, 탐색/상인 중 하나를 먼저 고르고 그 갈래만") ----
+        private const string ChosenCombatKey = "LoopRogue_TraitChosenCombat";
+        private const string ChosenLifeKey = "LoopRogue_TraitChosenLife";
+
+        /// <summary>그 무리(전투/생활)에서 고른 갈래 - 아직 안 골랐으면 -1. 예전 저장(고르기 전에 찍은 칸이 있음)은 찍은 갈래로 본다.</summary>
+        public static int Chosen(bool combat)
+        {
+            var chosen = Prefs.GetInt(combat ? ChosenCombatKey : ChosenLifeKey, -1);
+            if (chosen >= 0)
+                return chosen;
+            var learned = All.FirstOrDefault(d => IsCombatBranch(d.Branch) == combat && Has(d.Type));
+            return learned != null ? learned.Branch : -1;
+        }
+
+        public static void Choose(int branch)
+        {
+            Prefs.SetInt(IsCombatBranch(branch) ? ChosenCombatKey : ChosenLifeKey, branch);
+            Prefs.Save();
+        }
+
+        /// <summary>스킬 도우미가 갈래를 골라 주는 때 - 1층 보스를 잡은 뒤(11-03 사용자).</summary>
+        public static bool ChoiceUnlocked => BossPoints >= 1;
+
+        /// <summary>아직 갈래를 안 고른 무리가 있으면 그 무리(전투 먼저) - 없으면 null.</summary>
+        public static bool? PendingChoice => Chosen(true) < 0 ? true : Chosen(false) < 0 ? false : (bool?)null;
 
         // ---- 생활 갈래 수치 ----
         public const float ExploreVisionBonus = 1f;
@@ -205,7 +231,8 @@ namespace LoopRogue
             Available,
             NeedPrevious,   // 같은 갈래 앞 칸을 먼저
             SignatureTaken, // 대표 특성을 이미 MaxSignatures개 배움
-            CombatLocked,   // 다른 전투 갈래를 이미 깊게(3번째 칸부터) 찍음
+            BranchLocked,   // 같은 무리(전투·생활)에서 다른 갈래를 골랐음
+            NeedChoice,     // 그 무리 갈래를 아직 안 골랐음
             NoPoints,
         }
 
@@ -221,14 +248,18 @@ namespace LoopRogue
             }
             if (def.Tier == SignatureTier && All.Count(d => d.Tier == SignatureTier && Has(d.Type)) >= MaxSignatures)
                 return State.SignatureTaken;
-            if (IsCombatBranch(def.Branch) && def.Tier >= CombatDeepTier
-                && All.Any(d => IsCombatBranch(d.Branch) && d.Branch != def.Branch && d.Tier >= CombatDeepTier && Has(d.Type)))
-                return State.CombatLocked;
+            var chosen = Chosen(IsCombatBranch(def.Branch));
+            if (chosen < 0)
+                return State.NeedChoice;
+            if (chosen != def.Branch)
+                return State.BranchLocked;
             return FreePoints >= Cost(def) ? State.Available : State.NoPoints;
         }
 
         public static bool Learn(TraitDef def)
         {
+            if (Chosen(IsCombatBranch(def.Branch)) < 0)
+                Choose(def.Branch); // 창을 안 거치는 쪽(자동 플레이 봇·테스트) - 처음 찍는 갈래가 곧 고른 갈래
             if (GetState(def) != State.Available)
                 return false;
             Set(def.Type, true);
@@ -254,6 +285,8 @@ namespace LoopRogue
         {
             foreach (var d in All)
                 Set(d.Type, false);
+            Prefs.SetInt(ChosenCombatKey, -1); // 갈래도 다시 고른다
+            Prefs.SetInt(ChosenLifeKey, -1);
             Prefs.Save();
         }
     }

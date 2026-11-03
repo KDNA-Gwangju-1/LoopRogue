@@ -384,7 +384,7 @@ namespace LoopRogue
                 _rooms[slots[i]].HasEvent = true;
                 _rooms[slots[i]].EventType = i == chestSlot ? RoomEventType.TreasureChest
                     : ForceTestEvents ? (i % 2 == 0 ? RoomEventType.ChallengeFlag : RoomEventType.Mimic) // 유물 테스트 봇
-                    : RoomEventActor.RollNonChestType();
+                    : RoomEventActor.RollNonChestType(_stage);
             }
         }
 

@@ -43,6 +43,11 @@ namespace LoopRogue
             // 별 3개가 머리 위를 도는 8프레임(10-14 새로 그림, 40x20) - 보스 패턴 기절(돌진 뒤·기둥 충돌)에도
             icons.Add("status_stun", () => enemy.IsStunned && !enemy.Stats.IsDead, head, enemy.IsBoss ? 1.5f : 0.9f);
             icons.Add("status_weak", () => enemy.IsVulnerable && !enemy.Stats.IsDead, head + 0.3f, 0.45f);
+            // 특성 "표식 폭발" - 분홍 마름모 + 아래 점(쌓인 수), 보스는 크게(11-03 사용자)
+            var markHead = enemy.IsBoss ? head + 0.55f : head + 0.35f;
+            var markSize = enemy.IsBoss ? 0.95f : 0.55f;
+            icons.Add("status_dashmark1", () => enemy.DashMarks == 1 && !enemy.Stats.IsDead, markHead, markSize, sortingOrder: 9);
+            icons.Add("status_dashmark2", () => enemy.DashMarks >= 2 && !enemy.Stats.IsDead, markHead, markSize, sortingOrder: 9);
             icons.Add("status_shield", () => enemy.IsGuarding && !enemy.ShowsGuardPose && !enemy.Stats.IsDead, 0f, 1.15f); // 반격병 반격 자세 - 자세 그림이 없을 때만
         }
 

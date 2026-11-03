@@ -589,8 +589,7 @@ namespace LoopRogue
                     continue;
                 }
 
-                var hex = ColorUtility.ToHtmlStringRGB(EquipmentData.Grades[grade.Value].Color);
-                sb.AppendLine($"<color=#{hex}>{EquipmentData.DisplayName(slot, grade.Value)}{EquipmentEnhance.Suffix(slot)}</color>"); // + 강화 단계
+                sb.AppendLine(EquipmentData.Colorize(grade.Value, EquipmentData.DisplayName(slot, grade.Value) + EquipmentEnhance.Suffix(slot))); // + 강화 단계(영원은 무지개 글자)
                 var tier = EquipmentEffects.TierOf(grade.Value);
                 for (var t = 1; t <= tier; t++)
                     sb.AppendLine($"   <size=12>{EquipmentEffects.Name(slot, t)}: {EquipmentEffects.Description(slot, t)}</size>");

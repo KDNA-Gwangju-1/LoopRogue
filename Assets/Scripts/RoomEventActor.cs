@@ -12,7 +12,7 @@ namespace LoopRogue
         CursedChest,   // 저주받은 상자 - 50%: 골드 대박 / 50%: 현재 체력 30% 감소
         Mimic,         // 미믹 - 보물상자와 똑같이 생겼는데 밟으면 상자 괴물이 튀어나온다(잡으면 큰 보상)
         BloodAltar,    // 피의 제단 - 최대 체력 일부를 바치면 이번 시도 동안 주는 피해 증가(고를 수 있음)
-        ChallengeFlag, // 도전의 깃발 - 정예 몹 한 무리가 더 나오고, 다 잡으면 골드 + 레벨업 카드
+        ChallengeFlag, // 도전의 깃발(2층부터) - 진짜 정예 셋(능력·자세 공격)이 더 나오고, 다 잡으면 골드 + 레벨업 카드 + 마석 1(정예 하나하나는 마석 없음)
         Hourglass,     // 시간의 모래시계 - 이번 시도에서 한 번 죽어도 되살아난다
         FateDice,      // 운명의 주사위 - 1~6 무작위 결과
         ElixirSpring,  // 영약의 샘 - 무작위 영약 1개(영구)
@@ -54,6 +54,8 @@ namespace LoopRogue
             (RoomEventType.Hourglass, 1), (RoomEventType.FateDice, 3), (RoomEventType.ElixirSpring, 1), (RoomEventType.Whetstone, 2),
             (RoomEventType.WishingWell, 2), (RoomEventType.Anvil, 2), (RoomEventType.AdventurerRemains, 3), // 10-19 새 이벤트
         };
+
+        public const int ChallengeFlagMinStage = 2;
 
         public static int TypeCount => System.Enum.GetValues(typeof(RoomEventType)).Length;
 
@@ -119,11 +121,12 @@ namespace LoopRogue
             renderer.color = color;
         }
 
-        /// <summary>보물상자를 뺀 나머지 중 하나(가중치) - 보물상자는 층마다 따로 1개 확정.</summary>
-        public static RoomEventType RollNonChestType()
+        /// <summary>보물상자를 뺀 나머지 중 하나(가중치) - 보물상자는 층마다 따로 1개 확정. 도전의 깃발은 2층부터(11-03 사용자 - 진짜 정예 셋이라 1층엔 너무 셈).</summary>
+        public static RoomEventType RollNonChestType(int stage)
         {
-            var roll = Rng.Next(OtherEvents.Sum(e => e.Weight));
-            foreach (var (type, weight) in OtherEvents)
+            var pool = OtherEvents.Where(e => e.Type != RoomEventType.ChallengeFlag || stage >= ChallengeFlagMinStage).ToArray();
+            var roll = Rng.Next(pool.Sum(e => e.Weight));
+            foreach (var (type, weight) in pool)
             {
                 if (roll < weight)
                     return type;
@@ -189,7 +192,7 @@ namespace LoopRogue
                     return TriggerBloodAltar(player, room, out consumed);
                 case RoomEventType.ChallengeFlag:
                     room.StartChallenge(GridPos);
-                    return Loc.T("도전의 깃발! 정예 몹이 나타났다 - 전부 잡으면 골드 + 레벨업 카드");
+                    return Loc.T("도전의 깃발! 정예 몹이 나타났다 - 전부 잡으면 골드 + 레벨업 카드 + 마석");
                 case RoomEventType.Hourglass:
                     RunBuffs.AddRevive();
                     return Loc.F("시간의 모래시계! 이번 시도에서 한 번, 쓰러져도 체력 {0:0}%로 되살아난다", RunBuffs.ReviveHealth * 100f);

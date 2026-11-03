@@ -396,12 +396,13 @@ namespace LoopRogue
 
             // 전용 도트 그림(노란 머리 대검 용사, 4방향 대기·걷기·공격 - Resources/Sprites/Player). 없으면 파란 사각형.
             // (예전에 빌려 쓰던 StoryRPG 어쌔신 그림은 출처가 불확실해서 스팀 출시 전에 지웠다.)
-            var playerSprite = SpriteAnimator.FirstFrame(PlayerSpriteSet);
+            // 11-03: 장비 등급별 용사(HeroLook - 몸 겹 = 방어구 등급, 무기 겹 = 무기 등급). 등급 그림이 없으면 예전 세트(PlayerSpriteSet).
+            var playerSprite = HeroLook.FirstFrame() ?? SpriteAnimator.FirstFrame(PlayerSpriteSet);
             if (playerSprite != null)
             {
-                _renderer = VisualUtil.CreateSpriteVisual(gameObject, playerSprite, GridConstants.CellSize * PlayerSpriteScale, sortingOrder: 1);
+                _renderer = VisualUtil.CreateSpriteVisual(gameObject, playerSprite, GridConstants.CellSize * PlayerSpriteScale, sortingOrder: 2); // 무기 겹이 앞(3)·뒤(1)
                 _anim = gameObject.AddComponent<SpriteAnimator>();
-                _anim.Setup(PlayerSpriteSet, _renderer, new Color(0.4f, 0.5f, 0.75f));
+                HeroLook.Attach(gameObject, _anim, _renderer);
             }
             else
                 _renderer = VisualUtil.CreateSquareVisual(gameObject, PlayerColor, GridConstants.CellSize * 0.65f, sortingOrder: 1);
@@ -456,6 +457,9 @@ namespace LoopRogue
             LastSkill = AttackStyle.Other;
             _spinHoldTurns = 0; // 회전 유지는 그 방에서만
             _spinJustUsed = false;
+            foreach (var marked in _dashMarks.Keys)
+                if (marked != null)
+                    marked.DashMarks = 0;
             _dashMarks.Clear();
             ClearShadowEchoes();
             if (_dashChaining) // 연속 대시 중 방이 넘어갔으면 끊는다(새 방에서 조준이 켜진 채로 시작하지 않게)
@@ -1546,8 +1550,8 @@ namespace LoopRogue
                 {
                     if (!Map.IsInBounds(c) || Map.IsWall(c))
                         continue;
-                    if (HitFeedback.Enabled && c != GridPos)
-                        Fx.Play("slash", new Vector3(c.x, c.y, 0f) * GridConstants.CellSize, 1.1f, angle, fps: 22f, sortingOrder: 6);
+                    // 11-03 사용자 - 칸마다 띄우던 반원(기본 공격 slash 빌려 쓰기)은 뺐다. 다시 넣으려면:
+                    // if (HitFeedback.Enabled && c != GridPos) Fx.Play("slash", new Vector3(c.x, c.y, 0f) * GridConstants.CellSize, 1.1f, angle, fps: 22f, sortingOrder: 6);
                     if (!(Map.GetActorAt(c) is EnemyActor e) || e.Stats.IsDead || !struck.Add(e))
                         continue;
                     if (StrikeEnemy(e, dir, Traits.DashWaveDamageRate, isSkill: true))
@@ -1560,7 +1564,7 @@ namespace LoopRogue
         }
 
         // ---- 특성 "표식 폭발"(대시 5 대표, 11-02 사용자) - 대시로 친 몹에 표식이 하나씩 쌓이고 Traits.DashMarkCount개가 되면 터져
-        // 공격력 × Traits.DashMarkDamageRate 추가 피해(표식은 처음부터). 분신·파동 타격은 안 센다. 방을 옮기면 사라진다. ----
+        // 공격력 × Traits.DashMarkDamageRate 추가 피해(표식은 처음부터). 분신 타격도 센다(11-03 사용자 - 보스 정면이면 대시 한 번에 3개 = 바로 터짐), 파동은 안 센다. 방을 옮기면 사라진다. ----
         private readonly Dictionary<EnemyActor, int> _dashMarks = new Dictionary<EnemyActor, int>();
 
         /// <summary>방이 넘어갔으면 true.</summary>
@@ -1573,14 +1577,19 @@ namespace LoopRogue
             if (marks < Traits.DashMarkCount)
             {
                 _dashMarks[target] = marks;
+                target.DashMarks = marks; // 머리 위 표식 그림(StatusIcons)
                 DamagePopup.SpawnText(target.transform.position + Vector3.up * 0.4f, Loc.F("표식 {0}/{1}", marks, Traits.DashMarkCount),
                     new Color(1f, 0.55f, 0.85f));
                 return false;
             }
             _dashMarks.Remove(target);
+            target.DashMarks = 0;
             DamagePopup.SpawnText(target.transform.position + Vector3.up * 0.4f, Loc.T("표식 폭발!"), new Color(1f, 0.4f, 0.75f));
             if (HitFeedback.Enabled)
-                Fx.Play("slash_crit", target.transform.position, 1.4f, fps: 18f, sortingOrder: 7);
+            {
+                Fx.Play("dashmark_burst", target.transform.position, target.IsBoss ? 2.6f : 1.4f, fps: 9f, sortingOrder: 8); // 6장 약 0.67초(11-03 사용자 "좀 더 천천히", 16 → 9) // 표식이 터지는 분홍 고리(그림 없으면 베기만)
+                // 11-03 사용자 - 표식 터질 때 같이 띄우던 반원(slash_crit)은 뺐다(분홍 터짐 dashmark_burst만)
+            }
             return StrikeEnemy(target, dir, Traits.DashMarkDamageRate, isSkill: true);
         }
 
@@ -1646,6 +1655,12 @@ namespace LoopRogue
             if (TyrantLanding(GridPos, hit, 1f))
                 return true;
 
+            if (Traits.Has(TraitType.DashWave) && GridPos != startPos) // 양옆 줄 그림자 용사 둘이 같이 돌진(11-03 사용자)
+            {
+                var offset = GridWorldPosition - new Vector3(GridPos.x, GridPos.y, 0f) * GridConstants.CellSize;
+                HitFeedback.OnDashWaveShadows(this, new Vector3(startPos.x, startPos.y, 0f) * GridConstants.CellSize + offset, GridWorldPosition,
+                    new Vector3(-dir.y, dir.x, 0f) * GridConstants.CellSize);
+            }
             if (Traits.Has(TraitType.DashWave) && DashWave(startPos, dir, passed ?? (hit != null ? new List<EnemyActor> { hit } : new List<EnemyActor>())))
                 return true;
 
@@ -1702,6 +1717,8 @@ namespace LoopRogue
                             return true;
                         if (Relics.Has(RelicType.ShadowStep) && !target.Stats.IsDead && before > target.Stats.CurrentHealth)
                             AddShadowEcho(target, (before - target.Stats.CurrentHealth) * Relics.ShadowStepEchoRate);
+                        if (Traits.Has(TraitType.DashMark) && DashMark(target, side)) // 분신도 표식을 쌓는다(11-03 사용자)
+                            return true;
                     }
                 if (TyrantLanding(landing, hit, rate))
                     return true;

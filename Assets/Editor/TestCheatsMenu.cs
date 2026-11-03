@@ -240,6 +240,33 @@ namespace LoopRogue.EditorTools
         [MenuItem("LoopRogue/테스트: 노다지 연출 캡처 (던전 Play 중)", true)]
         private static bool CaptureBonanzaValid() => EditorApplication.isPlaying;
 
+        /// <summary>대시 연출 캡처(11-03 분신 속도선 확인용) - 본체 대시 연출 + 분신 두 갈래 + 대시 파동 그림자를 실제 화면에서 재생하며 0.04초마다 PNG.
+        /// 플레이어는 움직이지 않고 연출만(피해 없음). 프로젝트/Screenshots/dashfx_00.png…</summary>
+        [MenuItem("LoopRogue/테스트: 대시·분신 연출 캡처 (던전 Play 중)")]
+        private static void CaptureDashFx()
+        {
+            var player = Object.FindFirstObjectByType<PlayerActor>();
+            if (player == null)
+            {
+                Debug.LogWarning("[테스트] 던전에서 Play 중에만 됩니다");
+                return;
+            }
+            var folder = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(Application.dataPath) ?? ".", "Screenshots");
+            var cell = GridConstants.CellSize;
+            var here = player.GridWorldPosition;
+            FxCapture.Run(folder, "dashfx", 0.8f, 0.04f, () =>
+            {
+                var from = here - new Vector3(2f * cell, 0f, 0f);
+                HitFeedback.OnDash(player, from); // 본체 대시(왼쪽 2칸에서 지금 자리로)
+                HitFeedback.OnDashClone(player, from, from + new Vector3(2f * cell, 2f * cell, 0f)); // 분신 - 오른쪽 위
+                HitFeedback.OnDashClone(player, from, from + new Vector3(2f * cell, -2f * cell, 0f)); // 분신 - 오른쪽 아래
+                HitFeedback.OnDashWaveShadows(player, from, here, new Vector3(0f, cell, 0f)); // 대시 파동 그림자
+            });
+        }
+
+        [MenuItem("LoopRogue/테스트: 대시·분신 연출 캡처 (던전 Play 중)", true)]
+        private static bool CaptureDashFxValid() => EditorApplication.isPlaying;
+
         [MenuItem("LoopRogue/테스트: 골드 +10000")]
         private static void AddGold()
         {
@@ -254,6 +281,67 @@ namespace LoopRogue.EditorTools
             StageProgress.AddStageDeath();
             PlayerPrefs.Save();
             Debug.Log($"[테스트] 이 층 사망 수 {StageProgress.DeathsThisStage}");
+        }
+
+        // ---- 테스트: 장비 등급(11-03 사용자 "부위별 장비 장착 가능하게") - 등급과 상관없이 그대로 끼운다. Play 중이면 용사 그림이 바로 바뀐다(능력치는 다음 방부터) ----
+        private const string GearMenu = "LoopRogue/테스트: 장비 등급/";
+
+        [MenuItem(GearMenu + "무기/미장착", false, 0)] private static void GearWeaponNone() => SetGear(ItemSlot.Weapon, null);
+        [MenuItem(GearMenu + "무기/01 일반", false, 1)] private static void GearWeaponCommon() => SetGear(ItemSlot.Weapon, ItemGrade.Common);
+        [MenuItem(GearMenu + "무기/02 고급", false, 2)] private static void GearWeaponUncommon() => SetGear(ItemSlot.Weapon, ItemGrade.Uncommon);
+        [MenuItem(GearMenu + "무기/03 희귀", false, 3)] private static void GearWeaponRare() => SetGear(ItemSlot.Weapon, ItemGrade.Rare);
+        [MenuItem(GearMenu + "무기/04 영웅", false, 4)] private static void GearWeaponEpic() => SetGear(ItemSlot.Weapon, ItemGrade.Epic);
+        [MenuItem(GearMenu + "무기/05 전설", false, 5)] private static void GearWeaponLegendary() => SetGear(ItemSlot.Weapon, ItemGrade.Legendary);
+        [MenuItem(GearMenu + "무기/06 신화", false, 6)] private static void GearWeaponMythic() => SetGear(ItemSlot.Weapon, ItemGrade.Mythic);
+        [MenuItem(GearMenu + "무기/07 고대", false, 7)] private static void GearWeaponAncient() => SetGear(ItemSlot.Weapon, ItemGrade.Ancient);
+        [MenuItem(GearMenu + "무기/08 초월", false, 8)] private static void GearWeaponTranscendent() => SetGear(ItemSlot.Weapon, ItemGrade.Transcendent);
+        [MenuItem(GearMenu + "무기/09 영원", false, 9)] private static void GearWeaponEternal() => SetGear(ItemSlot.Weapon, ItemGrade.Eternal);
+        [MenuItem(GearMenu + "무기/10 Unknown", false, 10)] private static void GearWeaponUnknown() => SetGear(ItemSlot.Weapon, ItemGrade.Unknown);
+        [MenuItem(GearMenu + "방어구(투구+갑옷)/미장착", false, 20)] private static void GearArmorNone() => SetGear(ItemSlot.Armor, null);
+        [MenuItem(GearMenu + "방어구(투구+갑옷)/01 일반", false, 21)] private static void GearArmorCommon() => SetGear(ItemSlot.Armor, ItemGrade.Common);
+        [MenuItem(GearMenu + "방어구(투구+갑옷)/02 고급", false, 22)] private static void GearArmorUncommon() => SetGear(ItemSlot.Armor, ItemGrade.Uncommon);
+        [MenuItem(GearMenu + "방어구(투구+갑옷)/03 희귀", false, 23)] private static void GearArmorRare() => SetGear(ItemSlot.Armor, ItemGrade.Rare);
+        [MenuItem(GearMenu + "방어구(투구+갑옷)/04 영웅", false, 24)] private static void GearArmorEpic() => SetGear(ItemSlot.Armor, ItemGrade.Epic);
+        [MenuItem(GearMenu + "방어구(투구+갑옷)/05 전설", false, 25)] private static void GearArmorLegendary() => SetGear(ItemSlot.Armor, ItemGrade.Legendary);
+        [MenuItem(GearMenu + "방어구(투구+갑옷)/06 신화", false, 26)] private static void GearArmorMythic() => SetGear(ItemSlot.Armor, ItemGrade.Mythic);
+        [MenuItem(GearMenu + "방어구(투구+갑옷)/07 고대", false, 27)] private static void GearArmorAncient() => SetGear(ItemSlot.Armor, ItemGrade.Ancient);
+        [MenuItem(GearMenu + "방어구(투구+갑옷)/08 초월", false, 28)] private static void GearArmorTranscendent() => SetGear(ItemSlot.Armor, ItemGrade.Transcendent);
+        [MenuItem(GearMenu + "방어구(투구+갑옷)/09 영원", false, 29)] private static void GearArmorEternal() => SetGear(ItemSlot.Armor, ItemGrade.Eternal);
+        [MenuItem(GearMenu + "방어구(투구+갑옷)/10 Unknown", false, 30)] private static void GearArmorUnknown() => SetGear(ItemSlot.Armor, ItemGrade.Unknown);
+        [MenuItem(GearMenu + "반지/미장착", false, 40)] private static void GearAccessoryNone() => SetGear(ItemSlot.Accessory, null);
+        [MenuItem(GearMenu + "반지/01 일반", false, 41)] private static void GearAccessoryCommon() => SetGear(ItemSlot.Accessory, ItemGrade.Common);
+        [MenuItem(GearMenu + "반지/02 고급", false, 42)] private static void GearAccessoryUncommon() => SetGear(ItemSlot.Accessory, ItemGrade.Uncommon);
+        [MenuItem(GearMenu + "반지/03 희귀", false, 43)] private static void GearAccessoryRare() => SetGear(ItemSlot.Accessory, ItemGrade.Rare);
+        [MenuItem(GearMenu + "반지/04 영웅", false, 44)] private static void GearAccessoryEpic() => SetGear(ItemSlot.Accessory, ItemGrade.Epic);
+        [MenuItem(GearMenu + "반지/05 전설", false, 45)] private static void GearAccessoryLegendary() => SetGear(ItemSlot.Accessory, ItemGrade.Legendary);
+        [MenuItem(GearMenu + "반지/06 신화", false, 46)] private static void GearAccessoryMythic() => SetGear(ItemSlot.Accessory, ItemGrade.Mythic);
+        [MenuItem(GearMenu + "반지/07 고대", false, 47)] private static void GearAccessoryAncient() => SetGear(ItemSlot.Accessory, ItemGrade.Ancient);
+        [MenuItem(GearMenu + "반지/08 초월", false, 48)] private static void GearAccessoryTranscendent() => SetGear(ItemSlot.Accessory, ItemGrade.Transcendent);
+        [MenuItem(GearMenu + "반지/09 영원", false, 49)] private static void GearAccessoryEternal() => SetGear(ItemSlot.Accessory, ItemGrade.Eternal);
+        [MenuItem(GearMenu + "반지/10 Unknown", false, 50)] private static void GearAccessoryUnknown() => SetGear(ItemSlot.Accessory, ItemGrade.Unknown);
+        [MenuItem(GearMenu + "세 부위 전부/미장착", false, 80)] private static void GearAllNone() => SetAllGear(null);
+        [MenuItem(GearMenu + "세 부위 전부/01 일반", false, 81)] private static void GearAllCommon() => SetAllGear(ItemGrade.Common);
+        [MenuItem(GearMenu + "세 부위 전부/02 고급", false, 82)] private static void GearAllUncommon() => SetAllGear(ItemGrade.Uncommon);
+        [MenuItem(GearMenu + "세 부위 전부/03 희귀", false, 83)] private static void GearAllRare() => SetAllGear(ItemGrade.Rare);
+        [MenuItem(GearMenu + "세 부위 전부/04 영웅", false, 84)] private static void GearAllEpic() => SetAllGear(ItemGrade.Epic);
+        [MenuItem(GearMenu + "세 부위 전부/05 전설", false, 85)] private static void GearAllLegendary() => SetAllGear(ItemGrade.Legendary);
+        [MenuItem(GearMenu + "세 부위 전부/06 신화", false, 86)] private static void GearAllMythic() => SetAllGear(ItemGrade.Mythic);
+        [MenuItem(GearMenu + "세 부위 전부/07 고대", false, 87)] private static void GearAllAncient() => SetAllGear(ItemGrade.Ancient);
+        [MenuItem(GearMenu + "세 부위 전부/08 초월", false, 88)] private static void GearAllTranscendent() => SetAllGear(ItemGrade.Transcendent);
+        [MenuItem(GearMenu + "세 부위 전부/09 영원", false, 89)] private static void GearAllEternal() => SetAllGear(ItemGrade.Eternal);
+        [MenuItem(GearMenu + "세 부위 전부/10 Unknown", false, 90)] private static void GearAllUnknown() => SetAllGear(ItemGrade.Unknown);
+
+        private static void SetGear(ItemSlot slot, ItemGrade? grade)
+        {
+            EquipmentWallet.ForceForTest(slot, grade);
+            Debug.Log($"[테스트] {slot} = {(grade.HasValue ? grade.Value.ToString() : "미장착")}" + (EditorApplication.isPlaying ? " (용사 그림 바로 바뀜, 능력치는 다음 방부터)" : ""));
+        }
+
+        private static void SetAllGear(ItemGrade? grade)
+        {
+            foreach (ItemSlot slot in System.Enum.GetValues(typeof(ItemSlot)))
+                EquipmentWallet.ForceForTest(slot, grade);
+            Debug.Log($"[테스트] 세 부위 전부 = {(grade.HasValue ? grade.Value.ToString() : "미장착")}");
         }
     }
 }
