@@ -351,47 +351,8 @@ namespace LoopRogue
         public void Initialize(RoomController room)
         {
             _room = room;
-            RunProgress.EnsureLoaded();
-
-            if (RunProgress.HasSavedRun)
-            {
-                // 로비를 들렀다가 돌아온 경우 - 씬이 새로 뜨면서 이 오브젝트 자체가 완전히 새로
-                // 만들어졌으니(코드로 씬을 구성하는 이 프로젝트 특성상), 넘어가기 직전에 저장해둔
-                // 레벨/경험치/스탯을 그대로 복원한다. 스냅샷은 "장비/영약 포함 합계"라 저장 시점의 장비/영약 몫을 빼서
-                // 성장 몫을 되살리고, 고정 몫은 지금 장비/영약으로 새로 채운다(그 사이 로비에서 산 것도 자연히 포함).
-                var addedHealth = RunProgress.CurrentPermanentHealth() - RunProgress.PermanentHealthAtSave;
-                var addedCritical = RunProgress.CurrentPermanentCritical() - RunProgress.PermanentCriticalAtSave;
-                Stats = new CharacterStats(
-                    Mathf.Max(1f, RunProgress.MaxHealth - RunProgress.PermanentHealthAtSave),
-                    Mathf.Max(1f, RunProgress.AttackPower - RunProgress.PermanentAttackAtSave))
-                {
-                    FixedMaxHealth = RunProgress.CurrentPermanentHealth(),
-                    FixedAttack = RunProgress.CurrentPermanentAttack(),
-                    CurrentHealth = RunProgress.CurrentHealth + addedHealth,
-                    CriticalChanceRate = RunProgress.CriticalChanceRate + addedCritical,
-                    DamageReductionRate = RunProgress.DamageReductionRate,
-                    LifeStealRate = RunProgress.LifeStealRate,
-                    RoomShieldCardRate = RunProgress.RoomShieldCardRate,
-                    KillHealRate = RunProgress.KillHealRate,
-                    ExpBonusRate = RunProgress.ExpBonusRate,
-                    GoldBonusRate = RunProgress.GoldBonusRate,
-                };
-                Levels = new LevelSystem(Stats);
-                Levels.RestoreProgress(RunProgress.Level, RunProgress.Exp, RunProgress.ExpToNext);
-            }
-            else
-            {
-                // 첫 시작(또는 로비를 거치지 않은 평범한 루프 리셋) - 기본 스탯(성장 몫) + 장비/영약(고정 몫).
-                // 장비/영약은 GoldWallet처럼 영구 저장이라 매 런 시작마다 다시 채운다.
-                Stats = new CharacterStats(maxHealth: 30f, attackPower: 6f)
-                {
-                    FixedMaxHealth = RunProgress.CurrentPermanentHealth(),
-                    FixedAttack = RunProgress.CurrentPermanentAttack(),
-                    CriticalChanceRate = RunProgress.CurrentPermanentCritical(), // 영약 + 칭호
-                };
-                Stats.FullHeal();
-                Levels = new LevelSystem(Stats);
-            }
+            Stats = CreateStartStats(out var levels);
+            Levels = levels;
             Levels.OnLevelUp += _ => HitFeedback.OnLevelUp(this); // 금빛 기둥
 
             // 전용 도트 그림(노란 머리 대검 용사, 4방향 대기·걷기·공격 - Resources/Sprites/Player). 없으면 파란 사각형.
@@ -410,6 +371,54 @@ namespace LoopRogue
 
             Stats.OnArmorEffect = message => _room.ShowMessage(message);
             Stats.OnRevived = MoveToSafeTile;
+        }
+
+        /// <summary>던전에 들어갈 때의 스탯·레벨 - 로비에 들렀다 온 판이면 저장 복원, 아니면 새 판.
+        /// 로비 Tab 능력치 창(LobbyStatPanel)도 이걸로 "지금 들어가면 시작할 스탯"을 보여 준다.</summary>
+        public static CharacterStats CreateStartStats(out LevelSystem levels)
+        {
+            RunProgress.EnsureLoaded();
+            CharacterStats stats;
+            if (RunProgress.HasSavedRun)
+            {
+                // 로비를 들렀다가 돌아온 경우 - 씬이 새로 뜨면서 이 오브젝트 자체가 완전히 새로
+                // 만들어졌으니(코드로 씬을 구성하는 이 프로젝트 특성상), 넘어가기 직전에 저장해둔
+                // 레벨/경험치/스탯을 그대로 복원한다. 스냅샷은 "장비/영약 포함 합계"라 저장 시점의 장비/영약 몫을 빼서
+                // 성장 몫을 되살리고, 고정 몫은 지금 장비/영약으로 새로 채운다(그 사이 로비에서 산 것도 자연히 포함).
+                var addedHealth = RunProgress.CurrentPermanentHealth() - RunProgress.PermanentHealthAtSave;
+                var addedCritical = RunProgress.CurrentPermanentCritical() - RunProgress.PermanentCriticalAtSave;
+                stats = new CharacterStats(
+                    Mathf.Max(1f, RunProgress.MaxHealth - RunProgress.PermanentHealthAtSave),
+                    Mathf.Max(1f, RunProgress.AttackPower - RunProgress.PermanentAttackAtSave))
+                {
+                    FixedMaxHealth = RunProgress.CurrentPermanentHealth(),
+                    FixedAttack = RunProgress.CurrentPermanentAttack(),
+                    CurrentHealth = RunProgress.CurrentHealth + addedHealth,
+                    CriticalChanceRate = RunProgress.CriticalChanceRate + addedCritical,
+                    DamageReductionRate = RunProgress.DamageReductionRate,
+                    LifeStealRate = RunProgress.LifeStealRate,
+                    RoomShieldCardRate = RunProgress.RoomShieldCardRate,
+                    KillHealRate = RunProgress.KillHealRate,
+                    ExpBonusRate = RunProgress.ExpBonusRate,
+                    GoldBonusRate = RunProgress.GoldBonusRate,
+                };
+                levels = new LevelSystem(stats);
+                levels.RestoreProgress(RunProgress.Level, RunProgress.Exp, RunProgress.ExpToNext);
+            }
+            else
+            {
+                // 첫 시작(또는 로비를 거치지 않은 평범한 루프 리셋) - 기본 스탯(성장 몫) + 장비/영약(고정 몫).
+                // 장비/영약은 GoldWallet처럼 영구 저장이라 매 런 시작마다 다시 채운다.
+                stats = new CharacterStats(maxHealth: 30f, attackPower: 6f)
+                {
+                    FixedMaxHealth = RunProgress.CurrentPermanentHealth(),
+                    FixedAttack = RunProgress.CurrentPermanentAttack(),
+                    CriticalChanceRate = RunProgress.CurrentPermanentCritical(), // 영약 + 칭호
+                };
+                stats.FullHeal();
+                levels = new LevelSystem(stats);
+            }
+            return stats;
         }
 
         /// <summary>에디터 보스 러시 - 저장(RunProgress)을 바꿔 끼운 뒤 지금 플레이어의 스탯·레벨을 그 값으로 다시 맞추고 체력을 채운다.

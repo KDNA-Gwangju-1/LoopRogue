@@ -57,7 +57,7 @@ namespace LoopRogue
             _openedFrame = Time.frameCount;
             _notice.text = string.Empty;
             _row = 0;
-            _col = Mathf.Max(0, Appearance.Choice(Parts[0]) + 1);
+            _col = Mathf.Clamp(Appearance.Choice(Parts[0]) + 1, 0, ColumnsFor(Parts[0]) - 1);
             _panel.SetActive(true);
             Refresh();
         }
@@ -72,6 +72,11 @@ namespace LoopRogue
         private static bool Selectable(Appearance.Part part, int col) =>
             col == 0 || Appearance.IsOwned(Appearance.SlotOf(part), (ItemGrade)(col - 1));
 
+        /// <summary>그 줄의 칸 수 - Unknown 칸은 그 부위 Unknown을 얻은 뒤에만 생긴다(11-03 사용자 - 히든 등급이라 ?로도 안 보이게).
+        /// 이펙트 줄은 무기 쪽 기록(Appearance.SlotOf).</summary>
+        private static int ColumnsFor(Appearance.Part part) =>
+            Appearance.IsOwned(Appearance.SlotOf(part), ItemGrade.Unknown) ? Columns : Columns - 1;
+
         private void Update()
         {
             if (!IsOpen || Time.frameCount == _openedFrame)
@@ -85,10 +90,12 @@ namespace LoopRogue
                 _row = (_row + 2) % 3;
             if (GameInput.Down(Key.DownArrow) || GameInput.Down(Key.S))
                 _row = (_row + 1) % 3;
+            var cols = ColumnsFor(Parts[_row]);
+            _col = Mathf.Min(_col, cols - 1); // Unknown 칸이 없는 줄로 옮겨 오면 끝 칸으로
             if (GameInput.Down(Key.LeftArrow) || GameInput.Down(Key.A))
-                _col = (_col + Columns - 1) % Columns;
+                _col = (_col + cols - 1) % cols;
             if (GameInput.Down(Key.RightArrow) || GameInput.Down(Key.D))
-                _col = (_col + 1) % Columns;
+                _col = (_col + 1) % cols;
             if (GameInput.Down(Key.Enter) || GameInput.Down(Key.Space))
                 Pick(_row, _col);
 
@@ -104,7 +111,7 @@ namespace LoopRogue
                 for (var r = 0; r < 3; r++)
                 for (var c = 0; c < Columns; c++)
                 {
-                    if (!RectTransformUtility.RectangleContainsScreenPoint(_cells[r, c].rectTransform, pos, null))
+                    if (!_cells[r, c].gameObject.activeSelf || !RectTransformUtility.RectangleContainsScreenPoint(_cells[r, c].rectTransform, pos, null))
                         continue;
                     if (moved || GameInput.PointerDown)
                     {
@@ -147,8 +154,14 @@ namespace LoopRogue
             {
                 var part = Parts[r];
                 var choice = Appearance.Choice(part) + 1; // 0 = 장비
+                var cols = ColumnsFor(part);
                 for (var c = 0; c < Columns; c++)
                 {
+                    var shown = c < cols; // Unknown 칸은 얻은 뒤에만
+                    if (_cells[r, c].gameObject.activeSelf != shown)
+                        _cells[r, c].gameObject.SetActive(shown);
+                    if (!shown)
+                        continue;
                     var ok = Selectable(part, c);
                     var picked = c == choice;
                     var cursor = r == _row && c == _col;

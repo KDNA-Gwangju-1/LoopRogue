@@ -515,7 +515,7 @@ namespace LoopRogue
                 _ownedRelicPanel.SetText(BuildRelicText(), maxHeight);
         }
 
-        private static string BuildRelicText()
+        internal static string BuildRelicText()
         {
             var sb = new System.Text.StringBuilder();
             // 그림자 거래상 계약 - 맨 위(이번 시도 동안, 죽거나 층을 넘기면 풀린다)
@@ -545,10 +545,11 @@ namespace LoopRogue
         private static string FormatBonus(float rate) =>
             rate >= 0f ? $"+{rate * 100f:0.#}%" : $"<color=#FF7070>{rate * 100f:0.#}%</color>";
 
-        private string BuildStatText()
+        private string BuildStatText() => BuildStatText(_player.Stats, _player.Levels);
+
+        /// <summary>상태창 글 - 로비 Tab 창(LobbyStatPanel)은 던전에 들어가면 시작할 스탯(PlayerActor.CreateStartStats)으로 부른다.</summary>
+        internal static string BuildStatText(CharacterStats s, LevelSystem levels)
         {
-            var s = _player.Stats;
-            var levels = _player.Levels;
             var sb = new System.Text.StringBuilder();
 
             sb.AppendLine(Loc.T("<b><color=#FFD966>[기본]</color></b>"));
@@ -1458,7 +1459,7 @@ namespace LoopRogue
         /// <summary>글이 길면 마우스 휠이나 스크롤바 드래그로 넘겨 보는 글 패널. 이 프로젝트엔 EventSystem이
         /// 없어서(HandleUpgradeSelection 주석 참고) ScrollRect 대신 RectMask2D로 자르고, 휠·드래그는
         /// Pointer.current + 사각형 히트테스트로 직접 읽는다. 패널 높이는 글 길이에 맞추되 maxHeight에서 멈춘다.</summary>
-        private sealed class ScrollTextPanel
+        internal sealed class ScrollTextPanel // 로비 Tab 능력치 창(LobbyStatPanel)도 쓴다
         {
             private const float Padding = 18f; // 도트 패널 테두리(5px x4) 안쪽
             private const float BarWidth = 6f;

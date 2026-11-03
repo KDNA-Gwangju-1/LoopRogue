@@ -959,7 +959,7 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 [3] 도박꾼	[3] Gambler
 [5] 기록관	[5] Archivist
 [6] 도감 학자	[6] Codex Scholar
-방향키 이동 · NPC에게 부딪히거나 Space로 말 걸기 · 위쪽 문으로 들어가면 시작 · 숫자 1~7 바로 열기 · T 특성 · Esc 타이틀	Arrows: move · Bump an NPC or press Space to talk · Enter the top door to start · 1-7: open directly · T: traits · Esc: title
+방향키 이동 · NPC에게 부딪히거나 Space로 말 걸기 · 위쪽 문으로 들어가면 시작 · 숫자 1~9 바로 열기 · Tab 스탯 · Esc 타이틀	Arrows: move · Bump an NPC or press Space to talk · Enter the top door to start · 1-9: open directly · Tab: stats · Esc: title
 클릭 / Space - 넘기기	Click / Space - skip
 장착!	Equipped!
 [P] 등급 확률 보기	[P] Grade odds

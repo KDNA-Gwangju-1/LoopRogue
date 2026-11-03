@@ -129,6 +129,7 @@ namespace LoopRogue
             _traitPanel = TraitPanel.Create();
             _appearancePanel = AppearancePanel.Create(); // 11-03 [9] 재봉사
             _stageSelectPanel = StageSelectPanel.Create();
+            _lobbyStats = LobbyStatPanel.Create();
             Achievements.Unlocked += OnAchievementUnlocked;
             Codex.SyncOwned();    // 도감이 생기기 전 저장으로 이미 가진 유물/아이템
             Achievements.Check(); // 업적이 생기기 전 저장으로 이미 조건을 채운 것들
@@ -139,6 +140,7 @@ namespace LoopRogue
         private TraitPanel _traitPanel; // 11-02 특성 창 - 허브에서 T
         private AppearancePanel _appearancePanel; // 11-03 외형 창 - [9] 재봉사
         private StageSelectPanel _stageSelectPanel; // 11-02 층 선택 - 10층 클리어 뒤 문으로
+        private LobbyStatPanel _lobbyStats; // 11-03 Tab 능력치 창
 
         private void OnDestroy() => Achievements.Unlocked -= OnAchievementUnlocked;
 
@@ -164,11 +166,13 @@ namespace LoopRogue
                 _shownHubStones = ManaStoneWallet.Stones;
                 _hubStoneText.text = _shownHubStones.ToString("N0");
             }
-            RefreshHubTraitButton();
             UpdateHover();
 
             // 안내자와 대화 중이거나 업적 창이 열려 있으면(닫은 프레임 포함) 로비 버튼·단축키를 안 받는다 - 그 창들이 Esc/숫자/클릭을 직접 처리한다.
-            if (NpcDialogUI.BlocksInput || AchievementPanel.BlocksInput || CodexPanel.BlocksInput || TraitPanel.BlocksInput || AppearancePanel.BlocksInput || StageSelectPanel.BlocksInput || GachaReveal.BlocksInput)
+            var blocked = NpcDialogUI.BlocksInput || AchievementPanel.BlocksInput || CodexPanel.BlocksInput || TraitPanel.BlocksInput || AppearancePanel.BlocksInput || StageSelectPanel.BlocksInput || GachaReveal.BlocksInput;
+            if (_lobbyStats.IsOpen && (blocked || _view != LobbyView.Hub))
+                _lobbyStats.Hide(); // 다른 창·상점이 열리면 능력치 창은 닫는다
+            if (blocked)
                 return;
 
             // 클릭으로 화면이 바뀐 프레임엔 단축키를 안 읽는다(같은 프레임에 새 화면 키가 먹지 않게).
@@ -200,6 +204,10 @@ namespace LoopRogue
                         _appearancePanel.Open();
                     else if (GameInput.Down(Key.T))
                         _traitPanel.Open();
+                    else if (GameInput.Down(Key.Tab))
+                        _lobbyStats.Toggle(); // 11-03 로비에서도 능력치 창
+                    else if (GameInput.Down(Key.Escape) && _lobbyStats.IsOpen)
+                        _lobbyStats.Hide(); // 능력치 창이 열려 있으면 Esc는 그것만 닫는다
                     // Esc = 타이틀로(로비엔 진행 중인 전투가 없어서 확인 없이 바로 이동 - 골드/장비는 전부 영구 저장).
                     else if (GameInput.Down(Key.Escape))
                         SceneManager.LoadScene("Title");
@@ -967,23 +975,9 @@ namespace LoopRogue
             // 골드 칸(던전 HUD와 같은 모양) - 방(가로 약 224~1056px) 오른쪽 위 빈 모서리, 아래 안내 줄(~1140px)과도 안 겹친다
             _hubGoldText = HudUi.CreateGoldBox(view, Vector2.one, Vector2.one, new Vector2(-12f, -8f));
             _hubStoneText = HudUi.CreateCurrencyBox(view, Vector2.one, Vector2.one, new Vector2(-12f, -52f), "UI/Icons/ManaStone", new Color(0.79f, 0.63f, 1f));
-            // 특성 창 버튼(11-02 - 모바일엔 T키가 없다) - 마석 칸 아래, 남은 포인트가 있으면 초록 숫자
-            CreateButton(view, "TraitButton", ButtonColor, 236f, 180f, 44f, out _hubTraitText, string.Empty, 16, Color.white,
-                () => _traitPanel.Open(), x: 538f);
-            _hubTraitText.supportRichText = true;
-            RefreshHubTraitButton();
-        }
-
-        private Text _hubTraitText;
-        private int _shownTraitPoints = int.MinValue;
-
-        private void RefreshHubTraitButton()
-        {
-            var free = Traits.FreePoints;
-            if (_hubTraitText == null || free == _shownTraitPoints)
-                return;
-            _shownTraitPoints = free;
-            _hubTraitText.text = free > 0 ? Loc.F("특성 [T]  <color=#8CE08C>+{0}</color>", free) : Loc.T("특성 [T]");
+            // 특성 창 버튼은 11-03에 뺐다(사용자) - [8] 스킬 도우미·T 키로 연다. 그 자리(마석 칸 아래)에 능력치 창 버튼(모바일엔 Tab이 없다)
+            CreateButton(view, "StatButton", ButtonColor, 236f, 180f, 44f, out _, Loc.T("[Tab] 스탯"), 16, Color.white,
+                () => _lobbyStats.Toggle(), x: 538f);
         }
 
         private Text _hubHint;
@@ -994,7 +988,7 @@ namespace LoopRogue
             var shopFirst = FirstShopLocked;
             _hubHint.text = shopFirst
                 ? Loc.T("받은 골드로 먼저 강해지자!  [1] 보물 상인: 장비 뽑기 · [2] 연금술사: 영약 - 하나라도 사면 문이 열린다")
-                : Loc.T("방향키 이동 · NPC에게 부딪히거나 Space로 말 걸기 · 위쪽 문으로 들어가면 시작 · 숫자 1~7 바로 열기 · T 특성 · Esc 타이틀");
+                : Loc.T("방향키 이동 · NPC에게 부딪히거나 Space로 말 걸기 · 위쪽 문으로 들어가면 시작 · 숫자 1~9 바로 열기 · Tab 스탯 · Esc 타이틀");
             _hubHint.color = shopFirst ? new Color(1f, 0.85f, 0.4f) : new Color(0.85f, 0.85f, 0.9f);
         }
 
@@ -1018,18 +1012,21 @@ namespace LoopRogue
         private void BuildLobbyRoom()
         {
             _room = LobbyRoom.Create(EnterDoor, StageProgress.FinalBossCleared ? Loc.T("층 선택") : Loc.F("스테이지 {0} 시작", StageProgress.CurrentStage));
-            const int left = 1, right = LobbyRoom.Width - 2, top = LobbyRoom.Height - 2, upper = top - 2, lower = top - 5;
+            // 11-03 방을 15x10으로 넓히며 다시 배치(사용자 "NPC 배치가 이상") - 왼쪽 벽 둘, 오른쪽 벽 둘, 문 양옆 둘, 아래 줄 셋
+            // (시작 칸 바로 아래가 스킬 도우미). 시작 칸 → 문(가운데 위) 세로 길은 비워 둔다.
+            const int left = 1, right = LobbyRoom.Width - 2, top = LobbyRoom.Height - 2, upper = 6, lower = 3, bottom = 0;
+            var mid = LobbyRoom.DoorCell.x;
             _room.AddNpc("LobbyGacha", new Vector2Int(left, upper), () => Loc.T("[1] 보물 상인"), FirstShopBadge, () => ShowView(LobbyView.Gacha));
             _room.AddNpc("LobbyAlchemist", new Vector2Int(left, lower), () => Loc.T("[2] 연금술사"), FirstShopBadge, () => ShowView(LobbyView.Potion));
             _room.AddNpc("LobbyGambler", new Vector2Int(right, upper), () => Loc.T("[3] 도박꾼"), () => string.Empty, () => ShowView(LobbyView.Casino));
-            _room.AddNpc("LobbyTimeKeeper", new Vector2Int(LobbyRoom.DoorCell.x - 3, top), () => $"[4] {LobbyGuide.Name}", GuideBadge, LobbyGuide.Talk);
-            _room.AddNpc("LobbyChronicler", new Vector2Int(LobbyRoom.DoorCell.x + 3, top), () => Loc.T("[5] 기록관"),
+            _room.AddNpc("LobbyTimeKeeper", new Vector2Int(mid - 3, top), () => $"[4] {LobbyGuide.Name}", GuideBadge, LobbyGuide.Talk);
+            _room.AddNpc("LobbyChronicler", new Vector2Int(mid + 3, top), () => Loc.T("[5] 기록관"),
                 () => $"<color=#FFD966>{Achievements.UnlockedCount} / {Achievements.All.Length}</color>", () => _achievementPanel.Open());
             _room.AddNpc("LobbyScholar", new Vector2Int(right, lower), () => Loc.T("[6] 도감 학자"),
                 () => $"<color=#B9A0FF>{Codex.FoundCount()} / {Codex.TotalCount()}</color>", () => _codexPanel.Open());
-            _room.AddNpc("LobbyGrocer", new Vector2Int(3, 3), () => Loc.T("[7] 잡화상"), () => string.Empty, () => ShowView(LobbyView.Items)); // 11-02 소비 아이템
-            _room.AddNpc("LobbySkillHelper", new Vector2Int(7, 3), () => Loc.T("[8] 스킬 도우미"), SkillHelperBadge, TalkSkillHelper); // 11-03 특성 갈래 고르기
-            _room.AddNpc("LobbyTailor", new Vector2Int(7, 1), () => Loc.T("[9] 재봉사"), () => string.Empty, () => _appearancePanel.Open()); // 11-03 장비 외형·이펙트 고르기
+            _room.AddNpc("LobbyGrocer", new Vector2Int(mid - 3, bottom), () => Loc.T("[7] 잡화상"), () => string.Empty, () => ShowView(LobbyView.Items)); // 11-02 소비 아이템
+            _room.AddNpc("LobbySkillHelper", new Vector2Int(mid, bottom), () => Loc.T("[8] 스킬 도우미"), SkillHelperBadge, TalkSkillHelper); // 11-03 특성 갈래 고르기
+            _room.AddNpc("LobbyTailor", new Vector2Int(mid + 3, bottom), () => Loc.T("[9] 재봉사"), () => string.Empty, () => _appearancePanel.Open()); // 11-03 장비 외형·이펙트 고르기
             _room.DoorLocked = () => FirstShopLocked;
             _room.OnDoorLocked = () => ShowResult(Loc.T("아직 문이 잠겨 있다 - 보물 상인(1)에서 장비를 뽑거나 연금술사(2)에게 영약을 사서 먼저 강해지자!"), new Color(1f, 0.85f, 0.4f));
             _room.Build();

@@ -11,15 +11,15 @@ namespace LoopRogue
     /// 화면·창 열기는 LobbyBootstrap이 넘겨준 콜백으로만 한다(이 클래스는 방과 걷기만 안다).</summary>
     public class LobbyRoom : MonoBehaviour
     {
-        public const int Width = 11;
-        public const int Height = 8;
+        public const int Width = 15;  // 11-03 11x8 → 15x10(NPC 9명이 비좁아 배치가 엉켜서)
+        public const int Height = 10;
         private const float SpriteScale = 1.9f;       // 48x48 캔버스 그림 - 던전 NPC(1.3)보다 크게, 플레이어와 키가 비슷하게(로비의 주인공들이라)
         private const float PlayerSpriteScale = 1.25f; // PlayerActor와 같게
         private const float StepInterval = 0.16f;     // 키를 누르고 있을 때·클릭으로 걸어갈 때 한 칸 간격
         private const float RepeatDelay = 0.28f;
 
         public static readonly Vector2Int DoorCell = new Vector2Int(Width / 2, Height - 1);
-        private static readonly Vector2Int StartCell = new Vector2Int(Width / 2, 1);
+        private static readonly Vector2Int StartCell = new Vector2Int(Width / 2, 2); // 맨 아래 줄(y=0)엔 NPC 셋
 
         public sealed class Npc
         {
