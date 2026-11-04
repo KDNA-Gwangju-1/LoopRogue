@@ -1,11 +1,9 @@
 ﻿"""GPT 용사 시트(흰 배경, 가로 8장) -> 도트화 -> Resources/Sprites/HeroGpt 세트 (11-04 test/gpt-hero)
 사용법: python gpt_hero.py [시트 폴더(기본: 바탕화면\\gpt 그림\\일반)]
 
-시트 폴더 구성(파일 = 방향):
-  idle\\001.png 아래(앞모습) 002.png 위(뒷모습)  003.png 옆(왼쪽 봄)
-  이동\\001.png 위(뒷모습)  002.png 아래(앞모습)  003.png 옆(왼쪽 봄)
-  공격\\004.png 위          005.png 아래          006.png 옆
-  대쉬\\위.png  위          002.png 아래          001.png 옆 (5번째 장만 반대 방향 -> 반전)
+시트 폴더 구성(11-04 이름 정리: {동작}\\{동작}_{앞|뒤|옆}.png, 옆 = 왼쪽 봄):
+  대기\\대기_앞·뒤·옆  걷기\\걷기_앞·뒤·옆  공격\\공격_앞·뒤·옆
+  대쉬\\대쉬_앞·뒤·옆 (옆은 5번째 장만 반대 방향 -> 반전)  회전\\회전베기.png
 - 시트마다 GPT가 그린 크기가 달라서, 1번째 장(서 있기) 키가 65도트가 되도록 도트 크기를 시트마다 정한다
 - 시트마다 색감도 달라서 걷기 색에 맞춘다(아래 색감 맞추기)
 - 오른쪽 = 옆 좌우반전, 회전 베기 = 4방향 공격 장면을 이어 붙임
@@ -24,19 +22,19 @@ SHEETS = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.expanduser("
 C, FEET, TARGET = 88, 76, 65
 
 TABLE = [  # (동작, 방향, 파일, 반전할 장(0부터))
-    ("idle", "south", r"idle\001.png", set()),  # idle 폴더는 001 = 앞모습, 002 = 뒷모습 (이동 폴더와 반대)
-    ("idle", "north", r"idle\002.png", set()),
-    ("idle", "west", r"idle\003.png", set()),
-    ("walk", "north", r"이동\001.png", set()),
-    ("walk", "south", r"이동\002.png", set()),
-    ("walk", "west", r"이동\003.png", set()),
-    ("attack", "north", r"공격\004.png", set()),
-    ("attack", "south", r"공격\005.png", set()),
-    ("attack", "west", r"공격\006.png", set()),
-    ("dash", "north", r"대쉬\위.png", set()),
-    ("dash", "south", r"대쉬\002.png", set()),
-    ("dash", "west", r"대쉬\001.png", {4}),
-    ("spin", "south", r"회전\001.png", set()),  # GPT 회전 베기(앞→왼→뒤→오른→앞). 없으면 공격 장면 이어 붙임
+    ("idle", "south", r"대기\대기_앞.png", set()),
+    ("idle", "north", r"대기\대기_뒤.png", set()),
+    ("idle", "west", r"대기\대기_옆.png", set()),
+    ("walk", "north", r"걷기\걷기_뒤.png", set()),
+    ("walk", "south", r"걷기\걷기_앞.png", set()),
+    ("walk", "west", r"걷기\걷기_옆.png", set()),
+    ("attack", "north", r"공격\공격_뒤.png", set()),
+    ("attack", "south", r"공격\공격_앞.png", set()),
+    ("attack", "west", r"공격\공격_옆.png", set()),
+    ("dash", "north", r"대쉬\대쉬_뒤.png", set()),
+    ("dash", "south", r"대쉬\대쉬_앞.png", set()),
+    ("dash", "west", r"대쉬\대쉬_옆.png", {4}),
+    ("spin", "south", r"회전\회전베기.png", set()),  # GPT 회전 베기(앞→왼→뒤→오른→앞). 없으면 공격 장면 이어 붙임
 ]
 TMP = tempfile.mkdtemp(prefix="gpt_hero_")
 
