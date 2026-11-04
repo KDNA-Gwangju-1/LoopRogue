@@ -18,8 +18,15 @@ namespace LoopRogue
 
         public static bool Available => SpriteAnimator.FirstFrame("HeroBody0") != null && SpriteAnimator.FirstFrame("HeroWeapon0") != null;
 
+        /// <summary>11-04 테스트(test/gpt-hero 브랜치): GPT 그림을 도트로 바꾼 용사(무기까지 한 장에 그려짐, Tools/SpriteGen/gpt_hero.py).
+        /// 이 세트가 있으면 장비 등급과 상관없이 이걸 쓰고 무기 겹은 뗀다.</summary>
+        public const string TestSet = "HeroGpt";
+        /// <summary>GPT 용사 대기 박자 배율 - 2 = 한 바퀴 1.2초(슬라임 0.6초와 같은 박자는 망토 때문에 빨라 보임).</summary>
+        public const float TestIdleSlow = 2f;
+        private static bool UseTestSet =>SpriteAnimator.FirstFrame(TestSet) != null;
+
         // 11-03 재봉사(Appearance) - 방어구 외형·무기 외형·이펙트를 장착 장비와 따로 고를 수 있다(안 골랐으면 장비 따라감, 미장착 = 일반)
-        public static string BodySet => $"HeroBody{(int)Appearance.Resolved(Appearance.Part.Armor)}";
+        public static string BodySet => UseTestSet ? TestSet : $"HeroBody{(int)Appearance.Resolved(Appearance.Part.Armor)}";
         public static string WeaponSet => $"HeroWeapon{(int)Appearance.Resolved(Appearance.Part.Weapon)}";
 
         /// <summary>이펙트 등급(베기·회전·대시·잔상 색) - 재봉사에서 고른 이펙트, 안 골랐으면 장착 무기.</summary>
@@ -47,6 +54,9 @@ namespace LoopRogue
         /// <summary>회전 베기 용사 스프라이트(HeroBody·HeroWeapon의 spin_south_0~7) 재생 - 그림이 없으면 false(예전처럼 그림 통째 회전).</summary>
         public static bool PlaySpin(SpriteAnimator anim) => anim != null && anim.PlayClip("spin", SpinClipSeconds, 0.02f);
 
+        /// <summary>11-04 대쉬 클립(dash_{방향}_0~7) 재생 시간 - 8장.</summary>
+        public const float DashClipSeconds = 0.32f;
+
         /// <summary>회전 한 바퀴 시간 - 8장. 예전 통째 회전(0.18초)보다 조금 길게 해야 자세가 읽힌다.</summary>
         public const float SpinClipSeconds = 0.3f;
 
@@ -68,7 +78,8 @@ namespace LoopRogue
         internal static void Apply(SpriteAnimator anim, SpriteRenderer body, SpriteRenderer weapon)
         {
             anim.Setup(BodySet, body, DebrisColor);
-            anim.SetOverlay(WeaponSet, weapon, WeaponBehind);
+            anim.SetOverlay(UseTestSet ? null : WeaponSet, weapon, WeaponBehind);
+            anim.IdleSlow = UseTestSet ? TestIdleSlow : 1f;
         }
     }
 

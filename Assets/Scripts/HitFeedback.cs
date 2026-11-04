@@ -222,6 +222,12 @@ namespace LoopRogue
                 }
             }
             var path = to - from;
+            // 11-04 GPT 용사(HeroGpt)는 대쉬 그림(dash_*)이 있다 - 도착한 칸에서 돌진 모션 재생(없는 세트는 false로 그냥 넘어감)
+            var dashAnim = player.GetComponent<SpriteAnimator>();
+            if (dashAnim != null && path.sqrMagnitude > 0.01f)
+                dashAnim.PlayDirClip("dash",
+                    Mathf.Abs(path.x) >= Mathf.Abs(path.y) ? new Vector2Int(path.x > 0 ? 1 : -1, 0) : new Vector2Int(0, path.y > 0 ? 1 : -1),
+                    HeroLook.DashClipSeconds);
             if (path.sqrMagnitude > 0.01f)
                 PlayGraded("dash", (from + to) * 0.5f, path.magnitude / GridConstants.CellSize + 0.6f,
                     Mathf.Atan2(path.y, path.x) * Mathf.Rad2Deg, 12f, 2); // 11-03 분신·그림자 속도선과 같은 속도(22 → 12)

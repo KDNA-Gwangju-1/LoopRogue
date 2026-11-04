@@ -58,6 +58,29 @@ namespace LoopRogue
             return true;
         }
 
+        /// <summary>방향별 연출 클립({이름}_{south|east|west|north}_{번호}) - 그 방향 그림이 없으면 남쪽, 그것도 없으면 false.
+        /// 11-04 GPT 용사 대쉬(dash_*)용. 바라보는 방향도 그쪽으로 돌린다.</summary>
+        public bool PlayDirClip(string name, Vector2Int direction, float seconds, float hold = 0.02f)
+        {
+            if (_set == null || DamagePopup.Suppressed)
+                return false;
+            var d = DirIndex(direction, _dir);
+            var frames = LoadSequence($"Sprites/{_setName}/{name}_{DirNames[d]}_");
+            if (frames.Length == 0)
+                frames = LoadSequence($"Sprites/{_setName}/{name}_south_");
+            if (frames.Length == 0)
+                return false;
+            if (!LockedToFacing)
+                _dir = d;
+            _clip = frames;
+            _overlayClip = null;
+            _attackUntil = -1f;
+            _clipStart = Time.time;
+            _clipSeconds = seconds;
+            _clipUntil = Time.time + seconds + hold;
+            return true;
+        }
+
         /// <summary>점프 그림이 있는지 - 없으면 호출부가 예전처럼 늘이고 누르는 효과만.</summary>
         public bool HasJump => _set != null && Frames(_set.Jump).Length >= 6;
 
@@ -118,6 +141,9 @@ namespace LoopRogue
         /// <summary>8장짜리 세트는 프레임당 시간을 줄여 한 바퀴 시간을 4장 때와 같게(10-13 4→8프레임 작업). 슬라임·거미도
         /// 10-14에 새로 그려 다른 몹과 같은 규칙(예전 외부 그림의 8장 대기만 예외였음).</summary>
         private bool _smooth = true;
+
+        /// <summary>대기 프레임 시간 배율(11-04 GPT 용사 - 망토가 크게 펄럭여서 같은 박자도 슬라임보다 빨라 보임). 기본 1.</summary>
+        public float IdleSlow { get; set; } = 1f;
 
         private float FrameTime(float baseSeconds, int length) =>
             _smooth && length >= 8 ? baseSeconds * 4f / length : baseSeconds;
@@ -358,7 +384,7 @@ namespace LoopRogue
             var idle = Frames(_set.Idle);
             if (idle.Length > 0)
             {
-                var ii = (int)(_time / FrameTime(IdleFrameSeconds, idle.Length)) % idle.Length;
+                var ii = (int)(_time / (FrameTime(IdleFrameSeconds, idle.Length) * IdleSlow)) % idle.Length;
                 Show(idle[ii], 0, ii);
             }
         }
