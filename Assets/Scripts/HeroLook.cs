@@ -18,15 +18,26 @@ namespace LoopRogue
 
         public static bool Available => SpriteAnimator.FirstFrame("HeroBody0") != null && SpriteAnimator.FirstFrame("HeroWeapon0") != null;
 
-        /// <summary>11-04 테스트(test/gpt-hero 브랜치): GPT 그림을 도트로 바꾼 용사(무기까지 한 장에 그려짐, Tools/SpriteGen/gpt_hero.py).
-        /// 이 세트가 있으면 장비 등급과 상관없이 이걸 쓰고 무기 겹은 뗀다.</summary>
-        public const string TestSet = "HeroGpt";
-        /// <summary>GPT 용사 대기 박자 배율 - 2 = 한 바퀴 1.2초(슬라임 0.6초와 같은 박자는 망토 때문에 빨라 보임).</summary>
-        public const float TestIdleSlow = 2f;
-        private static bool UseTestSet =>SpriteAnimator.FirstFrame(TestSet) != null;
+        /// <summary>11-04 그림체 옵션(art-style-option 브랜치): 고퀄 용사(Codex 그림 -> Tools/SpriteGen/hq_export.py).
+        /// 몸은 칼 없이 방어구 등급별 세트(HeroHQ = 일반, HeroHQ{등급}, 없으면 일반), 칼은 등급별 각도 그림(HeroHQSword{등급}/a_0~63)을
+        /// 몸 세트의 손 위치 표(weapon_anchor.txt)대로 매 그림마다 붙인다 - 방어구×칼 조합이 늘어도 그림 수가 안 늘게(11-05 사용자 결정).</summary>
+        public const string HqSet = "HeroHQ";
+        private static bool UseHq => GameSettings.Art == GameSettings.ArtStyle.HighQuality && SpriteAnimator.FirstFrame(HqSet) != null;
+
+        public static string HqBodySet
+        {
+            get
+            {
+                var g = (int)Appearance.Resolved(Appearance.Part.Armor);
+                var set = g == 0 ? HqSet : HqSet + g;
+                return g != 0 && SpriteAnimator.FirstFrame(set) == null ? HqSet : set;
+            }
+        }
+
+        public static string HqSwordSet => $"HeroHQSword{(int)Appearance.Resolved(Appearance.Part.Weapon)}";
 
         // 11-03 재봉사(Appearance) - 방어구 외형·무기 외형·이펙트를 장착 장비와 따로 고를 수 있다(안 골랐으면 장비 따라감, 미장착 = 일반)
-        public static string BodySet => UseTestSet ? TestSet : $"HeroBody{(int)Appearance.Resolved(Appearance.Part.Armor)}";
+        public static string BodySet => UseHq ? HqBodySet : $"HeroBody{(int)Appearance.Resolved(Appearance.Part.Armor)}";
         public static string WeaponSet => $"HeroWeapon{(int)Appearance.Resolved(Appearance.Part.Weapon)}";
 
         /// <summary>이펙트 등급(베기·회전·대시·잔상 색) - 재봉사에서 고른 이펙트, 안 골랐으면 장착 무기.</summary>
@@ -75,11 +86,115 @@ namespace LoopRogue
         /// <summary>첫 프레임(그림 만들 때 크기 잡기용) - 등급 그림이 있으면 그 몸 겹, 없으면 예전 세트.</summary>
         public static Sprite FirstFrame() => Available ? SpriteAnimator.FirstFrame(BodySet) : SpriteAnimator.FirstFrame(LegacySet);
 
+        // ---- 11-05 고퀄 칼: 몸 세트의 weapon_anchor.txt 한 줄 = "그림이름 x y 각도번호 뒤?"
+        // (x, y = 64칸 그림에서 칼막이 자리(왼쪽 위 기준 도트), 각도번호 0~63 = 위쪽에서 시계 방향 5.625도씩, 뒤? 1이면 몸 뒤)
+        private struct SwordAnchor
+        {
+            public Vector2 Pos;
+            public int Angle;
+            public bool Behind;
+        }
+
+        private const int SwordAngles = 64; // hq_export.py ANGLES와 같게
+        private static readonly string[] KindNames = { "idle", "walk", "attack" };
+        private static readonly string[] DirNames = { "south", "east", "west", "north" };
+        private static readonly System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, SwordAnchor>> Anchors =
+            new System.Collections.Generic.Dictionary<string, System.Collections.Generic.Dictionary<string, SwordAnchor>>();
+        private static readonly System.Collections.Generic.Dictionary<string, Sprite> Swords = new System.Collections.Generic.Dictionary<string, Sprite>();
+
+        private static System.Collections.Generic.Dictionary<string, SwordAnchor> AnchorTable(string set)
+        {
+            if (Anchors.TryGetValue(set, out var table))
+                return table;
+            table = new System.Collections.Generic.Dictionary<string, SwordAnchor>();
+            var text = Resources.Load<TextAsset>($"Sprites/{set}/weapon_anchor");
+            if (text != null)
+                foreach (var line in text.text.Split('\n'))
+                {
+                    var p = line.Trim().Split(' ');
+                    if (p.Length < 5)
+                        continue;
+                    var inv = System.Globalization.CultureInfo.InvariantCulture;
+                    table[p[0]] = new SwordAnchor
+                    {
+                        Pos = new Vector2(float.Parse(p[1], inv), float.Parse(p[2], inv)),
+                        Angle = int.Parse(p[3]),
+                        Behind = p[4] == "1",
+                    };
+                }
+            Anchors[set] = table;
+            return table;
+        }
+
+        /// <summary>a = 칼날+칼막이(몸 앞/뒤 표대로), g = 손잡이·폼멜(늘 몸 뒤 - 주먹 사이로만 보인다, 11-06 손과 칼이 떨어져 보이던 것).</summary>
+        private static Sprite Sword(string part, int angle)
+        {
+            var path = $"Sprites/{HqSwordSet}/{part}_{angle}";
+            if (!Swords.TryGetValue(path, out var sprite))
+                Swords[path] = sprite = Resources.Load<Sprite>(path);
+            return sprite;
+        }
+
+        /// <summary>칼 겹 아래 손잡이 겹(없으면 만든다) - 칼 겹 자식이라 위치를 따라간다.</summary>
+        private static SpriteRenderer Grip(SpriteRenderer weapon)
+        {
+            var t = weapon.transform.Find("HeroGrip");
+            if (t != null)
+                return t.GetComponent<SpriteRenderer>();
+            var go = new GameObject("HeroGrip");
+            go.transform.SetParent(weapon.transform, false);
+            return go.AddComponent<SpriteRenderer>();
+        }
+
+        /// <summary>지금 몸 그림에 맞춰 칼을 붙인다(SpriteAnimator.Shown) - 표에 없는 그림이면 칼을 숨긴다.</summary>
+        private static void UpdateHqSword(SpriteAnimator anim, SpriteRenderer body, SpriteRenderer weapon)
+        {
+            var grip = Grip(weapon);
+            weapon.sprite = null;
+            grip.sprite = null;
+            var kind = anim.ShownKind;
+            var kindName = kind >= 0 && kind < 3 ? KindNames[kind] : kind == 3 ? anim.ClipName : null;
+            if (kindName == null || !AnchorTable(anim.SetName).TryGetValue($"{kindName}_{DirNames[kindName == "spin" ? 0 : anim.ShownDir]}_{anim.ShownIndex}", out var a))
+                return;
+            var x = a.Pos.x;
+            var angle = a.Angle;
+            if (body.flipX)
+            {
+                x = 64f - x;
+                angle = (SwordAngles - angle) % SwordAngles;
+            }
+            weapon.sprite = Sword("a", angle);
+            weapon.transform.localPosition = new Vector3((x - 32f) / 64f, (32f - a.Pos.y) / 64f, 0f); // 몸 그림 가운데 기준, PPU 64
+            weapon.flipX = false;
+            weapon.color = body.color;
+            weapon.enabled = body.enabled;
+            weapon.sortingLayerID = body.sortingLayerID;
+            weapon.sortingOrder = body.sortingOrder + (a.Behind ? -1 : 1);
+            grip.sprite = Sword("g", angle);
+            grip.color = body.color;
+            grip.enabled = body.enabled;
+            grip.sortingLayerID = body.sortingLayerID;
+            grip.sortingOrder = body.sortingOrder - 1;
+        }
+
         internal static void Apply(SpriteAnimator anim, SpriteRenderer body, SpriteRenderer weapon)
         {
             anim.Setup(BodySet, body, DebrisColor);
-            anim.SetOverlay(UseTestSet ? null : WeaponSet, weapon, WeaponBehind);
-            anim.IdleSlow = UseTestSet ? TestIdleSlow : 1f;
+            if (UseHq)
+            {
+                anim.SetOverlay(null, null, null); // 칼은 Shown에서 직접
+                anim.Shown = () => UpdateHqSword(anim, body, weapon);
+                anim.Shown();
+            }
+            else
+            {
+                anim.Shown = null;
+                weapon.transform.localPosition = Vector3.zero;
+                var grip = weapon.transform.Find("HeroGrip");
+                if (grip != null)
+                    grip.GetComponent<SpriteRenderer>().sprite = null;
+                anim.SetOverlay(WeaponSet, weapon, WeaponBehind);
+            }
         }
     }
 

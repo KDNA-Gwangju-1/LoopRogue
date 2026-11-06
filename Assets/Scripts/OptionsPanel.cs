@@ -120,6 +120,8 @@ namespace LoopRogue
             AddRow(Loc.T("화면 흔들림"), () => OnOff(GameSettings.ScreenShake), _ => GameSettings.SetScreenShake(!GameSettings.ScreenShake));
             AddRow(Loc.T("피해 숫자 표시"), () => OnOff(GameSettings.DamageNumbers), _ => GameSettings.SetDamageNumbers(!GameSettings.DamageNumbers));
             AddRow(Loc.T("뽑기 연출"), () => OnOff(GameSettings.GachaAnimation), _ => GameSettings.SetGachaAnimation(!GameSettings.GachaAnimation));
+            AddRow(Loc.T("그림체"), () => GameSettings.Art == GameSettings.ArtStyle.HighQuality ? Loc.T("고퀄") : Loc.T("클래식"),
+                _ => GameSettings.SetArtStyle(GameSettings.Art == GameSettings.ArtStyle.HighQuality ? GameSettings.ArtStyle.Classic : GameSettings.ArtStyle.HighQuality));
             // 첫 판 안내 - ←→로 처음부터 다시(다음 판 1층부터 다시 뜬다)
             AddRow(Loc.T("튜토리얼"), () => Tutorial.BasicsDone ? Loc.T("<color=#9A9AA2>끝남</color>  (←→ 다시 보기)") : Loc.T("<color=#8CE08C>진행 중</color>"),
                 _ => Tutorial.ResetAll());

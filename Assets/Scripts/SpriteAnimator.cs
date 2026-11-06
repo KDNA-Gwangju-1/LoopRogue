@@ -41,6 +41,8 @@ namespace LoopRogue
         /// <summary>연출 클립을 재생 중인지.</summary>
         public bool IsPlayingClip => _clip != null && Time.time < _clipUntil;
 
+        /// <summary>마지막으로 튼 연출 클립 이름(spin, dash 등) - 겹 앞뒤 표가 클립마다 다를 때(고퀄 용사 HeroLook).</summary>
+        public string ClipName { get; private set; }
         /// <summary>클립을 seconds초에 걸쳐 한 번 재생하고 마지막 장을 hold초 보여 준다. 그림이 없으면 false.</summary>
         public bool PlayClip(string name, float seconds, float hold = 0.2f)
         {
@@ -50,6 +52,7 @@ namespace LoopRogue
             if (frames.Length == 0)
                 return false;
             _clip = frames;
+            ClipName = name;
             _overlayClip = string.IsNullOrEmpty(_overlayName) ? null : LoadSequence($"Sprites/{_overlayName}/{name}_south_");
             _attackUntil = -1f; // 클립이 공격 모션을 덮는다(끝난 뒤 남은 공격 장면이 이어 나오지 않게)
             _clipStart = Time.time;
@@ -73,7 +76,15 @@ namespace LoopRogue
             if (!LockedToFacing)
                 _dir = d;
             _clip = frames;
+            ClipName = name;
+            // 11-05 고퀄 용사: 겹(무기)도 같은 방향 클립이 있으면 같은 번호로(없으면 겹 없이 - 클래식 무기엔 대쉬 그림이 없다)
             _overlayClip = null;
+            if (!string.IsNullOrEmpty(_overlayName))
+            {
+                _overlayClip = LoadSequence($"Sprites/{_overlayName}/{name}_{DirNames[d]}_");
+                if (_overlayClip.Length == 0)
+                    _overlayClip = LoadSequence($"Sprites/{_overlayName}/{name}_south_");
+            }
             _attackUntil = -1f;
             _clipStart = Time.time;
             _clipSeconds = seconds;
@@ -209,9 +220,20 @@ namespace LoopRogue
         }
 
         /// <summary>몸 그림을 바꾸고 겹도 같은 프레임으로 맞춘다. kind -1 = 겹 없는 그림(연출 클립·점프 등).</summary>
+        /// <summary>지금 보이는 그림(종류 0 대기·1 걷기·2 공격·3 클립·-1 겹 없음, 번호, 방향) - 11-05 고퀄 용사 칼은
+        /// 이걸 보고 몸 세트의 손 위치 표에서 칼을 골라 붙인다(HeroLook.UpdateHqSword). Shown은 그림을 바꿀 때마다 불린다.</summary>
+        public int ShownKind { get; private set; } = -1;
+        public int ShownIndex { get; private set; }
+        public int ShownDir { get; private set; }
+        public System.Action Shown;
+
         private void Show(Sprite sprite, int kind, int index)
         {
             _renderer.sprite = sprite;
+            ShownKind = kind;
+            ShownIndex = index;
+            ShownDir = kind == 3 || byDirHasOwn(kind) ? _dir : 0;
+            Shown?.Invoke();
             if (_overlayRenderer == null)
                 return;
             Sprite over = null;
@@ -231,7 +253,7 @@ namespace LoopRogue
             _overlayRenderer.color = _renderer.color;
             _overlayRenderer.flipX = _renderer.flipX;
             _overlayRenderer.enabled = _renderer.enabled;
-            var dir = byDirHasOwn(kind) ? _dir : 0;
+            var dir = ShownDir; // 클립은 지금 방향(클래식 회전 표는 방향을 안 본다)
             _overlayRenderer.sortingLayerID = _renderer.sortingLayerID;
             _overlayRenderer.sortingOrder = _renderer.sortingOrder + (_overlayBehind != null && _overlayBehind(kind, dir, index) ? -1 : 1);
         }

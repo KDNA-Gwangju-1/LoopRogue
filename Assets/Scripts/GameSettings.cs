@@ -20,9 +20,17 @@ namespace LoopRogue
         private const string ShakeKey = Prefix + "Shake";
         private const string DamageNumbersKey = Prefix + "DamageNumbers";
         private const string GachaAnimationKey = Prefix + "GachaAnimation";
+        private const string ArtStyleKey = Prefix + "ArtStyle";
 
         private static readonly string[] IntKeys =
-            { MasterKey, SfxKey, BgmKey, ScreenModeKey, ResWidthKey, ResHeightKey, VSyncKey, ShakeKey, DamageNumbersKey, GachaAnimationKey, Loc.PrefKey };
+            { MasterKey, SfxKey, BgmKey, ScreenModeKey, ResWidthKey, ResHeightKey, VSyncKey, ShakeKey, DamageNumbersKey, GachaAnimationKey, ArtStyleKey, Loc.PrefKey };
+
+        /// <summary>11-04 그림체(art-style-option 브랜치) - 클래식 = 예전 용사(장비 등급별 HeroBody+HeroWeapon), 고퀄 = HeroHQ.
+        /// 플레이어가 옵션에서 고른다. 전/후 빌드를 따로 뽑을 땐 이 기본값만 바꾸면 된다.</summary>
+        public enum ArtStyle { Classic, HighQuality }
+
+        public const ArtStyle DefaultArtStyle = ArtStyle.Classic;
+        public static ArtStyle Art { get; private set; } = DefaultArtStyle;
 
         public const int VolumeStep = 10;
 
@@ -69,6 +77,7 @@ namespace LoopRogue
             ScreenShake = Prefs.GetInt(ShakeKey, 1) == 1;
             DamageNumbers = Prefs.GetInt(DamageNumbersKey, 1) == 1;
             GachaAnimation = Prefs.GetInt(GachaAnimationKey, 1) == 1;
+            Art = (ArtStyle)Mathf.Clamp(Prefs.GetInt(ArtStyleKey, (int)DefaultArtStyle), 0, 1);
         }
 
         private static void Save()
@@ -83,6 +92,7 @@ namespace LoopRogue
             Prefs.SetInt(ShakeKey, ScreenShake ? 1 : 0);
             Prefs.SetInt(DamageNumbersKey, DamageNumbers ? 1 : 0);
             Prefs.SetInt(GachaAnimationKey, GachaAnimation ? 1 : 0);
+            Prefs.SetInt(ArtStyleKey, (int)Art);
             Prefs.Save();
         }
 
@@ -96,6 +106,8 @@ namespace LoopRogue
         public static void SetScreenShake(bool on) { ScreenShake = on; Save(); }
         public static void SetDamageNumbers(bool on) { DamageNumbers = on; Save(); }
         public static void SetGachaAnimation(bool on) { GachaAnimation = on; Save(); }
+        /// <summary>그림체 바꾸기 - 붙어 있는 용사 그림이 다음 프레임에 다시 입는다(HeroLook.Version).</summary>
+        public static void SetArtStyle(ArtStyle style) { Art = style; Save(); HeroLook.Bump(); }
 
         public static void ResetToDefaults()
         {
