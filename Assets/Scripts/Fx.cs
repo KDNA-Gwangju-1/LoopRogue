@@ -77,7 +77,7 @@ namespace LoopRogue
         /// <param name="sizeCells">그림 가로 길이(칸 단위)</param>
         /// <param name="riseCells">초당 위로 떠오르는 거리(칸 단위)</param>
         public static Fx Play(string name, Vector3 position, float sizeCells, float angle = 0f, Color? tint = null,
-            float fps = DefaultFps, bool loop = false, int sortingOrder = DefaultSortingOrder, Transform parent = null, float riseCells = 0f)
+            float fps = DefaultFps, bool loop = false, int sortingOrder = DefaultSortingOrder, Transform parent = null, float riseCells = 0f, float delay = 0f)
         {
             if (DamagePopup.Suppressed)
                 return null;
@@ -107,7 +107,8 @@ namespace LoopRogue
             fx._fps = fps;
             fx._loop = loop;
             fx._rise = Vector3.up * riseCells * GridConstants.CellSize;
-            fx._time = 0f;
+            fx._time = -Mathf.Max(0f, delay); // delay초 뒤에 나타남(그동안 안 보임)
+            renderer.enabled = delay <= 0f;
             fx._moving = false;
             fx._onArrive = null;
             fx.KeepAlive = null;
@@ -196,6 +197,10 @@ namespace LoopRogue
         private void Update()
         {
             _time += Time.deltaTime;
+            if (_time < 0f)
+                return; // 아직 delay 중
+            if (!_renderer.enabled)
+                _renderer.enabled = true;
 
             if (_moving)
             {

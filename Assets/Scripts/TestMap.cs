@@ -11,6 +11,8 @@ namespace LoopRogue
     public class TestMap : MonoBehaviour
     {
         public static bool Active { get; private set; }
+        /// <summary>11-07 대시 이펙트 확인용(메뉴 "테스트 맵 - 대시 이펙트") - 분신·파동 대시 특성 + 고퀄 + 전설 이펙트, [F1~F5] 이펙트 등급 일반~전설.</summary>
+        public static bool DashFx { get; private set; }
 
         private const int Size = 15;
         private const float EnemyHealth = 6f;
@@ -42,6 +44,7 @@ namespace LoopRogue
 
 #if UNITY_EDITOR
         public const string PrefKey = "LoopRogue_TestMap";
+        public const string DashFxPrefKey = "LoopRogue_TestMap_DashFx";
 
         /// <summary>Play 시작(타이틀 씬) - 메뉴로 켰으면 바로 Main으로. 한 번 쓰면 꺼서 다음 Play는 평소처럼.</summary>
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -49,6 +52,8 @@ namespace LoopRogue
         {
             Active = UnityEditor.EditorPrefs.GetBool(PrefKey, false);
             UnityEditor.EditorPrefs.SetBool(PrefKey, false);
+            DashFx = Active && UnityEditor.EditorPrefs.GetBool(DashFxPrefKey, false);
+            UnityEditor.EditorPrefs.SetBool(DashFxPrefKey, false);
             if (!Active)
                 return;
             Debug.Log("[테스트 맵] 시작 - Main으로 바로 이동");
@@ -93,15 +98,43 @@ namespace LoopRogue
             var tm = room.gameObject.AddComponent<TestMap>();
             tm._room = room;
             tm._player = player;
+            if (DashFx)
+            {
+                Traits.Set(TraitType.DashClone, true);
+                Traits.Set(TraitType.DashWave, true);
+                GameSettings.SetArtStyle(GameSettings.ArtStyle.HighQuality);
+                SetEffectGrade(4);
+            }
+        }
+
+        private static void SetEffectGrade(int grade)
+        {
+            Appearance.MarkOwned(ItemSlot.Weapon, (ItemGrade)grade);
+            Appearance.SetChoice(Appearance.Part.Effect, grade);
         }
 
         private void Start()
         {
-            _room.ShowMessage(Loc.T("테스트 맵 - 이벤트 11종 / [R] 다시 깔기 / 몹을 다 잡고 출구로 가면 보스방"));
+            _room.ShowMessage(DashFx ? "대시 이펙트 테스트 - 분신·파동 대시 / [F1~F5] 이펙트 일반~전설 / [F6] 초월 몸 / [R] 다시 깔기"
+                : Loc.T("테스트 맵 - 이벤트 11종 / [R] 다시 깔기 / 몹을 다 잡고 출구로 가면 보스방"));
         }
 
         private void Update()
         {
+            if (DashFx)
+                for (var g = 0; g < 5; g++)
+                    if (GameInput.Down(Key.F1 + g))
+                    {
+                        SetEffectGrade(g);
+                        _room.ShowMessage($"이펙트 등급 {g} (0 일반 ~ 4 전설)");
+                    }
+            if (DashFx && GameInput.Down(Key.F6)) // 11-07 방어구 외형 일반 <-> 초월(HeroHQ7) 확인용
+            {
+                var on = Appearance.Choice(Appearance.Part.Armor) != 7;
+                Appearance.MarkOwned(ItemSlot.Armor, (ItemGrade)7);
+                Appearance.SetChoice(Appearance.Part.Armor, on ? 7 : 0);
+                _room.ShowMessage(on ? "방어구 외형: 초월" : "방어구 외형: 일반");
+            }
             if (!GameInput.Down(Key.R) || _testRoom == null || _room.RoomName != _testRoom.RoomName)
                 return; // 보스방에선 안 됨(방 순서가 꼬인다)
             if (_room.IsInputLocked || NpcDialogUI.BlocksInput || _player.Stats.IsDead || _player.Levels.IsChoosingUpgrade)

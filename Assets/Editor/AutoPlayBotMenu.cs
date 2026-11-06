@@ -126,6 +126,13 @@ namespace LoopRogue.EditorTools
             EditorApplication.isPlaying = true;
         }
 
+        [MenuItem("LoopRogue/테스트 맵 - 대시 이펙트 (분신·파동, 끝나면 저장 되돌림)")]
+        private static void StartTestMapDashFx()
+        {
+            EditorPrefs.SetBool(TestMap.DashFxPrefKey, true);
+            StartTestMap();
+        }
+
         private static string TestBackupPath => System.IO.Path.Combine(System.IO.Path.GetDirectoryName(BackupPath), "testmap_backup.reg");
 
         /// <summary>체험 4종(테스트 맵·퍼즐·벽화·보스 기믹) 공통 백업. 아직 되돌리지 않은 백업이 있으면 덮어쓰지 않는다 - 예전엔

@@ -319,6 +319,21 @@ namespace LoopRogue
                 Mathf.Atan2(path.y, path.x) * Mathf.Rad2Deg, fps: 30f, sortingOrder: 2) != null;
         }
 
+        /// <summary>11-07 고퀄 "대시 파동" - 폭 3줄 범위 안 몹 위에 붉은 발톱(hq_wave_claw_g{등급}). 앞발이 흩어지며 그 칸 발톱 자국이 드러나는 때에 맞춰 늦게 뜬다.
+        /// step = 출발 다음 칸부터 몇 번째 칸(1~), cells = 대시 칸 수. 그림이 없는 등급은 그냥 넘어감.</summary>
+        public static void OnDashWaveClaw(Vector3 position, int step, int cells, float angle)
+        {
+            if (!Enabled || !HeroLook.IsHq)
+                return;
+            var name = $"hq_wave_claw_g{HeroLook.WeaponGrade}";
+            var frames = Fx.Frames(name);
+            if (frames.Length == 0)
+                return;
+            cells = Mathf.Clamp(cells, 1, 4);
+            var delay = (cells + 3 + 2.5f * (step - 0.5f) / cells) / 30f; // 대시 파동 그림(30fps)에서 자국이 드러나는 장
+            Fx.Play(name, position, PlayerActor.PlayerSpriteScale * frames[0].rect.width / 64f, angle, fps: 30f, sortingOrder: 6, delay: delay);
+        }
+
         /// <summary>특성 "분신 대시" - 분신이 지나간 길(from → to)에 플레이어 잔상과 대시 궤적. 소리·흔들림은 본체 대시가 낸다.</summary>
         public static void OnDashClone(PlayerActor player, Vector3 from, Vector3 to)
         {
@@ -333,13 +348,10 @@ namespace LoopRogue
                 var weaponTf = player.transform.Find("HeroWeapon");
                 if (weaponTf != null && weaponTf.TryGetComponent<SpriteRenderer>(out var wr))
                     weapon = wr.sprite;
-                var cloneFrom = from;
-                var cloneTo = to;
                 DashShadowRunner.Spawn(renderer.sprite, weapon, renderer.flipX, player.transform.localScale.x, from, to,
-                    DashShadowRunner.CloneBody, DashShadowRunner.CloneTrail, () => PlayDashStreak(cloneFrom, cloneTo, 12f));
+                    DashShadowRunner.CloneBody, DashShadowRunner.CloneTrail, () => { });
             }
-            else
-                PlayDashStreak(from, to, 12f); // 분신 그림이 없을 때만 바로
+            PlayDashStreak(from, to, 12f); // 11-07 사용자 "동시에 3개" - 분신이 도착한 뒤가 아니라 본체 대시와 같이 바로
         }
 
         /// <summary>대시 속도선(무기 등급 그림) - from → to 길 위에.</summary>
@@ -350,6 +362,15 @@ namespace LoopRogue
             {
                 var size = path.magnitude / GridConstants.CellSize + 0.6f;
                 var angle = Mathf.Atan2(path.y, path.x) * Mathf.Rad2Deg;
+                // 11-07 고퀄 대각선 길(분신 대시) - 대각선 전용 그림(hq_dash_diag_g{등급}_{대각 1~4칸}, 오른쪽 위로 그림)을 (각도 - 45)로 = 90도 단위라 픽셀이 안 깨짐
+                if (HeroLook.IsHq && Mathf.Abs(Mathf.Abs(path.x) - Mathf.Abs(path.y)) < GridConstants.CellSize * 0.1f)
+                {
+                    var diagCells = Mathf.Clamp(Mathf.RoundToInt(Mathf.Abs(path.x) / GridConstants.CellSize), 1, 4);
+                    var diagName = $"hq_dash_diag_g{HeroLook.WeaponGrade}_{diagCells}";
+                    var diag = Fx.Frames(diagName);
+                    if (diag.Length > 0 && Fx.Play(diagName, (from + to) * 0.5f, PlayerActor.PlayerSpriteScale * diag[0].rect.width / 64f, angle - 45f, fps: 30f, sortingOrder: 2) != null)
+                        return;
+                }
                 // 고퀄: 대시 거리별 그림(hq_dash_g{등급}_{1~4칸}, 11-06 - 늘이면 앞발·픽셀 크기가 달라져서 칸 수마다 따로 그림), 늘이지 않고 그대로
                 var cells = Mathf.Clamp(Mathf.RoundToInt(path.magnitude / GridConstants.CellSize), 1, 4);
                 var hqName = $"dash_g{HeroLook.WeaponGrade}_{cells}";

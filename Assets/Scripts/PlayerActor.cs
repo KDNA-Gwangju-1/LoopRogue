@@ -1627,6 +1627,16 @@ namespace LoopRogue
             if (landing != GridPos)
                 Map.MoveActor(this, landing);
             HitFeedback.OnDash(this, from, Traits.Has(TraitType.DashWave)); // 대시 파동이면 고퀄 폭 3줄 그림
+            if (Traits.Has(TraitType.DashWave) && landing != startPos) // 11-07 사용자 - 폭 3줄 범위 안 몹마다 발톱(치기 전 자리 기준, 그림 없는 등급은 안 뜸)
+            {
+                var waveCells = Mathf.Max(Mathf.Abs(landing.x - startPos.x), Mathf.Abs(landing.y - startPos.y));
+                var waveSide = new Vector2Int(-dir.y, dir.x);
+                var clawed = new HashSet<EnemyActor>(); // 3x3 보스는 한 번
+                for (var waveStep = 1; waveStep <= waveCells; waveStep++)
+                    foreach (var wc in new[] { startPos + dir * waveStep, startPos + dir * waveStep + waveSide, startPos + dir * waveStep - waveSide })
+                        if (Map.IsInBounds(wc) && Map.GetActorAt(wc) is EnemyActor ce && !ce.Stats.IsDead && clawed.Add(ce))
+                            HitFeedback.OnDashWaveClaw(new Vector3(wc.x, wc.y, 0f) * GridConstants.CellSize, waveStep, waveCells, Fx.Angle(dir));
+            }
             if (hit == null && _room.TryUseExit(landing))
                 return true;
             _room.CheckPlayerCrack(); // 대시로 내려선 칸이 균열이면 묶인다

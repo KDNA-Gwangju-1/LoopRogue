@@ -10,16 +10,17 @@ PAD = np.array([130, 52, 40.]); PADL = np.array([170, 80, 66.])
 rng = np.random.default_rng(44)
 
 
-def paw_img(ang, sc, fade=0.0, f=0):
-    # 금빛 호랑이 앞발(전설 베기와 같은 그림) - 80판 가운데, 발톱이 ang 방향
-    C = 80; M = np.zeros((C, C), bool); COL = np.zeros((C, C, 3)); cx = cy = C / 2
+def paw_img(ang, sc, fade=0.0, f=0, C=80):
+    # 금빛 호랑이 앞발(전설 베기와 같은 그림) - C판 가운데, 발톱이 ang 방향
+    M = np.zeros((C, C), bool); COL = np.zeros((C, C, 3)); cx = cy = C / 2
     ca, sa = math.cos(math.radians(ang)), math.sin(math.radians(ang))
     def p(u, v, col):
         x = int(round(cx + (u * ca - v * sa) * sc)); y = int(round(cy + (u * sa + v * ca) * sc))
         if 0 <= x < C and 0 <= y < C: M[y, x] = True; COL[y, x] = col
+    stp = 0.5 / max(1.0, sc * 1.1)                           # 크게 그릴 때 구멍 안 나게
     def ell(u0, v0, ru, rv, fn):
-        for u in np.arange(u0 - ru, u0 + ru + .01, 0.5):
-            for v in np.arange(v0 - rv, v0 + rv + .01, 0.5):
+        for u in np.arange(u0 - ru, u0 + ru + .01, stp):
+            for v in np.arange(v0 - rv, v0 + rv + .01, stp):
                 if ((u - u0) / ru) ** 2 + ((v - v0) / rv) ** 2 <= 1: p(u, v, fn(u, v))
     ell(-12, 0, 11, 8.5, lambda u, v: ST if ((u - v * 0.5) % 6) < 2 and abs(v) < 6.5 and u < -5 else (GLD if v < -3 else OR if v < 4 else ORD))
     ell(0, 0, 9, 11, lambda u, v: LGT if v < -6 else GLD if v < 0 else OR)
@@ -29,9 +30,9 @@ def paw_img(ang, sc, fade=0.0, f=0):
         ell(tu, tv, 3.6, 3.1, lambda u, v: GLD if u < tu - 1.5 else OR)
         ell(tu + 0.5, tv, 1.8, 1.6, lambda u, v: PAD)
     for tu, tv in toes:
-        for s in np.arange(0, 1.001, 0.04):
+        for s in np.arange(0, 1.001, 0.04 / max(1.0, sc)):
             u = tu + 3 + 11 * s; v = tv + 5 * s * s * (1 if tv >= 0 else 0.6); th = 1.7 * (1 - s) + 0.4
-            for o in np.arange(-th, th + .01, 0.5): p(u - o * 0.3, v + o, WHITE if abs(o) < th * 0.55 else LGT)
+            for o in np.arange(-th, th + .01, stp): p(u - o * 0.3, v + o, WHITE if abs(o) < th * 0.55 else LGT)
     ring = np.zeros_like(M)
     for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)): ring |= np.roll(np.roll(M, dy, 0), dx, 1)
     ring &= ~M; allm = M | ring
@@ -176,5 +177,125 @@ def dash(n=3):
     return out
 
 
+PAWIMG = Image.open(os.path.join(S, "paw_01.png")).convert("RGBA")
+def spiritize(im, chunk=2):
+    # 11-07 사용자 "손 모양 퀄을 더더더 낮춰야": 색을 7종으로 나누고 2x2 칸을 한 도트로(외곽선·줄무늬 우선) -> 굵고 단순한 도트
+    a = np.array(im).astype(float); A = a[..., 3] > 0
+    PROTO = [  # (분류, 대표색들)
+        (0, [(13, 12, 28)]),                                                    # 외곽선
+        (5, [(69, 45, 43), (53, 33, 31), (82, 38, 19), (111, 62, 31)]),         # 줄무늬
+        (6, [(254, 254, 254), (202, 176, 166), (181, 153, 149), (115, 97, 93)]),  # 발톱
+        (7, [(232, 188, 137), (218, 164, 118), (197, 136, 94), (185, 106, 76), (154, 93, 57)]),  # 발가락 아래·발바닥
+        (1, [(146, 67, 4), (190, 97, 7)]), (2, [(218, 120, 11), (239, 143, 17), (252, 165, 25)]),
+        (3, [(251, 192, 55), (253, 219, 86), (253, 227, 135)]), (4, [(254, 248, 225), (252, 234, 182)])]
+    cols = np.array([c for _, cs in PROTO for c in cs], float); ids = np.array([k for k, cs in PROTO for c in cs])
+    d = ((a[..., None, :3] - cols[None, None]) ** 2).sum(-1); cls = np.where(A, ids[d.argmin(-1)], -1)
+    H0, W0 = cls.shape; h, w = H0 // chunk, W0 // chunk
+    blk = cls[:h * chunk, :w * chunk].reshape(h, chunk, w, chunk).transpose(0, 2, 1, 3).reshape(h, w, -1)
+    out_c = np.full((h, w), -1)
+    for y in range(h):
+        for x in range(w):
+            v = blk[y, x]; v = v[v >= 0]
+            if len(v) < chunk * chunk / 2: continue
+            if (v == 0).sum() >= 2: out_c[y, x] = 0
+            elif (v == 5).sum() >= 2: out_c[y, x] = 5
+            else: out_c[y, x] = np.bincount(v).argmax()
+    PAL = {0: (64, 24, 8), 1: (200, 96, 24), 2: (240, 150, 36), 3: (255, 206, 90), 4: (255, 240, 190), 5: (150, 44, 20), 6: (255, 248, 232), 7: (236, 168, 120)}
+    out = np.zeros((h, w, 4), np.uint8)
+    for k, c in PAL.items(): out[out_c == k] = (*c, 255)
+    return np.array(Image.fromarray(out).resize((w * chunk, h * chunk), Image.NEAREST))
+
+
+PAWA = spiritize(PAWIMG)
+PAWIMG = Image.fromarray(PAWA)
+_bb = PAWIMG.getbbox(); PTIP = _bb[2] - 4                          # 발톱 끝 x
+PCY = PAWIMG.height * 0.52                                          # 발 세로 가운데(발톱 네 개 가운데)
+REARX = PAWIMG.width * 0.32                                         # 이보다 뒤(왼쪽)는 흩어지기 시작
+
+
+def dash_wave(n):
+    # 전설 대시 파동(폭 3줄): 3칸 폭 거대한 금빛 앞발이 길 전체를 한 번에 쓸고 지나가고, 줄마다 길게 이어진 검붉은 발톱 자국 세 줄.
+    # 판 = 길 n칸 + 양옆 0.3칸 + 앞뒤 여유 E(앞발이 크니까), 세로 3칸 + 0.6칸. 게임은 판 가운데 = 길 가운데로 그대로 재생
+    pad = int(0.3 * CELL); E = 150; W = int(n * CELL) + 2 * pad + 2 * E; Hh = int(3 * CELL) + 2 * pad; cy = Hh / 2
+    x0 = E + pad; x1 = E + pad + n * CELL - 0.4 * CELL; SC = 5.2; TIP = 25 * SC; PC = 340   # 발톱 끝은 도착 칸 0.4칸 앞(용사와 안 겹치게), 바깥 발톱이 양옆 줄에 닿게
+    T = n + 2                                                   # 앞발이 끝까지 가는 장 수
+    lanes = (cy - CELL, cy, cy + CELL)
+    CLW = [(255, 246, 236), (255, 150, 120), (232, 60, 52), (170, 24, 36), (110, 10, 22), (70, 4, 14)]
+    CLB, CLBX, CLBY = claw_frames(1.0)
+    CLB_ = CLB
+    embers = []; out = []
+    tipx = lambda f: x0 + (x1 - x0) * (1 - (1 - min(1, f / T)) ** 1.8)
+    def arc(ff):                                                # 발톱 끝 위치·앞발 각도: 위에서 시작해 아래로 내려치며 돌진
+        e = 1 - (1 - min(1, max(0, ff) / T)) ** 1.6
+        return tipx(ff), cy - 0.75 * CELL * math.cos(math.pi * e), -32 + 60 * e
+    for f in range(T + 20):
+        can = Image.new("RGBA", (W, Hh)); a = np.array(can).astype(float)
+        # 발톱 자국: 앞발이 휘두르며 쓸고 간 호를 따라 발톱 4줄. 발톱 끝이 지나간 순간부터 생기고, 식으면 붉게 -> 검붉게 -> 점선
+        for k in range(3):                                           # 줄(3칸 폭)마다 발톱 자국 1줄씩, 공격 범위 3줄 x n칸 전체
+            j_, m_ = k, 1; off = (j_ - 1) * CELL
+            NS = int(x1 - x0 + 0.5 * CELL)
+            for st in range(0, NS + 1):
+                q = st / NS
+                age = f - (T + 1 + 2.5 * q)                          # 앞발이 흩어질 때 앞쪽부터 차례로 드러남
+                if age < 0: break
+                life = 12 + (st + k * 5) % 4
+                if age > life: continue
+                taper = 0.45 + 0.55 * math.sin(math.pi * q) ** 0.35
+                xx = x0 - 0.1 * CELL + st
+                yy0 = cy + off - 0.16 * CELL * math.cos(math.pi * q) + 1.5 * math.sin(q * 5 + j_)   # 위에서 아래로 살짝 내려 그은 긁힘
+                th = (4.6 if age < 3 else 3.4 if age < 7 else 2.0) * taper
+                if age > 9 and (st // 3 + k + f) % 3 == 0: continue
+                xi = int(round(xx))
+                if not 0 <= xi < W: continue
+                for yy in range(int(yy0 - th - 1), int(yy0 + th) + 2):
+                    d = abs(yy - yy0) / max(th, 0.5)
+                    if not 0 <= yy < Hh: continue
+                    if d > 1:
+                        if age < 4 and d < 1.6 and a[yy, xi, 3] == 0: a[yy, xi] = (232, 60, 52, 90)
+                        continue
+                    ci = (0 if d < 0.4 else 1) if age < 2 else (2 if d < 0.5 else 3) if age < 6 else (3 if d < 0.5 else 4) if age < 10 else 5
+                    a[yy, xi] = (*CLW[ci], 255)
+        can = Image.new("RGBA", (W, Hh))
+        can.alpha_composite(Image.fromarray(a.clip(0, 255).astype(np.uint8)))
+        if f <= T + 4:                                               # 앞발: 직선이 아니라 위에서 아래로 휘두르며 돌진(발톱 끝이 호를 그림)
+            fade = max(0, (f - T - 1) / 4)
+            def paw_at(ff, alpha, tint=None):
+                pa = PAWA.copy(); ph, pw_ = pa.shape[:2]
+                k_ = np.clip((REARX - np.arange(pw_)) / 55, 0, 1)
+                r_ = np.random.default_rng(ff * 7 + 1).random((ph, pw_))
+                drop = r_ < k_[None, :] ** 0.9
+                if fade: drop |= r_ < fade
+                if alpha < 1: drop |= r_ < (1 - alpha)
+                pa[drop, 3] = 0
+                if tint is not None: pa[pa[..., 3] > 0, :3] = tint
+                tx, ty, ang = arc(ff)
+                im_ = Image.fromarray(pa); w0, h0 = im_.size
+                vx, vy = PTIP - w0 / 2, PCY - h0 / 2
+                ca_, sa_ = math.cos(math.radians(ang)), math.sin(math.radians(ang))
+                rim = im_.rotate(-ang, resample=Image.NEAREST, expand=True)
+                nx_, ny_ = rim.width / 2 + vx * ca_ - vy * sa_, rim.height / 2 + vx * sa_ + vy * ca_
+                return rim, tx - nx_, ty - ny_
+            for back, al, tn in ((2, 0.35, (226, 120, 30)), (1, 0.6, (255, 186, 64))):   # 잔상
+                if f - back >= 0 and f <= T:
+                    im_, x_, y_ = paw_at(f - back, al, tn); can.alpha_composite(im_, (int(round(x_)), int(round(y_))))
+            im_, px, py_ = paw_at(f, 1.0); can.alpha_composite(im_, (int(round(px)), int(round(py_))))
+            for _ in range(10 if f <= T else 22):
+                embers.append([arc(f)[0] - rng.uniform(0, 120), arc(f)[1] + rng.uniform(-40, 40), rng.uniform(-1.2, 0.2), rng.uniform(-1.6, -0.2), int(rng.integers(4, 9))])
+        can = embers_step(can, embers)
+        out.append(can)
+    return out
+
+
+def wave_claw():
+    # 대시 파동 범위 안 몹 위에 뜨는 붉은 발톱(pixelfx claw-swipe 그대로), 128x128 판 가운데 = 몹 가운데
+    fr, cx_, cy_ = claw_frames(1.0)
+    while fr and fr[-1].getbbox() is None: fr.pop()
+    out = []
+    for im in fr:
+        can = Image.new("RGBA", (128, 128)); can.alpha_composite(im, (int(round(64 - cx_)), int(round(64 - cy_)))); out.append(can)
+    return out
+
+
 if __name__ == "__main__":
-    print("spin", SL.save(spin(), "hq_spin_g4"), "cross", SL.save(cross(), "hq_spin_cross_g4"), "dash", [SL.save(dash(n), f"hq_dash_g4_{n}") for n in (1, 2, 3, 4)])
+    print("spin", SL.save(spin(), "hq_spin_g4"), "cross", SL.save(cross(), "hq_spin_cross_g4"), "dash", [SL.save(dash(n), f"hq_dash_g4_{n}") for n in (1, 2, 3, 4)],
+          "wave", [SL.save(dash_wave(n), f"hq_dash_wave_g4_{n}") for n in (1, 2, 3, 4)])
