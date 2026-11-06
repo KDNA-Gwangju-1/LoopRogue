@@ -269,9 +269,7 @@ namespace LoopRogue
                 dashAnim.PlayDirClip("dash",
                     Mathf.Abs(path.x) >= Mathf.Abs(path.y) ? new Vector2Int(path.x > 0 ? 1 : -1, 0) : new Vector2Int(0, path.y > 0 ? 1 : -1),
                     HeroLook.DashClipSeconds);
-            if (path.sqrMagnitude > 0.01f)
-                PlayGraded("dash", (from + to) * 0.5f, path.magnitude / GridConstants.CellSize + 0.6f,
-                    Mathf.Atan2(path.y, path.x) * Mathf.Rad2Deg, 12f, 2); // 11-03 분신·그림자 속도선과 같은 속도(22 → 12)
+            PlayDashStreak(from, to, 12f); // 11-03 분신·그림자 속도선과 같은 속도(22 → 12), 11-06 고퀄이면 hq_dash
             CameraShake.Shake(0.05f, 0.08f);
             SfxPlayer.Play(Sfx.Dash);
         }
@@ -326,8 +324,27 @@ namespace LoopRogue
         {
             var path = to - from;
             if (path.sqrMagnitude > 0.01f)
-                PlayGraded("dash", (from + to) * 0.5f, path.magnitude / GridConstants.CellSize + 0.6f,
-                    Mathf.Atan2(path.y, path.x) * Mathf.Rad2Deg, fps, 2);
+            {
+                var size = path.magnitude / GridConstants.CellSize + 0.6f;
+                var angle = Mathf.Atan2(path.y, path.x) * Mathf.Rad2Deg;
+                // 고퀄: 대시 거리별 그림(hq_dash_g{등급}_{1~4칸}, 11-06 - 늘이면 앞발·픽셀 크기가 달라져서 칸 수마다 따로 그림), 늘이지 않고 그대로
+                var cells = Mathf.Clamp(Mathf.RoundToInt(path.magnitude / GridConstants.CellSize), 1, 4);
+                var hqName = $"dash_g{HeroLook.WeaponGrade}_{cells}";
+                var hq = HeroLook.IsHq ? Fx.Frames("hq_" + hqName) : System.Array.Empty<Sprite>();
+                if (hq.Length == 0 || Fx.Play("hq_" + hqName, (from + to) * 0.5f, PlayerActor.PlayerSpriteScale * hq[0].rect.width / 64f, angle, fps: 30f, sortingOrder: 2) == null)
+                    PlayGraded("dash", (from + to) * 0.5f, size, angle, fps, 2);
+            }
+        }
+
+        /// <summary>11-06 고퀄 그림체 전용 스킬 이펙트(Effects/hq_{name}_g{등급}, pixelfx 등급색, 30fps) - 고퀄이 아니거나 그림이 없으면 null.</summary>
+        private static Fx PlayHqSkill(string name, Vector3 position, float size, float angle, int sortingOrder) =>
+            HeroLook.IsHq && size > 0f ? Fx.Play($"hq_{name}_g{HeroLook.WeaponGrade}", position, size, angle, fps: 30f, sortingOrder: sortingOrder) : null;
+
+        /// <summary>고퀄 스킬 그림 크기(칸) - 그림 1px = 용사 그림 1px(용사 64px = PlayerSpriteScale칸). 그림이 없으면 0.</summary>
+        private static float HqSkillCells(string name)
+        {
+            var frames = Fx.Frames($"hq_{name}_g{HeroLook.WeaponGrade}");
+            return frames.Length > 0 ? PlayerActor.PlayerSpriteScale * frames[0].rect.width / 64f : 0f;
         }
 
         /// <summary>십자 문장 회오리 그림 크기(칸) - spin_cross_g 그림(160px)이 5.5칸 폭 기준으로 그려졌다(한 칸 ≈ 29px).</summary>
@@ -359,7 +376,14 @@ namespace LoopRogue
             // 주변 8칸을 감싸는 고리(끝없는 회전 5x5면 크게). 3층 보스 유물 "십자 문장"(가운데 3x3 + 상하좌우 끝 1칸)이면 그 모양대로 휘도는 전용 그림
             // spin_cross_g{등급}(11-03 사용자 - 안 베는 칸은 안 지나가게 그림, 160px = 5.5칸). 그림만, 공격 범위 PlayerActor.SpinOffsets는 그대로.
             Fx swirl = null;
-            if (!wide && Relics.Has(RelicType.CrossCrest))
+            if (HeroLook.IsHq) // 11-06 고퀄: 위에서 본 회전 고리(반지름 약 1.2칸), 끝없는 회전 5x5면 5/3배. 십자 문장은 고리 + 상하좌우 2칸 속도선
+            {
+                if (!wide && Relics.Has(RelicType.CrossCrest))
+                    swirl = PlayHqSkill("spin_cross", player.transform.position, HqSkillCells("spin_cross"), 0f, 7);
+                if (swirl == null)
+                    swirl = PlayHqSkill("spin", player.transform.position, HqSkillCells("spin") * (wide ? 5f / 3f : 1f), 0f, 7);
+            }
+            if (swirl == null && !wide && Relics.Has(RelicType.CrossCrest))
                 swirl = Fx.Play($"spin_cross_g{HeroLook.WeaponGrade}", player.transform.position, SpinCrossSize, fps: 22f, sortingOrder: 7);
             if (swirl == null)
                 swirl = PlayGraded("spin", player.transform.position, wide ? 5.5f : 3.3f, 0f, 22f, 7);
