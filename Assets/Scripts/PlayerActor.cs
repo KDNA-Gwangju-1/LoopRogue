@@ -1626,7 +1626,7 @@ namespace LoopRogue
             LastSkill = AttackStyle.Dash;
             if (landing != GridPos)
                 Map.MoveActor(this, landing);
-            HitFeedback.OnDash(this, from);
+            HitFeedback.OnDash(this, from, Traits.Has(TraitType.DashWave)); // 대시 파동이면 고퀄 폭 3줄 그림
             if (hit == null && _room.TryUseExit(landing))
                 return true;
             _room.CheckPlayerCrack(); // 대시로 내려선 칸이 균열이면 묶인다

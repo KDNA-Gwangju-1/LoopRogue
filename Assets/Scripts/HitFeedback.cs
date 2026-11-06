@@ -244,8 +244,8 @@ namespace LoopRogue
             }
         }
 
-        /// <summary>대시 직후(이미 새 칸으로 옮긴 뒤) - 지나온 길에 잔상을 남긴다.</summary>
-        public static void OnDash(PlayerActor player, Vector3 from)
+        /// <summary>대시 직후(이미 새 칸으로 옮긴 뒤) - 지나온 길에 잔상을 남긴다. dashWave = 특성 "대시 파동"이 걸린 대시(고퀄이면 폭 3줄 전용 그림 하나로).</summary>
+        public static void OnDash(PlayerActor player, Vector3 from, bool dashWave = false)
         {
             if (!Enabled)
                 return;
@@ -269,7 +269,8 @@ namespace LoopRogue
                 dashAnim.PlayDirClip("dash",
                     Mathf.Abs(path.x) >= Mathf.Abs(path.y) ? new Vector2Int(path.x > 0 ? 1 : -1, 0) : new Vector2Int(0, path.y > 0 ? 1 : -1),
                     HeroLook.DashClipSeconds);
-            PlayDashStreak(from, to, 12f); // 11-03 분신·그림자 속도선과 같은 속도(22 → 12), 11-06 고퀄이면 hq_dash
+            if (!(dashWave && PlayHqDashWave(from, to)))
+                PlayDashStreak(from, to, 12f); // 11-03 분신·그림자 속도선과 같은 속도(22 → 12), 11-06 고퀄이면 hq_dash
             CameraShake.Shake(0.05f, 0.08f);
             SfxPlayer.Play(Sfx.Dash);
         }
@@ -287,13 +288,35 @@ namespace LoopRogue
             var weaponTf = player.transform.Find("HeroWeapon");
             if (weaponTf != null && weaponTf.TryGetComponent<SpriteRenderer>(out var wr))
                 weapon = wr.sprite;
+            var hqWave = HqDashWaveFrames(from, to).Length > 0; // 11-06 고퀄 폭 3줄 그림(OnDash에서 이미 재생) - 그림자 줄 속도선은 따로 안 그림
             foreach (var s in new[] { side, -side })
             {
                 var a = from + s;
                 var b = to + s;
                 DashShadowRunner.Spawn(body.sprite, weapon, body.flipX, player.transform.localScale.x, a, b,
-                    DashShadowRunner.ShadowBody, DashShadowRunner.ShadowTrail, () => PlayDashStreak(a, b, 12f));
+                    DashShadowRunner.ShadowBody, DashShadowRunner.ShadowTrail, hqWave ? (System.Action)(() => { }) : () => PlayDashStreak(a, b, 12f));
             }
+        }
+
+        /// <summary>11-06 고퀄 "대시 파동" 전용 그림(hq_dash_wave_g{등급}_{1~4칸}) - 세로 3줄 폭 초승달 파동 + 세 줄 속도선. 고퀄이 아니거나 없으면 빈 배열.</summary>
+        private static Sprite[] HqDashWaveFrames(Vector3 from, Vector3 to)
+        {
+            if (!HeroLook.IsHq)
+                return System.Array.Empty<Sprite>();
+            var cells = Mathf.Clamp(Mathf.RoundToInt((to - from).magnitude / GridConstants.CellSize), 1, 4);
+            return Fx.Frames($"hq_dash_wave_g{HeroLook.WeaponGrade}_{cells}");
+        }
+
+        /// <summary>대시 파동 그림을 길 가운데에 길 방향으로(늘이지 않고 그대로). 그림이 없으면 false.</summary>
+        private static bool PlayHqDashWave(Vector3 from, Vector3 to)
+        {
+            var frames = HqDashWaveFrames(from, to);
+            var path = to - from;
+            if (frames.Length == 0 || path.sqrMagnitude < 0.01f)
+                return false;
+            var cells = Mathf.Clamp(Mathf.RoundToInt(path.magnitude / GridConstants.CellSize), 1, 4);
+            return Fx.Play($"hq_dash_wave_g{HeroLook.WeaponGrade}_{cells}", (from + to) * 0.5f, PlayerActor.PlayerSpriteScale * frames[0].rect.width / 64f,
+                Mathf.Atan2(path.y, path.x) * Mathf.Rad2Deg, fps: 30f, sortingOrder: 2) != null;
         }
 
         /// <summary>특성 "분신 대시" - 분신이 지나간 길(from → to)에 플레이어 잔상과 대시 궤적. 소리·흔들림은 본체 대시가 낸다.</summary>
