@@ -1633,9 +1633,17 @@ namespace LoopRogue
                 var waveSide = new Vector2Int(-dir.y, dir.x);
                 var clawed = new HashSet<EnemyActor>(); // 3x3 보스는 한 번
                 for (var waveStep = 1; waveStep <= waveCells; waveStep++)
-                    foreach (var wc in new[] { startPos + dir * waveStep, startPos + dir * waveStep + waveSide, startPos + dir * waveStep - waveSide })
-                        if (Map.IsInBounds(wc) && Map.GetActorAt(wc) is EnemyActor ce && !ce.Stats.IsDead && clawed.Add(ce))
-                            HitFeedback.OnDashWaveClaw(new Vector3(wc.x, wc.y, 0f) * GridConstants.CellSize, waveStep, waveCells, Fx.Angle(dir));
+                    for (var waveLane = -1; waveLane <= 1; waveLane++)
+                    {
+                        var wc = startPos + dir * waveStep + waveSide * waveLane;
+                        if (!Map.IsInBounds(wc))
+                            continue;
+                        var wpos = new Vector3(wc.x, wc.y, 0f) * GridConstants.CellSize;
+                        if (!Map.IsWall(wc)) // 11-07 사용자 "바닥에만 문양" - 벽 칸엔 바닥 불 문장을 안 깜
+                            HitFeedback.OnDashWaveTile(wpos, waveStep, waveLane, waveCells);
+                        if (Map.GetActorAt(wc) is EnemyActor ce && !ce.Stats.IsDead && clawed.Add(ce))
+                            HitFeedback.OnDashWaveClaw(wpos, waveStep, waveCells, Fx.Angle(dir), waveLane);
+                    }
             }
             if (hit == null && _room.TryUseExit(landing))
                 return true;

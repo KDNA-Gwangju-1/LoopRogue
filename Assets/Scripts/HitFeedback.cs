@@ -321,7 +321,7 @@ namespace LoopRogue
 
         /// <summary>11-07 고퀄 "대시 파동" - 폭 3줄 범위 안 몹 위에 붉은 발톱(hq_wave_claw_g{등급}). 앞발이 흩어지며 그 칸 발톱 자국이 드러나는 때에 맞춰 늦게 뜬다.
         /// step = 출발 다음 칸부터 몇 번째 칸(1~), cells = 대시 칸 수. 그림이 없는 등급은 그냥 넘어감.</summary>
-        public static void OnDashWaveClaw(Vector3 position, int step, int cells, float angle)
+        public static void OnDashWaveClaw(Vector3 position, int step, int cells, float angle, int side = 0)
         {
             if (!Enabled || !HeroLook.IsHq)
                 return;
@@ -330,8 +330,33 @@ namespace LoopRogue
             if (frames.Length == 0)
                 return;
             cells = Mathf.Clamp(cells, 1, 4);
-            var delay = (cells + 3 + 2.5f * (step - 0.5f) / cells) / 30f; // 대시 파동 그림(30fps)에서 자국이 드러나는 장
+            var delay = HasWaveTile ? WaveTileDelay(step, side, cells) // 바닥 칸 그림이 있는 등급(신화~) = 그 칸에 불붙는 때
+                : (cells + 3 + 2.5f * (step - 0.5f) / cells) / 30f; // 대시 파동 그림(30fps)에서 자국이 드러나는 장
             Fx.Play(name, position, PlayerActor.PlayerSpriteScale * frames[0].rect.width / 64f, angle, fps: 30f, sortingOrder: 6, delay: delay);
+        }
+
+        private static bool HasWaveTile => HeroLook.IsHq && Fx.Frames($"hq_wave_tile_g{HeroLook.WeaponGrade}").Length > 0;
+
+        /// <summary>대시 파동 바닥 칸에 불이 붙는 때(초) - 용이 다 지나간 뒤(칸 수 + 5장) 범위 한가운데부터 바깥으로 4장에 걸쳐 번짐(30fps).
+        /// step = 출발 다음 칸부터 1~, side = 옆줄(-1·0·1). 그림 쪽 skill_myth.wave_tile·dash_wave와 같은 셈.</summary>
+        private static float WaveTileDelay(int step, int side, int cells)
+        {
+            const float px = 51.2f; // 그림의 한 칸
+            var dx = (step - (cells + 1) * 0.5f) * px / (cells * px * 0.5f + 6f);
+            var dy = side * px / (1.5f * px + 4f);
+            return (cells + 5 + 4f * Mathf.Min(1f, Mathf.Sqrt(dx * dx + dy * dy))) / 30f;
+        }
+
+        /// <summary>11-07 고퀄 "대시 파동" 바닥 한 칸(hq_wave_tile_g{등급} - 칸마다 불 문장 + 불꽃). 벽 칸은 부르는 쪽(PlayerActor)이 뺀다(사용자 "바닥에만 문양").
+        /// 위에서 본 문장이라 돌리지 않음. 그림이 없는 등급은 그냥 넘어감.</summary>
+        public static void OnDashWaveTile(Vector3 position, int step, int side, int cells)
+        {
+            if (!Enabled || !HasWaveTile)
+                return;
+            var name = $"hq_wave_tile_g{HeroLook.WeaponGrade}";
+            var frames = Fx.Frames(name);
+            cells = Mathf.Clamp(cells, 1, 4);
+            Fx.Play(name, position, PlayerActor.PlayerSpriteScale * frames[0].rect.width / 64f, 0f, fps: 30f, sortingOrder: -5, delay: WaveTileDelay(step, side, cells)); // 바닥(-10)·벽(-8) 위, 몹·용사(0~1) 아래
         }
 
         /// <summary>특성 "분신 대시" - 분신이 지나간 길(from → to)에 플레이어 잔상과 대시 궤적. 소리·흔들림은 본체 대시가 낸다.</summary>
