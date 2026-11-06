@@ -22,6 +22,7 @@ namespace LoopRogue
         /// 몸은 칼 없이 방어구 등급별 세트(HeroHQ = 일반, HeroHQ{등급}, 없으면 일반), 칼은 등급별 각도 그림(HeroHQSword{등급}/a_0~63)을
         /// 몸 세트의 손 위치 표(weapon_anchor.txt)대로 매 그림마다 붙인다 - 방어구×칼 조합이 늘어도 그림 수가 안 늘게(11-05 사용자 결정).</summary>
         public const string HqSet = "HeroHQ";
+        public static bool IsHq => UseHq;
         private static bool UseHq => GameSettings.Art == GameSettings.ArtStyle.HighQuality && SpriteAnimator.FirstFrame(HqSet) != null;
 
         public static string HqBodySet

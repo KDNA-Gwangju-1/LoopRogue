@@ -41,7 +41,11 @@ namespace LoopRogue
             var cell = GridConstants.CellSize;
             var slashPos = enemy.transform.position - new Vector3(direction.x, direction.y, 0f) * cell * 0.2f;
             var graded = (isCritical ? "slash_crit_g" : "slash_g") + HeroLook.WeaponGrade; // 11-03 무기 등급별 베기(Effects/slash_g0~9, slash_crit_g0~9)
-            if (Fx.Play(graded, slashPos, isCritical ? 1.7f : 1.2f, Fx.Angle(direction)) == null)
+            if (PlayHqSlash(player, direction, isCritical))
+            {
+                // 고퀄 전용 베기를 띄웠으면 작은 베기는 건너뜀
+            }
+            else if (Fx.Play(graded, slashPos, isCritical ? 1.7f : 1.2f, Fx.Angle(direction)) == null)
                 Fx.Play(isCritical ? "slash_crit" : "slash", slashPos, isCritical ? 1.7f : 1.2f, Fx.Angle(direction));
             Fx.Play("hit_spark", enemy.transform.position, isCritical ? 0.9f : 0.6f);
 
@@ -55,6 +59,41 @@ namespace LoopRogue
                 CameraShake.Shake(0.04f, 0.08f);
                 SfxPlayer.Play(Sfx.Hit);
             }
+        }
+
+        /// <summary>11-06 고퀄 그림체 전용 베기(Effects/hq_slash_g{등급}, pixelfx 바탕 + 등급별 연출, 가운데 = 용사 몸 가운데).
+        /// 신화(5) 붉은 용이 칼 궤적을 타고 날아 몹을 휘감음 / 고대(6) 하늘에서 고대 검 환영이 떨어져 룬 마법진에 꽂힘 /
+        /// 초월(7) 몹 자리를 세 번 더 베어 공간이 찢어지고 깨짐 / Unknown(9) 청록·분홍 갈라진 호 + 우주 마름모.
+        /// 판 크기(192·256px)와 상관없이 그림 1칸 = 용사 그림 1칸(용사 64px = PlayerSpriteScale칸). 오른쪽을 보고 그린 그림이라
+        /// 왼쪽은 좌우 뒤집고, 위·아래는 전용 판(_up/_down - 떨어지는 검·고정된 X자처럼 돌리면 안 되는 것)이 있으면 그대로, 없으면 돌린다.
+        /// 그림이 없거나 고퀄이 아니면 false(예전 작은 베기).</summary>
+        private static bool PlayHqSlash(PlayerActor player, Vector2Int direction, bool isCritical)
+        {
+            if (!HeroLook.IsHq)
+                return false;
+            var name = "hq_slash_g" + HeroLook.WeaponGrade;
+            var angle = 0f;
+            if (direction.y != 0)
+            {
+                var alt = name + (direction.y > 0 ? "_up" : "_down");
+                if (Fx.Frames(alt).Length > 0)
+                    name = alt;
+                else
+                    angle = direction.y > 0 ? 90f : -90f;
+            }
+            var frames = Fx.Frames(name);
+            if (frames.Length == 0)
+                return false;
+            var size = PlayerActor.PlayerSpriteScale * frames[0].rect.width / 64f * (isCritical ? 1.15f : 1f);
+            var fx = Fx.Play(name, player.transform.position, size, angle, fps: 30f);
+            if (fx == null)
+                return false;
+            if (direction.x < 0)
+            {
+                var s = fx.transform.localScale;
+                fx.transform.localScale = new Vector3(-Mathf.Abs(s.x), s.y, s.z);
+            }
+            return true;
         }
 
         /// <summary>몹이 죽는 순간 - Destroy 전에 불러야 색/위치를 읽을 수 있다.</summary>

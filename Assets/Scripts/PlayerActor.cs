@@ -346,7 +346,7 @@ namespace LoopRogue
         private SpriteAnimator _anim; // 전용 도트 그림(Resources/Sprites/Player)이 있으면 4방향 대기·걷기·공격
 
         private const string PlayerSpriteSet = "Player";
-        private const float PlayerSpriteScale = 1.25f; // 64x64 캔버스에 몸이 40px 남짓 - 예전 그림(48px, 0.9칸)과 비슷한 키
+        internal const float PlayerSpriteScale = 1.25f; // 64x64 캔버스에 몸이 40px 남짓 - 예전 그림(48px, 0.9칸)과 비슷한 키
 
         public void Initialize(RoomController room)
         {
