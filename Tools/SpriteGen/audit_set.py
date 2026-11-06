@@ -21,7 +21,7 @@ for g in groups:
         src = os.path.join(DESK, folder, "원본", "회전베기" if kind == "spin" else f"{K[kind]}_{D[d]}", f"{i+1:02}.png")
         rgb = np.array(Image.open(src).convert("RGB")).astype(int)
         r, gg, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
-        m = (r > 190) & (b > 190) & (gg < 90) & (abs(r - b) < 60)
+        m = ((r > 200) & (b > 200) & (gg < 40) & (abs(r - b) < 30)) if folder in {"몸_08_초월"} else ((r > 190) & (b > 190) & (gg < 90) & (abs(r - b) < 60))  # hq_export.STRICT_MAGENTA와 같게
         ys, xs = np.nonzero(m)
         if len(xs) < 50: bad.append((key, "원본에 칼 없음")); continue
         c = np.cov(np.vstack([xs - xs.mean(), ys - ys.mean()]))
