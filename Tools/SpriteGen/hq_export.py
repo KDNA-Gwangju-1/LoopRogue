@@ -12,6 +12,7 @@
 - 바탕화면\\{날짜} 용사 고퀄\\{세트}\\: 원본(Codex 그림), 인게임(png), GIF\\도트(게임처럼 칼 붙임)·GIF\\원본"""
 import os, sys, glob, uuid, shutil, datetime, math
 import numpy as np
+import cv2
 from PIL import Image, ImageDraw
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -353,6 +354,32 @@ def copy_ref_eyes(frames):
                 EYE_COPY_LOG.append(f"{g}_{idx}")
 
 
+def head_template(rgb, cls, pt):
+    """대기 첫 장 원본의 머리(몸 맨 위부터 18칸) 회색 본 - 배경·분홍 칼은 흰색. 1/4로 줄여 씀."""
+    g = cv2.cvtColor(rgb.astype(np.uint8), cv2.COLOR_RGB2GRAY).astype(np.float32)
+    g[cls != 1] = 255
+    ys, xs = np.nonzero(cls == 1); top = ys.min(); bot = int(top + 18 * pt)
+    band = cls[top:bot] == 1; cx = np.nonzero(band.any(0))[0]
+    t = g[top:bot, cx.min():cx.max() + 1]
+    return cv2.resize(t, (max(8, t.shape[1] // 4), max(8, t.shape[0] // 4)), interpolation=cv2.INTER_AREA)
+
+
+def head_scale(tmpl, rgb, cls):
+    """그 장 원본에서 대기 머리가 몇 배로 그려졌는지(0.7~1.6배 맞대보기) -> (배율, 맞은 정도)."""
+    g = cv2.cvtColor(rgb.astype(np.uint8), cv2.COLOR_RGB2GRAY).astype(np.float32)
+    g[cls != 1] = 255
+    g = cv2.resize(g, (g.shape[1] // 4, g.shape[0] // 4), interpolation=cv2.INTER_AREA)
+    best = (0.0, 1.0)
+    for sc in np.linspace(.7, 1.6, 46):
+        t = cv2.resize(tmpl, (max(4, int(tmpl.shape[1] * sc)), max(4, int(tmpl.shape[0] * sc))), interpolation=cv2.INTER_AREA)
+        if t.shape[0] >= g.shape[0] or t.shape[1] >= g.shape[1]:
+            continue
+        r = cv2.matchTemplate(g, t, cv2.TM_CCOEFF_NORMED).max()
+        if r > best[0]:
+            best = (float(r), float(sc))
+    return best[1], best[0]
+
+
 OUTLINE_LOG = []
 MANUAL_FIX = {
     # 대기_옆 첫 장(대기 옆 8장이 다 이 장에서 나옴): 코처럼 튀어나온 피부 칸 -> 테두리로 마감, 바깥 테두리 칸은 지움
@@ -526,16 +553,32 @@ def export_set(folder, swords):
         ratio[d] = float(np.median([hs / ((h + 1) / 48) for (_, _, _, _, _, hs, h) in src]))
         base_pt[d] = float(np.median([(h + 1) / 48 for (_, _, _, _, _, hs, h) in src]))
 
+    head_ref = {}
+    for d in ("south", "west", "north"):
+        _, rgb0, _, _, cls0, _, h0 = pre[f"idle_{d}"][0]
+        head_ref[d] = (head_template(rgb0, cls0, (h0 + 1) / 48), (h0 + 1) / 48)
     frames = {}
     for g, items in pre.items():
         kind, d = g.split("_")
-        out = []
-        for p, rgb, bg, mg, cls, hs, h in items:
-            if kind in ("idle", "walk"):
-                pt = (h + 1) / 48
-            else:
-                dd = d if d in ratio else "south"
-                pt = float(np.clip(hs / ratio[dd], base_pt[dd] * .88, base_pt[dd] * 1.12))
+        # 11-06 사용자: 공격할 때 캐릭터가 커졌다 작아졌다 함 + 동작끼리 크기가 안 맞음
+        # -> 코덱스가 장마다 다른 크기로 그렸으니, 대기 첫 장 원본 머리를 본으로 떠서 장마다 몇 배로 그려졌는지 찾아 그만큼 축척을 맞춘다
+        #    (모든 장·모든 동작의 머리가 대기와 같은 크기). 잘 안 맞는 장(고개 돌림 등)은 같은 동작 가운데값. 64칸 넘는 장이 있으면 동작 전체를 같이 줄임.
+        dref = d if d in head_ref else "south"
+        if kind == "idle":
+            pts = [(h + 1) / 48 for _, _, _, _, _, hs, h in items]
+        else:
+            tm, pref = head_ref[dref]
+            got = [head_scale(tm, rgb, cls) for _, rgb, _, _, cls, _, _ in items]
+            pts = [pref * sc if sco >= .5 else None for sc, sco in got]
+            okp = [x for x in pts if x is not None]
+            med = float(np.median(okp)) if okp else pref
+            pts = [x if x is not None else med for x in pts]
+            print(f"  {g}: 머리 배율 " + " ".join(f"{sc:.2f}" + ("" if sco >= .5 else "?") for sc, sco in got))
+        factor = 1.0
+        for _attempt in range(3):
+          out = []; need = []
+          for p, rgb, bg, mg, cls, hs, h in items:
+            pt = pts[len(out)] * factor
             ys = np.nonzero(cls == 1)[0]
             geo = sword_geometry(dilate(mg, 1) & ~bg, cls == 1)
             extra = 4
@@ -569,6 +612,12 @@ def export_set(folder, swords):
                 nb, nm = (c == 1).sum(), (c == 2).sum()
                 behind = nb > .35 * max(1, nb + nm)
             out.append(dict(eye_cells=eye_cells, rgb=rgb, pt=pt, ox=ox, oy=oy, extra=extra, col=col, op=op, geo=geo, sure=LAST_SURE, behind=behind, mg=mg, bg=bg, cls=cls))
+            need.append(pt)
+          grow = max(n_ / (p_ * factor) for n_, p_ in zip(need, pts))
+          if kind == "idle" or grow <= 1.0001:
+              break
+          factor *= grow  # 제일 많이 줄여야 했던 장에 맞춰 동작 전체를 같이 줄여 다시
+          print(f"  {g}: 64칸 넘는 장이 있어 동작 전체 {1 / factor:.2f}배로 다시")
         # 11-06 앞뒤 장 둘 다와 정반대(120도 넘게)로 칼끝이 간 장 = 손잡이·칼끝을 거꾸로 읽은 것 -> 앞뒤 장 방향으로 다시
         for i, f in enumerate(out):
             if f["geo"] is None or f["sure"]:
@@ -616,6 +665,27 @@ def export_set(folder, swords):
             bodies[bad_key] = bodies[use_key].copy()
             if use_key in anchors:
                 anchors[bad_key] = anchors[use_key]
+    # 11-06 사용자: 옆모습 대기 칼이 손이 아니라 손 앞에 떠 있고, 칼끝이 땅에 닿아 한두 칸 삐져나옴
+    # -> 칼막이를 주먹(칼 자리 둘레 피부 칸 가운데)에서 칼날 쪽으로 1.5칸에 두고, 칼끝이 발바닥 2칸 위보다 내려가면 칼을 앞으로 들어 올림
+    if "idle_west_0" in anchors:
+        ax0, ay0, k0, b0 = anchors["idle_west_0"]
+        img = bodies["idle_west_0"]; rgb = img[..., :3].astype(int)
+        skin = (img[..., 3] > 0) & (rgb[..., 0] > 200) & (rgb[..., 0] - rgb[..., 2] > 40) & (rgb[..., 1] > 140) & (rgb[..., 1] < 215)
+        yy, xx = np.nonzero(skin)
+        near = (np.hypot(xx - ax0, yy - ay0) <= 7) & (yy > FEET - 25)
+        k = k0
+        if near.sum() >= 2:  # 영웅은 건틀릿이라 피부 칸이 2칸뿐
+            fx, fy = xx[near].mean() + .5, yy[near].mean() + .5
+            def tip_y(kk, gx, gy):
+                a = math.radians(kk * 360 / ANGLES); return gy - math.cos(a) * SWORD_LEN
+            def guard(kk):
+                a = math.radians(kk * 360 / ANGLES); return fx + math.sin(a) * 1.5, fy - math.cos(a) * 1.5
+            gx, gy = guard(k)
+            while tip_y(k, gx, gy) > FEET - 2 and k % ANGLES != ANGLES * 3 // 4:  # 서쪽 = 270도까지
+                k = (k + (1 if math.sin(math.radians(k * 360 / ANGLES)) < 0 else -1)) % ANGLES
+                gx, gy = guard(k)
+            anchors["idle_west_0"] = (gx, gy, k, b0)
+            print(f"  대기 옆 칼: ({ax0:.1f},{ay0:.1f}) 각도{k0} -> 주먹({fx:.1f},{fy:.1f}) 칼막이({gx:.1f},{gy:.1f}) 각도{k}")
     # 11-06 사용자가 좌표로 짚은 칸 손보기(게임 64칸 좌표). "ol" = 테두리색, "clear" = 투명
     for key, fixes in MANUAL_FIX.get(name, {}).items():
         if key in bodies:
