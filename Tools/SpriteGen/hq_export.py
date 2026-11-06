@@ -354,6 +354,40 @@ def copy_ref_eyes(frames):
 
 
 OUTLINE_LOG = []
+MANUAL_FIX = {
+    # 대기_옆 첫 장(대기 옆 8장이 다 이 장에서 나옴): 코처럼 튀어나온 피부 칸 -> 테두리로 마감, 바깥 테두리 칸은 지움
+    "HeroHQ": {"idle_west_0": [(27, 27, "ol"), (26, 27, "clear"), (26, 28, "clear"), (28, 29, "ol"), (29, 29, "ol"), (30, 29, "ol")]},
+    # 11-06 사용자: 고급·희귀·영웅도 옆모습 같은 문제(일반과 같은 방식: 코 칸 -> 테두리, 그 바깥·아래 테두리 지움, 턱 맨 아래 피부 줄 -> 테두리)
+    "HeroHQ1": {"idle_west_0": [(25, 28, "ol"), (26, 30, "ol"), (26, 31, "clear"), (24, 28, "clear"), (24, 29, "clear"), (27, 30, "ol"), (28, 30, "ol")]},
+    "HeroHQ2": {"idle_west_0": [(26, 29, "ol"), (25, 29, "clear"), (25, 30, "clear"), (27, 31, "ol"), (28, 31, "ol"), (29, 31, "ol")]},
+    "HeroHQ3": {"idle_west_0": [(26, 29, "ol"), (25, 29, "clear"), (26, 31, "ol"), (28, 31, "ol"), (29, 31, "ol"), (30, 31, "ol")]},
+}
+IDLE_N = 16                       # 대기 장 수(게임 0.15초씩 -> 한 바퀴 2.4초, HeroLook IdleSlow 4)
+IDLE_HEAD = tuple(range(3, 12))   # 머리 1칸 내려간 장(먼저 내려가고 늦게 올라옴)
+IDLE_BODY = tuple(range(4, 11))   # 몸(목~무릎) 1칸 내려간 장
+IDLE_BLINK = 14                   # 눈 감은 장
+
+
+def blink(img, eyes):
+    """눈동자 칸(맨 위) 둘레 파란·흰 칸과 바로 위 속눈썹을 피부로 덮고, 눈동자 줄에 눈 감은 선(테두리색)."""
+    R = 2
+    a = img[..., 3] > 0
+    rgb = img[..., :3].astype(int)
+    dark = a & (rgb.sum(-1) < 90)
+    olc = np.median(rgb[dark], 0) if dark.any() else np.array([9, 13, 33])
+    for aj, ai in eyes:
+        box = [(aj + dj, ai + di) for dj in range(-R, R + 1) for di in range(-R, R + 1)
+               if 0 <= aj + dj < img.shape[0] and 0 <= ai + di < img.shape[1] and a[aj + dj, ai + di]]
+        skin = [rgb[j, i] for j, i in box if rgb[j, i][0] > 200 and rgb[j, i][0] - rgb[j, i][2] > 40 and not _eyeish(rgb[j, i])]
+        if not skin:
+            continue
+        sk = np.median(skin, 0)
+        cols = sorted({i for j, i in box if _eyeish(rgb[j, i])})
+        for j, i in box:
+            if _eyeish(rgb[j, i]) or (j == aj - 1 and i in cols and dark[j, i]):
+                img[j, i, :3] = sk
+        for i in cols:
+            img[aj, i, :3] = olc
 
 
 def add_outline(col, op):
@@ -551,7 +585,7 @@ def export_set(folder, swords):
 
     copy_ref_eyes(frames)  # 11-06 사용자: 눈 주변은 장마다 바뀔 이유가 없다 -> 대기 첫 장 눈을 같은 방향 모든 장에
     pal = make_palette(np.concatenate([f["col"][f["op"]] for fl in frames.values() for f in fl]), NCOL)
-    bodies, anchors = {}, {}
+    bodies, anchors, eyes_at = {}, {}, {}
     for g, fl in frames.items():
         for idx, f in enumerate(fl):
             op, col = f["op"], f["col"]
@@ -566,6 +600,7 @@ def export_set(folder, swords):
                     can[ty, tx, :3] = c; can[ty, tx, 3] = 255
             key = f"{g}_{idx}"
             bodies[key] = can
+            eyes_at[key] = [(j + dy, i + dx) for j, i in f.get("eye_cells", [])]
             if f["geo"] is not None:
                 C0, u, L = f["geo"]
                 ax = (C0[0] - f["ox"]) / f["pt"] + f["extra"] + dx
@@ -581,6 +616,45 @@ def export_set(folder, swords):
             bodies[bad_key] = bodies[use_key].copy()
             if use_key in anchors:
                 anchors[bad_key] = anchors[use_key]
+    # 11-06 사용자가 좌표로 짚은 칸 손보기(게임 64칸 좌표). "ol" = 테두리색, "clear" = 투명
+    for key, fixes in MANUAL_FIX.get(name, {}).items():
+        if key in bodies:
+            img = bodies[key]
+            ol = img[(img[..., 3] > 0) & (img[..., :3].astype(int).sum(-1) < 90)][:, :3]
+            olc = np.median(ol, 0).astype(np.uint8) if len(ol) else np.array([9, 13, 33], np.uint8)
+            for x, y, what in fixes:
+                if what == "clear":
+                    img[y, x] = 0
+                else:
+                    img[y, x, :3] = olc; img[y, x, 3] = 255
+    # 11-06 사용자: 대기 모션이 너무 정신없다(코덱스가 8장을 따로 그려 장마다 조금씩 다름) -> 첫 장 하나로 숨쉬기만.
+    # + "좀 더 움직이는 느낌": 16장(게임에서 한 바퀴 2.4초), 머리가 한 박자 먼저 1칸 내려가고 몸(무릎 위·손·칼)이 따라감, 한 바퀴에 한 번 깜빡임.
+    neck_ref = None
+    for d in ("south", "west", "north"):
+        base = f"idle_{d}_0"
+        if base not in bodies:
+            continue
+        b0 = bodies[base]; a0 = anchors.get(base)
+        rows = np.nonzero(b0[..., 3].any(1))[0]
+        split = FEET - 7 if a0 is None else int(min(FEET - 5, max(FEET - 9, a0[1] + 3)))
+        eyes = eyes_at.get(base, [])
+        if eyes:
+            neck = max(e[0] for e in eyes) + 3
+            neck_ref = neck if d == "south" else neck_ref
+        else:
+            neck = neck_ref if neck_ref is not None else rows.min() + 15
+        for i in range(IDLE_N):
+            h, t = int(i in IDLE_HEAD), int(i in IDLE_BODY)
+            img = b0.copy()
+            if t:
+                img[neck + 2:split + 2] = b0[neck + 1:split + 1]
+            if h:
+                img[1:neck + 2] = b0[0:neck + 1]; img[0] = 0
+            if i == IDLE_BLINK and eyes:
+                blink(img, [(e[0] + h, e[1]) for e in eyes])
+            bodies[f"idle_{d}_{i}"] = img
+            if a0 is not None:
+                anchors[f"idle_{d}_{i}"] = (a0[0], a0[1] + t, a0[2], a0[3])
     # 게임에 쓰기(서쪽 = 동쪽 반전도)
     lines = []
     for key, img in bodies.items():

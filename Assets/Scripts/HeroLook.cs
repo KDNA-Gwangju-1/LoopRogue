@@ -180,6 +180,9 @@ namespace LoopRogue
         internal static void Apply(SpriteAnimator anim, SpriteRenderer body, SpriteRenderer weapon)
         {
             anim.Setup(BodySet, body, DebrisColor);
+            // 11-06 고퀄 대기 = 16장 숨쉬기·깜빡임(한 바퀴 2.4초). 부드럽게 재생은 장 수와 상관없이 한 바퀴 0.6초라 4배 느리게
+            anim.IdleSlow = UseHq ? 4f : 1f;
+            anim.StepSlow = UseHq ? 1.3f : 1f; // 11-06 사용자: 인게임 걷기 조금 더 천천히(한 칸 0.18 -> 0.234초)
             if (UseHq)
             {
                 anim.SetOverlay(null, null, null); // 칼은 Shown에서 직접

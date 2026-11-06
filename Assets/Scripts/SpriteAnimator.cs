@@ -155,6 +155,9 @@ namespace LoopRogue
 
         /// <summary>대기 프레임 시간 배율(11-04 GPT 용사 - 망토가 크게 펄럭여서 같은 박자도 슬라임보다 빨라 보임). 기본 1.</summary>
         public float IdleSlow { get; set; } = 1f;
+        /// <summary>11-06 한 칸 걷는 시간 배율(고퀄 용사는 걷기 모션이 빨라 보여 조금 느리게). 칸 이동 판정과는 무관, 그림·미끄러짐만.</summary>
+        public float StepSlow { get; set; } = 1f;
+        private float StepTime => StepSeconds * StepSlow;
 
         private float FrameTime(float baseSeconds, int length) =>
             _smooth && length >= 8 ? baseSeconds * 4f / length : baseSeconds;
@@ -327,10 +330,10 @@ namespace LoopRogue
                 _lastPos = _actor.GridPos;
             }
 
-            var stepping = _stepStart >= 0f && Time.time < _stepStart + StepSeconds;
+            var stepping = _stepStart >= 0f && Time.time < _stepStart + StepTime;
             if (_stepStart >= 0f)
             {
-                var t = stepping ? (Time.time - _stepStart) / StepSeconds : 1f;
+                var t = stepping ? (Time.time - _stepStart) / StepTime : 1f;
                 transform.position = Vector3.Lerp(_stepFrom, _actor.GridWorldPosition, t);
                 if (!stepping)
                     _stepStart = -1f;
@@ -385,7 +388,7 @@ namespace LoopRogue
                 {
                     // 한 칸 = 반 바퀴(한쪽 발) - 걸음마다 번갈아 앞·뒤 절반을 한 칸 걷는 시간에 맞춰 돌린다
                     var half = walk.Length / 2;
-                    var k = Mathf.Min(half - 1, (int)((Time.time - _stepStart) / (StepSeconds / half)));
+                    var k = Mathf.Min(half - 1, (int)((Time.time - _stepStart) / (StepTime / half)));
                     Show(walk[_stepParity * half + k], 1, _stepParity * half + k);
                 }
                 else
