@@ -96,3 +96,7 @@ crashlytics-build.properties
 
 # 이펙트 확인 캡처(테스트 메뉴)
 Screenshots/
+
+# 파이썬 캐시 / 버린 시안(커밋 안 함)
+__pycache__/
+Tools/SpriteGen/draw_hq_slash.py
