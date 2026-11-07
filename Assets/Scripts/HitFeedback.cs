@@ -18,7 +18,7 @@ namespace LoopRogue
         public static bool Enabled => !DamagePopup.Suppressed;
 
         /// <summary>플레이어가 몹을 때렸을 때(죽었든 아니든 먼저 부른다).</summary>
-        public static void OnPlayerHitEnemy(PlayerActor player, EnemyActor enemy, Vector2Int direction, bool isCritical, bool blocked = false)
+        public static void OnPlayerHitEnemy(PlayerActor player, EnemyActor enemy, Vector2Int direction, bool isCritical, bool blocked = false, bool isSkill = false)
         {
             if (!Enabled)
                 return;
@@ -41,7 +41,11 @@ namespace LoopRogue
             var cell = GridConstants.CellSize;
             var slashPos = enemy.transform.position - new Vector3(direction.x, direction.y, 0f) * cell * 0.2f;
             var graded = (isCritical ? "slash_crit_g" : "slash_g") + HeroLook.WeaponGrade; // 11-03 무기 등급별 베기(Effects/slash_g0~9, slash_crit_g0~9)
-            if (PlayHqSlash(player, direction, isCritical))
+            if (isSkill && HeroLook.IsHq)
+            {
+                // 11-07 고퀄: 스킬(대시·회전·파동·유물 추가타 등)로 맞힌 몹마다 용사 몸에서 큰 일반 베기가 또 나가던 것 막음 - 스킬 이펙트가 따로 있으니 불꽃만
+            }
+            else if (PlayHqSlash(player, direction, isCritical))
             {
                 // 고퀄 전용 베기를 띄웠으면 작은 베기는 건너뜀
             }
@@ -406,8 +410,18 @@ namespace LoopRogue
         }
 
         /// <summary>11-06 고퀄 그림체 전용 스킬 이펙트(Effects/hq_{name}_g{등급}, pixelfx 등급색, 30fps) - 고퀄이 아니거나 그림이 없으면 null.</summary>
-        private static Fx PlayHqSkill(string name, Vector3 position, float size, float angle, int sortingOrder) =>
-            HeroLook.IsHq && size > 0f ? Fx.Play($"hq_{name}_g{HeroLook.WeaponGrade}", position, size, angle, fps: 30f, sortingOrder: sortingOrder) : null;
+        private static Fx PlayHqSkill(string name, Vector3 position, float size, float angle, int sortingOrder, string variant = "") =>
+            HeroLook.IsHq && size > 0f ? Fx.Play($"hq_{name}_g{HeroLook.WeaponGrade}{variant}", position, size, angle, fps: 30f, sortingOrder: sortingOrder) : null;
+
+        /// <summary>11-07 같은 스킬의 다른 버전 그림(hq_{name}_g{등급}_v1, _v2 ...)이 있으면 원본 포함 무작위 하나의 꼬리말("" = 원본).</summary>
+        private static string HqVariant(string name)
+        {
+            var n = 1;
+            while (n < 8 && Fx.Frames($"hq_{name}_g{HeroLook.WeaponGrade}_v{n}").Length > 0)
+                n++;
+            var pick = Random.Range(0, n);
+            return pick == 0 ? "" : $"_v{pick}";
+        }
 
         /// <summary>고퀄 스킬 그림 크기(칸) - 그림 1px = 용사 그림 1px(용사 64px = PlayerSpriteScale칸). 그림이 없으면 0.</summary>
         private static float HqSkillCells(string name)
@@ -448,9 +462,20 @@ namespace LoopRogue
             if (HeroLook.IsHq) // 11-06 고퀄: 위에서 본 회전 고리(반지름 약 1.2칸), 끝없는 회전 5x5면 5/3배. 십자 문장은 고리 + 상하좌우 2칸 속도선
             {
                 if (!wide && Relics.Has(RelicType.CrossCrest))
-                    swirl = PlayHqSkill("spin_cross", player.transform.position, HqSkillCells("spin_cross"), 0f, 7);
+                {
+                    // 11-07 Unknown: 블랙홀 폭발 모양이 매번 다르게(사용자 "자유분방하게") - 그림 hq_spin_cross_g{등급}, _v1, _v2 ... 중 무작위(위·아래 겹 같은 번호)
+                    var v = HqVariant("spin_cross");
+                    swirl = PlayHqSkill("spin_cross", player.transform.position, HqSkillCells("spin_cross"), 0f, 7, v);
+                    if (swirl != null) // 용사 아래 겹(있는 등급만 - Unknown 마름모 블랙홀)
+                        PlayHqSkill("spin_cross_under", player.transform.position, HqSkillCells("spin_cross_under"), 0f, -5, v);
+                }
                 if (swirl == null)
+                {
                     swirl = PlayHqSkill("spin", player.transform.position, HqSkillCells("spin") * (wide ? 5f / 3f : 1f), 0f, 7);
+                    // 11-07 용사 아래 겹(hq_spin_under_g{등급}, 있는 등급만 - Unknown 블랙홀 본체·원반 뒤쪽): 용사를 가리지 않게 바닥(-10)·벽(-8) 위, 몹·용사(0~1) 아래
+                    if (swirl != null)
+                        PlayHqSkill("spin_under", player.transform.position, HqSkillCells("spin_under") * (wide ? 5f / 3f : 1f), 0f, -5);
+                }
             }
             if (swirl == null && !wide && Relics.Has(RelicType.CrossCrest))
                 swirl = Fx.Play($"spin_cross_g{HeroLook.WeaponGrade}", player.transform.position, SpinCrossSize, fps: 22f, sortingOrder: 7);

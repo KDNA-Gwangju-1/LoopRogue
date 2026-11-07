@@ -1026,7 +1026,7 @@ namespace LoopRogue
                 DamagePopup.SpawnText(enemy.transform.position, Loc.T("무적"), new Color(0.7f, 0.75f, 0.85f)); // 기믹 중 보스(11-02 무적)
             else
                 DamagePopup.Spawn(enemy.transform.position, damage, blocked ? new Color(0.6f, 0.65f, 0.75f) : Color.white, isCritical && !blocked);
-            HitFeedback.OnPlayerHitEnemy(this, enemy, direction, isCritical, blocked);
+            HitFeedback.OnPlayerHitEnemy(this, enemy, direction, isCritical, blocked, isSkill);
             OnAttackedEnemy?.Invoke(enemy);
             BreakSmoke(); // 때리는 순간 연막이 걷힌다(일반 공격·대시·회전 베기 공통)
             if (!isSkill)
