@@ -1673,6 +1673,14 @@ namespace LoopRogue
             if (landing != GridPos)
                 Map.MoveActor(this, landing);
             HitFeedback.OnDash(this, from, Traits.Has(TraitType.DashWave)); // 대시 파동이면 고퀄 폭 3줄 그림
+            if (Traits.Has(TraitType.DashWave) && landing != startPos)
+            {
+                // 양옆 줄 그림자 용사 둘이 같이 돌진(11-03 사용자). 11-09 - 타격 전에 띄운다: 마지막 몹을 대시로 잡으면 방 클리어로
+                // 여기서 바로 빠져나가 그림자가 안 나와 "일반 대시"처럼 보였다(사용자 "몹 한 마리 남았을 때 대시로 잡으면 일반 대시").
+                var offset = GridWorldPosition - new Vector3(GridPos.x, GridPos.y, 0f) * GridConstants.CellSize;
+                HitFeedback.OnDashWaveShadows(this, new Vector3(startPos.x, startPos.y, 0f) * GridConstants.CellSize + offset, GridWorldPosition,
+                    new Vector3(-dir.y, dir.x, 0f) * GridConstants.CellSize);
+            }
             if (Traits.Has(TraitType.DashWave) && landing != startPos) // 11-07 사용자 - 폭 3줄 범위 안 몹마다 발톱(치기 전 자리 기준, 그림 없는 등급은 안 뜸)
             {
                 var waveCells = Mathf.Max(Mathf.Abs(landing.x - startPos.x), Mathf.Abs(landing.y - startPos.y));
@@ -1728,12 +1736,6 @@ namespace LoopRogue
             if (TyrantLanding(GridPos, hit, 1f))
                 return true;
 
-            if (Traits.Has(TraitType.DashWave) && GridPos != startPos) // 양옆 줄 그림자 용사 둘이 같이 돌진(11-03 사용자)
-            {
-                var offset = GridWorldPosition - new Vector3(GridPos.x, GridPos.y, 0f) * GridConstants.CellSize;
-                HitFeedback.OnDashWaveShadows(this, new Vector3(startPos.x, startPos.y, 0f) * GridConstants.CellSize + offset, GridWorldPosition,
-                    new Vector3(-dir.y, dir.x, 0f) * GridConstants.CellSize);
-            }
             if (Traits.Has(TraitType.DashWave) && DashWave(startPos, dir, passed ?? (hit != null ? new List<EnemyActor> { hit } : new List<EnemyActor>())))
                 return true;
 
