@@ -1701,6 +1701,7 @@ namespace LoopRogue
             }
             if (hit == null && _room.TryUseExit(landing))
                 return true;
+            var clonePaths = Traits.Has(TraitType.DashClone) ? LaunchDashClones(startPos, dir) : null; // 분신 잔상은 타격 전에(피해는 아래, 출구로 나가면 안 띄움)
             _room.CheckPlayerCrack(); // 대시로 내려선 칸이 균열이면 묶인다
             _room.CheckSlimePuddle(); // 4층 슬라임 킹 점액 - 걸어서 밟을 때와 같게
             if (landing != startPos)
@@ -1739,7 +1740,7 @@ namespace LoopRogue
             if (Traits.Has(TraitType.DashWave) && DashWave(startPos, dir, passed ?? (hit != null ? new List<EnemyActor> { hit } : new List<EnemyActor>())))
                 return true;
 
-            if (Traits.Has(TraitType.DashClone) && DashClones(startPos, dir))
+            if (clonePaths != null && DashClones(clonePaths))
                 return true;
 
             if (_dashChaining)
@@ -1773,9 +1774,18 @@ namespace LoopRogue
         /// <summary>특성 "분신 대시"(11-02 사용자) - 대시를 시작한 자리에서 분신 둘이 대시 방향의 앞 대각선 두 갈래로 같이 돌진한다.
         /// 길·멈추는 규칙은 대시와 같고(돌진의 뿔이면 관통), 피해는 대시의 Traits.DashCloneDamageRate. 그림자 걸음·폭군의 갑주도 분신에 적용.
         /// 분신은 칸을 차지하지 않는 잔상이라 출구·퍼즐·균열엔 반응하지 않는다. 기억하는 기사는 분신 공격을 간파하지 못한다. 방이 넘어갔으면 true.</summary>
-        private bool DashClones(Vector2Int start, Vector2Int dir)
+        private struct ClonePath
         {
-            var rate = Traits.DashCloneDamageRate;
+            public Vector2Int Side, Landing;
+            public EnemyActor Hit;
+            public List<EnemyActor> Passed;
+        }
+
+        /// <summary>분신 길을 재고 잔상을 바로 띄운다(11-09 사용자 "분신 대시도 나가게" - 본체 타격 전에. 마지막 몹을 본체가 잡으면
+        /// 방 클리어로 TryDash가 빠져나가 분신이 안 나왔다). 피해는 DashClones(paths)가 본체 타격 뒤에.</summary>
+        private List<ClonePath> LaunchDashClones(Vector2Int start, Vector2Int dir)
+        {
+            var paths = new List<ClonePath>();
             var offset = GridWorldPosition - new Vector3(GridPos.x, GridPos.y, 0f) * GridConstants.CellSize;
             foreach (var side in new[] { dir + new Vector2Int(-dir.y, dir.x), dir + new Vector2Int(dir.y, -dir.x) }) // 대시 방향 앞 대각선 둘
             {
@@ -1784,6 +1794,20 @@ namespace LoopRogue
                 var from = new Vector3(start.x, start.y, 0f) * GridConstants.CellSize + offset;
                 var end = hit != null && landing == start ? start + side : landing; // 바로 옆 몹을 치면 그 칸까지 뻗는 잔상
                 HitFeedback.OnDashClone(this, from, new Vector3(end.x, end.y, 0f) * GridConstants.CellSize + offset);
+                paths.Add(new ClonePath { Side = side, Landing = landing, Hit = hit, Passed = passed });
+            }
+            return paths;
+        }
+
+        private bool DashClones(List<ClonePath> paths)
+        {
+            var rate = Traits.DashCloneDamageRate;
+            foreach (var p in paths)
+            {
+                var side = p.Side;
+                var landing = p.Landing;
+                var hit = p.Hit;
+                var passed = p.Passed;
                 if (hit != null)
                     foreach (var target in passed ?? new List<EnemyActor> { hit })
                     {
