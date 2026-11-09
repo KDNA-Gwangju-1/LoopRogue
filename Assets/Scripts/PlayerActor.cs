@@ -482,16 +482,16 @@ namespace LoopRogue
 
             var shieldRate = (EquipmentEffects.Has(ItemSlot.Armor, 1) ? EquipmentEffects.RoomShieldRate : 0f) + Stats.RoomShieldCardRate; // 갑옷 효과 + 수호막 카드
             Stats.Shield = Stats.MaxHealth * shieldRate;
-            _firstStrikeReady = Relics.Has(RelicType.FirstStrike); // 유물 "첫 일격"
+            _firstStrikeReady = Relics.Has(RelicType.FirstStrike); // 유물 "기습 단검"
             if (EquipmentEffects.HasMemorySet)
                 Stats.BlockNextHit = true; // Unknown 세트 "기억의 벼림" - 방마다 처음 받는 피해 1번 무효
 
-            _bannerReady = Relics.Has(RelicType.PhantomBanner); // 유물 "망령의 깃발" - 방마다 1번(TryPhantomBanner)
+            _bannerReady = Relics.Has(RelicType.PhantomBanner); // 유물 "미끼 허수아비" - 방마다 1번(TryPhantomBanner)
         }
 
         private bool _bannerReady;
 
-        /// <summary>유물 "망령의 깃발" - 몹 턴이 끝났을 때(RoomController.EndOfEnemyTurns) 체력이 30% 아래면 방마다 1번,
+        /// <summary>유물 "미끼 허수아비" - 몹 턴이 끝났을 때(RoomController.EndOfEnemyTurns) 체력이 30% 아래면 방마다 1번,
         /// 내 둘레 8칸 중 몹에 가장 가까운 빈칸에 허수아비(7턴). 예전엔 방에 들어갈 때마다 옆에 생겨 길만 막았다(10-27 테스터 "선택할 이유가 없다").</summary>
         public void TryPhantomBanner()
         {
@@ -520,7 +520,7 @@ namespace LoopRogue
             _bannerReady = false;
             Relics.Mark(RelicType.PhantomBanner);
             _room.PlaceDecoy(best.Value, Relics.PhantomBannerTurns);
-            _room.ShowMessage(Loc.F("망령의 깃발! 허수아비가 {0}턴 동안 공격을 받아 낸다", Relics.PhantomBannerTurns));
+            _room.ShowMessage(Loc.F("미끼 허수아비! {0}턴 동안 몹들의 공격을 받아 낸다", Relics.PhantomBannerTurns));
         }
 
         private bool _firstStrikeReady;
@@ -531,7 +531,7 @@ namespace LoopRogue
             Relics.Mark(type);
             return true;
         }
-        private int _echoCount; // 유물 "메아리 칼날" - 일반 공격 횟수
+        private int _echoCount; // 유물 "메아리 방울" - 일반 공격 횟수
         private bool _echoReady; // 3번째 공격으로 대상이 죽어 아직 못 쓴 추가타 - 다음 일반 공격에
 
         /// <summary>새 시도(스테이지 입장, 사망 후 계속하기)마다 - 갑옷 "불굴"/"응급 처치"를 한 번씩 다시 채운다. 처음엔 방마다였는데
@@ -557,7 +557,7 @@ namespace LoopRogue
             _comboCount = 0;
             Stats.UndyingReady = EquipmentEffects.Has(ItemSlot.Armor, 3);
             Stats.EmergencyHealReady = EquipmentEffects.Has(ItemSlot.Armor, 4);
-            Stats.ReviveReady = Relics.Has(RelicType.SecondWind); // 유물 "두 번째 숨"
+            Stats.ReviveReady = Relics.Has(RelicType.SecondWind); // 유물 "불사조 깃털"
         }
 
         // 검 "연격" - 일반 공격(방향키로 때리기) 횟수. 스킬은 안 센다.
@@ -984,21 +984,21 @@ namespace LoopRogue
             }
             var raw = Stats.RollAttackDamage(out var isCritical);
             var firstStrike = 1f;
-            if (_firstStrikeReady) // 유물 "첫 일격" - 방마다 첫 타격 피해 1.5배(치명타와 따로 곱한다)
+            if (_firstStrikeReady) // 유물 "기습 단검" - 방마다 첫 타격 피해 1.5배(치명타와 따로 곱한다)
             {
                 _firstStrikeReady = false;
                 firstStrike = Relics.FirstStrikeDamage;
             }
-            if (isCritical && Relics.Has(RelicType.SniperEye)) // 유물 "저격수의 눈" - 치명타 피해 +50%p
+            if (isCritical && Relics.Has(RelicType.SniperEye)) // 유물 "저격수의 조준경" - 치명타 피해 +50%p
             {
                 Relics.Mark(RelicType.SniperEye);
                 raw *= (Stats.CriticalDamageMultiplier + Relics.SniperCritDamageBonus) / Stats.CriticalDamageMultiplier;
             }
             var berserk = Relics.Has(RelicType.Berserker) && Stats.CurrentHealth <= Stats.MaxHealth * Relics.BerserkerThreshold
-                ? 1f + Relics.BerserkerBonus : 1f; // 유물 "광전사"
-            var executioner = Relics.Has(RelicType.Executioner) && !enemy.IsBoss ? Relics.ExecutionerDamage : 1f; // 유물 "사형 집행자" - 일반 몹 피해 증가
-            var eliteHunter = Relics.Has(RelicType.EliteHunter) && (enemy.IsElite || enemy.IsMimic) ? Relics.EliteHunterDamage : 1f; // 유물 "정예 사냥꾼"
-            var snare = Relics.Has(RelicType.SnareHunter) && enemy.IsSnared ? Relics.SnareHunterDamage : 1f; // 유물 "사냥꾼의 올가미"
+                ? 1f + Relics.BerserkerBonus : 1f; // 유물 "광전사의 가면"
+            var executioner = Relics.Has(RelicType.Executioner) && !enemy.IsBoss ? Relics.ExecutionerDamage : 1f; // 유물 "추수의 낫" - 일반 몹 피해 증가
+            var eliteHunter = Relics.Has(RelicType.EliteHunter) && (enemy.IsElite || enemy.IsMimic) ? Relics.EliteHunterDamage : 1f; // 유물 "현상금 수배서"
+            var snare = Relics.Has(RelicType.SnareHunter) && enemy.IsSnared ? Relics.SnareHunterDamage : 1f; // 유물 "덫꾼의 올가미"
             if (berserk > 1f) Relics.Mark(RelicType.Berserker);
             if (executioner > 1f) Relics.Mark(RelicType.Executioner);
             if (eliteHunter > 1f) Relics.Mark(RelicType.EliteHunter);
@@ -1040,7 +1040,7 @@ namespace LoopRogue
             return ClaimKill(enemy);
         }
 
-        // ---- 유물 "그림자 걸음"(10-29 사용자) - 대시로 벤 몹에게 그 대시 피해의 75%가 그림자로 한 번 더.
+        // ---- 유물 "그림자 망토"(10-29 사용자) - 대시로 벤 몹에게 그 대시 피해의 75%가 그림자로 한 번 더.
         // 11-02 사용자: 맞고 살아남은 몹에 그림자가 붙어 있는 게 보이고(ShadowEchoMark), 내 "다음 행동"이 끝나는 순간(EndTurn, 몹 턴 전) 그림자들이 같이 벤다.
         // 예전엔 대시한 그 몹 턴이 끝날 때 바로 들어갔다. Armed = 다음 행동에서 터질 준비가 됐다(그 대시 행동 안에서 붙은 그림자는 아직). ----
         private sealed class ShadowEcho
@@ -1220,11 +1220,19 @@ namespace LoopRogue
             _shadowEchoes.Clear();
         }
 
-        /// <summary>그림자 걸음 - 벤 순간(보랏빛 그림자 갈라짐 + 플레이어 실루엣이 달라붙음). 테스트 메뉴 "그림자 걸음 이펙트 캡처"도 이걸 부른다.</summary>
+        /// <summary>그림자 걸음 - 벤 순간(보랏빛 그림자 갈라짐 + 플레이어 실루엣이 달라붙음). 테스트 메뉴 "그림자 망토 이펙트 캡처"도 이걸 부른다.</summary>
         public void PlayShadowMarkFx(Vector3 position, EnemyActor enemy = null)
         {
             // 11-02 사용자 "어두운 방에서 잘 안 보인다" - 밝은 보라로, 실루엣 더 진하게, 몹이 보랏빛으로 번쩍 + 작은 파편
-            Fx.Play("shadow_split", position, 1.2f, tint: new Color(0.8f, 0.6f, 1f, 1f), fps: 16f, sortingOrder: 6);
+            // 11-09 고퀄: 용사 자리에서 그림자 덩어리가 몹에게 날아가 닿으면 그림자 형체가 나타남(Effects/hq_shadow_wisp → hq_shadow_split)
+            var from = GridWorldPosition;
+            if ((from - position).sqrMagnitude < 0.01f)
+                from = position + Vector3.left * GridConstants.CellSize * 1.5f; // 테스트 캡처처럼 같은 자리면 왼쪽에서
+            var flew = HeroLook.IsHq && Fx.Frames("hq_shadow_wisp").Length > 0 && Fx.Frames("hq_shadow_split").Length > 0
+                && Fx.Projectile("hq_shadow_wisp", from, position, 1.5f, Mathf.Clamp(Vector3.Distance(from, position) / GridConstants.CellSize * 0.05f, 0.1f, 0.25f),
+                    () => Fx.Play("hq_shadow_split", position, 1.5f, fps: 20f, sortingOrder: 6));
+            if (!flew)
+                Fx.Play("shadow_split", position, 1.2f, tint: new Color(0.8f, 0.6f, 1f, 1f), fps: 16f, sortingOrder: 6);
             if (_renderer != null)
                 DeathBurst.SpawnGhost(_renderer.sprite, position, transform.localScale.x, new Color(0.7f, 0.55f, 1f, 0.65f));
             DeathBurst.Spawn(position, new Color(0.75f, 0.55f, 1f), count: 6, speed: 4f, size: 0.1f);
@@ -1232,7 +1240,11 @@ namespace LoopRogue
                 ActorJuice.Get(enemy).Flash(new Color(0.8f, 0.6f, 1f));
         }
 
-        // ---- 테스트 메뉴 "그림자 걸음 이펙트 캡처" - 피해 없이 붙기 → 베기만 보여 준다 ----
+        /// <summary>그림자 망토 고퀄 그림(11-09) - 고퀄 그림체이고 그림이 있으면 틀고 true, 아니면 false(클래식 그림으로).</summary>
+        private static bool HqShadowFx(string name, Vector3 position, float cells, int sortingOrder) =>
+            HeroLook.IsHq && Fx.Frames(name).Length > 0 && Fx.Play(name, position, cells, fps: 20f, sortingOrder: sortingOrder) != null;
+
+        // ---- 테스트 메뉴 "그림자 망토 이펙트 캡처" - 피해 없이 붙기 → 베기만 보여 준다 ----
         private GameObject _previewShadowMark;
 
         public void PreviewShadowMark(Vector3 position, EnemyActor enemy)
@@ -1255,7 +1267,8 @@ namespace LoopRogue
             if (_renderer != null)
                 DeathBurst.SpawnGhost(_renderer.sprite, position + new Vector3(-0.25f, 0.1f, 0f), transform.localScale.x, new Color(0.6f, 0.45f, 1f, 0.7f));
             // 보라색 전용 베기(Effects/shadow_slash - 치명타 베기를 보라로 다시 칠함, shadow_slash.py). 없으면 예전처럼 치명타 베기에 보라를 곱한다
-            if (Fx.Play("shadow_slash", position, 1.4f, fps: 20f, sortingOrder: 7) == null)
+            // 11-09 고퀄 = Effects/hq_shadow_slash(pixelfx 베기를 보라 그림자색으로, pfx_relic_fx.py)
+            if (!HqShadowFx("hq_shadow_slash", position, 2f, 7) && Fx.Play("shadow_slash", position, 1.4f, fps: 20f, sortingOrder: 7) == null)
                 Fx.Play("slash_crit", position, 1.4f, tint: ShadowEchoColor, fps: 20f, sortingOrder: 7);
             Fx.Play("death_smoke", position, 0.9f, tint: new Color(0.35f, 0.25f, 0.55f));
             DeathBurst.Spawn(position, ShadowEchoColor, count: 10, speed: 6f, size: 0.12f);
@@ -1304,6 +1317,7 @@ namespace LoopRogue
             EnemyKilled?.Invoke(enemy);
             HitFeedback.OnEnemyKilled(enemy);
             var blastTargets = CollectChainBlastTargets(enemy);
+            var blastAt = enemy.GridWorldPosition; // 연쇄 뇌관 폭발 그림 자리(몹은 곧 지워진다)
             if (!enemy.IsBoss && !enemy.NoReward && ItemRng.NextDouble() < EquipmentEffects.MobDropChance + Relics.DropBonus)
             {
                 var drop = Inventory.GiveRandomMissing();
@@ -1317,7 +1331,7 @@ namespace LoopRogue
                 _room.SpawnGlitchRevive(enemy); // 오류방 - 한 번 되살아난다(처치 처리 전에)
             Destroy(enemy.gameObject);
             Stats.Heal(Stats.MaxHealth * Stats.EffectiveKillHeal); // 처치 회복 카드(상한 36%)
-            if (Relics.Has(RelicType.BloodHunter) && !enemy.NoReward && Mark(RelicType.BloodHunter)) // 유물 "피의 사냥꾼" - 졸개·분열 조각은 제외
+            if (Relics.Has(RelicType.BloodHunter) && !enemy.NoReward && Mark(RelicType.BloodHunter)) // 유물 "흡혈귀의 송곳니" - 졸개·분열 조각은 제외
                 Stats.Heal(Stats.MaxHealth * Relics.BloodHunterHealRate);
 
             // 경험치도 골드처럼 StageScaling 배율을 곱한다(몹은 스테이지마다 세지는데 경험치만
@@ -1333,13 +1347,13 @@ namespace LoopRogue
 
             if (_room.NotifyEnemyDefeated(enemy))
                 return true;
-            return ResolveChainBlast(blastTargets);
+            return ResolveChainBlast(blastTargets, blastAt);
         }
 
         // ---- 유물 추가타 ----
         private bool _chainBlasting;
 
-        /// <summary>유물 "연쇄 폭발" - 일반 몹이 죽은 자리 주변 8칸의 살아있는 몹(제거되기 전에 모아둔다). 폭발로 죽은 몹은 다시 터지지 않는다.</summary>
+        /// <summary>유물 "연쇄 뇌관" - 일반 몹이 죽은 자리 주변 8칸의 살아있는 몹(제거되기 전에 모아둔다). 폭발로 죽은 몹은 다시 터지지 않는다.</summary>
         private List<EnemyActor> CollectChainBlastTargets(EnemyActor dead)
         {
             if (_chainBlasting || dead.IsBoss || !Relics.Has(RelicType.ChainBlast))
@@ -1351,11 +1365,12 @@ namespace LoopRogue
             return list;
         }
 
-        private bool ResolveChainBlast(List<EnemyActor> targets)
+        private bool ResolveChainBlast(List<EnemyActor> targets, Vector3 at)
         {
             if (targets == null || targets.Count == 0)
                 return false;
             _chainBlasting = true;
+            var played = false;
             try
             {
                 foreach (var e in targets)
@@ -1366,6 +1381,11 @@ namespace LoopRogue
                     var damage = Stats.AttackPower * Relics.ChainBlastRate * e.DamageTakenMultiplier;
                     if (damage <= 0f)
                         continue;
+                    if (!played)
+                    {
+                        played = true;
+                        RelicFx("relic_chain", at, 3f, 4f); // 죽은 몹 자리 + 주변 8칸 불꽃 폭발
+                    }
                     Relics.Mark(RelicType.ChainBlast);
                     e.Stats.TakeDamage(damage);
                     DamagePopup.Spawn(e.transform.position, damage, new Color(1f, 0.6f, 0.2f));
@@ -1380,14 +1400,29 @@ namespace LoopRogue
             }
         }
 
-        /// <summary>일반 공격(방향키로 때리기) 직후 - 유물 "대지의 망치"(대상 상하좌우)와 "관통의 인장"(대상 뒤 1칸). 방이 넘어갔으면 true.</summary>
+        /// <summary>칸 좌표 → 그 칸 가운데 월드 위치(플레이어 그림 보정과 같은 기준).</summary>
+        private Vector3 CellWorld(Vector2Int cell) =>
+            GridWorldPosition + new Vector3(cell.x - GridPos.x, cell.y - GridPos.y, 0f) * GridConstants.CellSize;
+
+        /// <summary>유물 추가 피해 전용 이펙트(11-09 사용자 "추가 데미지 주는 유물은 이펙트 따로") - 1칸 = 32px 그림.
+        /// 클래식 = Effects/relic_*(손그림, cells 칸), 고퀄 = Effects/hq_relic_*(pixelfx, hqCells 칸). 봇·연출 끔이면 안 그린다.</summary>
+        private static void RelicFx(string name, Vector3 at, float cells, float hqCells, float angle = 0f, int sortingOrder = 7)
+        {
+            if (!HitFeedback.Enabled) return;
+            if (HeroLook.IsHq && Fx.Frames("hq_" + name).Length > 0)
+                Fx.Play("hq_" + name, at, hqCells, angle, fps: 20f, sortingOrder: sortingOrder);
+            else
+                Fx.Play(name, at, cells, angle, fps: 20f, sortingOrder: sortingOrder);
+        }
+
+        /// <summary>일반 공격(방향키로 때리기) 직후 - 유물 "대지의 망치"(대상 상하좌우)와 "관통의 창날"(대상 뒤 1칸). 방이 넘어갔으면 true.</summary>
         private bool NormalAttackRelicHits(Vector2Int targetPos, Vector2Int direction)
         {
             // 방금 때린 몹(3x3 보스면 그 몸 칸들이 주변에 걸쳐 있다) - 같은 몹을 추가타로 다시 때리지 않는다
             var primary = Map.GetActorAt(targetPos) as EnemyActor;
             if (Relics.Has(RelicType.EchoBlade))
             {
-                // 유물 "메아리 칼날" - 일반 공격 3번째마다 한 번 더(스킬 취급이라 흡혈 없음). 죽인 공격도 센다(10-27 사용자 - 예전엔 살아남은
+                // 유물 "메아리 방울" - 일반 공격 3번째마다 한 번 더(스킬 취급이라 흡혈 없음). 죽인 공격도 센다(10-27 사용자 - 예전엔 살아남은
                 // 공격만 세서 몹이 잘 죽는 일반 방에선 거의 안 터졌다). 3번째 공격으로 대상이 죽었으면 추가타를 다음 일반 공격에 붙인다.
                 if (++_echoCount % Relics.EchoBladeEvery == 0)
                     _echoReady = true;
@@ -1395,6 +1430,7 @@ namespace LoopRogue
                 {
                     _echoReady = false;
                     Relics.Mark(RelicType.EchoBlade);
+                    RelicFx("relic_echo", CellWorld(targetPos), 1.5f, 2.25f); // 금빛 방울 물결 + 메아리 베기
                     if (StrikeEnemy(primary, direction, Relics.EchoBladeRate, isSkill: true))
                         return true;
                 }
@@ -1409,6 +1445,8 @@ namespace LoopRogue
                     var p = targetPos + d;
                     if (p == GridPos || !(Map.GetActorAt(p) is EnemyActor e) || e.Stats.IsDead || !struck.Add(e))
                         continue;
+                    if (struck.Count == (primary != null ? 2 : 1)) // 처음 맞힌 순간 한 번 - 대상 칸 충격 + 상하좌우 바위 가시
+                        RelicFx("relic_hammer", CellWorld(targetPos), 3f, 4f, sortingOrder: 2);
                     Relics.Mark(RelicType.EarthHammer);
                     if (StrikeEnemy(e, d, Relics.EarthHammerSplashRate, ignoreShield: true, isSkill: true))
                         return true;
@@ -1420,9 +1458,13 @@ namespace LoopRogue
                 var behindPos = targetPos + direction;
                 while (primary != null && GridMap.Occupies(primary, behindPos))
                     behindPos += direction;
-                if (Map.GetActorAt(behindPos) is EnemyActor behind && behind != primary && !behind.Stats.IsDead && Mark(RelicType.PiercingSeal) &&
-                    StrikeEnemy(behind, direction, Relics.PiercingRate, ignoreShield: true, isSkill: true))
-                    return true;
+                if (Map.GetActorAt(behindPos) is EnemyActor behind && behind != primary && !behind.Stats.IsDead && Mark(RelicType.PiercingSeal))
+                {
+                    // 창끝이 뒤 칸까지 꿰뚫음 - 그림 가운데 = 뒤 칸 바로 앞 경계(2칸 그림, 오른쪽을 보고 그림)
+                    RelicFx("relic_pierce", CellWorld(behindPos) - new Vector3(direction.x, direction.y, 0f) * (GridConstants.CellSize * 0.5f), 2f, 3f, Fx.Angle(direction));
+                    if (StrikeEnemy(behind, direction, Relics.PiercingRate, ignoreShield: true, isSkill: true))
+                        return true;
+                }
             }
             return false;
         }
@@ -1494,7 +1536,7 @@ namespace LoopRogue
 
         /// <summary>대시를 쓰면 걸리는 쿨타임(장비·유물 감소 포함) - 6층 포위 폭발 간격도 이걸 기준으로 한다(BossBrain).</summary>
         public static int DashCooldownMax => Mathf.Max(1, DashCooldownTurns - EquipmentEffects.SkillCooldownReduction // 반지 "민첩"
-            - (Relics.Has(RelicType.Gale) ? Relics.GaleDashCooldownReduction : 0)); // 유물 "질풍"
+            - (Relics.Has(RelicType.Gale) ? Relics.GaleDashCooldownReduction : 0)); // 유물 "질풍 장화"
 
         // ---- 특성 "되돌아오기"(11-02 사용자) - 대시 바로 다음 행동(Traits.DashReturnTurns)에 R을 누르면 대시를 시작한 자리로 돌아온다.
         // 한 턴을 쓰고, 가는 길엔 공격 없음. 시작 자리가 막혔거나 묶였으면 못 돌아온다. 다른 방(새 GridMap)으로 넘어가면 사라진다. ----
@@ -1563,8 +1605,12 @@ namespace LoopRogue
                     // if (HitFeedback.Enabled && c != GridPos) Fx.Play("slash", new Vector3(c.x, c.y, 0f) * GridConstants.CellSize, 1.1f, angle, fps: 22f, sortingOrder: 6);
                     if (!(Map.GetActorAt(c) is EnemyActor e) || e.Stats.IsDead || !struck.Add(e))
                         continue;
+                    var before = e.Stats.CurrentHealth;
                     if (StrikeEnemy(e, dir, Traits.DashWaveDamageRate, isSkill: true))
                         return true;
+                    // 11-09 사용자 "붙게해볼래" - 파동에 맞고 산 몹에도 그림자 망토 그림자가 붙는다(본타와 같은 75%)
+                    if (Relics.Has(RelicType.ShadowStep) && !e.Stats.IsDead && before > e.Stats.CurrentHealth)
+                        AddShadowEcho(e, (before - e.Stats.CurrentHealth) * Relics.ShadowStepEchoRate);
                 }
                 if (cell == GridPos || (cell - start).sqrMagnitude > (GridPos - start).sqrMagnitude)
                     break; // 내려선 자리까지
@@ -1673,7 +1719,7 @@ namespace LoopRogue
                     if (StrikeEnemy(target, dir, 1f, isSkill: true, style: AttackStyle.Dash))
                         return true;
                     if (Relics.Has(RelicType.ShadowStep) && !target.Stats.IsDead && before > target.Stats.CurrentHealth)
-                        AddShadowEcho(target, (before - target.Stats.CurrentHealth) * Relics.ShadowStepEchoRate); // 유물 "그림자 걸음"
+                        AddShadowEcho(target, (before - target.Stats.CurrentHealth) * Relics.ShadowStepEchoRate); // 유물 "그림자 망토"
                     if (Traits.Has(TraitType.DashMark) && DashMark(target, dir))
                         return true;
                 }
@@ -1701,7 +1747,7 @@ namespace LoopRogue
             return true;
         }
 
-        /// <summary>유물 "폭군의 갑주" - 내려선 자리 주변 8칸(같은 몹은 한 번만). rate = 분신이면 분신 피해 배율. 방이 넘어갔으면 true.</summary>
+        /// <summary>유물 "폭군의 쇠군화" - 내려선 자리 주변 8칸(같은 몹은 한 번만). rate = 분신이면 분신 피해 배율. 방이 넘어갔으면 true.</summary>
         private bool TyrantLanding(Vector2Int at, EnemyActor hit, float rate)
         {
             if (!Relics.Has(RelicType.TyrantPlate))
@@ -1713,6 +1759,8 @@ namespace LoopRogue
             {
                 if (!(Map.GetActorAt(at + d) is EnemyActor e) || e.Stats.IsDead || !struck.Add(e))
                     continue;
+                if (struck.Count == (hit != null ? 2 : 1)) // 처음 맞힌 순간 한 번 - 착지 충격·달아오른 균열
+                    RelicFx("relic_stomp", CellWorld(at), 3f, 4f, sortingOrder: 2);
                 Relics.Mark(RelicType.TyrantPlate);
                 if (StrikeEnemy(e, d, Relics.TyrantLandingRate * rate, ignoreShield: true, isSkill: true))
                     return true;
@@ -1819,7 +1867,7 @@ namespace LoopRogue
                 return true;
 
             if (_whirlwindWait > 0f && HitFeedback.Enabled)
-                StartCoroutine(EndTurnAfter(_whirlwindWait)); // 유물 "소용돌이" - 밀려난 몹 그림이 다 보이고 나서 몹 턴
+                StartCoroutine(EndTurnAfter(_whirlwindWait)); // 유물 "돌풍 부채" - 밀려난 몹 그림이 다 보이고 나서 몹 턴
             else
                 EndTurn();
             return true;
@@ -1868,8 +1916,7 @@ namespace LoopRogue
                 if (offset != Vector2Int.zero && Map.GetActorAt(GridPos + offset) is EnemyActor e && !e.Stats.IsDead && struck.Add(e))
                     hits.Add((e, offset));
             }
-            if (HitFeedback.Enabled)
-                Fx.Play("boss_ring", transform.position, 5.5f, tint: new Color(0.6f, 0.85f, 1f, 0.85f), fps: 20f, sortingOrder: 2);
+            RelicFx("relic_pulse", GridWorldPosition, 5f, 6f, sortingOrder: 2); // 전용 파동(예전엔 보스 고리 boss_ring에 푸른색만 입혔다)
             if (hits.Count == 0)
                 return false;
             Relics.Mark(RelicType.PulseCore);
@@ -1940,7 +1987,7 @@ namespace LoopRogue
             return PulseWave();
         }
 
-        /// <summary>유물 "소용돌이" - 회전 베기에 맞고 살아남은 몹을 나에게서 먼 쪽으로 2칸까지 민다(10-27 사용자 1 → 2). 가다가 벽·다른 몹·방 끝에 막히면 거기서 멈추고 공격력 30% 추가 피해.
+        /// <summary>유물 "돌풍 부채" - 회전 베기에 맞고 살아남은 몹을 나에게서 먼 쪽으로 2칸까지 민다(10-27 사용자 1 → 2). 가다가 벽·다른 몹·방 끝에 막히면 거기서 멈추고 공격력 30% 추가 피해.
         /// 큰 몹(보스)은 안 밀리고 추가 피해도 없다. 방이 넘어갔으면 true.</summary>
         private const float WhirlwindSlideSeconds = 0.2f; // 튕겨 날아가는 시간
         private const float KnockClipSeconds = 0.45f;     // 밀려남 그림 4장
@@ -2001,6 +2048,7 @@ namespace LoopRogue
                                 anim.SnapToGrid();
                             ActorJuice.Get(enemy).Hop(from, 0.15f, WhirlwindSlideSeconds, stretch: 0f, landSquish: 0.35f);
                             Fx.Play("crush_dust", enemy.GridWorldPosition, 0.9f, fps: 18f);
+                            RelicFx("relic_gust", (from + enemy.GridWorldPosition) * 0.5f, 2f, 3f, Fx.Angle(dir)); // 밀려난 길 위로 바람 줄기
                         }
                     }
                     // 밀려남·부딪힘 그림(Sprites/{세트}/knock_south_·crash_south_ - 지금은 슬라임만, 없으면 튕겨 나가는 연출만)
@@ -2032,7 +2080,7 @@ namespace LoopRogue
                 for (var i = 0; i < pushed + crashed; i++)
                     Relics.Mark(RelicType.Whirlwind);
                 if (pushed + crashed > 0)
-                    PlayLog.Note($"소용돌이: {pushed}마리 밀어냄, {crashed}마리 막혀서 추가 피해");
+                    PlayLog.Note($"돌풍 부채: {pushed}마리 밀어냄, {crashed}마리 막혀서 추가 피해");
             }
         }
 
@@ -2089,7 +2137,7 @@ namespace LoopRogue
             else if (_spinHoldTurns > 0 && SpinHoldTick())
                 return; // 방 전환
             if (ResolveShadowEchoes())
-                return; // 유물 "그림자 걸음" - 내 행동과 함께 그림자들이 벴고, 그걸로 방이 끝났다
+                return; // 유물 "그림자 망토" - 내 행동과 함께 그림자들이 벴고, 그걸로 방이 끝났다
             PlayLog.Turn();
             _room.RunEnemyTurns();
         }

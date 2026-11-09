@@ -215,7 +215,7 @@ namespace LoopRogue
             _roomController.IsInputLocked = true;
             LoopRecord.AddDeath(); // 누적 회차 - NPC 대사가 바뀐다
             PlayLog.Note($"사망 원인: {DeathCause.Line}");
-            StageProgress.AddStageDeath(); // 유물 "되풀이의 각인"
+            StageProgress.AddStageDeath(); // 유물 "윤회의 염주"
             var penalty = ApplyDeathGoldPenalty();
             PlayLog.Death(_player, _roomController, penalty); // 잃는 아이템까지 적으려고 LoseAll 전에
             Inventory.LoseAll(); // 죽으면 들고 있던 아이템 전부 잃음(사용자 결정)
@@ -227,7 +227,7 @@ namespace LoopRogue
         private int ApplyDeathGoldPenalty()
         {
             var earned = Mathf.Max(0, GoldWallet.Gold - _attemptStartGold);
-            var penalty = Mathf.RoundToInt(earned * Relics.DeathPenaltyRate); // 유물 "탐욕"이면 60%
+            var penalty = Mathf.RoundToInt(earned * Relics.DeathPenaltyRate); // 유물 "저주받은 금화"이면 60%
             GoldWallet.TrySpend(penalty);
             _attemptStartGold = GoldWallet.Gold;
             return penalty;

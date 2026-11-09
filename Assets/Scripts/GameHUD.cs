@@ -522,7 +522,7 @@ namespace LoopRogue
             var deals = Curses.ActiveDeals;
             if (deals.Count > 0)
             {
-                sb.AppendLine(Loc.F("<b><color=#C890FF>[저주 계약 {0}개]</color></b>  <size=12><color=#9AA0AA>죽거나 층을 넘기면 풀린다</color></size>", deals.Count));
+                sb.AppendLine(Loc.F("<b><color=#C890FF>[거래 {0}개]</color></b>  <size=12><color=#9AA0AA>죽거나 층을 넘기면 풀린다</color></size>", deals.Count));
                 foreach (var d in deals)
                 {
                     sb.AppendLine($"<color=#C890FF>{d.Name}</color>");

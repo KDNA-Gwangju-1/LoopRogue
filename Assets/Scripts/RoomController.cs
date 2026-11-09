@@ -242,6 +242,35 @@ namespace LoopRogue
             return enemy;
         }
 
+        /// <summary>테스트 메뉴 "무한 허수아비"(11-09) - 플레이어에서 3칸 떨어진 곳에 3x3 허수아비(오른쪽·왼쪽·위·아래 중 빈 곳).
+        /// 가운데 하나만 체력 1(죽이면 연쇄 뇌관 확인), 나머지는 체력 무한(턴마다 가득). 행동·공격 안 함, 보상 없음. 보스방이면 0.</summary>
+        public int SpawnTestDummies()
+        {
+            if (_player == null || _current == null || _current.IsBossRoom)
+                return 0;
+            foreach (var dir in new[] { Vector2Int.right, Vector2Int.left, Vector2Int.up, Vector2Int.down })
+            {
+                var center = _player.GridPos + dir * 3;
+                var cells = new List<Vector2Int>();
+                for (var dx = -1; dx <= 1; dx++)
+                for (var dy = -1; dy <= 1; dy++)
+                    if (Map.IsWalkable(center + new Vector2Int(dx, dy)))
+                        cells.Add(center + new Vector2Int(dx, dy));
+                if (cells.Count < 6 || !cells.Contains(center))
+                    continue;
+                foreach (var c in cells)
+                {
+                    var weak = c == center;
+                    var dummy = SpawnEnemy(c, _current, EnemyKind.Melee, weak ? 1f : 1000000f, 0f);
+                    dummy.MarkAsTestDummy(refill: !weak);
+                    if (weak)
+                        dummy.Stats.CurrentHealth = 1f;
+                }
+                return cells.Count;
+            }
+            return 0;
+        }
+
         /// <summary>예고 칸 그림(보스·폭발과 같은 깜빡이는 칸) - 지우는 건 호출부가.</summary>
         public GameObject SpawnWarningTile(Vector2Int tile, Color color) => SpawnTelegraphTile(tile, color, -5);
 
@@ -294,7 +323,7 @@ namespace LoopRogue
         private List<string> GrantPuzzleRewards(PuzzleType type)
         {
             var parts = new List<string>();
-            var glove = Relics.Has(RelicType.PuzzleGlove) ? Relics.PuzzleGloveRewardMultiplier : 1; // 유물 "퍼즐 장인의 장갑"
+            var glove = Relics.Has(RelicType.PuzzleGlove) ? Relics.PuzzleGloveRewardMultiplier : 1; // 유물 "수수께끼 장갑"
             if (glove > 1) Relics.Mark(RelicType.PuzzleGlove);
             var gold = PuzzleBase.BonusGold(type, _stage) * glove;
             if (Traits.Has(TraitType.ExplorePuzzle))
@@ -605,7 +634,7 @@ namespace LoopRogue
         }
 
         /// <summary>지금 층의 방 클리어 골드(보너스 반영) - 이벤트·저주 계약 보상의 기준.</summary>
-        /// <summary>처치·방 클리어 골드 배율 - 골드 카드(하한 -50%) + 반지 "행운" + 유물 "탐욕" + 칭호, × 저주 계약(황금·무모).</summary>
+        /// <summary>처치·방 클리어 골드 배율 - 골드 카드(하한 -50%) + 반지 "행운" + 유물 "저주받은 금화" + 칭호, × 저주 계약(황금·무모).</summary>
         private float GoldBonus =>
             (1f + _player.Stats.EffectiveGoldBonus + EquipmentEffects.ExtraGoldBonus + Relics.ExtraGoldBonus + Achievements.TitleGoldBonus)
             * Curses.GoldMultiplier * TradeGoldMultiplier;
@@ -913,7 +942,7 @@ namespace LoopRogue
             if (enemy.IsMimic)
             {
                 if (Relics.Has(RelicType.EliteHunter)) Relics.Mark(RelicType.EliteHunter);
-                var gold = RoomClearGold * MimicGoldRooms * (Relics.Has(RelicType.EliteHunter) ? Relics.EliteHunterGoldMultiplier : 1); // 유물 "정예 사냥꾼"
+                var gold = RoomClearGold * MimicGoldRooms * (Relics.Has(RelicType.EliteHunter) ? Relics.EliteHunterGoldMultiplier : 1); // 유물 "현상금 수배서"
                 GoldWallet.Add(gold);
                 var item = Inventory.GiveRandomMissing();
                 ShowMessage(Loc.F("미믹 처치! 골드 +{0}{1}", gold, (item.HasValue ? Loc.F(", {0} 획득", ItemInfo.Name(item.Value)) : "")));
@@ -2701,7 +2730,7 @@ namespace LoopRogue
                 GoldWallet.Add(Mathf.RoundToInt(GoldPerRoomClear * StageScaling.RewardMultiplier(_stage) * goldBonus * StageProgress.RepeatRewardMultiplier));
                 if (Relics.Has(RelicType.RegenMoss)) Relics.Mark(RelicType.RegenMoss);
                 _player.Stats.Heal(_player.Stats.MaxHealth * (RoomClearHealRate + (Relics.Has(RelicType.RegenMoss) ? Relics.RegenMossHealRate : 0f)) // + 유물 "재생의 이끼"
-                                   * Curses.RoomHealMultiplier); // × 저주 "메마른 저주"
+                                   * Curses.RoomHealMultiplier); // × 저주 "메마른 거래"
                 HitFeedback.OnHeal(_player);
             }
 
@@ -2918,7 +2947,7 @@ namespace LoopRogue
                 Destroy(ActiveDecoy.gameObject);
                 ActiveDecoy = null;
             }
-            _player?.TryPhantomBanner(); // 유물 "망령의 깃발" - 이번 몹 턴에 체력이 30% 아래로 떨어졌으면
+            _player?.TryPhantomBanner(); // 유물 "미끼 허수아비" - 이번 몹 턴에 체력이 30% 아래로 떨어졌으면
 
             if (_playerBombs.Count == 0)
                 return;
@@ -3091,7 +3120,7 @@ namespace LoopRogue
 
         private IEnumerable<Vector2Int> BlastArea(Vector2Int center)
         {
-            var r = Relics.Has(RelicType.PowderMaster) ? Relics.PowderMasterRadius : 1; // 유물 "화약 장인" - 5x5
+            var r = Relics.Has(RelicType.PowderMaster) ? Relics.PowderMasterRadius : 1; // 유물 "장인의 화약통" - 5x5
             if (r > 1) Relics.Mark(RelicType.PowderMaster);
             for (var dx = -r; dx <= r; dx++)
             for (var dy = -r; dy <= r; dy++)
@@ -3106,7 +3135,8 @@ namespace LoopRogue
         private bool ExplodePlayerBomb(Vector2Int center)
         {
             var area = BlastArea(center).ToList();
-            HitFeedback.OnExplosion(new Vector3(center.x * GridConstants.CellSize, center.y * GridConstants.CellSize, 0f));
+            HitFeedback.OnExplosion(new Vector3(center.x * GridConstants.CellSize, center.y * GridConstants.CellSize, 0f),
+                Relics.Has(RelicType.PowderMaster) ? Relics.PowderMasterRadius : 1); // 장인의 화약통이면 5x5 그림
 
             foreach (var t in area)
             {

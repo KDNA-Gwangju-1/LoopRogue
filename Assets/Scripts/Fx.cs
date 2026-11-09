@@ -74,10 +74,32 @@ namespace LoopRogue
             return Cache[name] = list.ToArray();
         }
 
+        /// <summary>Unknown(9등급) 무기 이펙트 재생 배속.</summary>
+        public const float UnknownSpeed = 1.5f;
+
+        /// <summary>이름에 등급 꼬리 "_g9"가 있으면(끝이거나 뒤에 "_") Unknown 등급 그림.</summary>
+        private static bool IsUnknownGrade(string name)
+        {
+            var i = name.IndexOf("_g9", System.StringComparison.Ordinal);
+            return i >= 0 && (i + 3 == name.Length || name[i + 3] == '_');
+        }
+
+        /// <summary>11-09 이 그림을 fps로 틀 때 쓸 배속 - Unknown이면 UnknownSpeed, 그래도 maxSeconds보다 길면 딱 maxSeconds에 끝나게 더 빠르게.
+        /// 같이 맞물려 나오는 그림(아래 겹·발톱·바닥 문장)은 본 그림의 이 값을 Play(speed:)로 똑같이 넘긴다.</summary>
+        public static float Speed(string name, float fps, float maxSeconds)
+        {
+            var speed = IsUnknownGrade(name) ? UnknownSpeed : 1f;
+            var frames = Frames(name).Length;
+            if (maxSeconds > 0f && frames > 0 && frames / (fps * speed) > maxSeconds)
+                speed = frames / (fps * maxSeconds);
+            return speed;
+        }
+
         /// <param name="sizeCells">그림 가로 길이(칸 단위)</param>
+        /// <param name="speed">0보다 크면 이 배속으로(fps×, 지연÷) - Unknown 자동 배속 대신. Speed()로 구한 값.</param>
         /// <param name="riseCells">초당 위로 떠오르는 거리(칸 단위)</param>
         public static Fx Play(string name, Vector3 position, float sizeCells, float angle = 0f, Color? tint = null,
-            float fps = DefaultFps, bool loop = false, int sortingOrder = DefaultSortingOrder, Transform parent = null, float riseCells = 0f, float delay = 0f)
+            float fps = DefaultFps, bool loop = false, int sortingOrder = DefaultSortingOrder, Transform parent = null, float riseCells = 0f, float delay = 0f, float speed = 0f)
         {
             if (DamagePopup.Suppressed)
                 return null;
@@ -103,6 +125,10 @@ namespace LoopRogue
                 scale /= parent.lossyScale.x; // 부모 크기와 상관없이 같은 크기로
             go.transform.localScale = new Vector3(scale, scale, 1f);
 
+            if (speed <= 0f) // 11-09 사용자 "언노운 등급 모든 이펙트 좀 더 빨리" - 지연도 같은 비율로 줄여 맞물린 타이밍 유지
+                speed = IsUnknownGrade(name) ? UnknownSpeed : 1f;
+            fps *= speed;
+            delay /= speed;
             fx._frames = frames;
             fx._fps = fps;
             fx._loop = loop;

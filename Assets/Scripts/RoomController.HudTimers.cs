@@ -73,6 +73,10 @@ namespace LoopRogue
                 AddClock("crystal", "Crystal", Loc.F("수정 폭발까지 {0}턴 · 수정 {1}개", soonest, _crystalFuse.Count), soonest, CrystalWarnTurns + 3);
             }
 
+            // 9층 리치 회피 낙인(11-09 사용자 - 설명 배너 대신 게이지만). 3개 = 빨갛게(다음 체스판·영혼 구체는 맞아야 함)
+            if (LichDodgeStacks > 0)
+                AddCount("Doom", Loc.F("회피 낙인 {0}/{1}", LichDodgeStacks, LichForceHitStacks), LichDodgeStacks, LichForceHitStacks, 0);
+
             if (_gimmickStage == 0 || _gimmickBoss == null || _gimmickBoss.Stats.IsDead)
                 return;
             switch (_gimmickStage)

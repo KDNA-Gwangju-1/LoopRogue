@@ -130,6 +130,12 @@ namespace LoopRogue
             _appearancePanel = AppearancePanel.Create(); // 11-03 [9] 재봉사
             _stageSelectPanel = StageSelectPanel.Create();
             _lobbyStats = LobbyStatPanel.Create();
+            // 11-09 사용자 - 로비 Esc 메뉴(타이틀로 이동 / 설정 / 계속하기). 허브에서 다른 창이 없을 때만 열린다.
+            gameObject.AddComponent<PauseMenu>().Setup(null,
+                () => _view == LobbyView.Hub && !ChanceOpen && !_lobbyStats.IsOpen && _escUsedFrame != Time.frameCount
+                      && !(NpcDialogUI.BlocksInput || AchievementPanel.BlocksInput || CodexPanel.BlocksInput || TraitPanel.BlocksInput
+                           || AppearancePanel.BlocksInput || StageSelectPanel.BlocksInput || GachaReveal.BlocksInput),
+                goToTitle: () => SceneManager.LoadScene("Title"));
             Achievements.Unlocked += OnAchievementUnlocked;
             Codex.SyncOwned();    // 도감이 생기기 전 저장으로 이미 가진 유물/아이템
             Achievements.Check(); // 업적이 생기기 전 저장으로 이미 조건을 채운 것들
@@ -169,7 +175,8 @@ namespace LoopRogue
             UpdateHover();
 
             // 안내자와 대화 중이거나 업적 창이 열려 있으면(닫은 프레임 포함) 로비 버튼·단축키를 안 받는다 - 그 창들이 Esc/숫자/클릭을 직접 처리한다.
-            var blocked = NpcDialogUI.BlocksInput || AchievementPanel.BlocksInput || CodexPanel.BlocksInput || TraitPanel.BlocksInput || AppearancePanel.BlocksInput || StageSelectPanel.BlocksInput || GachaReveal.BlocksInput;
+            var blocked = NpcDialogUI.BlocksInput || AchievementPanel.BlocksInput || CodexPanel.BlocksInput || TraitPanel.BlocksInput || AppearancePanel.BlocksInput || StageSelectPanel.BlocksInput || GachaReveal.BlocksInput
+                          || PauseMenu.BlocksInput || OptionsPanel.BlocksInput; // 11-09 Esc 메뉴·설정 창
             if (_lobbyStats.IsOpen && (blocked || _view != LobbyView.Hub))
                 _lobbyStats.Hide(); // 다른 창·상점이 열리면 능력치 창은 닫는다
             if (blocked)
@@ -207,10 +214,11 @@ namespace LoopRogue
                     else if (GameInput.Down(Key.Tab))
                         _lobbyStats.Toggle(); // 11-03 로비에서도 능력치 창
                     else if (GameInput.Down(Key.Escape) && _lobbyStats.IsOpen)
+                    {
                         _lobbyStats.Hide(); // 능력치 창이 열려 있으면 Esc는 그것만 닫는다
-                    // Esc = 타이틀로(로비엔 진행 중인 전투가 없어서 확인 없이 바로 이동 - 골드/장비는 전부 영구 저장).
-                    else if (GameInput.Down(Key.Escape))
-                        SceneManager.LoadScene("Title");
+                        _escUsedFrame = Time.frameCount;
+                    }
+                    // 11-09 사용자 - Esc로 바로 타이틀 가던 건 뺐다. 빈 Esc는 PauseMenu(타이틀로 이동·설정·계속하기)가 연다.
                     else if (GameInput.PointerDown)
                         _room.HandleClick(GameInput.PointerPosition); // UI 버튼에 안 맞은 클릭 = 방 안 클릭
                     else
@@ -277,8 +285,13 @@ namespace LoopRogue
             }
 
             if (GameInput.Down(Key.Escape))
+            {
                 ShowView(LobbyView.Hub);
+                _escUsedFrame = Time.frameCount; // 상점에서 Esc로 나온 그 프레임에 메뉴까지 열리지 않게
+            }
         }
+
+        private int _escUsedFrame = -1; // 이 프레임 Esc는 로비가 이미 썼다(창 닫기·허브로) - PauseMenu가 안 열린다
 
         /// <summary>눌린 버튼이 있으면 실행하고 true. 꺼진 화면의 버튼은 건너뛴다.</summary>
         private bool HandleMouseClick()

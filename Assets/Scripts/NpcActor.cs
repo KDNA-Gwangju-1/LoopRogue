@@ -270,7 +270,7 @@ namespace LoopRogue
             Loc.T("...살아 있는 자의 냄새로군. 힘이 필요하지 않나? 값은... 조금만 받지."),
             Loc.T("또 왔군. 고리를 도는 자들은 결국 나를 찾게 되어 있지."),
             Loc.T("네 죽음의 냄새가 짙어졌어. {0}번... 거래하기 딱 좋은 숫자야."),
-            Loc.T("{0}번이나 죽고도 아직 계약을 망설이나? 흐흐."),
+            Loc.T("{0}번이나 죽고도 아직 거래를 망설이나? 흐흐."),
             Loc.T("고리의 단골이여. 오늘은 무엇을 내어 주겠나?"),
         });
 
@@ -293,7 +293,7 @@ namespace LoopRogue
             {
                 Loc.T("하나만 골라라. 힘은 네가 쓰러지거나 이 층을 떠날 때까지만 빌려주지... 당장 쥐여 주는 것만은 영영 네 것이고."),
                 Loc.T("명심해라. 이 힘은 이번 걸음이 끝날 때까지만이다. 죽거나 층을 넘으면 도로 거둬 가지. 흐흐."),
-                Loc.T("계약은 하나뿐. 효력은 네 숨이 붙어 있는 동안, 이 층 안에서만이다. 그 자리에서 건네는 것만은 돌려받지 않지."),
+                Loc.T("거래는 하나뿐. 효력은 네 숨이 붙어 있는 동안, 이 층 안에서만이다. 그 자리에서 건네는 것만은 돌려받지 않지."),
             };
             return $"<color=#C8B0E8>{lines[Rng.Next(lines.Length)]}</color>";
         }
@@ -414,7 +414,7 @@ namespace LoopRogue
             if (Traits.Has(TraitType.TradeMerchant)) // 특성 "흥정" - 던전 상인만
                 foreach (var e in pool)
                     e.Price = Mathf.RoundToInt(e.Price * Traits.TradeMerchantDiscount);
-            if (Relics.Has(RelicType.MerchantSeal)) // 유물 "상인의 인장" - 던전 상인만
+            if (Relics.Has(RelicType.MerchantSeal)) // 유물 "단골 증표" - 던전 상인만
             {
                 Relics.Mark(RelicType.MerchantSeal);
                 foreach (var e in pool)

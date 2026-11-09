@@ -44,8 +44,7 @@ namespace LoopRogue
             {
                 if (LichDodgeStacks < LichForceHitStacks)
                     return false; // 평소처럼 맞는다(스택은 그대로)
-                LichDodgeStacks = 0;
-                ShowMessage(Loc.T("<color=#C890FF>회피 낙인이 걷혔다!</color> (피해 없음)"));
+                LichDodgeStacks = 0; // 11-09 사용자 - 설명 배너는 빼고 머리 위 글자·화면 위 게이지만
                 if (HitFeedback.Enabled)
                     DamagePopup.SpawnText(_player.transform.position, Loc.T("낙인 해제"), new Color(0.78f, 0.56f, 1f));
                 return true;
@@ -60,12 +59,7 @@ namespace LoopRogue
                 KillPlayerInstantly();
                 return false;
             }
-            if (HitFeedback.Enabled)
-                DamagePopup.SpawnText(_player.transform.position, Loc.F("회피 낙인 {0}/{1}", LichDodgeStacks, LichForceHitStacks),
-                    LichDodgeStacks >= LichForceHitStacks ? new Color(1f, 0.35f, 0.35f) : new Color(0.78f, 0.56f, 1f));
-            ShowMessage(LichDodgeStacks >= LichForceHitStacks
-                ? Loc.T("<color=#FF6060>회피 낙인 3 - 다음 체스판·영혼 구체는 반드시 맞아야 한다!</color> (맞으면 피해 없이 낙인이 걷힌다, 또 피하면 즉사)")
-                : Loc.F("<color=#C890FF>회피 낙인 {0}/{1}</color> - 체스판·영혼 구체를 피하면 쌓인다, 3개면 한 번은 맞아야 한다", LichDodgeStacks, LichForceHitStacks));
+            // 11-09 사용자 "9층 힌트 지워줘, UI 표식만" + "회피낙인 글자도 안 보이게" - 설명 배너·머리 위 글자 삭제, 화면 위 게이지(RoomController.HudTimers)만
             return false;
         }
 

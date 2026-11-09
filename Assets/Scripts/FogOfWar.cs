@@ -71,7 +71,7 @@ namespace LoopRogue
                 return;
 
             _visible.Clear();
-            ComputeVisible(_room.Map, _player.GridPos, Relics.VisionRadius); // 유물 "사냥꾼의 눈" +2
+            ComputeVisible(_room.Map, _player.GridPos, Relics.VisionRadius); // 유물 "길잡이 등불" +2
             foreach (var torch in _room.Torches)
                 ComputeVisible(_room.Map, torch, ItemInfo.TorchRadius); // 횃불 주변도 밝게
             var danger = _room.DangerTiles;

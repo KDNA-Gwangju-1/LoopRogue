@@ -91,7 +91,7 @@ namespace LoopRogue
             if (frames.Length == 0)
                 return false;
             var size = PlayerActor.PlayerSpriteScale * frames[0].rect.width / 64f * (isCritical ? 1.15f : 1f);
-            var fx = Fx.Play(name, player.transform.position, size, angle, fps: 30f);
+            var fx = Fx.Play(name, player.transform.position, size, angle, fps: 30f, speed: Fx.Speed(name, 30f, HqSkillMaxSeconds));
             if (fx == null)
                 return false;
             if (direction.x < 0)
@@ -160,15 +160,20 @@ namespace LoopRogue
             SfxPlayer.Play(Sfx.Fuse);
         }
 
-        /// <summary>폭발 - 주황 파편 크게 + 화면 크게 흔들림 + 쾅.</summary>
-        public static void OnExplosion(Vector3 position)
+        /// <summary>폭발 - 주황 파편 크게 + 화면 크게 흔들림 + 쾅. radius 1 = 3x3, 2 = 5x5(유물 "장인의 화약통").
+        /// 11-09: 고퀄 = Effects/hq_bomb_3·hq_bomb_5(pixelfx, 판 가로 = 칸 수 + 1), 클래식 = explosion 을 범위에 맞춰 키움.</summary>
+        public static void OnExplosion(Vector3 position, int radius = 1)
         {
             if (!Enabled)
                 return;
 
-            var fire = Fx.Play("explosion", position, 3.3f, fps: 16f); // 주변 3x3이 터지는 크기
-            DeathBurst.Spawn(position, new Color(1f, 0.6f, 0.15f), count: fire != null ? 10 : 22, speed: 8f, size: 0.25f);
-            CameraShake.Shake(0.3f, 0.3f);
+            var span = radius * 2 + 1;
+            var hq = $"hq_bomb_{span}";
+            var fire = HeroLook.IsHq && Fx.Frames(hq).Length > 0
+                ? Fx.Play(hq, position, span + 1f, fps: 20f)
+                : Fx.Play("explosion", position, span * 1.1f, fps: 16f); // 범위가 터지는 크기
+            DeathBurst.Spawn(position, new Color(1f, 0.6f, 0.15f), count: (fire != null ? 10 : 22) * radius, speed: 8f * (0.5f + radius * 0.5f), size: 0.25f);
+            CameraShake.Shake(0.3f + 0.1f * (radius - 1), 0.3f);
             SfxPlayer.Play(Sfx.Explosion);
         }
 
@@ -320,8 +325,15 @@ namespace LoopRogue
                 return false;
             var cells = Mathf.Clamp(Mathf.RoundToInt(path.magnitude / GridConstants.CellSize), 1, 4);
             return Fx.Play($"hq_dash_wave_g{HeroLook.WeaponGrade}_{cells}", (from + to) * 0.5f, PlayerActor.PlayerSpriteScale * frames[0].rect.width / 64f,
-                Mathf.Atan2(path.y, path.x) * Mathf.Rad2Deg, fps: 30f, sortingOrder: 2) != null;
+                Mathf.Atan2(path.y, path.x) * Mathf.Rad2Deg, fps: 30f, sortingOrder: 2, speed: WaveSpeed(cells)) != null;
         }
+
+        /// <summary>11-09 사용자 "이펙트가 긴 스킬들 시간 줄이자" - 고퀄 베기·대시·파동 그림 최대 길이(초), 회전 베기는 따로. 넘으면 그만큼 빠르게 튼다.</summary>
+        private const float HqSkillMaxSeconds = 0.45f;
+        private const float HqSpinMaxSeconds = 0.6f;
+
+        /// <summary>대시 파동 그림 배속 - 발톱·바닥 문장도 이 값으로 같이 빨라져야 파동과 맞물린다.</summary>
+        private static float WaveSpeed(int cells) => Fx.Speed($"hq_dash_wave_g{HeroLook.WeaponGrade}_{Mathf.Clamp(cells, 1, 4)}", 30f, HqSkillMaxSeconds);
 
         /// <summary>11-07 고퀄 "대시 파동" - 폭 3줄 범위 안 몹 위에 붉은 발톱(hq_wave_claw_g{등급}). 앞발이 흩어지며 그 칸 발톱 자국이 드러나는 때에 맞춰 늦게 뜬다.
         /// step = 출발 다음 칸부터 몇 번째 칸(1~), cells = 대시 칸 수. 그림이 없는 등급은 그냥 넘어감.</summary>
@@ -336,7 +348,7 @@ namespace LoopRogue
             cells = Mathf.Clamp(cells, 1, 4);
             var delay = HasWaveTile ? WaveTileDelay(step, side, cells) // 바닥 칸 그림이 있는 등급(신화~) = 그 칸에 불붙는 때
                 : (cells + 3 + 2.5f * (step - 0.5f) / cells) / 30f; // 대시 파동 그림(30fps)에서 자국이 드러나는 장
-            Fx.Play(name, position, PlayerActor.PlayerSpriteScale * frames[0].rect.width / 64f, angle, fps: 30f, sortingOrder: 6, delay: delay);
+            Fx.Play(name, position, PlayerActor.PlayerSpriteScale * frames[0].rect.width / 64f, angle, fps: 30f, sortingOrder: 6, delay: delay, speed: WaveSpeed(cells));
         }
 
         private static bool HasWaveTile => HeroLook.IsHq && Fx.Frames($"hq_wave_tile_g{HeroLook.WeaponGrade}").Length > 0;
@@ -360,7 +372,7 @@ namespace LoopRogue
             var name = $"hq_wave_tile_g{HeroLook.WeaponGrade}";
             var frames = Fx.Frames(name);
             cells = Mathf.Clamp(cells, 1, 4);
-            Fx.Play(name, position, PlayerActor.PlayerSpriteScale * frames[0].rect.width / 64f, 0f, fps: 30f, sortingOrder: -5, delay: WaveTileDelay(step, side, cells)); // 바닥(-10)·벽(-8) 위, 몹·용사(0~1) 아래
+            Fx.Play(name, position, PlayerActor.PlayerSpriteScale * frames[0].rect.width / 64f, 0f, fps: 30f, sortingOrder: -5, delay: WaveTileDelay(step, side, cells), speed: WaveSpeed(cells)); // 바닥(-10)·벽(-8) 위, 몹·용사(0~1) 아래
         }
 
         /// <summary>특성 "분신 대시" - 분신이 지나간 길(from → to)에 플레이어 잔상과 대시 궤적. 소리·흔들림은 본체 대시가 낸다.</summary>
@@ -397,21 +409,24 @@ namespace LoopRogue
                     var diagCells = Mathf.Clamp(Mathf.RoundToInt(Mathf.Abs(path.x) / GridConstants.CellSize), 1, 4);
                     var diagName = $"hq_dash_diag_g{HeroLook.WeaponGrade}_{diagCells}";
                     var diag = Fx.Frames(diagName);
-                    if (diag.Length > 0 && Fx.Play(diagName, (from + to) * 0.5f, PlayerActor.PlayerSpriteScale * diag[0].rect.width / 64f, angle - 45f, fps: 30f, sortingOrder: 2) != null)
+                    if (diag.Length > 0 && Fx.Play(diagName, (from + to) * 0.5f, PlayerActor.PlayerSpriteScale * diag[0].rect.width / 64f, angle - 45f, fps: 30f, sortingOrder: 2, speed: Fx.Speed(diagName, 30f, HqSkillMaxSeconds)) != null)
                         return;
                 }
                 // 고퀄: 대시 거리별 그림(hq_dash_g{등급}_{1~4칸}, 11-06 - 늘이면 앞발·픽셀 크기가 달라져서 칸 수마다 따로 그림), 늘이지 않고 그대로
                 var cells = Mathf.Clamp(Mathf.RoundToInt(path.magnitude / GridConstants.CellSize), 1, 4);
                 var hqName = $"dash_g{HeroLook.WeaponGrade}_{cells}";
                 var hq = HeroLook.IsHq ? Fx.Frames("hq_" + hqName) : System.Array.Empty<Sprite>();
-                if (hq.Length == 0 || Fx.Play("hq_" + hqName, (from + to) * 0.5f, PlayerActor.PlayerSpriteScale * hq[0].rect.width / 64f, angle, fps: 30f, sortingOrder: 2) == null)
+                if (hq.Length == 0 || Fx.Play("hq_" + hqName, (from + to) * 0.5f, PlayerActor.PlayerSpriteScale * hq[0].rect.width / 64f, angle, fps: 30f, sortingOrder: 2, speed: Fx.Speed("hq_" + hqName, 30f, HqSkillMaxSeconds)) == null)
                     PlayGraded("dash", (from + to) * 0.5f, size, angle, fps, 2);
             }
         }
 
         /// <summary>11-06 고퀄 그림체 전용 스킬 이펙트(Effects/hq_{name}_g{등급}, pixelfx 등급색, 30fps) - 고퀄이 아니거나 그림이 없으면 null.</summary>
-        private static Fx PlayHqSkill(string name, Vector3 position, float size, float angle, int sortingOrder, string variant = "") =>
-            HeroLook.IsHq && size > 0f ? Fx.Play($"hq_{name}_g{HeroLook.WeaponGrade}{variant}", position, size, angle, fps: 30f, sortingOrder: sortingOrder) : null;
+        private static Fx PlayHqSkill(string name, Vector3 position, float size, float angle, int sortingOrder, string variant = "", float speed = 0f) =>
+            HeroLook.IsHq && size > 0f ? Fx.Play($"hq_{name}_g{HeroLook.WeaponGrade}{variant}", position, size, angle, fps: 30f, sortingOrder: sortingOrder, speed: speed) : null;
+
+        /// <summary>11-09 회전 베기 본 그림 배속(최대 HqSpinMaxSeconds) - 아래 겹도 같은 값으로.</summary>
+        private static float HqSpinSpeed(string name, string variant = "") => Fx.Speed($"hq_{name}_g{HeroLook.WeaponGrade}{variant}", 30f, HqSpinMaxSeconds);
 
         /// <summary>11-07 같은 스킬의 다른 버전 그림(hq_{name}_g{등급}_v1, _v2 ...)이 있으면 원본 포함 무작위 하나의 꼬리말("" = 원본).</summary>
         private static string HqVariant(string name)
@@ -465,16 +480,18 @@ namespace LoopRogue
                 {
                     // 11-07 Unknown: 블랙홀 폭발 모양이 매번 다르게(사용자 "자유분방하게") - 그림 hq_spin_cross_g{등급}, _v1, _v2 ... 중 무작위(위·아래 겹 같은 번호)
                     var v = HqVariant("spin_cross");
-                    swirl = PlayHqSkill("spin_cross", player.transform.position, HqSkillCells("spin_cross"), 0f, 7, v);
+                    var crossSpeed = HqSpinSpeed("spin_cross", v);
+                    swirl = PlayHqSkill("spin_cross", player.transform.position, HqSkillCells("spin_cross"), 0f, 7, v, crossSpeed);
                     if (swirl != null) // 용사 아래 겹(있는 등급만 - Unknown 마름모 블랙홀)
-                        PlayHqSkill("spin_cross_under", player.transform.position, HqSkillCells("spin_cross_under"), 0f, -5, v);
+                        PlayHqSkill("spin_cross_under", player.transform.position, HqSkillCells("spin_cross_under"), 0f, -5, v, crossSpeed);
                 }
                 if (swirl == null)
                 {
-                    swirl = PlayHqSkill("spin", player.transform.position, HqSkillCells("spin") * (wide ? 5f / 3f : 1f), 0f, 7);
+                    var spinSpeed = HqSpinSpeed("spin");
+                    swirl = PlayHqSkill("spin", player.transform.position, HqSkillCells("spin") * (wide ? 5f / 3f : 1f), 0f, 7, "", spinSpeed);
                     // 11-07 용사 아래 겹(hq_spin_under_g{등급}, 있는 등급만 - Unknown 블랙홀 본체·원반 뒤쪽): 용사를 가리지 않게 바닥(-10)·벽(-8) 위, 몹·용사(0~1) 아래
                     if (swirl != null)
-                        PlayHqSkill("spin_under", player.transform.position, HqSkillCells("spin_under") * (wide ? 5f / 3f : 1f), 0f, -5);
+                        PlayHqSkill("spin_under", player.transform.position, HqSkillCells("spin_under") * (wide ? 5f / 3f : 1f), 0f, -5, "", spinSpeed);
                 }
             }
             if (swirl == null && !wide && Relics.Has(RelicType.CrossCrest))

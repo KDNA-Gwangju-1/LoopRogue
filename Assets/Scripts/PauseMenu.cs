@@ -39,7 +39,7 @@ namespace LoopRogue
         private Func<bool> _canOpen;
         private GameObject _panel;
 
-        /// <param name="goToLobby">"로비로 이동"을 눌렀을 때 할 일.</param>
+        /// <param name="goToLobby">"로비로 이동"을 눌렀을 때 할 일. null이면 그 버튼을 안 만든다(로비 씬용).</param>
         /// <param name="canOpen">지금 메뉴를 열어도 되는지 - 사망/레벨업/클리어 창이 떠 있을 땐 안 열리게.</param>
         /// <param name="showQuit">"게임 종료" 버튼도 보여줄지(타이틀용).</param>
         /// <param name="lobbyLabel">"로비로 이동" 버튼 문구(Main은 데스 패널티 안내를 붙인다).</param>
@@ -186,7 +186,7 @@ namespace LoopRogue
             _panel.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
 
             // 메뉴 뒤 돌 테두리 패널(도트 그림이 있을 때만) - 버튼 수에 맞춘 높이
-            var buttonCount = 3 + (_goToTitle != null ? 1 : 0) + (showQuit ? 1 : 0);
+            var buttonCount = 2 + (_goToLobby != null ? 1 : 0) + (_goToTitle != null ? 1 : 0) + (showQuit ? 1 : 0);
             var board = new GameObject("Board", typeof(RectTransform));
             board.transform.SetParent(_panel.transform, false);
             var boardImage = board.AddComponent<Image>();
@@ -203,12 +203,17 @@ namespace LoopRogue
 
             CreateLabel(_panel.transform, Loc.T("메뉴"), 30, FontStyle.Bold, 110f, 400f, 44f);
 
-            var y = 40f;
-            CreateNumberedButton(lobbyLabel, LobbyButtonColor, y, GoToLobby);
+            // 11-09 goToLobby가 null이면(로비 씬) "로비로 이동" 버튼 없이 타이틀로부터
+            var y = 100f;
+            if (_goToLobby != null)
+            {
+                y -= 60f;
+                CreateNumberedButton(lobbyLabel, LobbyButtonColor, y, GoToLobby);
+            }
             if (_goToTitle != null)
             {
                 y -= 60f;
-                CreateNumberedButton(Loc.T("타이틀로 이동"), ButtonColor, y, GoToTitle);
+                CreateNumberedButton(Loc.T("타이틀로 이동"), _goToLobby == null ? LobbyButtonColor : ButtonColor, y, GoToTitle);
             }
             y -= 60f;
             CreateNumberedButton(Loc.T("설정"), ButtonColor, y, () => OptionsPanel.Open());
