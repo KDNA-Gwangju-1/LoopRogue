@@ -81,7 +81,7 @@ def wait_quota():
         if not rl:
             return True
         p, s = rl.get("primary") or {}, rl.get("secondary") or {}
-        if s.get("used_percent", 0) >= WEEKLY_MAX:
+        if s.get("used_percent", 0) >= WEEKLY_MAX and s.get("resets_at", time.time() + 1) > time.time():  # 풀린 시각이 지났으면 옛 기록이라 무시
             log(f"주간 한도 {s.get('used_percent')}% - 멈춤")
             return False
         if p.get("used_percent", 0) >= PRIMARY_MAX:
@@ -232,6 +232,78 @@ def armor_jobs():
     return jobs
 
 
+# 11-11 사용자 "방어구 완성하면 몬스터도, 일반몹부터": 나오는 층 순서. (스프라이트 폴더, 결과 폴더 이름, 생김새)
+MOBS = [
+    ("Slime", "01_슬라임", "a green slime blob monster"),
+    ("SkeletonArcher", "02_해골궁수", "a skeleton archer with a bow"),
+    ("ShieldSoldier", "03_해골방패병", "a skeleton soldier with a large shield"),
+    ("Spider", "04_거미", "a big purple dungeon spider"),
+    ("Bomber", "05_고블린폭탄병", "a goblin bomber carrying a round black bomb with a fuse"),
+    ("Sentinel", "06_반격병", "a steel-armored sentinel knight with a sun-emblem shield"),
+    ("Shaman", "07_고블린주술사", "a goblin shaman healer with a staff"),
+    ("OrcCharger", "08_오크돌격병", "a horned orc charger in red armor"),
+    ("Chanter", "09_주문술사", "a purple-hooded robed spellcaster with a floating spellbook"),
+    ("Jelly", "10_분열젤리", "a blue splitting jelly monster"),
+    ("Rogue", "11_그림자도적", "a shadow rogue assassin with daggers"),
+]
+SPR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "Assets", "Resources", "Sprites")
+MOB_DIRS = [("south", "앞", "front view, facing the viewer"), ("east", "옆", "side view, facing RIGHT"), ("north", "뒤", "back view, facing away from the viewer")]
+MOB_COMMON = ("Keep the same scale and framing as the pose reference (the monster takes up the same part of the square canvas, feet/bottom at the "
+              "same height). Plain solid white background. No effects, no motion trails, no shadow, no text, no numbers, only one monster. "
+              "Use your image generation tool, do not write code.")
+
+
+def mob_ref(set_name, key):
+    """게임 스프라이트(48px) 한 장을 8배로 키워 흰 정사각 판에(자세·생김새 참고용)."""
+    p = os.path.join(WORK, "mobpose", set_name, key + ".png")
+    if not os.path.exists(p):
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        s = Image.open(os.path.join(SPR, set_name, key + ".png")).convert("RGBA")
+        s = s.resize((s.width * 8, s.height * 8), Image.NEAREST)
+        c = Image.new("RGB", (s.width + 64, s.height + 64), (255, 255, 255))
+        c.paste(s, (32, 32), s)
+        c.save(p)
+    return p
+
+
+def mob_jobs():
+    """몹마다: 디자인 3장(앞·옆·뒤, 예전 그림을 고퀄 용사 화풍으로) -> 그 디자인으로 게임 스프라이트의 모든 장(동작 x 3방향, 서쪽 = 동쪽 뒤집기)."""
+    jobs = []
+    for set_name, name, desc in MOBS:
+        set_dir = os.path.join(OUT, f"몹_{name}")
+        look = {}
+        for en, d, view in MOB_DIRS:
+            out = os.path.join(set_dir, "_디자인", f"{d}.png")
+            look[d] = out
+            prompt = (f"Image 1 = STYLE reference (a high-quality pixel-art hero - copy only its art style: pixel size, outline thickness, shading, "
+                      f"color richness). Image 2 = the MONSTER to redraw ({desc}) from an old low-resolution game sprite. Redraw this exact monster "
+                      f"as high-quality pixel art in the style of image 1: same identity, silhouette, colors and pose as image 2, {view}, but with "
+                      f"the detail and quality of image 1. {MOB_COMMON}")
+            refs = [DESIGN["앞"], mob_ref(set_name, f"idle_{en}_0")] + ([look["앞"]] if d != "앞" else [])
+            if d != "앞":
+                prompt += " Image 3 = the same redrawn monster from the front; match its design exactly."
+            jobs.append((out, prompt, refs))
+        jobs.append(("__mob_set__", set_name, set_dir, look, desc))
+    return jobs
+
+
+def mob_set_jobs(set_name, set_dir, look, desc):
+    jobs = []
+    keys = sorted({f.rsplit("_", 1)[0] for f in os.listdir(os.path.join(SPR, set_name)) if f.endswith(".png") and not f.rsplit("_", 1)[0].endswith("west")})
+    for anim in keys:
+        kind, en = anim.rsplit("_", 1)
+        d, view = next((d, v) for e, d, v in MOB_DIRS if e == en)
+        n = len([f for f in os.listdir(os.path.join(SPR, set_name)) if f.startswith(anim + "_") and f.endswith(".png")])
+        for i in range(n):
+            pose = mob_ref(set_name, f"{anim}_{i}")
+            prompt = (f"Image 1 = MONSTER DESIGN reference ({desc}, {view}) - keep its exact design, palette, outline and pixel size. Image 2 = POSE "
+                      f"reference only (an old low-resolution sprite of the same monster - copy only the body pose, limb positions and facing). "
+                      f"Draw ONE frame: the design monster in exactly the pose of image 2. This is frame {i + 1} of {n} of its '{kind}' animation. "
+                      f"{MOB_COMMON}")
+            jobs.append((os.path.join(set_dir, f"{kind}_{d}", f"{i + 1:02d}.png"), prompt, [look[d], pose]))
+    return jobs
+
+
 def main():
     mode = sys.argv[1] if len(sys.argv) > 1 else "all"
     os.makedirs(WORK, exist_ok=True)
@@ -245,10 +317,22 @@ def main():
         jobs = body_jobs(base, DESIGN)
     elif mode == "armor":
         jobs = armor_jobs()
+    elif mode == "mobs":
+        jobs = mob_jobs()
     else:
-        jobs = weapon_jobs() + body_jobs(base, DESIGN) + armor_jobs()
+        jobs = weapon_jobs() + body_jobs(base, DESIGN) + armor_jobs() + mob_jobs()  # 방어구 다 끝나면 일반 몹(층 순서)
     fails = 0
     for job in jobs:
+        if job[0] == "__mob_set__":
+            _, set_name, set_dir, look, desc = job
+            if not all(os.path.exists(p) for p in look.values()):
+                continue
+            for out, prompt, images in mob_set_jobs(set_name, set_dir, look, desc):
+                r = run(out, prompt, images)
+                if r is None:
+                    log("끝(한도)"); return
+                fails += r is False
+            continue
         if job[0] == "__armor_set__":
             _, set_dir, look = job
             if not all(os.path.exists(p) for p in look.values()):

@@ -428,6 +428,11 @@ namespace LoopRogue
         /// <summary>11-09 회전 베기 본 그림 배속(최대 HqSpinMaxSeconds) - 아래 겹도 같은 값으로.</summary>
         private static float HqSpinSpeed(string name, string variant = "") => Fx.Speed($"hq_{name}_g{HeroLook.WeaponGrade}{variant}", 30f, HqSpinMaxSeconds);
 
+        /// <summary>11-11 영원 회전 베기 시계 - 이번 판에서 회전 베기를 쓴 횟수(1~12 순환). 판 시작(LoopManager)에서 0.</summary>
+        private static int _spinClock;
+
+        public static void ResetSpinClock() => _spinClock = 0;
+
         /// <summary>11-07 같은 스킬의 다른 버전 그림(hq_{name}_g{등급}_v1, _v2 ...)이 있으면 원본 포함 무작위 하나의 꼬리말("" = 원본).</summary>
         private static string HqVariant(string name)
         {
@@ -487,8 +492,11 @@ namespace LoopRogue
                 }
                 if (swirl == null)
                 {
-                    var spinSpeed = HqSpinSpeed("spin");
-                    swirl = PlayHqSkill("spin", player.transform.position, HqSkillCells("spin") * (wide ? 5f / 3f : 1f), 0f, 7, "", spinSpeed);
+                    // 11-11 영원 "시계탑 정오": 회전 베기 쓸 때마다 시침이 한 칸(1번째 = 1시 ... 12번째 = 12시, 다시 1시) - 그림 hq_spin_g{등급}_h1~h11, 12시 = 원본
+                    _spinClock = _spinClock % 12 + 1;
+                    var hv = _spinClock < 12 && Fx.Frames($"hq_spin_g{HeroLook.WeaponGrade}_h{_spinClock}").Length > 0 ? $"_h{_spinClock}" : "";
+                    var spinSpeed = HqSpinSpeed("spin", hv);
+                    swirl = PlayHqSkill("spin", player.transform.position, HqSkillCells("spin") * (wide ? 5f / 3f : 1f), 0f, 7, hv, spinSpeed);
                     // 11-07 용사 아래 겹(hq_spin_under_g{등급}, 있는 등급만 - Unknown 블랙홀 본체·원반 뒤쪽): 용사를 가리지 않게 바닥(-10)·벽(-8) 위, 몹·용사(0~1) 아래
                     if (swirl != null)
                         PlayHqSkill("spin_under", player.transform.position, HqSkillCells("spin_under") * (wide ? 5f / 3f : 1f), 0f, -5, "", spinSpeed);
