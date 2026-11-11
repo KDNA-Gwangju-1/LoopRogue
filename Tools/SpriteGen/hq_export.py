@@ -33,7 +33,10 @@ REPLACE = {"idle_west_3": "idle_west_2"}  # 망친 장 -> 대신 쓸 장(모든 
 # 세트별 망친 장 -> 대신 쓸 장. 11-07 초월 대쉬_앞 05는 몸이 반만 하게 그려짐(Codex 한도 걸려 다시 뽑기 전까지 옆 장으로)
 SET_REPLACE = {"몸_08_초월": {"dash_south_4": "dash_south_3"}}
 # 세트별 손으로 고친 칸: (장 이름들, (x, y), 색). 11-07 사용자 - 초월 대기 앞 0~2장 (28,30) 검정 -> 피부(3~7장과 같게)
-SET_PIXEL_FIX = {"몸_08_초월": [([f"idle_south_{i}" for i in range(3)], (28, 30), (253, 201, 159))]}
+# 색 None = 지움. 11-11 사용자 - 영원 대쉬 옆 4번째 장 손 밑 외곽선: (28~30,47) 검정, 그 밑 (28~30,48) 지움
+SET_PIXEL_FIX = {"몸_08_초월": [([f"idle_south_{i}" for i in range(3)], (28, 30), (253, 201, 159))],
+                 "몸_09_영원": [(["dash_west_3"], (28, 47), (5, 8, 23)), (["dash_west_3"], (28, 48), None), (["dash_west_3"], (29, 47), (5, 8, 23)), (["dash_west_3"], (30, 47), (5, 8, 23)),
+                               (["dash_west_3"], (29, 48), None), (["dash_west_3"], (30, 48), None)]}
 KINDS = {"대기": "idle", "걷기": "walk", "공격": "attack", "대쉬": "dash"}
 DIRS = {"앞": "south", "옆": "west", "뒤": "north"}
 
@@ -681,7 +684,8 @@ def export_set(folder, swords):
                 anchors[bad_key] = anchors[use_key]
     for keys_, (fx_, fy_), col_ in SET_PIXEL_FIX.get(label, []):
         for k_ in keys_:
-            if k_ in bodies: bodies[k_][fy_, fx_, :3] = col_; bodies[k_][fy_, fx_, 3] = 255
+            if k_ in bodies and col_ is None: bodies[k_][fy_, fx_] = 0
+            elif k_ in bodies: bodies[k_][fy_, fx_, :3] = col_; bodies[k_][fy_, fx_, 3] = 255
     # 11-06 사용자: 옆모습 대기 칼이 손이 아니라 손 앞에 떠 있고, 칼끝이 땅에 닿아 한두 칸 삐져나옴
     # -> 칼막이를 주먹(칼 자리 둘레 피부 칸 가운데)에서 칼날 쪽으로 1.5칸에 두고, 칼끝이 발바닥 2칸 위보다 내려가면 칼을 앞으로 들어 올림
     if "idle_west_0" in anchors:

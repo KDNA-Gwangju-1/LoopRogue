@@ -202,6 +202,35 @@ def body_jobs(set_dir, design, look=""):
     return jobs
 
 
+def walkside_jobs():
+    """11-11 사용자 "옆 걷기 갑옷이 꿀렁거림·얼굴 뭉개짐" -> 모든 몸 세트의 옆 걷기 8장을 다시(걷기_옆_v2).
+    그림 1 = 이 세트 대기 옆 01(실제 그려진 갑옷), 그림 2 = 자세, 2장부터는 그림 3 = 새 1장(갑옷 똑같이)."""
+    jobs = []
+    sheet = os.path.join(SRC, "걷기", "걷기_옆.png")
+    for set_dir in sorted(glob.glob(os.path.join(OUT, "몸_*"))):
+        idle = os.path.join(set_dir, "대기_옆", "01.png")
+        if not os.path.exists(idle):
+            continue
+        first = os.path.join(set_dir, "걷기_옆_v2", "01.png")
+        for i in range(8):
+            pose = os.path.join(WORK, "pose", f"walk_옆_{i + 1:02d}.png")
+            if not os.path.exists(pose):
+                os.makedirs(os.path.dirname(pose), exist_ok=True)
+                frame(sheet, i).save(pose)
+            prompt = ("Image 1 = the EXACT character to draw (side view, facing LEFT, standing). Image 2 = POSE reference only (a different "
+                      "character - copy only the leg and arm positions of the walk). Draw ONE frame: the character of image 1 walking in exactly "
+                      f"the pose of image 2, side view facing LEFT. This is frame {i + 1} of 8 of a walk cycle. VERY IMPORTANT: the head, face, "
+                      "hair, helmet/headpiece, torso armor and shoulder plates must stay IDENTICAL to image 1 (same shapes, same size, same pixels, "
+                      "same height) - only the legs, the arms and the cape move. Keep the face clean and simple like image 1: one eye, no nose bump. "
+                      f"{PLACEHOLDER} {COMMON}")
+            refs = [idle, pose]
+            if i:
+                prompt += " Image 3 = frame 1 of this same walk animation; its head and armor must match exactly."
+                refs.append(first)
+            jobs.append((os.path.join(set_dir, "걷기_옆_v2", f"{i + 1:02d}.png"), prompt, refs))
+    return jobs
+
+
 def weapon_jobs():
     jobs = []
     for name, grade, desc in GRADES:
@@ -319,8 +348,10 @@ def main():
         jobs = armor_jobs()
     elif mode == "mobs":
         jobs = mob_jobs()
+    elif mode == "walkside":
+        jobs = walkside_jobs()
     else:
-        jobs = weapon_jobs() + body_jobs(base, DESIGN) + armor_jobs() + mob_jobs()  # 방어구 다 끝나면 일반 몹(층 순서)
+        jobs = weapon_jobs() + body_jobs(base, DESIGN) + armor_jobs() + walkside_jobs() + mob_jobs()  # 방어구 -> 옆 걷기 다시(11-11) -> 일반 몹(층 순서)
     fails = 0
     for job in jobs:
         if job[0] == "__mob_set__":
