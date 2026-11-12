@@ -23,7 +23,7 @@ button:hover{background:#4a4f63} button.on{background:#c79a2e;color:#111;border-
 canvas.ref{image-rendering:pixelated;background:#4a4e60}
 .k{color:#aab;font-size:12px;line-height:1.6}
 </style></head><body>
-<div id="top"><b>세트:</b> <span id="sets"></span></div>
+<div id="top"><b>세트:</b> <span id="sets"></span> &nbsp; <span id="animsw"></span></div>
 <div id="frames"></div>
 <div id="main">
   <div id="wrap"><canvas id="cv" width="768" height="768"></canvas></div>
@@ -41,12 +41,12 @@ canvas.ref{image-rendering:pixelated;background:#4a4e60}
       <span id="cur"></span> <input type="color" id="picker"> <span id="hex" style="font-family:Consolas"></span>
       <div style="margin-top:6px" id="pal"></div>
     </div>
-    <div class="box"><h3>미리보기 (8장 움직임) · 게임 대기 옆</h3>
+    <div class="box"><h3 id="prevh">미리보기 (8장 움직임) · 게임 대기 옆</h3>
       <canvas id="anim" class="ref" width="192" height="192"></canvas>
       <canvas id="idle" class="ref" width="192" height="192"></canvas>
     </div>
     <div class="box k">왼쪽 클릭 = 칠하기 · 오른쪽 클릭 = 지우기 · Alt+클릭 = 색 뽑기<br>
-      저장하면 walk_west와 뒤집은 walk_east가 같이 저장돼요. 다른 장으로 넘어갈 때 저장 안 했으면 물어봐요.<br>
+      <span id="savehelp">저장하면 walk_west와 뒤집은 walk_east가 같이 저장돼요.</span> 다른 장으로 넘어갈 때 저장 안 했으면 물어봐요.<br>
       좌표는 64칸 기준 (x, y).</div>
   </div>
 </div>
@@ -54,6 +54,7 @@ canvas.ref{image-rendering:pixelated;background:#4a4e60}
 const Z = 12, N = 64;
 const cv = document.getElementById('cv'), cx = cv.getContext('2d');
 const off = document.createElement('canvas'); off.width = off.height = N; const ox = off.getContext('2d');
+let CFG = {anim:'walk_west', n:8, ref:'idle_west_0', flip:true}, NF = 8;
 let SETS = [], set = null, fi = 0, frames = [], dirty = new Set(), idleImg = null, tool = 'pen', color = [12,17,43,255];
 let undo = [], redo = [], hover = null, drawing = false, strokeSaved = false;
 
@@ -62,30 +63,47 @@ function toData(im){ const c=document.createElement('canvas'); c.width=c.height=
 function hex(c){ return '#'+c.slice(0,3).map(v=>v.toString(16).padStart(2,'0')).join(''); }
 
 async function init(){
+  CFG = await (await fetch('/config')).json(); NF = CFG.n;
+  if (CFG.multi){ const aw=document.getElementById('animsw'); aw.innerHTML='<b>동작:</b> ';
+    const KO={idle:'대기',walk:'걷기',attack:'공격',dash:'대쉬',spin:'회전'}, DK={south:'앞',north:'뒤',west:'옆',east:'오른쪽'};
+    CFG.anims.forEach(([a,n])=>{ const b=document.createElement('button'); const [k,d]=a.split('_'); b.textContent=`${KO[k]||k} ${DK[d]||d} (${n}장)`; b.id='a_'+a;
+      b.onclick=()=>pickAnim(a,n); aw.appendChild(b); }); }
+  document.title = '도트 편집기 - ' + CFG.anim;
+  document.getElementById('prevh').textContent = `미리보기 (${NF}장 움직임) · 참고 ${CFG.ref}`;
+  document.getElementById('savehelp').textContent = CFG.flip ? `저장하면 ${CFG.anim}와 뒤집은 east가 같이 저장돼요.` : `저장하면 ${CFG.anim} 장이 저장돼요.`;
   SETS = await (await fetch('/sets')).json();
   const s = document.getElementById('sets');
   SETS.forEach(([k,n])=>{ const b=document.createElement('button'); b.textContent=n; b.onclick=()=>pickSet(k); b.id='s_'+k; s.appendChild(b); });
-  await pickSet(SETS[0][0]);
+  set = SETS[0][0];
+  if (CFG.multi) await pickAnim(CFG.anims[0][0], CFG.anims[0][1]); else await pickSet(SETS[0][0]);
   setInterval(anim, 120);
 }
-async function pickSet(k){
+async function pickAnim(a,n){
   if (dirty.size && !confirm('저장 안 한 장이 있어요. 버리고 넘어갈까요?')) return;
+  dirty.clear(); CFG.anim=a; NF=n; CFG.flip=a.endsWith('_west'); if (CFG.multi) CFG.ref=a+'_0';
+  document.getElementById('prevh').textContent = `미리보기 (${NF}장 움직임) · 참고 = 처음 상태 1번`;
+  document.getElementById('savehelp').textContent = CFG.flip ? `저장하면 ${a}와 뒤집은 east가 같이 저장돼요.` : `저장하면 ${a} 장이 저장돼요.`;
+  document.querySelectorAll('#animsw button').forEach(b=>b.classList.toggle('on', b.id==='a_'+a));
+  fi=0; await pickSet(set, true);
+}
+async function pickSet(k, force){
+  if (!force && dirty.size && !confirm('저장 안 한 장이 있어요. 버리고 넘어갈까요?')) return;
   set = k; dirty.clear(); undo=[]; redo=[];
   document.querySelectorAll('#sets button').forEach(b=>b.classList.toggle('on', b.id==='s_'+k));
   frames = [];
-  for (let i=0;i<8;i++) frames.push(toData(await loadImg(`/edit/${k}/walk_west_${i}.png`)));
-  idleImg = toData(await loadImg(`/game/${k}/idle_west_0.png`));
+  for (let i=0;i<NF;i++) frames.push(toData(await loadImg(`/edit/${k}/${CFG.anim}_${i}.png`)));
+  idleImg = toData(await loadImg(`/game/${k}/${CFG.ref}.png`));
   const ic = document.getElementById('idle').getContext('2d'); ic.imageSmoothingEnabled=false; ic.clearRect(0,0,192,192);
   ox.putImageData(idleImg,0,0); ic.drawImage(off,0,0,192,192);
   buildFrames(); pickFrame(0, true);
 }
 function buildFrames(){
   const f = document.getElementById('frames'); f.innerHTML='';
-  for (let i=0;i<8;i++){ const d=document.createElement('div'); d.className='fr'; d.id='f_'+i;
+  for (let i=0;i<NF;i++){ const d=document.createElement('div'); d.className='fr'; d.id='f_'+i;
     const c=document.createElement('canvas'); c.width=c.height=N; d.appendChild(c); d.append(`${i+1}번`); d.onclick=()=>pickFrame(i); f.appendChild(d); }
   thumbs();
 }
-function thumbs(){ for (let i=0;i<8;i++){ const c=document.querySelector(`#f_${i} canvas`); c.getContext('2d').putImageData(frames[i],0,0);
+function thumbs(){ for (let i=0;i<NF;i++){ const c=document.querySelector(`#f_${i} canvas`); c.getContext('2d').putImageData(frames[i],0,0);
   document.getElementById('f_'+i).classList.toggle('on', i===fi); document.getElementById('f_'+i).classList.toggle('dirty', dirty.has(i)); } }
 function pickFrame(i, force){ fi = i; undo=[]; redo=[]; buildPalette(); thumbs(); draw(); }
 function buildPalette(){
@@ -107,7 +125,7 @@ function draw(){
   // 체크무늬(투명 칸)
   for (let y=0;y<N;y++) for (let x=0;x<N;x++) if((x+y)%2){ cx.fillStyle='#454959'; cx.fillRect(x*Z,y*Z,Z,Z); }
   if (document.getElementById('idleov').checked){ ox.putImageData(idleImg,0,0); cx.globalAlpha=.35; cx.drawImage(off,0,0,N*Z,N*Z); cx.globalAlpha=1; }
-  if (document.getElementById('onion').checked){ ox.putImageData(frames[(fi+7)%8],0,0); cx.globalAlpha=.3; cx.drawImage(off,0,0,N*Z,N*Z); cx.globalAlpha=1; }
+  if (document.getElementById('onion').checked){ ox.putImageData(frames[(fi+NF-1)%NF],0,0); cx.globalAlpha=.3; cx.drawImage(off,0,0,N*Z,N*Z); cx.globalAlpha=1; }
   ox.putImageData(frames[fi],0,0); cx.drawImage(off,0,0,N*Z,N*Z);
   if (document.getElementById('grid').checked){
     for (let i=0;i<=N;i++){ cx.strokeStyle = i%8===0 ? 'rgba(230,200,90,.55)' : 'rgba(255,255,255,.10)'; cx.lineWidth=1;
@@ -118,7 +136,7 @@ function draw(){
   if (hover){ cx.strokeStyle='#fff'; cx.lineWidth=2; cx.strokeRect(hover[0]*Z+1,hover[1]*Z+1,Z-2,Z-2); }
 }
 let ai=0; function anim(){ if(!frames.length) return; const a=document.getElementById('anim').getContext('2d'); a.imageSmoothingEnabled=false; a.clearRect(0,0,192,192);
-  ox.putImageData(frames[ai%8],0,0); a.drawImage(off,0,0,192,192); ai++; }
+  ox.putImageData(frames[ai%NF],0,0); a.drawImage(off,0,0,192,192); ai++; }
 
 function cell(e){ const r=cv.getBoundingClientRect(); const x=Math.floor((e.clientX-r.left)/Z), y=Math.floor((e.clientY-r.top)/Z); return (x>=0&&y>=0&&x<N&&y<N)?[x,y]:null; }
 function px(x,y){ const d=frames[fi].data, i=(y*N+x)*4; return [d[i],d[i+1],d[i+2],d[i+3]]; }
@@ -145,21 +163,21 @@ document.getElementById('undo').onclick=doUndo; document.getElementById('redo').
 async function save(){
   const toSave = dirty.size ? [...dirty] : [fi];
   for (const i of toSave){ const c=document.createElement('canvas'); c.width=c.height=N; c.getContext('2d').putImageData(frames[i],0,0);
-    const r = await fetch(`/save/${set}/walk_west_${i}.png`, {method:'POST', body: JSON.stringify({png:c.toDataURL('image/png')})});
+    const r = await fetch(`/save/${set}/${CFG.anim}_${i}.png`, {method:'POST', body: JSON.stringify({png:c.toDataURL('image/png')})});
     if (!r.ok){ msg('저장 실패: '+await r.text(), true); return; } dirty.delete(i); }
   thumbs(); msg(`저장했어요: ${toSave.map(i=>i+1+'번').join(', ')} (${new Date().toLocaleTimeString()})`);
 }
 function msg(t, bad){ const m=document.getElementById('msg'); m.textContent=t; m.style.color=bad?'#f88':'#9f9'; }
 document.getElementById('save').onclick=save;
 document.getElementById('revert').onclick=async()=>{ if(!confirm(`${fi+1}번을 처음 상태로 불러올까요? (저장해야 파일에 반영돼요)`)) return;
-  const d=toData(await loadImg(`/orig/${set}/walk_west_${fi}.png`)); undo.push(new Uint8ClampedArray(frames[fi].data)); frames[fi].data.set(d.data); dirty.add(fi); thumbs(); draw(); };
+  const d=toData(await loadImg(`/orig/${set}/${CFG.anim}_${fi}.png`)); undo.push(new Uint8ClampedArray(frames[fi].data)); frames[fi].data.set(d.data); dirty.add(fi); thumbs(); draw(); };
 ['grid','onion','idleov'].forEach(k=>document.getElementById(k).onchange=draw);
 window.addEventListener('keydown', e=>{
   if (e.ctrlKey && e.key.toLowerCase()==='z'){ e.preventDefault(); doUndo(); }
   else if (e.ctrlKey && e.key.toLowerCase()==='y'){ e.preventDefault(); doRedo(); }
   else if (e.ctrlKey && e.key.toLowerCase()==='s'){ e.preventDefault(); save(); }
   else if (e.key==='b'||e.key==='B') setTool('pen'); else if (e.key==='e'||e.key==='E') setTool('era'); else if (e.key==='i'||e.key==='I') setTool('pick');
-  else if (e.key==='ArrowRight'){ pickFrame((fi+1)%8); } else if (e.key==='ArrowLeft'){ pickFrame((fi+7)%8); }
+  else if (e.key==='ArrowRight'){ pickFrame((fi+1)%NF); } else if (e.key==='ArrowLeft'){ pickFrame((fi+NF-1)%NF); }
 });
 window.addEventListener('beforeunload', e=>{ if(dirty.size){ e.preventDefault(); e.returnValue=''; } });
 init();

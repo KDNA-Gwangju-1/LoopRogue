@@ -550,7 +550,7 @@ def export_set(folder, swords):
             fs = sorted(glob.glob(os.path.join(folder, sub, "0*.png")))
             if len(fs) == 8:
                 groups[f"{en}_{de}"] = fs
-    fs = sorted(glob.glob(os.path.join(folder, "회전베기", "*.png")))
+    fs = sorted(glob.glob(os.path.join(folder, "회전베기", "0*.png")))  # 11-12 4장 묶음 시트(sheet_N.png) 빼고
     if len(fs) == 8:
         groups["spin_south"] = fs
     if len(groups) < 13:
