@@ -544,7 +544,10 @@ def export_set(folder, swords):
     groups = {}
     for kr, en in KINDS.items():
         for dk, de in DIRS.items():
-            fs = sorted(glob.glob(os.path.join(folder, f"{kr}_{dk}", "*.png")))
+            sub = f"{kr}_{dk}"
+            if sub == "걷기_옆" and os.environ.get("HQ_WALKSIDE_V2") and glob.glob(os.path.join(folder, "걷기_옆_v2", "0*.png")):
+                sub = "걷기_옆_v2"  # 11-11 시트로 한 번에 뽑아 자른 옆 걷기(walk_sheet.py)
+            fs = sorted(glob.glob(os.path.join(folder, sub, "0*.png")))
             if len(fs) == 8:
                 groups[f"{en}_{de}"] = fs
     fs = sorted(glob.glob(os.path.join(folder, "회전베기", "*.png")))

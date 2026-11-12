@@ -105,6 +105,9 @@ def fix_frame(walk, idle, hm, chin, dx, dy):
     return out
 
 
+TORSO = int(os.environ.get("WH_TORSO", "0"))   # 11-11 시험: >0이면 턱 아래 이만큼 줄(가슴·어깨·허리)까지 대기 그림으로 덮음(다리만 걷기)
+
+
 def run(folder):
     d = os.path.join(RES, folder)
     p0 = os.path.join(d, "idle_west_0.png")
@@ -113,6 +116,8 @@ def run(folder):
     if folder in FACE_SETS:
         idle = put_face(idle, np.asarray(Image.open(os.path.join(RES, FACE_FROM, "idle_west_0.png")).convert("RGBA")))
     hm, top, chin = head_of(idle)
+    if TORSO:
+        hm = np.zeros_like(hm); hm[top:chin + TORSO + 1] = idle[top:chin + TORSO + 1, :, 3] > 0
     walks, offs = {}, {}
     for i in range(8):
         p = os.path.join(d, f"walk_west_{i}.png")
@@ -123,8 +128,8 @@ def run(folder):
     log = []
     for i, walk in walks.items():
         dy = my + int(np.clip(offs[i][1] - my, -1, 1))
-        if folder in BODY_SETS: dy = int(np.clip(body_offset(walk, idle, chin), -2, 2))
-        out = fix_frame(walk, idle, hm, chin, mx, dy)
+        if folder in BODY_SETS or TORSO: dy = int(np.clip(body_offset(walk, idle, chin), -2, 2))
+        out = fix_frame(walk, idle, hm, chin + TORSO, mx, dy)
         Image.fromarray(out).save(os.path.join(d, f"walk_west_{i}.png"))
         Image.fromarray(out[:, ::-1].copy()).save(os.path.join(d, f"walk_east_{i}.png"))
         log.append(f"{mx:+d},{dy:+d}")

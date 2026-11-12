@@ -203,33 +203,40 @@ def body_jobs(set_dir, design, look=""):
 
 
 def walkside_jobs():
-    """11-11 사용자 "옆 걷기 갑옷이 꿀렁거림·얼굴 뭉개짐" -> 모든 몸 세트의 옆 걷기 8장을 다시(걷기_옆_v2).
-    그림 1 = 이 세트 대기 옆 01(실제 그려진 갑옷), 그림 2 = 자세, 2장부터는 그림 3 = 새 1장(갑옷 똑같이)."""
+    """11-11 사용자 "옆 걷기 갑옷이 꿀렁거림·얼굴 뭉개짐" -> "8장을 한 번에(4장씩 2번) 뽑고 그 위에 도트화".
+    모든 몸 세트의 옆 걷기를 가로 한 줄 4칸 시트 2장으로(걷기_옆_v2/sheet_1.png = 1~4장, sheet_2.png = 5~8장).
+    그림 1 = 이 세트 대기 옆 01(실제 갑옷), 그림 2 = 자세 4장 줄, 시트 2는 그림 3 = 시트 1(머리·갑옷 똑같이). 자르기·도트화는 walk_sheet.py."""
     jobs = []
     sheet = os.path.join(SRC, "걷기", "걷기_옆.png")
+    for half in (0, 1):
+        pose = os.path.join(WORK, "pose", f"walk_옆_strip_{half + 1}.png")
+        if not os.path.exists(pose):
+            os.makedirs(os.path.dirname(pose), exist_ok=True)
+            fr = [frame(sheet, half * 4 + i) for i in range(4)]
+            h = fr[0].height; strip = Image.new("RGB", (h * 4, h), (255, 255, 255))
+            for i, f in enumerate(fr): strip.paste(f, (i * h, 0))
+            strip.save(pose)
     for set_dir in sorted(glob.glob(os.path.join(OUT, "몸_*"))):
         idle = os.path.join(set_dir, "대기_옆", "01.png")
         if not os.path.exists(idle):
             continue
-        first = os.path.join(set_dir, "걷기_옆_v2", "01.png")
-        for i in range(8):
-            pose = os.path.join(WORK, "pose", f"walk_옆_{i + 1:02d}.png")
-            if not os.path.exists(pose):
-                os.makedirs(os.path.dirname(pose), exist_ok=True)
-                frame(sheet, i).save(pose)
-            prompt = ("Image 1 = the EXACT character to draw (side view, facing LEFT, standing). Image 2 = POSE reference only (a different "
-                      "character - copy only the leg and arm positions of the walk). Draw ONE frame: the character of image 1 walking in exactly "
-                      f"the pose of image 2, side view facing LEFT. This is frame {i + 1} of 8 of a walk cycle. VERY IMPORTANT: the head, face, "
-                      "hair, helmet/headpiece, torso armor and shoulder plates must stay IDENTICAL to image 1 (same shapes, same size, same pixels, "
-                      "same height) - only the legs, the arms and the cape move. Keep the face clean and simple like image 1: one eye, no nose bump. "
-                      f"{PLACEHOLDER} {COMMON}")
-            refs = [idle, pose]
-            if i:
-                prompt += " Image 3 = frame 1 of this same walk animation; its head and armor must match exactly."
+        first = os.path.join(set_dir, "걷기_옆_v2", "sheet_1.png")
+        for half in (0, 1):
+            prompt = ("Image 1 = the EXACT character to draw (side view, facing LEFT, standing). Image 2 = POSE reference only: a strip of 4 walk "
+                      "frames of a different character - copy only the leg and arm positions. Draw a SPRITE SHEET: ONE wide landscape image with "
+                      f"exactly 4 frames side by side in a single horizontal row (frames {half * 4 + 1}-{half * 4 + 4} of an 8-frame walk cycle), "
+                      "each frame the character of image 1 walking, side view facing LEFT, in the pose of the matching frame of image 2. "
+                      "Equal-width cells, the same character size in every frame, all feet on the same ground line, clear white space between "
+                      "frames, no borders, no grid lines, no frame numbers. VERY IMPORTANT: the head, face, hair, helmet/headpiece, torso armor and "
+                      "shoulder plates are IDENTICAL in all 4 frames and identical to image 1 (same shapes, same size, same pixels, same height) - "
+                      "only the legs, the arms and the cape move. Keep the face clean and simple like image 1: one eye, no nose bump. "
+                      f"{PLACEHOLDER} {COMMON.replace('only one character', 'exactly 4 copies of the character, one per frame').replace('(square canvas, character centered, feet near the bottom)', '(wide canvas)')}")
+            refs = [idle, os.path.join(WORK, "pose", f"walk_옆_strip_{half + 1}.png")]
+            if half:
+                prompt += " Image 3 = frames 1-4 of this same walk (sheet 1); its head, armor, colors and character size must match exactly."
                 refs.append(first)
-            jobs.append((os.path.join(set_dir, "걷기_옆_v2", f"{i + 1:02d}.png"), prompt, refs))
+            jobs.append((os.path.join(set_dir, "걷기_옆_v2", f"sheet_{half + 1}.png"), prompt, refs))
     return jobs
-
 
 def weapon_jobs():
     jobs = []
