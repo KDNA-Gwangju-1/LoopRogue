@@ -18,12 +18,54 @@ OUT = os.environ.get("HQ_RES") or SPR
 DIRS = {"앞": "south", "옆": "east", "뒤": "north"}
 NCOL = 24
 import mob_bowstring
-def _archer(anim, a):
+def _archer(anim, a, *_):
     """11-12 사용자 "다른 동작 활줄도 옆 공격과 맞춰": 옆(동쪽) 동작은 시위 정리, 나머지는 활 옆 흰 시위만 같은 색."""
     return mob_bowstring.fix(a)[0] if anim.endswith("_east") else mob_bowstring.fix_any(a)[0]
 
 
-POST = {"SkeletonArcher": _archer}   # 장마다 덧손질(동쪽 고친 뒤 서쪽은 뒤집기)
+def _bomber(anim, a, i, oldpng):
+    """11-13 사용자 확인: 새 그림엔 "불붙음" 경고가 없음 -> 옛 lit 장을 보고 덧칠.
+    - 폭탄(머리 위 어두운 무채색 덩어리)을 주황·빨강 불빛으로(밝기 순서대로), 옛 장의 불빛 세기(밝은 주황 비율)를 따름
+    - 옛 장에 빨간 테두리가 깜빡이는 장이면 새 몸 바깥 테두리도 빨강(160,30,20)"""
+    if not anim.startswith("lit"): return a
+    import cv2
+    o = np.asarray(Image.open(oldpng).convert("RGBA")).astype(int)
+    oa = o[..., 3] > 0
+    hot = ((o[..., 0] == 255) & (o[..., 1] == 160)).sum(); warm = ((o[..., 0] >= 160) & (o[..., 1] <= 90) & (o[..., 2] <= 50) & oa).sum()
+    flash = ((o[..., 0] == 160) & (o[..., 1] == 30) & (o[..., 2] == 20)).sum() > 25
+    t = float(np.clip(hot / max(1, hot + warm) * 1.6, 0, 1))          # 0 = 어두운 빨강 위주, 1 = 밝은 주황 위주
+    a = a.copy(); al = a[..., 3] > 0
+    ys, xs = np.nonzero(al); top, bot = ys.min(), ys.max()
+    rgb = a[..., :3].astype(int); mx = rgb.max(-1); mn = rgb.min(-1); lum = rgb @ np.array([.299, .587, .114])
+    cand = al & (mx - mn < 40) & (lum >= 28) & (lum < 170)               # 폭탄 몸통: 무채색 회색(검은 테두리 제외)
+    cand[int(top + (bot - top) * .45):] = False                          # 위쪽만(몸 갑옷 회색 빼기)
+    n, lab, st, _ = cv2.connectedComponentsWithStats(cand.astype(np.uint8), connectivity=8)
+    if n > 1:
+        k = 1 + int(np.argmax(st[1:, cv2.CC_STAT_AREA])); m = lab == k
+        PAL = np.array([(120, 24, 18), (168, 32, 26), (232, 80, 42), (255, 160, 80), (255, 214, 150)])
+        L = lum[m]; r = (L - L.min()) / max(1e-6, L.max() - L.min())
+        idx = np.clip(np.round(r * 3 + t * 1.2), 0, 4).astype(int)
+        a[m, :3] = PAL[idx]
+    if flash:                                                            # 바깥 테두리(투명에 닿은 칸) 빨강
+        er = cv2.erode(al.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0
+        edge = al & ~er & (lum < 60)
+        a[edge, :3] = (160, 30, 20)
+    return a
+
+
+def _spider(anim, a, i, oldpng):
+    """11-13 거미 공격의 거미줄(침·뭉치)은 옛 장에서 몸에 붙어 있어 '조각'으로 안 잡힘 -> 옛 장의 거미줄 색(푸른빛 흰·회색) 칸을 새 장 위에 그대로 얹음.
+    보라 반사광(180,150,220)·송곳니(크림색, 파랑<빨강)·눈빛은 빼려고 파랑>=빨강-5, 초록>=빨강-10 인 밝은 칸만."""
+    if not anim.startswith("attack"): return a
+    o = np.asarray(Image.open(oldpng).convert("RGBA")).astype(int)
+    r, g, b = o[..., 0], o[..., 1], o[..., 2]
+    web = (o[..., 3] > 0) & (o[..., :3].min(-1) >= 140) & (b >= r - 5) & (b - r <= 45) & (g >= r - 10)
+    a = a.copy(); a[web] = o[web].astype(np.uint8)
+    return a
+
+
+POST = {"SkeletonArcher": _archer, "Bomber": _bomber, "Spider": _spider}   # 장마다 덧손질(동쪽 고친 뒤 서쪽은 뒤집기)
+KEEP_EXTRA = {"Spider"}   # 11-13 옛 효과 조각(거미줄 덩이)이 새 몸 상자 안에 있어도 버리지 않음(새 몸이 안 가리는 칸에만 붙음)
 OLDKEEP = os.path.join(H.AUTO, "_work", "mobold")   # 옛 스프라이트 보관(게임 폴더에 새 그림을 넣은 뒤에도 위치·그림자 기준은 옛 그림)
 
 
@@ -155,10 +197,10 @@ def run(label):
             keep = np.zeros(ea.shape, bool)
             for k_ in range(1, nb_):
                 m_ = lab_ == k_
-                if inbox[m_].mean() <= .5: keep |= m_
+                if spr in KEEP_EXTRA or inbox[m_].mean() <= .5: keep |= m_
             put = keep & (can[..., 3] == 0)                              # 옛 그림자·효과 조각(몸에 안 가리는 곳만)
             can[put] = extra[put]
-            if spr in POST: can = POST[spr](anim, can)
+            if spr in POST: can = POST[spr](anim, can, i, os.path.join(old, f"{anim}_{i}.png"))
             H.save_png(can, os.path.join(dst, f"{anim}_{i}.png")); n += 1
             if anim.endswith("_east"):
                 H.save_png(can[:, ::-1].copy(), os.path.join(dst, f"{anim[:-5]}_west_{i}.png")); n += 1
@@ -166,5 +208,6 @@ def run(label):
 
 
 if __name__ == "__main__":
-    for s in sys.argv[1:] or sorted(os.path.basename(p) for p in glob.glob(os.path.join(H.AUTO, "몹_*"))):
+    SKIP = {"몹_01_슬라임"}   # 11-13 사용자 "슬라임은 고퀄 저퀄 같은거(저퀄)" - 게임 폴더엔 안 넣음(이름 직접 주면 넣음)
+    for s in sys.argv[1:] or sorted(os.path.basename(p) for p in glob.glob(os.path.join(H.AUTO, "몹_*")) if os.path.basename(p) not in SKIP):
         run(s)
