@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><title>옆 걷기 도트 편집기</title>
+<style>
+body{background:#23252e;color:#e8e8ee;font-family:"Malgun Gothic",sans-serif;margin:12px;user-select:none}
+button{background:#3a3e4e;color:#eee;border:1px solid #555a70;border-radius:5px;padding:5px 10px;margin:2px;cursor:pointer;font-family:inherit;font-size:14px}
+button:hover{background:#4a4f63} button.on{background:#c79a2e;color:#111;border-color:#e7b94a;font-weight:bold}
+#top{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-bottom:8px}
+#frames{display:flex;gap:6px;margin:6px 0 10px}
+.fr{background:#30333f;border:2px solid #444;border-radius:6px;padding:3px;cursor:pointer;text-align:center;font-size:12px}
+.fr.on{border-color:#e7b94a} .fr.dirty::after{content:" ●";color:#ff7a5a}
+.fr canvas{display:block;image-rendering:pixelated;width:96px;height:96px;background:#4a4e60}
+#main{display:flex;gap:16px;align-items:flex-start}
+#wrap{position:relative} #cv{image-rendering:pixelated;cursor:crosshair;background:#4a4e60;display:block}
+#side{display:flex;flex-direction:column;gap:10px;min-width:330px}
+.box{background:#2d303b;border-radius:8px;padding:10px}
+.box h3{margin:0 0 6px;font-size:14px;color:#e7c46a}
+#pal{display:flex;flex-wrap:wrap;gap:3px;max-width:320px}
+.sw{width:22px;height:22px;border:1px solid #111;cursor:pointer;border-radius:3px}
+.sw.on{outline:2px solid #fff}
+#cur{width:46px;height:46px;border:2px solid #fff;border-radius:6px;display:inline-block;vertical-align:middle}
+#info{font-size:15px;font-family:Consolas,monospace;color:#bfe;min-height:20px}
+#msg{color:#9f9;font-size:14px;min-height:18px}
+canvas.ref{image-rendering:pixelated;background:#4a4e60}
+.k{color:#aab;font-size:12px;line-height:1.6}
+</style></head><body>
+<div id="top"><b>세트:</b> <span id="sets"></span></div>
+<div id="frames"></div>
+<div id="main">
+  <div id="wrap"><canvas id="cv" width="768" height="768"></canvas></div>
+  <div id="side">
+    <div class="box"><h3>도구</h3>
+      <button id="t_pen" class="on">펜 (B)</button><button id="t_era">지우개 (E)</button><button id="t_pick">스포이드 (I)</button><br>
+      <button id="undo">되돌리기 (Ctrl+Z)</button><button id="redo">다시 (Ctrl+Y)</button><br>
+      <button id="save" style="background:#2e7d4f">저장 (Ctrl+S)</button><button id="revert">처음 상태 불러오기</button><br>
+      <label><input type="checkbox" id="grid" checked> 격자</label>
+      <label><input type="checkbox" id="onion"> 앞 장 겹쳐 보기</label>
+      <label><input type="checkbox" id="idleov"> 대기 그림 겹쳐 보기</label>
+      <div id="info"></div><div id="msg"></div>
+    </div>
+    <div class="box"><h3>색</h3>
+      <span id="cur"></span> <input type="color" id="picker"> <span id="hex" style="font-family:Consolas"></span>
+      <div style="margin-top:6px" id="pal"></div>
+    </div>
+    <div class="box"><h3>미리보기 (8장 움직임) · 게임 대기 옆</h3>
+      <canvas id="anim" class="ref" width="192" height="192"></canvas>
+      <canvas id="idle" class="ref" width="192" height="192"></canvas>
+    </div>
+    <div class="box k">왼쪽 클릭 = 칠하기 · 오른쪽 클릭 = 지우기 · Alt+클릭 = 색 뽑기<br>
+      저장하면 walk_west와 뒤집은 walk_east가 같이 저장돼요. 다른 장으로 넘어갈 때 저장 안 했으면 물어봐요.<br>
+      좌표는 64칸 기준 (x, y).</div>
+  </div>
+</div>
+<script>
+const Z = 12, N = 64;
+const cv = document.getElementById('cv'), cx = cv.getContext('2d');
+const off = document.createElement('canvas'); off.width = off.height = N; const ox = off.getContext('2d');
+let SETS = [], set = null, fi = 0, frames = [], dirty = new Set(), idleImg = null, tool = 'pen', color = [12,17,43,255];
+let undo = [], redo = [], hover = null, drawing = false, strokeSaved = false;
+
+function loadImg(url){ return new Promise(r=>{ const im = new Image(); im.onload=()=>r(im); im.onerror=()=>r(null); im.src = url + '?t=' + Date.now(); }); }
+function toData(im){ const c=document.createElement('canvas'); c.width=c.height=N; const x=c.getContext('2d'); if(im) x.drawImage(im,0,0); return x.getImageData(0,0,N,N); }
+function hex(c){ return '#'+c.slice(0,3).map(v=>v.toString(16).padStart(2,'0')).join(''); }
+
+async function init(){
+  SETS = await (await fetch('/sets')).json();
+  const s = document.getElementById('sets');
+  SETS.forEach(([k,n])=>{ const b=document.createElement('button'); b.textContent=n; b.onclick=()=>pickSet(k); b.id='s_'+k; s.appendChild(b); });
+  await pickSet(SETS[0][0]);
+  setInterval(anim, 120);
+}
+async function pickSet(k){
+  if (dirty.size && !confirm('저장 안 한 장이 있어요. 버리고 넘어갈까요?')) return;
+  set = k; dirty.clear(); undo=[]; redo=[];
+  document.querySelectorAll('#sets button').forEach(b=>b.classList.toggle('on', b.id==='s_'+k));
+  frames = [];
+  for (let i=0;i<8;i++) frames.push(toData(await loadImg(`/edit/${k}/walk_west_${i}.png`)));
+  idleImg = toData(await loadImg(`/game/${k}/idle_west_0.png`));
+  const ic = document.getElementById('idle').getContext('2d'); ic.imageSmoothingEnabled=false; ic.clearRect(0,0,192,192);
+  ox.putImageData(idleImg,0,0); ic.drawImage(off,0,0,192,192);
+  buildFrames(); pickFrame(0, true);
+}
+function buildFrames(){
+  const f = document.getElementById('frames'); f.innerHTML='';
+  for (let i=0;i<8;i++){ const d=document.createElement('div'); d.className='fr'; d.id='f_'+i;
+    const c=document.createElement('canvas'); c.width=c.height=N; d.appendChild(c); d.append(`${i+1}번`); d.onclick=()=>pickFrame(i); f.appendChild(d); }
+  thumbs();
+}
+function thumbs(){ for (let i=0;i<8;i++){ const c=document.querySelector(`#f_${i} canvas`); c.getContext('2d').putImageData(frames[i],0,0);
+  document.getElementById('f_'+i).classList.toggle('on', i===fi); document.getElementById('f_'+i).classList.toggle('dirty', dirty.has(i)); } }
+function pickFrame(i, force){ fi = i; undo=[]; redo=[]; buildPalette(); thumbs(); draw(); }
+function buildPalette(){
+  const seen = new Map();
+  for (const img of [frames[fi], idleImg]) for (let p=0;p<N*N;p++){ const a=img.data[p*4+3]; if(!a) continue;
+    const c=[img.data[p*4],img.data[p*4+1],img.data[p*4+2]]; const k=c.join(','); seen.set(k,(seen.get(k)||0)+1); }
+  const cols=[...seen.entries()].sort((a,b)=>b[1]-a[1]).slice(0,96).map(e=>e[0].split(',').map(Number));
+  cols.sort((a,b)=>(a[0]*.3+a[1]*.59+a[2]*.11)-(b[0]*.3+b[1]*.59+b[2]*.11));
+  const pal=document.getElementById('pal'); pal.innerHTML='';
+  cols.forEach(c=>{ const s=document.createElement('div'); s.className='sw'; s.style.background=hex(c); s.title=hex(c)+'  '+c.join(','); s.onclick=()=>setColor([...c,255]); pal.appendChild(s); });
+  setColor(color);
+}
+function setColor(c){ color=c; document.getElementById('cur').style.background=hex(c); document.getElementById('picker').value=hex(c); document.getElementById('hex').textContent=hex(c)+' ('+c.slice(0,3).join(',')+')';
+  document.querySelectorAll('.sw').forEach(s=>s.classList.toggle('on', s.title.startsWith(hex(c)))); }
+document.getElementById('picker').oninput=e=>{ const v=e.target.value; setColor([parseInt(v.slice(1,3),16),parseInt(v.slice(3,5),16),parseInt(v.slice(5,7),16),255]); };
+
+function draw(){
+  cx.imageSmoothingEnabled=false; cx.fillStyle='#4a4e60'; cx.fillRect(0,0,cv.width,cv.height);
+  // 체크무늬(투명 칸)
+  for (let y=0;y<N;y++) for (let x=0;x<N;x++) if((x+y)%2){ cx.fillStyle='#454959'; cx.fillRect(x*Z,y*Z,Z,Z); }
+  if (document.getElementById('idleov').checked){ ox.putImageData(idleImg,0,0); cx.globalAlpha=.35; cx.drawImage(off,0,0,N*Z,N*Z); cx.globalAlpha=1; }
+  if (document.getElementById('onion').checked){ ox.putImageData(frames[(fi+7)%8],0,0); cx.globalAlpha=.3; cx.drawImage(off,0,0,N*Z,N*Z); cx.globalAlpha=1; }
+  ox.putImageData(frames[fi],0,0); cx.drawImage(off,0,0,N*Z,N*Z);
+  if (document.getElementById('grid').checked){
+    for (let i=0;i<=N;i++){ cx.strokeStyle = i%8===0 ? 'rgba(230,200,90,.55)' : 'rgba(255,255,255,.10)'; cx.lineWidth=1;
+      cx.beginPath(); cx.moveTo(i*Z+.5,0); cx.lineTo(i*Z+.5,N*Z); cx.stroke(); cx.beginPath(); cx.moveTo(0,i*Z+.5); cx.lineTo(N*Z,i*Z+.5); cx.stroke(); }
+    cx.fillStyle='rgba(230,200,90,.8)'; cx.font='10px Consolas';
+    for (let i=0;i<N;i+=8){ cx.fillText(i, i*Z+2, 10); cx.fillText(i, 2, i*Z+10); }
+  }
+  if (hover){ cx.strokeStyle='#fff'; cx.lineWidth=2; cx.strokeRect(hover[0]*Z+1,hover[1]*Z+1,Z-2,Z-2); }
+}
+let ai=0; function anim(){ if(!frames.length) return; const a=document.getElementById('anim').getContext('2d'); a.imageSmoothingEnabled=false; a.clearRect(0,0,192,192);
+  ox.putImageData(frames[ai%8],0,0); a.drawImage(off,0,0,192,192); ai++; }
+
+function cell(e){ const r=cv.getBoundingClientRect(); const x=Math.floor((e.clientX-r.left)/Z), y=Math.floor((e.clientY-r.top)/Z); return (x>=0&&y>=0&&x<N&&y<N)?[x,y]:null; }
+function px(x,y){ const d=frames[fi].data, i=(y*N+x)*4; return [d[i],d[i+1],d[i+2],d[i+3]]; }
+function put(x,y,c){ const d=frames[fi].data, i=(y*N+x)*4; if(d[i]===c[0]&&d[i+1]===c[1]&&d[i+2]===c[2]&&d[i+3]===c[3]) return;
+  if(!strokeSaved){ undo.push(new Uint8ClampedArray(d)); if(undo.length>200) undo.shift(); redo=[]; strokeSaved=true; }
+  d[i]=c[0]; d[i+1]=c[1]; d[i+2]=c[2]; d[i+3]=c[3]; dirty.add(fi); }
+function act(e){ const c=cell(e); if(!c) return; const [x,y]=c;
+  if (tool==='pick' || e.altKey){ const p=px(x,y); if(p[3]) setColor(p); return; }
+  if (e.buttons===2 || tool==='era') put(x,y,[0,0,0,0]); else put(x,y,color);
+  thumbs(); draw(); }
+cv.addEventListener('contextmenu', e=>e.preventDefault());
+cv.addEventListener('mousedown', e=>{ drawing=true; strokeSaved=false; act(e); });
+window.addEventListener('mouseup', ()=>{ drawing=false; strokeSaved=false; });
+cv.addEventListener('mousemove', e=>{ hover=cell(e); const p=hover?px(...hover):null;
+  document.getElementById('info').textContent = hover ? `(x ${hover[0]}, y ${hover[1]})  ${p[3]? hex(p)+' '+p.slice(0,3).join(','):'투명'}` : '';
+  if (drawing && !(tool==='pick'||e.altKey)) act(e); else draw(); });
+cv.addEventListener('mouseleave', ()=>{ hover=null; draw(); });
+
+function setTool(t){ tool=t; ['pen','era','pick'].forEach(k=>document.getElementById('t_'+k).classList.toggle('on',k===t)); }
+document.getElementById('t_pen').onclick=()=>setTool('pen'); document.getElementById('t_era').onclick=()=>setTool('era'); document.getElementById('t_pick').onclick=()=>setTool('pick');
+function doUndo(){ if(!undo.length) return; redo.push(new Uint8ClampedArray(frames[fi].data)); frames[fi].data.set(undo.pop()); dirty.add(fi); thumbs(); draw(); }
+function doRedo(){ if(!redo.length) return; undo.push(new Uint8ClampedArray(frames[fi].data)); frames[fi].data.set(redo.pop()); dirty.add(fi); thumbs(); draw(); }
+document.getElementById('undo').onclick=doUndo; document.getElementById('redo').onclick=doRedo;
+async function save(){
+  const toSave = dirty.size ? [...dirty] : [fi];
+  for (const i of toSave){ const c=document.createElement('canvas'); c.width=c.height=N; c.getContext('2d').putImageData(frames[i],0,0);
+    const r = await fetch(`/save/${set}/walk_west_${i}.png`, {method:'POST', body: JSON.stringify({png:c.toDataURL('image/png')})});
+    if (!r.ok){ msg('저장 실패: '+await r.text(), true); return; } dirty.delete(i); }
+  thumbs(); msg(`저장했어요: ${toSave.map(i=>i+1+'번').join(', ')} (${new Date().toLocaleTimeString()})`);
+}
+function msg(t, bad){ const m=document.getElementById('msg'); m.textContent=t; m.style.color=bad?'#f88':'#9f9'; }
+document.getElementById('save').onclick=save;
+document.getElementById('revert').onclick=async()=>{ if(!confirm(`${fi+1}번을 처음 상태로 불러올까요? (저장해야 파일에 반영돼요)`)) return;
+  const d=toData(await loadImg(`/orig/${set}/walk_west_${fi}.png`)); undo.push(new Uint8ClampedArray(frames[fi].data)); frames[fi].data.set(d.data); dirty.add(fi); thumbs(); draw(); };
+['grid','onion','idleov'].forEach(k=>document.getElementById(k).onchange=draw);
+window.addEventListener('keydown', e=>{
+  if (e.ctrlKey && e.key.toLowerCase()==='z'){ e.preventDefault(); doUndo(); }
+  else if (e.ctrlKey && e.key.toLowerCase()==='y'){ e.preventDefault(); doRedo(); }
+  else if (e.ctrlKey && e.key.toLowerCase()==='s'){ e.preventDefault(); save(); }
+  else if (e.key==='b'||e.key==='B') setTool('pen'); else if (e.key==='e'||e.key==='E') setTool('era'); else if (e.key==='i'||e.key==='I') setTool('pick');
+  else if (e.key==='ArrowRight'){ pickFrame((fi+1)%8); } else if (e.key==='ArrowLeft'){ pickFrame((fi+7)%8); }
+});
+window.addEventListener('beforeunload', e=>{ if(dirty.size){ e.preventDefault(); e.returnValue=''; } });
+init();
+</script></body></html>

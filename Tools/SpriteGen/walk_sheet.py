@@ -16,11 +16,14 @@ def ink(rgb):
     return (np.abs(rgb.astype(int) - 255).sum(-1) > 60)
 
 
-def clean_pink(a):
+NO_LIGHT = {"몸_08_초월"}   # 11-12 갑옷이 자홍·밝은 보라라 밝은 분홍 따라 번지면 갑옷까지 칼로 지워져 어두워짐(사용자 "초월 옆걷기 너무 어두워")
+
+
+def clean_pink(a, light_ok=True):
     """분홍 칼 자리표시 가장자리의 섞인 색(분홍+빨강 갑옷 등)을 순수 #FF00FF로 - 안 그러면 도트화 때 몸 색으로 남음(신화 허리 분홍 점)."""
     a = a.astype(int); r, g, b = a[..., 0], a[..., 1], a[..., 2]
-    core = (r > 200) & (b > 200) & (g < 80)
-    light = (r > 215) & (b > 190) & (g < 150) & (np.abs(r - b) < 45)   # 칼막이 밝은 분홍 칠(253,103,244) - 분홍 심에 이어진 것만
+    core = (r > 235) & (b > 235) & (g < 40) & (np.abs(r - b) < 25)     # 순수 #FF00FF 근처만(초월 갑옷 210,70,249 제외)
+    light = (r > 215) & (b > 190) & (g < 150) & (np.abs(r - b) < 45) & light_ok   # 칼막이 밝은 분홍 칠(253,103,244) - 분홍 심에 이어진 것만
     def grow(m, allow, n):
         for _ in range(n):
             n2 = m.copy(); n2[1:] |= m[:-1]; n2[:-1] |= m[1:]; n2[:, 1:] |= m[:, :-1]; n2[:, :-1] |= m[:, 1:]
@@ -28,15 +31,15 @@ def clean_pink(a):
             if (n2 == m).all(): break
             m = n2
         return m
-    near3 = grow(core, np.ones_like(core), 8)                    # 분홍 심 8칸 안(칼자루 테두리 건너) = 아무 색
+    near3 = grow(core, np.ones_like(core), 8 if light_ok else 2)                   # 분홍 심 8칸 안(칼자루 테두리 건너) = 아무 색
     near = grow(near3, near3 | light, 300)                       # 그 뒤로는 밝은 분홍 따라서만 번짐
     fringe = near & (((b > 110) & (r > 140) & (b - g > 70) & (r - g > 70)) | light)
     a[fringe] = (255, 0, 255)
     return a.astype(np.uint8)
 
 
-def blobs(im, n=4):
-    a = clean_pink(np.asarray(im.convert("RGB"))); m = ink(a)
+def blobs(im, n=4, light_ok=True):
+    a = clean_pink(np.asarray(im.convert("RGB")), light_ok); m = ink(a)
     col = m.sum(0) > 2
     runs, x = [], 0
     W = len(col)
@@ -74,7 +77,7 @@ def run(set_dir):
     ref_h, size, ref_foot, ref_hx = height_of(os.path.join(set_dir, "대기_옆", "01.png"))
     crops = []
     for p in sheets:
-        a, bs = blobs(Image.open(p))
+        a, bs = blobs(Image.open(p), light_ok=os.path.basename(set_dir) not in NO_LIGHT)
         if len(bs) != 4: print(set_dir, os.path.basename(p), "덩어리", len(bs)); return False
         crops += [(a, b) for b in bs]
     k = ref_h / np.median([b[3] - b[1] for _, b in crops])

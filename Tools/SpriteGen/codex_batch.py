@@ -36,7 +36,7 @@ GRADES = [
     ("07_고대", "Ancient", "an ancient teal rune sword: stone-and-jade blade with glowing cyan runes, weathered bronze guard"),
     ("08_초월", "Transcendent", "a transcendent cosmic sword: deep indigo blade filled with tiny stars like a night sky, silver-violet crossguard, glowing indigo edge"),
     ("09_영원", "Eternal", "an eternal prismatic sword: white crystal blade shimmering with rainbow colors along the edge, pearl-white and gold guard"),
-    ("10_Unknown", "Unknown", "a mysterious unknown sword: pale mint-cyan blade with glitchy broken fragments floating around it, dark hilt, eerie aqua glow, otherworldly"),
+    ("10_Unknown", "Unknown", "an unknown deep-space sword (11-12 user: outer-space concept): the blade is a window into open space - jet-black void filled with a swirling galaxy nebula in deep blue, cyan and warm orange-gold, scattered tiny white stars, a thin glowing white-gold edge like an event horizon; a small ringed planet set in the crossguard, black and gold hilt. NO magenta or pink anywhere"),
 ]
 ARMOR = [
     ("02_고급", "green-trimmed leather and chainmail armor, green cloth tunic, simple leather cap"),
@@ -47,7 +47,7 @@ ARMOR = [
     ("07_고대", "ancient teal-and-bronze armor with glowing cyan runes, weathered jade circlet"),
     ("08_초월", "cosmic indigo armor with tiny stars like a night sky, glowing violet trim, starry crown-like helm"),
     ("09_영원", "pearl-white crystal armor shimmering with rainbow highlights, white-gold trim, radiant halo-like circlet"),
-    ("10_Unknown", "mysterious mint-cyan and black armor with glitchy fragments, hooded cowl with aqua glow, otherworldly"),
+    ("10_Unknown", "unknown deep-space armor (outer-space concept, different from a plain starry night): jet-black void plates with swirling galaxy nebula patterns in deep blue, cyan and warm orange-gold, tiny white stars, glowing white-gold trim like an event horizon, a small orbiting planetary ring floating around the head like a halo, a short black cape whose inside shows a galaxy; the face must stay fully visible, no hood, no mask; NO magenta or pink anywhere"),
 ]
 
 
@@ -165,12 +165,60 @@ def run(out, prompt, images):
 
 
 DESIGN = {d: os.path.join(HQ, f"대기_{d}", "01.png") for d, _ in DIRS}
+SHEET_SETS = {"몸_10_Unknown"}   # 11-12 우주 컨셉 다시 그리기 - 4장씩 묶어서(옆 걷기 v2처럼 머리·갑옷 안 흔들리게)
 PLACEHOLDER = ("The sword must be drawn as a FLAT PLACEHOLDER: a simple straight sword silhouette filled with one solid pure magenta color "
                "(#FF00FF), no shading, no outline, no other colors on it, with the same length, position and angle as the sword in the pose "
                "reference, held in the same hand (draw the hand gripping it normally).")
 COMMON = ("Keep the design reference's exact character design, palette, outline thickness and pixel size, same scale and framing "
           "(square canvas, character centered, feet near the bottom). Plain solid white background. "
           "No effects, no motion trails, no shadow, no text, no numbers, only one character. Use your image generation tool, do not write code.")
+
+
+def strip(sheet, half, name, flips=()):
+    """원본 시트 8장 중 half번째 4장을 가로 한 줄(흰 바탕)로 - 4장 묶음 그리기의 자세 참고."""
+    pose = os.path.join(WORK, "pose", f"{name}_strip_{half + 1}.png")
+    if not os.path.exists(pose):
+        os.makedirs(os.path.dirname(pose), exist_ok=True)
+        fr = [frame(sheet, half * 4 + i, flip=half * 4 + i in flips) for i in range(4)]
+        h = fr[0].height; im = Image.new("RGB", (h * 4, h), (255, 255, 255))
+        for i, f in enumerate(fr): im.paste(f, (i * h, 0))
+        im.save(pose)
+    return pose
+
+
+def sheet_prompt(intro, what, half, last_img):
+    p = (f"{intro} Draw a SPRITE SHEET: ONE wide landscape image with exactly 4 frames side by side in a single horizontal row "
+         f"(frames {half * 4 + 1}-{half * 4 + 4} of an 8-frame {what}), each frame in the pose of the matching frame of the pose strip. "
+         "Equal-width cells, the same character size in every frame, all feet on the same ground line, clear white space between frames "
+         "(frames must not touch), no borders, no grid lines, no frame numbers. VERY IMPORTANT: the head, face, hair, headpiece, armor design, "
+         "colors and character size are IDENTICAL in all 4 frames and identical to the design reference - only the pose changes. "
+         f"{PLACEHOLDER} " + COMMON.replace("only one character", "exactly 4 copies of the character, one per frame")
+         .replace("(square canvas, character centered, feet near the bottom)", "(wide canvas)"))
+    if half:
+        p += f" Image {last_img} = frames 1-4 of this same animation (sheet 1); its head, armor, colors and character size must match exactly."
+    return p
+
+
+def body_sheet_jobs(set_dir, design, look=""):
+    """11-12 사용자 "이번에도 4장씩 묶어서": 동작마다 4장 시트 2장(<동작>_<방향>/sheet_1.png = 1~4장, sheet_2.png = 5~8장).
+    자르기는 sheet_split.py (-> 같은 폴더 01~08.png), 그다음 hq_export.py."""
+    jobs = []
+    for kr, en in KINDS:
+        for d, view in DIRS:
+            sheet = os.path.join(SRC, kr, f"{kr}_{d}.png"); first = os.path.join(set_dir, f"{kr}_{d}", "sheet_1.png")
+            for half in (0, 1):
+                refs = [design[d], strip(sheet, half, f"{en}_{d}", FLIP.get((kr, d), set()))] + ([first] if half else [])
+                intro = (f"Image 1 = CHARACTER DESIGN reference{look}, {view}. Image 2 = POSE strip: 4 frames of a different character - ignore "
+                         "its colors, hair, face, clothes and cape; copy only body pose, limb positions, sword angle and facing. "
+                         f"Every frame shows the design character {view}.")
+                jobs.append((os.path.join(set_dir, f"{kr}_{d}", f"sheet_{half + 1}.png"), sheet_prompt(intro, f"{en} animation", half, 3), refs))
+    sheet = os.path.join(SRC, "회전", "회전베기.png"); first = os.path.join(set_dir, "회전베기", "sheet_1.png")
+    for half in (0, 1):
+        refs = [design["앞"], design["옆"], design["뒤"], strip(sheet, half, "spin")] + ([first] if half else [])
+        intro = (f"Images 1-3 = CHARACTER DESIGN references{look} (front, side, back). Image 4 = POSE strip: 4 frames of a different character - "
+                 "copy only the body pose, facing direction and sword angle.")
+        jobs.append((os.path.join(set_dir, "회전베기", f"sheet_{half + 1}.png"), sheet_prompt(intro, "spinning sword slash", half, 5), refs))
+    return jobs
 
 
 def body_jobs(set_dir, design, look=""):
@@ -218,7 +266,7 @@ def walkside_jobs():
             strip.save(pose)
     for set_dir in sorted(glob.glob(os.path.join(OUT, "몸_*"))):
         idle = os.path.join(set_dir, "대기_옆", "01.png")
-        if not os.path.exists(idle):
+        if not os.path.exists(idle) or os.path.basename(set_dir) in SHEET_SETS:
             continue
         first = os.path.join(set_dir, "걷기_옆_v2", "sheet_1.png")
         for half in (0, 1):
@@ -375,7 +423,7 @@ def main():
             _, set_dir, look = job
             if not all(os.path.exists(p) for p in look.values()):
                 continue
-            sub = body_jobs(set_dir, look, " (armored variant - keep this armor exactly)")
+            sub = (body_sheet_jobs if os.path.basename(set_dir) in SHEET_SETS else body_jobs)(set_dir, look, " (armored variant - keep this armor exactly)")
             for out, prompt, images in sub:
                 r = run(out, prompt, images)
                 if r is None:
