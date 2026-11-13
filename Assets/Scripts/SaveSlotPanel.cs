@@ -33,13 +33,19 @@ namespace LoopRogue
         private int _deleteSlot;          // 지우기 확인 중인 슬롯(0 = 없음)
         private float _deleteUntil;
         private Action _onChosen;
+        // 11-14 저장 모드 - 로비 Esc 메뉴 "다른 슬롯에 저장": 지금 슬롯을 고른 슬롯에 복사(분기마다 슬롯을 나눠 두 갈래를 다 보게)
+        private bool _saveMode;
+        private int _overwriteSlot;       // 덮어쓰기 확인 중인 슬롯(0 = 없음)
+        private float _overwriteUntil;
+        private string _notice;           // 저장 뒤 안내(힌트 줄)
+        private Text _title;
 
         public static SaveSlotPanel Create()
         {
             var canvasGo = new GameObject("SaveSlotCanvas", typeof(RectTransform));
             var canvas = canvasGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 60;
+            canvas.sortingOrder = 120; // 11-14 로비 Esc 메뉴(100) 위에서 "다른 슬롯에 저장"으로도 뜬다
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1280f, 720f);
@@ -54,12 +60,24 @@ namespace LoopRogue
         /// <param name="onChosen">슬롯을 고른 뒤(이미 Prefs.SelectSlot이 끝난 상태) - 게임 시작</param>
         public void Open(Action onChosen)
         {
+            _saveMode = false;
             _onChosen = onChosen;
             _cursor = Prefs.Slot - 1;
             _deleteSlot = 0;
             IsOpen = true;
             _openedFrame = Time.frameCount;
+            _overwriteSlot = 0;
+            _notice = null;
             _panel.SetActive(true);
+            Refresh();
+        }
+
+        /// <summary>저장 모드로 연다 - 지금 슬롯을 다른 슬롯에 복사한다. 지금 하던 슬롯은 그대로 이어 한다.</summary>
+        public void OpenForSave()
+        {
+            Open(null);
+            _saveMode = true;
+            _cursor = Prefs.Slot % Prefs.SlotCount; // 지금 슬롯 다음 칸부터
             Refresh();
         }
 
@@ -76,6 +94,8 @@ namespace LoopRogue
                 return;
             if (_deleteSlot != 0 && Time.unscaledTime > _deleteUntil)
                 _deleteSlot = 0;
+            if (_overwriteSlot != 0 && Time.unscaledTime > _overwriteUntil)
+                _overwriteSlot = 0;
 
             if (GameInput.Down(Key.Escape))
             {
@@ -92,7 +112,7 @@ namespace LoopRogue
                     Choose(i + 1);
                     return;
                 }
-            if (GameInput.Down(Key.Delete))
+            if (GameInput.Down(Key.Delete) && !_saveMode)
                 Delete(_cursor + 1);
             if (GameInput.Down(Key.Enter) || GameInput.Down(Key.Space))
             {
@@ -106,7 +126,7 @@ namespace LoopRogue
                 for (var i = 0; i < Prefs.SlotCount; i++)
                 {
                     // 카드 오른쪽 [지우기] - 카드 누르기(시작)보다 먼저 본다(모바일엔 Delete 키가 없다)
-                    if (_deleteButtons[i].gameObject.activeSelf && RectTransformUtility.RectangleContainsScreenPoint(_deleteButtons[i], pos, null))
+                    if (!_saveMode && _deleteButtons[i].gameObject.activeSelf && RectTransformUtility.RectangleContainsScreenPoint(_deleteButtons[i], pos, null))
                     {
                         if (GameInput.PointerDown)
                             Delete(i + 1);
@@ -128,10 +148,36 @@ namespace LoopRogue
 
         private void Choose(int slot)
         {
+            if (_saveMode)
+            {
+                SaveTo(slot);
+                return;
+            }
             Close();
             if (slot != Prefs.Slot)
                 Prefs.SelectSlot(slot);
             _onChosen?.Invoke();
+        }
+
+        /// <summary>지금 슬롯을 slot에 복사 - 지금 슬롯이면 안 되고, 저장이 있는 슬롯은 두 번 눌러야 덮어쓴다.</summary>
+        private void SaveTo(int slot)
+        {
+            _cursor = slot - 1;
+            if (slot == Prefs.Slot)
+            {
+                _notice = Loc.T("<color=#FF9A80>지금 플레이 중인 슬롯이에요 - 다른 슬롯을 고르세요</color>");
+                return;
+            }
+            if (!IsEmpty(slot) && _overwriteSlot != slot)
+            {
+                _overwriteSlot = slot;
+                _overwriteUntil = Time.unscaledTime + DeleteConfirmSeconds;
+                return;
+            }
+            _overwriteSlot = 0;
+            Prefs.CopySlot(Prefs.Slot, slot);
+            _notice = Loc.F("<color=#8CE08C>슬롯 {0}에 저장했어요 - 타이틀에서 그 슬롯을 고르면 여기서부터 이어 해요</color>", slot);
+            PlayLog.Lobby($"슬롯 {Prefs.Slot} → 슬롯 {slot} 복사 저장");
         }
 
         /// <summary>실수 방지로 두 번 - 첫 번째는 카드를 붉게 바꾸고 안내만.</summary>
@@ -177,7 +223,7 @@ namespace LoopRogue
             for (var i = 0; i < Prefs.SlotCount; i++)
             {
                 var slot = i + 1;
-                var deleting = _deleteSlot == slot;
+                var deleting = _deleteSlot == slot || _overwriteSlot == slot;
                 var color = deleting ? new Color(0.5f, 0.15f, 0.15f, 0.97f) : slot == Prefs.Slot ? CardCurrent : CardNormal;
                 if (i == _cursor)
                     color = Color.Lerp(color, CursorTint, 0.4f);
@@ -185,20 +231,26 @@ namespace LoopRogue
                 image.color = image.sprite != null ? PixelUi.Tint(color, 0.5f) : color;
                 var title = Loc.F("<b>슬롯 {0}</b>  <size=12><color=#9AA0AA>[{0}]</color></size>", slot);
                 if (slot == Prefs.Slot)
-                    title += Loc.T("  <size=12><color=#8CE08C>마지막으로 한 슬롯</color></size>");
+                    title += _saveMode ? Loc.T("  <size=12><color=#8CE08C>지금 플레이 중</color></size>") : Loc.T("  <size=12><color=#8CE08C>마지막으로 한 슬롯</color></size>");
                 _cardTexts[i].text = deleting
-                    ? title + "\n" + Loc.T("<color=#FF9A80>정말 지울까요? 한 번 더 누르면 지워요</color>")
+                    ? title + "\n" + (_overwriteSlot == slot ? Loc.T("<color=#FF9A80>덮어쓸까요? 한 번 더 누르면 이 슬롯에 저장해요</color>") : Loc.T("<color=#FF9A80>정말 지울까요? 한 번 더 누르면 지워요</color>"))
                     : title + "\n<size=14>" + Summary(slot) + "</size>";
                 var empty = IsEmpty(slot);
-                _deleteButtons[i].gameObject.SetActive(!empty);
+                _deleteButtons[i].gameObject.SetActive(!empty && !_saveMode);
                 _deleteTexts[i].text = deleting ? Loc.T("정말 지우기") : Loc.T("지우기");
                 _deleteImages[i].color = deleting ? new Color(0.85f, 0.25f, 0.25f, 1f) : new Color(0.45f, 0.18f, 0.18f, 0.95f);
             }
+            _title.text = _saveMode ? Loc.T("<b>다른 슬롯에 저장</b>") : Loc.T("<b>세이브 슬롯</b>");
+            _hint.text = _notice ?? (_saveMode
+                ? Loc.T("W/S·마우스: 고르기   Enter·클릭·숫자: 이 슬롯에 저장(저장이 있으면 두 번)   Esc: 닫기   ·   지금 슬롯은 그대로 이어 해요")
+                : HintText);
         }
 
         private readonly RectTransform[] _deleteButtons = new RectTransform[Prefs.SlotCount];
         private readonly Image[] _deleteImages = new Image[Prefs.SlotCount];
         private readonly Text[] _deleteTexts = new Text[Prefs.SlotCount];
+
+        private static string HintText => Loc.T("W/S·마우스: 고르기   Enter·클릭·숫자: 시작   Delete·[지우기]: 슬롯 지우기(두 번)   Esc: 닫기   ·   설정은 모든 슬롯 공용");
 
         private void Build(Transform canvas)
         {
@@ -218,6 +270,7 @@ namespace LoopRogue
 
             var title = HudUi.CreateText(panelImage.transform, "Title", 20, TextAnchor.MiddleCenter);
             title.text = Loc.T("<b>세이브 슬롯</b>");
+            _title = title;
             title.supportRichText = true;
             var titleRect = title.rectTransform;
             titleRect.anchorMin = new Vector2(0f, 1f);
@@ -260,7 +313,7 @@ namespace LoopRogue
             }
 
             _hint = HudUi.CreateText(panelImage.transform, "Hint", 12, TextAnchor.MiddleCenter);
-            _hint.text = Loc.T("W/S·마우스: 고르기   Enter·클릭·숫자: 시작   Delete·[지우기]: 슬롯 지우기(두 번)   Esc: 닫기   ·   설정은 모든 슬롯 공용");
+            _hint.text = HintText;
             _hint.color = new Color(0.6f, 0.63f, 0.7f);
             var hintRect = _hint.rectTransform;
             hintRect.anchorMin = Vector2.zero;

@@ -1463,3 +1463,10 @@ W/S·마우스: 고르기   Enter·클릭·숫자: 시작   Delete·[지우기]:
 ↑↓ 줄 · ←→ 칸 · Enter·클릭 고르기 · 9·Esc 닫기   (? = 아직 얻어 본 적 없는 등급)	↑↓ row · ←→ slot · Enter/click to choose · 9/Esc to close   (? = grade not obtained yet)
 [9] 재봉사	[9] Tailor
 피의 계약서	Blood Contract
+다른 슬롯에 저장	Save to Another Slot
+<b>다른 슬롯에 저장</b>	<b>Save to Another Slot</b>
+  <size=12><color=#8CE08C>지금 플레이 중</color></size>	  <size=12><color=#8CE08C>Playing now</color></size>
+<color=#FF9A80>지금 플레이 중인 슬롯이에요 - 다른 슬롯을 고르세요</color>	<color=#FF9A80>This is the slot you're playing - pick another slot</color>
+<color=#FF9A80>덮어쓸까요? 한 번 더 누르면 이 슬롯에 저장해요</color>	<color=#FF9A80>Overwrite? Press again to save to this slot</color>
+<color=#8CE08C>슬롯 {0}에 저장했어요 - 타이틀에서 그 슬롯을 고르면 여기서부터 이어 해요</color>	<color=#8CE08C>Saved to slot {0} - choose it on the title screen to continue from here</color>
+W/S·마우스: 고르기   Enter·클릭·숫자: 이 슬롯에 저장(저장이 있으면 두 번)   Esc: 닫기   ·   지금 슬롯은 그대로 이어 해요	W/S·Mouse: Select   Enter·Click·Number: Save here (twice if not empty)   Esc: Close   ·   You keep playing the current slot

@@ -36,6 +36,7 @@ namespace LoopRogue
 
         private Action _goToLobby;
         private Action _goToTitle;
+        private Action _saveToSlot;
         private Func<bool> _canOpen;
         private GameObject _panel;
 
@@ -44,11 +45,13 @@ namespace LoopRogue
         /// <param name="showQuit">"게임 종료" 버튼도 보여줄지(타이틀용).</param>
         /// <param name="lobbyLabel">"로비로 이동" 버튼 문구(Main은 데스 패널티 안내를 붙인다).</param>
         /// <param name="goToTitle">있으면 "타이틀로 이동 [T]" 버튼도 보여준다(Main용).</param>
+        /// <param name="saveToSlot">있으면 "다른 슬롯에 저장" 버튼도 보여준다(로비용, 11-14).</param>
         public void Setup(Action goToLobby, Func<bool> canOpen = null, bool showQuit = false, string lobbyLabel = null,
-            Action goToTitle = null)
+            Action goToTitle = null, Action saveToSlot = null)
         {
             _goToLobby = goToLobby;
             _goToTitle = goToTitle;
+            _saveToSlot = saveToSlot;
             _canOpen = canOpen;
             BuildUI(showQuit, lobbyLabel ?? Loc.T("로비로 이동"));
             SetOpen(false);
@@ -62,7 +65,7 @@ namespace LoopRogue
 
         private void Update()
         {
-            if (_panel == null || OptionsPanel.BlocksInput || Playtest.QuitPromptOpen)
+            if (_panel == null || OptionsPanel.BlocksInput || Playtest.QuitPromptOpen || (IsOpen && SaveSlotPanel.BlocksInput))
                 return; // 설정 창이 떠 있으면 그 창이 Esc·클릭을 받는다(닫히면 이 메뉴로 돌아옴)
 
             if (GameInput.Down(Key.Escape))
@@ -186,7 +189,7 @@ namespace LoopRogue
             _panel.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
 
             // 메뉴 뒤 돌 테두리 패널(도트 그림이 있을 때만) - 버튼 수에 맞춘 높이
-            var buttonCount = 2 + (_goToLobby != null ? 1 : 0) + (_goToTitle != null ? 1 : 0) + (showQuit ? 1 : 0);
+            var buttonCount = 2 + (_goToLobby != null ? 1 : 0) + (_goToTitle != null ? 1 : 0) + (_saveToSlot != null ? 1 : 0) + (showQuit ? 1 : 0);
             var board = new GameObject("Board", typeof(RectTransform));
             board.transform.SetParent(_panel.transform, false);
             var boardImage = board.AddComponent<Image>();
@@ -214,6 +217,11 @@ namespace LoopRogue
             {
                 y -= 60f;
                 CreateNumberedButton(Loc.T("타이틀로 이동"), _goToLobby == null ? LobbyButtonColor : ButtonColor, y, GoToTitle);
+            }
+            if (_saveToSlot != null)
+            {
+                y -= 60f;
+                CreateNumberedButton(Loc.T("다른 슬롯에 저장"), ButtonColor, y, _saveToSlot);
             }
             y -= 60f;
             CreateNumberedButton(Loc.T("설정"), ButtonColor, y, () => OptionsPanel.Open());

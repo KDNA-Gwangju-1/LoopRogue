@@ -135,12 +135,15 @@ namespace LoopRogue
                 () => _view == LobbyView.Hub && !ChanceOpen && !_lobbyStats.IsOpen && _escUsedFrame != Time.frameCount
                       && !(NpcDialogUI.BlocksInput || AchievementPanel.BlocksInput || CodexPanel.BlocksInput || TraitPanel.BlocksInput
                            || AppearancePanel.BlocksInput || StageSelectPanel.BlocksInput || GachaReveal.BlocksInput),
-                goToTitle: () => SceneManager.LoadScene("Title"));
+                goToTitle: () => SceneManager.LoadScene("Title"),
+                saveToSlot: () => _saveSlotPanel.OpenForSave()); // 11-14 분기 저장 - 지금 슬롯을 다른 슬롯에 복사
+            _saveSlotPanel = SaveSlotPanel.Create();
             Achievements.Unlocked += OnAchievementUnlocked;
             Codex.SyncOwned();    // 도감이 생기기 전 저장으로 이미 가진 유물/아이템
             Achievements.Check(); // 업적이 생기기 전 저장으로 이미 조건을 채운 것들
         }
 
+        private SaveSlotPanel _saveSlotPanel;
         private AchievementPanel _achievementPanel;
         private CodexPanel _codexPanel;
         private TraitPanel _traitPanel; // 11-02 특성 창 - 허브에서 T
