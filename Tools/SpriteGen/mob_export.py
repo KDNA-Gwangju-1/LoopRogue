@@ -141,12 +141,42 @@ def _orc(anim, a, i, oldpng):
     return a
 
 
+_CH_SHIFT = {}
+
+
+def _chanter(anim, a, i, oldpng):
+    """11-14 사용자 "주문이 보여야해": 옛 장의 분홍 주문 문양(손 위 마름모·공격 고리)이 새 그림에서 사라짐 -> 옛 분홍 칸을 불투명하게 얹음(눈 색 255,90,216 은 뺌).
+    새 몸(후드)이 더 커서 문양이 몸에 묻히므로, 동작마다 몸과 덜 겹치는 쪽으로 조금 옮김(첫 장 기준으로 고정해 떨림 없음)."""
+    o = np.asarray(Image.open(oldpng).convert("RGBA")).astype(int)
+    c = o[..., :3]
+    pink = (o[..., 3] > 0) & (c[..., 0] >= 200) & (c[..., 2] >= 180) & (c[..., 1] <= 120)
+    # 옆모습에선 문양 왼쪽 반이 후드 가장자리 위에 반투명하게 섞여 그려져 있다(953a8a·c34bb8·a842a2 등) -> 그것도 문양으로(안 그러면 ")" 반쪽만 돎)
+    pink |= (o[..., 3] > 0) & (c[..., 0] >= 140) & (c[..., 2] >= 120) & (c[..., 1] <= 110) & (c[..., 0] - c[..., 1] >= 80)
+    pink &= ~((c[..., 0] == 255) & (c[..., 1] == 90) & (c[..., 2] == 216))
+    hi = (o[..., 3] > 0) & (c[..., 0] == 255) & (c[..., 1] == 220) & (c[..., 2] == 250)
+    body = a[..., 3] > 0
+    if anim not in _CH_SHIFT:
+        m = pink | hi; best = (m & body).sum() * 4, 0, 0
+        for dy in range(-6, 3):
+            for dx in range(-6, 7):
+                sc = (np.roll(m, (dy, dx), (0, 1)) & body).sum() * 4 + abs(dx) + abs(dy)
+                if sc < best[0]: best = sc, dy, dx
+        _CH_SHIFT[anim] = best[1:]
+    dy, dx = _CH_SHIFT[anim]
+    pink, hi = np.roll(pink, (dy, dx), (0, 1)), np.roll(hi, (dy, dx), (0, 1))
+    a = a.copy()
+    a[pink] = (250, 105, 230, 255)
+    a[hi] = (255, 225, 252, 255)
+    return a
+
 POST = {"SkeletonArcher": _archer, "OrcCharger": _orc, "Sentinel": _sentinel, "Shaman": _shaman, "Bomber": _bomber, "Spider": _spider,
         "EliteSkeletonArcher": lambda *x: _elite(x[0], _archer(*x), *x[2:]), "EliteSpider": lambda *x: _elite(x[0], _spider(*x), *x[2:])}
 POST["EliteSentinel"] = lambda *x: _elite(x[0], _sentinel(*x), *x[2:])
 POST["EliteShaman"] = lambda *x: _elite(x[0], _shaman(*x), *x[2:])
 POST["EliteOrcCharger"] = lambda *x: _elite(x[0], _orc(*x), *x[2:])
-for _s in ("EliteShieldSoldier", "EliteChanter", "EliteJelly", "EliteRogue"):
+POST["Chanter"] = _chanter
+POST["EliteChanter"] = lambda *x: _elite(x[0], _chanter(*x), *x[2:])
+for _s in ("EliteShieldSoldier", "EliteJelly", "EliteRogue"):
     POST[_s] = _elite   # 장마다 덧손질(동쪽 고친 뒤 서쪽은 뒤집기)
 KEEP_EXTRA = {"Spider", "EliteSpider", "Shaman", "EliteShaman", "OrcCharger", "EliteOrcCharger"}   # 11-13 옛 효과 조각(거미줄 덩이)이 새 몸 상자 안에 있어도 버리지 않음(새 몸이 안 가리는 칸에만 붙음)
 OLDKEEP = os.path.join(H.AUTO, "_work", "mobold")   # 옛 스프라이트 보관(게임 폴더에 새 그림을 넣은 뒤에도 위치·그림자 기준은 옛 그림)
