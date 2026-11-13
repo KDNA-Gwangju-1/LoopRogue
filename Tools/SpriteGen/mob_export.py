@@ -129,13 +129,26 @@ def _shaman(anim, a, i, oldpng):
     return a
 
 
-POST = {"SkeletonArcher": _archer, "Sentinel": _sentinel, "Shaman": _shaman, "Bomber": _bomber, "Spider": _spider,
+def _orc(anim, a, i, oldpng):
+    """11-13 오크돌격병 attack: 옛 장의 흰 충격 표시(+ 모양·원)가 몸 위에 그려져 '조각'으로 안 잡힘 -> 옛 대기 장엔 없는 흰색 칸만 그대로 얹음."""
+    if not anim.startswith("attack"): return a
+    o = np.asarray(Image.open(oldpng).convert("RGBA")).astype(int)
+    idle = np.asarray(Image.open(oldpng.replace("attack_", "idle_")[:-6] + "_0.png").convert("RGBA")).astype(int)
+    pal = {tuple(c) for c in idle[idle[..., 3] > 0][:, :3]}
+    w = (o[..., 3] > 0) & (o[..., :3].min(-1) >= 200) & (o[..., :3].max(-1) - o[..., :3].min(-1) < 50)
+    w &= ~np.array([[tuple(o[y, x, :3]) in pal for x in range(o.shape[1])] for y in range(o.shape[0])])
+    a = a.copy(); a[w] = o[w].astype(np.uint8)
+    return a
+
+
+POST = {"SkeletonArcher": _archer, "OrcCharger": _orc, "Sentinel": _sentinel, "Shaman": _shaman, "Bomber": _bomber, "Spider": _spider,
         "EliteSkeletonArcher": lambda *x: _elite(x[0], _archer(*x), *x[2:]), "EliteSpider": lambda *x: _elite(x[0], _spider(*x), *x[2:])}
 POST["EliteSentinel"] = lambda *x: _elite(x[0], _sentinel(*x), *x[2:])
 POST["EliteShaman"] = lambda *x: _elite(x[0], _shaman(*x), *x[2:])
-for _s in ("EliteShieldSoldier", "EliteOrcCharger", "EliteChanter", "EliteJelly", "EliteRogue"):
+POST["EliteOrcCharger"] = lambda *x: _elite(x[0], _orc(*x), *x[2:])
+for _s in ("EliteShieldSoldier", "EliteChanter", "EliteJelly", "EliteRogue"):
     POST[_s] = _elite   # 장마다 덧손질(동쪽 고친 뒤 서쪽은 뒤집기)
-KEEP_EXTRA = {"Spider", "EliteSpider", "Shaman", "EliteShaman"}   # 11-13 옛 효과 조각(거미줄 덩이)이 새 몸 상자 안에 있어도 버리지 않음(새 몸이 안 가리는 칸에만 붙음)
+KEEP_EXTRA = {"Spider", "EliteSpider", "Shaman", "EliteShaman", "OrcCharger", "EliteOrcCharger"}   # 11-13 옛 효과 조각(거미줄 덩이)이 새 몸 상자 안에 있어도 버리지 않음(새 몸이 안 가리는 칸에만 붙음)
 OLDKEEP = os.path.join(H.AUTO, "_work", "mobold")   # 옛 스프라이트 보관(게임 폴더에 새 그림을 넣은 뒤에도 위치·그림자 기준은 옛 그림)
 
 
