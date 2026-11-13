@@ -11,7 +11,8 @@ import os, sys, glob
 import numpy as np
 from PIL import Image
 import hq_export as H
-from codex_batch import MOBS
+from codex_batch import MOBS, ELITES, BOSSES
+LABELS = {**{f"몹_{n}": s for s, n, _ in MOBS}, **{f"엘몹_{n}": s for s, n, _ in ELITES}, **{f"보스_{n}": s for s, n, _ in BOSSES}}
 
 SPR = os.path.join(H.ROOT, "Assets", "Resources", "Sprites")
 OUT = os.environ.get("HQ_RES") or SPR
@@ -64,8 +65,77 @@ def _spider(anim, a, i, oldpng):
     return a
 
 
-POST = {"SkeletonArcher": _archer, "Bomber": _bomber, "Spider": _spider}   # 장마다 덧손질(동쪽 고친 뒤 서쪽은 뒤집기)
-KEEP_EXTRA = {"Spider"}   # 11-13 옛 효과 조각(거미줄 덩이)이 새 몸 상자 안에 있어도 버리지 않음(새 몸이 안 가리는 칸에만 붙음)
+def _elite(anim, a, i, oldpng):
+    """11-13 엘몹 보라 기운: 옛 엘몹은 몸 둘레에 반투명 보라 테(110,50,150 안쪽 / 58,14,88 바깥)가 있음 -> 옛 조각으로 붙은 테는 지우고
+    새 몸 둘레 3칸에 다시 그림. 세기는 옛 장의 테 평균 불투명도(장마다 일렁임 그대로)."""
+    import cv2
+    def aura(x): return (x[..., 3] > 0) & (x[..., 3] < 255) & ~((x[..., 0] == 10) & (x[..., 1] == 6) & (x[..., 2] == 16))
+    o = np.asarray(Image.open(oldpng).convert("RGBA"))
+    om = aura(o); k = float(o[om][:, 3].mean()) / 255 if om.any() else .5
+    a = a.copy(); a[aura(a)] = 0
+    body = a[..., 3] == 255
+    d = cv2.distanceTransform((~body).astype(np.uint8), cv2.DIST_L2, 3)
+    up = np.zeros_like(body); up[:-2] = body[2:]                          # 옛 테처럼 위로 피어오르게(몸을 2칸 올린 것과의 거리도)
+    d = np.minimum(d, cv2.distanceTransform((~up).astype(np.uint8), cv2.DIST_L2, 3) + .6)
+    rng = np.random.default_rng(i * 7 + len(anim))
+    d = d + rng.random(d.shape) * .9                                      # 테두리 끝을 연기처럼 들쭉날쭉
+    ring = (d > 0) & (d <= 3.2) & ~body
+    shadow = (a[..., 3] > 0) & ~body
+    al = np.clip(k * 255 * (1.35 - d / 3.2), 35, 215).astype(np.uint8)
+    col = np.where((d <= 1.5)[..., None], np.array([110, 50, 150], np.uint8), np.array([58, 14, 88], np.uint8))
+    put = ring & ~shadow
+    a[put, :3] = col[put]; a[put, 3] = al[put]
+    sh = ring & shadow                                                   # 그림자 위는 보라를 섞음
+    a[sh, :3] = ((a[sh, :3].astype(int) + col[sh]) // 2).astype(np.uint8); a[sh, 3] = np.maximum(a[sh, 3], al[sh])
+    return a
+
+
+def _sentinel(anim, a, i, oldpng):
+    """11-13 반격병 lit(반격 태세): 옛 장은 몸 둘레에 금빛 점이 반짝임 -> 새 몸 바깥 1칸에 금 점선(장마다 위상 바꿔 반짝) + 옛 장 밖으로 튄 금 점."""
+    if not anim.startswith("lit"): return a
+    import cv2
+    a = a.copy(); body = a[..., 3] == 255
+    ring = (cv2.dilate(body.astype(np.uint8), np.ones((3, 3), np.uint8)) > 0) & (a[..., 3] == 0)
+    yy, xx = np.indices(body.shape)
+    dot = ring & (((yy + xx + i) % 3) == 0)
+    a[dot] = (246, 214, 138, 255)
+    o = np.asarray(Image.open(oldpng).convert("RGBA"))
+    gold = (o[..., 3] > 0) & (o[..., 0] >= 240) & (o[..., 1] >= 200) & (o[..., 2] >= 100) & (a[..., 3] == 0)
+    far = gold & ~(cv2.dilate(body.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0)
+    a[far] = o[far]
+    return a
+
+
+def _shaman(anim, a, i, oldpng):
+    """11-13 고블린주술사 attack(치유 시전): 옛 장은 지팡이 구슬이 하얗게 빛나고 둘레·발밑에 초록 점 -> 새 구슬을 밝히고 점 테 + 옛 초록 점을 투명한 곳에."""
+    if not anim.startswith("attack"): return a
+    import cv2
+    o = np.asarray(Image.open(oldpng).convert("RGBA")).astype(int)
+    a = a.copy(); c = a[..., :3].astype(int); al = a[..., 3] > 0
+    ys = np.nonzero(al.any(1))[0]; top, bot = ys[0], ys[-1]
+    glow = ((o[..., 3] > 0) & (o[..., :3].min(-1) >= 215)).sum()
+    orb = al & (c[..., 1] > 150) & (c[..., 1] > c[..., 0] + 40) & (c[..., 2] > 110)
+    orb[int(top + (bot - top) * .45):] = False
+    n, lab, st, _ = cv2.connectedComponentsWithStats(orb.astype(np.uint8), connectivity=8)
+    if n > 1 and glow >= 3:
+        m = lab == 1 + int(np.argmax(st[1:, cv2.CC_STAT_AREA]))
+        L = c[..., 1]; hi = m & (L >= np.median(L[m]))
+        a[hi, :3] = (235, 255, 240)
+        ring = (cv2.dilate(m.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0) & ~al
+        yy, xx = np.indices(m.shape); ring &= ((yy + xx + i) % 2) == 0
+        a[ring] = (150, 240, 190, 255)
+    sp = (o[..., 3] > 0) & (o[..., 1] > 150) & (o[..., 1] > o[..., 0] + 40) & (a[..., 3] == 0)
+    a[sp] = o[sp].astype(np.uint8)
+    return a
+
+
+POST = {"SkeletonArcher": _archer, "Sentinel": _sentinel, "Shaman": _shaman, "Bomber": _bomber, "Spider": _spider,
+        "EliteSkeletonArcher": lambda *x: _elite(x[0], _archer(*x), *x[2:]), "EliteSpider": lambda *x: _elite(x[0], _spider(*x), *x[2:])}
+POST["EliteSentinel"] = lambda *x: _elite(x[0], _sentinel(*x), *x[2:])
+POST["EliteShaman"] = lambda *x: _elite(x[0], _shaman(*x), *x[2:])
+for _s in ("EliteShieldSoldier", "EliteOrcCharger", "EliteChanter", "EliteJelly", "EliteRogue"):
+    POST[_s] = _elite   # 장마다 덧손질(동쪽 고친 뒤 서쪽은 뒤집기)
+KEEP_EXTRA = {"Spider", "EliteSpider", "Shaman", "EliteShaman"}   # 11-13 옛 효과 조각(거미줄 덩이)이 새 몸 상자 안에 있어도 버리지 않음(새 몸이 안 가리는 칸에만 붙음)
 OLDKEEP = os.path.join(H.AUTO, "_work", "mobold")   # 옛 스프라이트 보관(게임 폴더에 새 그림을 넣은 뒤에도 위치·그림자 기준은 옛 그림)
 
 
@@ -134,7 +204,7 @@ def bbox(alpha):
 
 
 def run(label):
-    spr = next(s for s, n, _ in MOBS if f"몹_{n}" == label)
+    spr = LABELS[label]
     src = os.path.join(H.AUTO, label)
     old = old_dir(spr)
     groups = {}
@@ -209,5 +279,5 @@ def run(label):
 
 if __name__ == "__main__":
     SKIP = {"몹_01_슬라임"}   # 11-13 사용자 "슬라임은 고퀄 저퀄 같은거(저퀄)" - 게임 폴더엔 안 넣음(이름 직접 주면 넣음)
-    for s in sys.argv[1:] or sorted(os.path.basename(p) for p in glob.glob(os.path.join(H.AUTO, "몹_*")) if os.path.basename(p) not in SKIP):
+    for s in sys.argv[1:] or sorted(os.path.basename(p) for p in glob.glob(os.path.join(H.AUTO, "*몹_*")) + glob.glob(os.path.join(H.AUTO, "보스_*")) if os.path.basename(p) not in SKIP):
         run(s)

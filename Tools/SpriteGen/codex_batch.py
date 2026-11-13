@@ -350,11 +350,73 @@ def mob_ref(set_name, key):
     return p
 
 
-def mob_jobs():
+# 11-13 사용자 "몬스터 끝나면 엘리트몬스터, 엘몹은 보라색으로 덮기만 하지 말고 외형 변화가 눈에 보이게, 그다음 보스몹".
+# 엘몹: 일반 몹 고퀄 디자인(같은 번호 몹_XX) + 옛 엘몹 그림(보라 테마) -> 생김새를 키운 엘몹 디자인. 슬라임은 저퀄 유지라 뺌.
+ELITES = [
+    ("EliteSkeletonArcher", "02_해골궁수", "give it a tattered dark-purple hooded cloak, a cracked horned skull with glowing magenta eye sockets, "
+     "a larger recurve bow made of black bone with a glowing violet string, and bone spikes on the shoulders"),
+    ("EliteShieldSoldier", "03_해골방패병", "give it a horned iron helmet, spiked dark pauldrons, and a much bigger black tower shield with "
+     "iron spikes and a glowing violet skull emblem"),
+    ("EliteSpider", "04_거미", "make it bulkier with a black-violet armored carapace, jagged bone spikes along its back, glowing violet rune "
+     "markings on the abdomen, a cluster of glowing magenta eyes and longer, sharper legs"),
+    ("EliteSentinel", "06_반격병", "give it heavier black-and-violet plate armor with a spiked crown helm, a flowing dark purple cape and a "
+     "larger shield whose sun emblem glows violet"),
+    ("EliteShaman", "07_고블린주술사", "give it a horned beast-skull mask headdress with dark feathers, bone necklaces, and a taller twisted "
+     "staff topped with a glowing violet crystal orb"),
+    ("EliteOrcCharger", "08_오크돌격병", "make it bigger and more brutal: black spiked armor, larger curved horns on the helmet, glowing "
+     "magenta eyes, battle scars and heavy spiked shoulder plates"),
+    ("EliteChanter", "09_주문술사", "give it a taller horned hood with gold trim, glowing magenta eyes in the dark hood, a larger floating "
+     "spellbook with glowing violet runes and a few small floating rune shards around it"),
+    ("EliteJelly", "10_분열젤리", "make it bigger with a glowing violet core inside, a few crystal spikes on top, and darker purple jelly"),
+    ("EliteRogue", "11_그림자도적", "give it a torn flowing dark scarf, a horned mask with glowing magenta eyes, spiked shoulder guards and "
+     "two longer curved daggers with glowing violet edges"),
+]
+ELITE_LOOK = ("This is the ELITE version: it must look clearly stronger and DIFFERENT IN SHAPE at a glance, not just recolored. Keep the "
+              "same basic creature, but {up}. Palette: dark purple, violet and black with a few glowing magenta-violet accents, keeping "
+              "clear contrast so details stay readable.")
+# 보스: 층 순서(Boss1~10). 64칸 스프라이트.
+BOSSES = [
+    ("Boss1", "01_멧돼지", "a huge armored boar brute with tusks and spiked iron armor"),
+    ("Boss2", "02_오크대장", "a green orc warlord with a spiked iron mace, leather straps and a topknot"),
+    ("Boss3", "03_골렘", "a stone golem with a glowing blue crystal core and blue crystal spikes on its shoulders"),
+    ("Boss4", "04_킹슬라임", "a giant red king slime wearing a golden crown"),
+    ("Boss5", "05_버섯마녀", "a mushroom treant witch with a big purple spotted mushroom cap, root legs and a staff with a purple orb"),
+    ("Boss6", "06_사신궁수", "a hooded reaper archer with a skull face, dark teal cloak and a glowing bow"),
+    ("Boss7", "07_그림자닌자", "a shadow ninja with a red scarf and twin blades"),
+    ("Boss8", "08_미노타우로스", "a minotaur with big horns, a heavy battle axe and iron shoulder armor"),
+    ("Boss9", "09_리치왕", "a lich king with a golden crown, purple robe, bone body and a staff topped with a green orb"),
+    ("Boss10", "10_백은기사", "a silver-white armored knight with a mirror visor, a purple tabard and a sword"),
+]
+
+
+def elite_jobs():
+    jobs = []
+    for set_name, name, up in ELITES:
+        base = os.path.join(OUT, f"몹_{name}", "_디자인"); set_dir = os.path.join(OUT, f"엘몹_{name}")
+        if not all(os.path.exists(os.path.join(base, f"{d}.png")) for _, d, _ in MOB_DIRS):
+            continue
+        desc = next(dd for _, n, dd in MOBS if n == name)
+        look = {}
+        for en, d, view in MOB_DIRS:
+            out = os.path.join(set_dir, "_디자인", f"{d}.png")
+            look[d] = out
+            prompt = (f"Image 1 = high-quality pixel-art design of a normal monster ({desc}), {view}. Image 2 = an old low-resolution sprite of "
+                      f"its ELITE variant (use it only for the purple elite color theme). Redraw image 1 as its ELITE variant, {view}. "
+                      + ELITE_LOOK.format(up=up) +
+                      f" Same art style, pixel size and outline thickness as image 1, about the same size (at most 10% bigger). {MOB_COMMON}")
+            refs = [os.path.join(base, f"{d}.png"), mob_ref(set_name, f"idle_{en}_0")] + ([look["앞"]] if d != "앞" else [])
+            if d != "앞":
+                prompt += " Image 3 = the same ELITE monster from the front; match its design exactly."
+            jobs.append((out, prompt, refs))
+        jobs.append(("__mob_set__", set_name, set_dir, look, f"elite {desc}"))
+    return jobs
+
+
+def mob_jobs(lst=None, prefix="몹"):
     """몹마다: 디자인 3장(앞·옆·뒤, 예전 그림을 고퀄 용사 화풍으로) -> 그 디자인으로 게임 스프라이트의 모든 장(동작 x 3방향, 서쪽 = 동쪽 뒤집기)."""
     jobs = []
-    for set_name, name, desc in MOBS:
-        set_dir = os.path.join(OUT, f"몹_{name}")
+    for set_name, name, desc in (lst or MOBS):
+        set_dir = os.path.join(OUT, f"{prefix}_{name}")
         look = {}
         for en, d, view in MOB_DIRS:
             out = os.path.join(set_dir, "_디자인", f"{d}.png")
@@ -403,6 +465,10 @@ def main():
         jobs = armor_jobs()
     elif mode == "mobs":
         jobs = mob_jobs()
+    elif mode == "elites":
+        jobs = elite_jobs()
+    elif mode == "bosses":
+        jobs = mob_jobs(BOSSES, "보스")
     elif mode == "walkside":
         jobs = walkside_jobs()
     else:
