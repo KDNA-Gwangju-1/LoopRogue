@@ -65,6 +65,9 @@ def _spider(anim, a, i, oldpng):
     return a
 
 
+ELITE_AURA = False
+
+
 def _elite(anim, a, i, oldpng):
     """11-13 엘몹 보라 기운: 옛 엘몹은 몸 둘레에 반투명 보라 테(110,50,150 안쪽 / 58,14,88 바깥)가 있음 -> 옛 조각으로 붙은 테는 지우고
     새 몸 둘레 3칸에 다시 그림. 세기는 옛 장의 테 평균 불투명도(장마다 일렁임 그대로)."""
@@ -73,6 +76,7 @@ def _elite(anim, a, i, oldpng):
     o = np.asarray(Image.open(oldpng).convert("RGBA"))
     om = aura(o); k = float(o[om][:, 3].mean()) / 255 if om.any() else .5
     a = a.copy(); a[aura(a)] = 0
+    if not ELITE_AURA: return a                                           # 11-18 사용자 "없어도 될 듯": 새 엘몹은 디자인부터 달라서 보라 기운 안 그림(옛 테 조각만 지움)
     body = a[..., 3] == 255
     d = cv2.distanceTransform((~body).astype(np.uint8), cv2.DIST_L2, 3)
     up = np.zeros_like(body); up[:-2] = body[2:]                          # 옛 테처럼 위로 피어오르게(몸을 2칸 올린 것과의 거리도)
