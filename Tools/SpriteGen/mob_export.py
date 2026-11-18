@@ -169,14 +169,90 @@ def _chanter(anim, a, i, oldpng):
     a[hi] = (255, 225, 252, 255)
     return a
 
+def _rogue(anim, a, i, oldpng):
+    """11-18 사용자 "이펙트 fx 기반으로 새로 그려": 옛 효과를 베끼지 않고 새 몸·새 단검 끝에 맞춰 직접 그림.
+    0 준비 / 1 날 끝 반짝 / 2 돌진 잔상+속도선 / 3 잔상(옅게)+큰 십자 별빛 / 4 별빛이 고리로 퍼짐 / 5·6 보라 가루가 떠오르며 사라짐 / 7 끝.
+    옛 그림에서 몸에 붙지 않아 '조각'으로 붙은 옛 효과는 먼저 지움(옛 장에만 있고 옛 대기엔 없는 색 = 효과)."""
+    if not anim.startswith("attack"): return a
+    a = a.copy()
+    o = np.asarray(Image.open(oldpng).convert("RGBA")).astype(int)
+    pal = set()
+    for f in glob.glob(oldpng.replace("attack_", "idle_")[:-6] + "_*.png"):
+        d = np.asarray(Image.open(f).convert("RGBA")); pal |= {tuple(x) for x in d[d[..., 3] > 0][:, :3].tolist()}
+    H_, W_ = a.shape[:2]
+    oc = o[..., :3]
+    oldfx = (o[..., 3] > 0) & ~np.array([[tuple(oc[y, x].tolist()) in pal for x in range(W_)] for y in range(H_)])
+    oldfx &= ~((oc[..., 0] == 10) & (oc[..., 1] == 6) & (oc[..., 2] == 16))
+    same = (a.astype(int) == o).all(-1) & oldfx                            # 새 몸이 아닌, 옛 조각으로 붙은 칸만
+    a[same] = 0
+    body = a[..., 3] == 255
+    if not body.any(): return a
+    ys, xs = np.nonzero(body); top, bot, lft, rgt = ys.min(), ys.max(), xs.min(), xs.max()
+    side = "east" in anim or "west" in anim
+    c = a[..., :3].astype(int)
+    blade = body & (c.min(-1) >= 150) & (c.max(-1) - c.min(-1) < 60)
+    if side:
+        if blade.any() and np.nonzero(blade)[1].max() > (lft + rgt) / 2:
+            by, bx = np.nonzero(blade); k = np.argmax(bx); ty, tx = by[k], bx[k] + 2
+        else:
+            mid = body[(top + bot) // 2]; ty, tx = (top + bot) // 2, (np.nonzero(mid)[0].max() if mid.any() else rgt) + 2
+        back = -1
+    elif "north" in anim:
+        ty, tx = top + 4, int(xs.mean()); back = 0
+    else:
+        ty, tx = int(top + (bot - top) * .62), int(xs.mean()); back = 0
+    out = a.astype(float)
+    def put(y, x, col, al, over=True):
+        if not (0 <= y < H_ and 0 <= x < W_): return
+        if not over and out[y, x, 3] > 0: return
+        k = al / 255.0
+        if out[y, x, 3] == 0: out[y, x, :3] = col; out[y, x, 3] = al
+        else: out[y, x, :3] = out[y, x, :3] * (1 - k) + np.array(col) * k; out[y, x, 3] = max(out[y, x, 3], al)
+    def star(L, D, core=255):
+        put(ty, tx, (255, 252, 255), core)
+        if L >= 4:
+            for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)): put(ty + dy, tx + dx, (255, 252, 255), core)
+            for dy, dx in ((1, 1), (1, -1), (-1, 1), (-1, -1)): put(ty + dy, tx + dx, (235, 215, 255), 200)
+        for s in range(1, L + 1):
+            f = 1 - s / (L + 1); col = (250, 240, 255) if s <= L // 2 else (205, 160, 255)
+            for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)): put(ty + dy * s, tx + dx * s, col, int(90 + 165 * f))
+        for s in range(1, D + 1):
+            for dy, dx in ((1, 1), (1, -1), (-1, 1), (-1, -1)): put(ty + dy * s, tx + dx * s, (190, 130, 255), int(70 + 120 * (1 - s / (D + 1))))
+    rng = np.random.default_rng(11 + i * 31 + len(anim))
+    if i in (2, 3):                                                       # 돌진 잔상: 몸을 뒤(옆)나 위(앞·뒤)로 밀어 반투명 보라
+        for n, (sh, al) in enumerate(((3, 110), (6, 55)) if i == 2 else ((4, 60),)):
+            dy, dx = (0, sh * back) if side else (-sh // 2 - 1, 0)
+            m = np.roll(body, (dy, dx), (0, 1))
+            for y, x in zip(*np.nonzero(m & ~body)): put(y, x, (96, 52, 190), al, over=False)
+        if side:                                                          # 속도선
+            for row in rng.choice(np.arange(top + 3, bot - 2), 4, replace=False):
+                x0 = lft - 1 - int(rng.integers(0, 3)); ln = int(rng.integers(4, 9)) - (i == 3) * 2
+                for s in range(ln): put(int(row), x0 - s, (170, 120, 240), int(150 * (1 - s / ln)), over=False)
+    if i == 1: star(1, 0, 230)
+    if i == 3: star(8, 4)
+    if i == 4:
+        star(3, 1, 230)
+        for t in range(16):
+            ang = t / 16 * 2 * np.pi + .2; r = 7 + (t % 2)
+            put(int(round(ty + np.sin(ang) * r)), int(round(tx + np.cos(ang) * r)), (225, 195, 255) if t % 2 else (180, 120, 255), 230)
+    if i in (5, 6):
+        for t in range(16 if i == 5 else 10):
+            ang = rng.random() * 2 * np.pi; r = rng.uniform(4, 9 if i == 5 else 12)
+            y = int(round(ty + np.sin(ang) * r - (i - 4) * 2)); x = int(round(tx + np.cos(ang) * r))
+            put(y, x, (200, 150, 255) if t % 3 else (245, 235, 255), 200 if i == 5 else 120)
+    return np.clip(out.round(), 0, 255).astype(np.uint8)
+
+
 POST = {"SkeletonArcher": _archer, "OrcCharger": _orc, "Sentinel": _sentinel, "Shaman": _shaman, "Bomber": _bomber, "Spider": _spider,
         "EliteSkeletonArcher": lambda *x: _elite(x[0], _archer(*x), *x[2:]), "EliteSpider": lambda *x: _elite(x[0], _spider(*x), *x[2:])}
 POST["EliteSentinel"] = lambda *x: _elite(x[0], _sentinel(*x), *x[2:])
 POST["EliteShaman"] = lambda *x: _elite(x[0], _shaman(*x), *x[2:])
 POST["EliteOrcCharger"] = lambda *x: _elite(x[0], _orc(*x), *x[2:])
 POST["Chanter"] = _chanter
+POST["Rogue"] = _rogue
+POST["EliteRogue"] = lambda *x: _rogue(x[0], _elite(*x), *x[2:])
 POST["EliteChanter"] = lambda *x: _elite(x[0], _chanter(*x), *x[2:])
-for _s in ("EliteShieldSoldier", "EliteJelly", "EliteRogue"):
+for _s in ("EliteShieldSoldier", "EliteJelly"):
     POST[_s] = _elite   # 장마다 덧손질(동쪽 고친 뒤 서쪽은 뒤집기)
 KEEP_EXTRA = {"Spider", "EliteSpider", "Shaman", "EliteShaman", "OrcCharger", "EliteOrcCharger"}   # 11-13 옛 효과 조각(거미줄 덩이)이 새 몸 상자 안에 있어도 버리지 않음(새 몸이 안 가리는 칸에만 붙음)
 OLDKEEP = os.path.join(H.AUTO, "_work", "mobold")   # 옛 스프라이트 보관(게임 폴더에 새 그림을 넣은 뒤에도 위치·그림자 기준은 옛 그림)
