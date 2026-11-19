@@ -370,7 +370,9 @@ def run(label):
             out.append((col, op, o, shp))
         frames[anim] = out
     pal = H.make_palette(np.concatenate([c[op] for fl in frames.values() for c, op, _, _ in fl]), NCOL)
-    dst = os.path.join(OUT, spr); n = 0
+    # 11-19 사용자 "고퀄은 고퀄만, 일반은 일반만" - 게임 폴더에 넣을 때 새 그림은 Sprites/<Spr>HQ (클래식은 옛 그림 그대로, SpriteAnimator.Folder)
+    dst = os.path.join(OUT, spr + ("" if os.environ.get("HQ_RES") else "HQ")); n = 0
+    os.makedirs(dst, exist_ok=True)
     for anim, fl in frames.items():
         for i, (col, op, o, shp) in enumerate(fl):
             cy, cx = np.nonzero(op)

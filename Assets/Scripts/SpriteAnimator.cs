@@ -123,6 +123,19 @@ namespace LoopRogue
 
         private static readonly Dictionary<string, FrameSet> Cache = new Dictionary<string, FrameSet>();
 
+        /// <summary>11-19 사용자 "고퀄은 고퀄만, 일반은 일반만"(몹·엘몹·보스) - 고퀄 그림체이고 Sprites/{세트}HQ 가 있으면 그 폴더, 아니면 원래 폴더(클래식 = 옛 그림).
+        /// 캐시는 실제 폴더 이름으로 잡아서 그림체를 바꾸면 새로 읽는다.</summary>
+        private static readonly Dictionary<string, bool> HasHq = new Dictionary<string, bool>();
+
+        private static string Folder(string setName)
+        {
+            if (GameSettings.Art != GameSettings.ArtStyle.HighQuality)
+                return setName;
+            if (!HasHq.TryGetValue(setName, out var has))
+                HasHq[setName] = has = Resources.Load<Sprite>($"Sprites/{setName}HQ/idle_south_0") != null;
+            return has ? setName + "HQ" : setName;
+        }
+
         /// <summary>처치 파편 색 - 스프라이트는 틴트가 흰색이라 렌더러 색 대신 이걸 쓴다(ActorJuice.BaseColorOf).</summary>
         public Color DebrisColor = Color.white;
 
@@ -170,6 +183,7 @@ namespace LoopRogue
         /// 도중에 누가 Load로 먼저 읽었으면 그쪽을 그대로 쓴다.</summary>
         public static IEnumerator WarmupAsync(string setName)
         {
+            setName = Folder(setName);
             if (Cache.ContainsKey(setName))
                 yield break;
             var set = new FrameSet();
@@ -428,6 +442,7 @@ namespace LoopRogue
 
         private static FrameSet Load(string setName)
         {
+            setName = Folder(setName);
             if (Cache.TryGetValue(setName, out var set))
                 return set;
             set = new FrameSet();
