@@ -37,6 +37,7 @@ namespace LoopRogue
         private Action _goToLobby;
         private Action _goToTitle;
         private Action _saveToSlot;
+        private bool _showLockedSave; // 11-20 던전: 저장 버튼을 회색으로만(로비와 메뉴 순서를 맞추려고)
         private Func<bool> _canOpen;
         private GameObject _panel;
 
@@ -46,9 +47,12 @@ namespace LoopRogue
         /// <param name="lobbyLabel">"로비로 이동" 버튼 문구(Main은 데스 패널티 안내를 붙인다).</param>
         /// <param name="goToTitle">있으면 "타이틀로 이동 [T]" 버튼도 보여준다(Main용).</param>
         /// <param name="saveToSlot">있으면 "다른 슬롯에 저장" 버튼도 보여준다(로비용, 11-14).</param>
+        /// <param name="showLockedSave">saveToSlot이 없을 때 같은 자리에 누를 수 없는 회색 저장 버튼(던전용, 11-20 사용자 "던전·로비 Esc 맞추기").
+        /// 던전 안 상태(방·몹·가방·이번 시도 골드)는 저장되지 않아서 저장 자체는 로비에서만.</param>
         public void Setup(Action goToLobby, Func<bool> canOpen = null, bool showQuit = false, string lobbyLabel = null,
-            Action goToTitle = null, Action saveToSlot = null)
+            Action goToTitle = null, Action saveToSlot = null, bool showLockedSave = false)
         {
+            _showLockedSave = showLockedSave && saveToSlot == null;
             _goToLobby = goToLobby;
             _goToTitle = goToTitle;
             _saveToSlot = saveToSlot;
@@ -189,7 +193,7 @@ namespace LoopRogue
             _panel.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
 
             // 메뉴 뒤 돌 테두리 패널(도트 그림이 있을 때만) - 버튼 수에 맞춘 높이
-            var buttonCount = 2 + (_goToLobby != null ? 1 : 0) + (_goToTitle != null ? 1 : 0) + (_saveToSlot != null ? 1 : 0) + (showQuit ? 1 : 0);
+            var buttonCount = 2 + (_goToLobby != null ? 1 : 0) + (_goToTitle != null ? 1 : 0) + (_saveToSlot != null || _showLockedSave ? 1 : 0) + (showQuit ? 1 : 0);
             var board = new GameObject("Board", typeof(RectTransform));
             board.transform.SetParent(_panel.transform, false);
             var boardImage = board.AddComponent<Image>();
@@ -222,6 +226,12 @@ namespace LoopRogue
             {
                 y -= 60f;
                 CreateNumberedButton(Loc.T("다른 슬롯에 저장"), ButtonColor, y, _saveToSlot);
+            }
+            else if (_showLockedSave)
+            {
+                y -= 60f;
+                CreateNumberedButton(Loc.T("다른 슬롯에 저장 (로비에서만)"), new Color(0.16f, 0.16f, 0.18f), y, () => { });
+                _buttons[_buttons.Count - 1].Item1.GetComponentInChildren<Text>().color = new Color(0.55f, 0.56f, 0.6f);
             }
             y -= 60f;
             CreateNumberedButton(Loc.T("설정"), ButtonColor, y, () => OptionsPanel.Open());

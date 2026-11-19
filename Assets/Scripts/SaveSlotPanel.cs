@@ -254,7 +254,7 @@ namespace LoopRogue
 
         private void Build(Transform canvas)
         {
-            const float header = 60f, footer = 40f, side = 30f;
+            const float header = 60f, footer = 56f, side = 30f; // 11-20: 40 → 56, 저장 모드 안내가 두 줄로 넘어 테두리에 걸렸다
             var height = header + Prefs.SlotCount * CardHeight + (Prefs.SlotCount - 1) * Gap + footer;
 
             var dim = HudUi.CreateImage(canvas, "Dim", new Color(0f, 0f, 0f, 0.55f));
@@ -312,7 +312,7 @@ namespace LoopRogue
                 _cardTexts[i] = text;
             }
 
-            _hint = HudUi.CreateText(panelImage.transform, "Hint", 12, TextAnchor.MiddleCenter);
+            _hint = HudUi.CreateText(panelImage.transform, "Hint", 13, TextAnchor.MiddleCenter);
             _hint.text = HintText;
             _hint.color = new Color(0.6f, 0.63f, 0.7f);
             var hintRect = _hint.rectTransform;

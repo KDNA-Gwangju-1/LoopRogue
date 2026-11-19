@@ -93,7 +93,7 @@ namespace LoopRogue
                       && !NpcDialogUI.BlocksInput // 대화창을 Esc로 닫은 그 프레임에 메뉴가 바로 열리지 않게
                       && !GachaReveal.BlocksInput, // Unknown 벼리기 연출을 Esc로 닫은 프레임도
                 lobbyLabel: Loc.F("로비로 이동 (이번 시도 골드 {0:0}% 손실)", Relics.DeathPenaltyRate * 100f),
-                goToTitle: RetreatToTitle);
+                goToTitle: RetreatToTitle, showLockedSave: true);
 
             Tutorial.Attach(_roomController, _player, _hud); // 첫 판 안내(봇·테스트 맵에선 안 만든다)
         }

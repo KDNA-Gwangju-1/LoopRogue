@@ -1480,3 +1480,4 @@ W/S·마우스: 고르기   Enter·클릭: 장착/해제   A/D: 업적 탭   Esc
 W/S·휠: 넘기기   A/D·탭 클릭: 칭호 탭(장착은 칭호 탭에서)   Esc: 닫기	W/S·Wheel: Scroll   A/D·Tab click: Titles tab (equip there)   Esc: Close
    <color=#FFD966><b>장착 중</b></color>	   <color=#FFD966><b>Equipped</b></color>
 아직 얻은 칭호가 없다 - 업적을 달성하면 칭호를 얻는다	No titles yet - unlock achievements to earn titles
+다른 슬롯에 저장 (로비에서만)	Save to another slot (lobby only)
