@@ -341,7 +341,8 @@ namespace LoopRogue
             _background.enabled = !hub && _backgrounds.TryGetValue(view, out var background) && background != null;
             if (_background.enabled)
                 _background.sprite = _backgrounds[view];
-            _shade.color = new Color(0f, 0f, 0f, hub ? 0f : 0.55f);
+            // 11-20 UI 개선: 배경 그림 없는 상점(잡화점)은 방의 NPC 이름표가 목록 사이로 비쳐 어지러웠다 → 그때만 더 어둡게
+            _shade.color = new Color(0f, 0f, 0f, hub ? 0f : _background.enabled ? 0.55f : 0.86f);
             _titleText.text = view switch
             {
                 LobbyView.Gacha => Loc.T("뽑기 상점"),
@@ -373,7 +374,7 @@ namespace LoopRogue
         {
             if (!StatPotionWallet.IsUnlocked(type))
             {
-                ShowResult(Loc.F("{0} 영약은 스테이지 {1}부터 구매할 수 있습니다.", label, StatPotionWallet.CriticalUnlockStage), Color.white);
+                ShowResult(Loc.F("{0} 영약은 {1}층부터 구매할 수 있습니다.", label, StatPotionWallet.CriticalUnlockStage), Color.white);
                 return;
             }
 
@@ -408,9 +409,10 @@ namespace LoopRogue
             if (_criticalIcon != null)
                 _criticalIcon.color = unlocked ? Color.white : new Color(0.35f, 0.35f, 0.38f); // 잠겨 있으면 병도 어둡게
 
+            // 11-20: "치명타확률+152% 구매"가 한 병에 152%를 사는 것처럼 읽혀서(실제론 누적, 100% 넘는 분은 치명타 피해로) 다른 두 영약과 같은 꼴로
             _criticalButtonText.text = unlocked
-                ? Loc.F("[3] 치명타확률+{0:0.#}% 구매 (다음 비용 {1}골드)", StatPotionWallet.TotalCriticalChanceBonus() * 100f, StatPotionWallet.GetNextCost(PotionType.Critical))
-                : Loc.F("치명타 영약: 스테이지 {0}부터 구매 가능(비공개)", StatPotionWallet.CriticalUnlockStage);
+                ? Loc.F("[3] 치명타 영약 구매 (다음 비용 {1}골드) · 누적 {0:0.#}%p", StatPotionWallet.TotalCriticalChanceBonus() * 100f, StatPotionWallet.GetNextCost(PotionType.Critical))
+                : Loc.F("치명타 영약: {0}층부터 구매 가능(비공개)", StatPotionWallet.CriticalUnlockStage);
         }
 
         private void DoGachaPull(ItemSlot slot)
@@ -856,7 +858,7 @@ namespace LoopRogue
 
             // 상점 화면 공통: 제목(상점 이름) / 골드 - 로비 방에선 숨김(스테이지는 문 위에, 골드는 상점에서만 필요 - 10-14 사용자)
             _headerGroup = CreateGroup(root, "Header");
-            CreatePanel(_headerGroup.transform, 0f, 282f, 200f, 80f);
+            CreatePanel(_headerGroup.transform, 0f, 281f, 440f, 84f); // 11-20 UI 개선: 200 → 440(골드·마석 줄이 판 밖으로 삐져나왔다)
             _titleText = CreateLabel(_headerGroup.transform, "Title", string.Empty, 26, FontStyle.Bold, Color.white, 300f, 560f);
             _goldText = CreateLabel(_headerGroup.transform, "GoldText", Loc.T("보유 골드: 0"), 18, FontStyle.Bold,
                 new Color(1f, 0.85f, 0.3f), 262f, 560f);
@@ -1027,7 +1029,7 @@ namespace LoopRogue
         /// <summary>로비 방에 NPC 6명을 세운다(예전 허브 카드 6개와 같은 기능·같은 숫자키).</summary>
         private void BuildLobbyRoom()
         {
-            _room = LobbyRoom.Create(EnterDoor, StageProgress.FinalBossCleared ? Loc.T("층 선택") : Loc.F("스테이지 {0} 시작", StageProgress.CurrentStage));
+            _room = LobbyRoom.Create(EnterDoor, StageProgress.FinalBossCleared ? Loc.T("층 선택") : Loc.F("{0}층 시작", StageProgress.CurrentStage));
             // 11-03 방을 15x10으로 넓히며 다시 배치(사용자 "NPC 배치가 이상") - 왼쪽 벽 둘, 오른쪽 벽 둘, 문 양옆 둘, 아래 줄 셋
             // (시작 칸 바로 아래가 스킬 도우미). 시작 칸 → 문(가운데 위) 세로 길은 비워 둔다.
             const int left = 1, right = LobbyRoom.Width - 2, top = LobbyRoom.Height - 2, upper = 6, lower = 3, bottom = 0;
@@ -1280,10 +1282,10 @@ namespace LoopRogue
                 out _slotButtonText, string.Empty, 17, Color.white, DoSlotSpin);
             // 거는 돈 줄 - 왼쪽 반을 누르면 -, 오른쪽 반을 누르면 +(11-02, 예전 고액 베팅 자리)
             CreateButton(view, "SlotBetMinus", new Color(0.3f, 0.22f, 0.15f), -62f, 60f, 42f,
-                out _, "◀", 17, Color.white, () => AdjustSlotBet(-SlotMachine.BetStep), x: -200f);
+                out _, "◀", 17, Color.white, () => AdjustSlotBet(-SlotMachine.BetStep), x: -265f); // 11-20: ±200 → ±265, 가운데 글이 잘려서
             CreateButton(view, "SlotBetPlus", new Color(0.3f, 0.22f, 0.15f), -62f, 60f, 42f,
-                out _, "▶", 17, Color.white, () => AdjustSlotBet(SlotMachine.BetStep), x: 200f);
-            _slotHighButtonText = CreateLabel(view, "SlotBet", string.Empty, 16, FontStyle.Normal, Color.white, -62f, 330f);
+                out _, "▶", 17, Color.white, () => AdjustSlotBet(SlotMachine.BetStep), x: 265f);
+            _slotHighButtonText = CreateLabel(view, "SlotBet", string.Empty, 16, FontStyle.Normal, Color.white, -62f, 460f);
             _slotHighButtonText.supportRichText = true;
             CreateButton(view, "SlotRiskButton", new Color(0.5f, 0.2f, 0.15f), -212f, 300f, 36f,
                 out _slotRiskButtonText, string.Empty, 15, Color.white, () => AdjustSlotMultiplier(SlotMachine.Multiplier >= SlotMachine.MaxMultiplier

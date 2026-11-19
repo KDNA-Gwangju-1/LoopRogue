@@ -212,7 +212,7 @@ X자 베기	X Slash
 죽어도 퀵슬롯 1번 아이템은 안 잃음	Keep quickslot 1 item on death
 <color=#B9A0FF>도감 기록</color> {0}	<color=#B9A0FF>Codex entry</color> {0}
 <color=#FFD966>업적 달성!</color> {0} - 칭호 「{1}」	<color=#FFD966>Achievement unlocked!</color> {0} - Title 「{1}」
-스테이지 {0} - 어디서 시작할까?	Stage {0} - Where to start?
+{0}층 - 어디서 시작할까?	Stage {0} - Where to start?
 보스 처치! 유물을 하나 고르세요 (영구 적용)	Boss defeated! Choose a Relic (permanent)
   (보스 전용 - 지금 아니면 못 얻음)	  (Boss-exclusive - now or never)
 {0:0} / {1:0}  <color=#9FD8FF>+보호막 {2:0}</color>	{0:0} / {1:0}  <color=#9FD8FF>+Barrier {2:0}</color>
@@ -242,10 +242,10 @@ X자 베기	X Slash
 <b><color=#8FB8FF>[장비]</color></b>	<b><color=#8FB8FF>[Gear]</color></b>
 {0}  (미장착)	{0}  (not equipped)
    보상 {0:0}%	   Reward {0:0}%
-Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}	Stage {0}/{1}   Room {2}/{3}   Attempt {4}{5}
+{0}/{1}층   방 {2}/{3}   시도 {4}{5}	Stage {0}/{1}   Room {2}/{3}   Attempt {4}{5}
 스탯은 그대로! {0}부터 다시.	Stats kept! Restarting from {0}.
-스테이지 {0} 클리어! 마지막 벽까지 뚫었다!\n[Enter] 로비로 이동	Stage {0} cleared! You broke through the final wall!\n[Enter] Go to Lobby
-스테이지 {0} 클리어!\n[Enter] 로비로 이동 (다음 스테이지 도전 가능)	Stage {0} cleared!\n[Enter] Go to Lobby (next stage unlocked)
+{0}층 클리어! 마지막 벽까지 뚫었다!\n[Enter] 로비로 이동	Stage {0} cleared! You broke through the final wall!\n[Enter] Go to Lobby
+{0}층 클리어!\n[Enter] 로비로 이동 (다음 층 도전 가능)	Stage {0} cleared!\n[Enter] Go to Lobby (next stage unlocked)
 <color=#C8B88A>시간지기 노인의 한마디</color>  "{0}"	<color=#C8B88A>Old Timekeeper says</color>  "{0}"
 데스 패널티: 골드 -{0} (이번 시도 획득분의 {1:0}%)	Death penalty: Gold -{0} ({1:0}% of this attempt's earnings)
 데스 패널티: 이번 시도에 번 골드 없음	Death penalty: no Gold earned this attempt
@@ -326,14 +326,14 @@ Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}	Stage {0}/{1}   Room {2}/{3}   Atte
 뽑기 상점	Gacha Shop
 영약 상점	Elixir Shop
 도박장	Casino
-{0} 영약은 스테이지 {1}부터 구매할 수 있습니다.	{0} Elixir is available from Stage {1}.
+{0} 영약은 {1}층부터 구매할 수 있습니다.	{0} Elixir is available from Stage {1}.
 골드가 모자랍니다! ({0} 영약 비용: {1})	Not enough Gold! ({0} Elixir cost: {1})
 {0} 영약 구매! (영구 적용, 다음 시작부터)	Bought {0} Elixir! (permanent, from next run)
 영약 누적 - 공격력+{0:0.#}   체력+{1:0.#}   |   유물 {2}개	Elixirs total - ATK+{0:0.#}   HP+{1:0.#}   |   Relics x{2}
 [1] 공격력 영약 구매 (다음 비용 {0}골드)	[1] Buy ATK Elixir (next cost {0} Gold)
 [2] 체력 영약 구매 (다음 비용 {0}골드)	[2] Buy HP Elixir (next cost {0} Gold)
-[3] 치명타확률+{0:0.#}% 구매 (다음 비용 {1}골드)	[3] Buy Crit Chance+{0:0.#}% (next cost {1} Gold)
-치명타 영약: 스테이지 {0}부터 구매 가능(비공개)	Crit Elixir: available from Stage {0} (hidden)
+[3] 치명타 영약 구매 (다음 비용 {1}골드) · 누적 {0:0.#}%p	[3] Buy Crit Elixir (next cost {1}G) · total {0:0.#}%p
+치명타 영약: {0}층부터 구매 가능(비공개)	Crit Elixir: available from Stage {0} (hidden)
 골드가 모자랍니다! (뽑기 비용: {0})	Not enough Gold! (Gacha cost: {0})
 {0} 획득! 장착했습니다.	Got {0}! Equipped.
   새 효과: {0} ({1})	  New effect: {0} ({1})
@@ -931,7 +931,7 @@ NPC	NPC
 Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 <b>능력치</b> 버튼을 눌러 보세요. 공격력·체력·장비·유물을 한눈에 볼 수 있어요. 한 번 더 누르면 닫혀요.	Tap the <b>Stats</b> button. You can see your attack, health, gear and relics at a glance. Tap again to close.
 <b>Tab</b>을 눌러 능력치 창을 열어 보세요. 공격력·체력·장비·유물을 한눈에 볼 수 있어요. 한 번 더 누르면 닫혀요.	Press <b>Tab</b> to open the stats window. You can see your attack, health, gear and relics at a glance. Press again to close.
-튜토리얼   Room {0}/{1}	Tutorial   Room {0}/{1}
+튜토리얼   방 {0}/{1}	Tutorial   Room {0}/{1}
 <color=#FFD966>튜토리얼 완료!</color>  골드 +{0}	<color=#FFD966>Tutorial complete!</color>  Gold +{0}
 <color=#FFD966>튜토리얼 완료!</color>	<color=#FFD966>Tutorial complete!</color>
 잠시 후 타이틀로 돌아갑니다	Returning to the title shortly
@@ -1037,7 +1037,7 @@ Unknown 장비 세트를 받는다	Receive the Unknown equipment set
 옆 칸에 설치 - 그 주변이 계속 밝게 보인다. 불 꺼진 제단에 쓰면 숨은 길이 열린다	Place on adjacent tile - keeps the area lit. Use on an unlit altar to open a hidden path
 방 안 몹들이 플레이어가 공격하기 전까지 플레이어를 못 찾는다(행동 못 함)	Mobs in the room can't find you until you attack (they can't act)
 {0}턴 안에 맞는 보스 공격 1회(예고 공격·평타·파동)를 막고 내 평타 한 대만큼 되돌린다(치명타는 따로)	Blocks 1 boss attack (telegraphed·basic·wave) within {0} turns and strikes back for one basic attack's worth of damage (crits rolled separately)
-스테이지 {0} 시작	Stage {0} Start
+{0}층 시작	Stage {0} Start
 <color=#FFD966>반사 부적</color>을 켜 두면 보스의 공격 한 번을 막고 그대로 되돌려 주지.	Keep a <color=#FFD966>Reflect Charm</color> active and it'll block one boss attack and send it right back.
 반사 부적! 보스의 공격을 치명타로 되돌렸다	Reflect Charm! Sent the boss's attack back as a critical hit
 연막! 공격하기 전까지 몹들이 플레이어를 못 찾는다	Smoke! Mobs can't find you until you attack
@@ -1470,3 +1470,13 @@ W/S·마우스: 고르기   Enter·클릭·숫자: 시작   Delete·[지우기]:
 <color=#FF9A80>덮어쓸까요? 한 번 더 누르면 이 슬롯에 저장해요</color>	<color=#FF9A80>Overwrite? Press again to save to this slot</color>
 <color=#8CE08C>슬롯 {0}에 저장했어요 - 타이틀에서 그 슬롯을 고르면 여기서부터 이어 해요</color>	<color=#8CE08C>Saved to slot {0} - choose it on the title screen to continue from here</color>
 W/S·마우스: 고르기   Enter·클릭·숫자: 이 슬롯에 저장(저장이 있으면 두 번)   Esc: 닫기   ·   지금 슬롯은 그대로 이어 해요	W/S·Mouse: Select   Enter·Click·Number: Save here (twice if not empty)   Esc: Close   ·   You keep playing the current slot
+이동 방향키·WASD   대기 Space   가방 I   메뉴 Esc	Move Arrows·WASD   Wait Space   Bag I   Menu Esc
+업적 · 칭호	Achievements · Titles
+달성 <color=#FFD966>{0}</color> / {1}	Unlocked <color=#FFD966>{0}</color> / {1}
+장착한 칭호: {0}	Equipped title: {0}
+업적  {0}/{1}	Achievements  {0}/{1}
+칭호  {0}	Titles  {0}
+W/S·마우스: 고르기   Enter·클릭: 장착/해제   A/D: 업적 탭   Esc: 닫기   ·   칭호 효과는 다음 던전 입장부터	W/S·Mouse: Select   Enter·Click: Equip/Unequip   A/D: Achievements tab   Esc: Close   ·   Title effects apply from the next dungeon run
+W/S·휠: 넘기기   A/D·탭 클릭: 칭호 탭(장착은 칭호 탭에서)   Esc: 닫기	W/S·Wheel: Scroll   A/D·Tab click: Titles tab (equip there)   Esc: Close
+   <color=#FFD966><b>장착 중</b></color>	   <color=#FFD966><b>Equipped</b></color>
+아직 얻은 칭호가 없다 - 업적을 달성하면 칭호를 얻는다	No titles yet - unlock achievements to earn titles

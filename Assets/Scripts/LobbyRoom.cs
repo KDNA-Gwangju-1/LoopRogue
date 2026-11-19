@@ -33,6 +33,26 @@ namespace LoopRogue
         }
 
         private readonly List<Npc> _npcs = new List<Npc>();
+        private static readonly Color LabelPlateColor = new Color(0.04f, 0.035f, 0.06f, 0.72f);
+        private const float LabelPlatePadX = 0.12f, LabelPlatePadY = 0.05f;
+        private readonly List<(TextMesh text, MeshRenderer renderer, SpriteRenderer plate)> _labelPlates = new List<(TextMesh, MeshRenderer, SpriteRenderer)>();
+
+        /// <summary>이름표 뒤 판을 글자 크기에 맞춘다(글자가 바뀌면 메시도 바뀌어서 매 프레임 - 이름표는 열 개 남짓).</summary>
+        private void LateUpdate()
+        {
+            foreach (var (text, renderer, plate) in _labelPlates)
+            {
+                if (text == null || plate == null)
+                    continue;
+                var empty = string.IsNullOrEmpty(text.text);
+                plate.enabled = !empty;
+                if (empty)
+                    continue;
+                var b = renderer.bounds;
+                plate.transform.position = new Vector3(b.center.x, b.center.y, text.transform.position.z + 0.01f);
+                plate.transform.localScale = new Vector3(b.size.x + LabelPlatePadX * 2f, b.size.y + LabelPlatePadY * 2f, 1f);
+            }
+        }
         private readonly HashSet<Vector2Int> _blocked = new HashSet<Vector2Int>();
         private Action _onDoor;
         /// <summary>문이 잠겼는지(튜토리얼 뒤 첫 구매 전, LobbyBootstrap) - 잠겼으면 문 칸으로 안 들어가고 OnDoorLocked만.</summary>
@@ -130,6 +150,11 @@ namespace LoopRogue
             var meshRenderer = labelGo.GetComponent<MeshRenderer>();
             meshRenderer.material = text.font.material;
             meshRenderer.sortingOrder = 50;
+            // 11-20 UI 개선(사용자 "UI 다 개선"): 흰 글자가 돌바닥 무늬와 섞여 안 읽혀서 뒤에 반투명 어두운 판(크기는 LateUpdate에서 글자에 맞춤)
+            var plateGo = new GameObject("Plate");
+            plateGo.transform.SetParent(labelGo.transform, false);
+            var plate = VisualUtil.CreateSquareVisual(plateGo, LabelPlateColor, 0f, 49);
+            _labelPlates.Add((text, meshRenderer, plate));
             return text;
         }
 

@@ -147,7 +147,7 @@ namespace LoopRogue
             _mapChoiceOpenedFrame = Time.frameCount;
             _onRoomSelected = onSelected;
             _roomCount = rooms.Count;
-            _roomSelectTitle.text = Loc.F("스테이지 {0} - 어디서 시작할까?", stage);
+            _roomSelectTitle.text = Loc.F("{0}층 - 어디서 시작할까?", stage);
             _roomMap ??= new RoomMapView(_roomSelectPanel.transform, rooms.Count);
             _roomMap.Show(_roomSelectPanel.transform, new Vector2(0f, 0f), rooms, defaultRoom);
             _roomSelectPanel.SetActive(true);
@@ -410,9 +410,10 @@ namespace LoopRogue
             var levels = _player.Levels;
 
             var maxHp = Mathf.Max(1f, stats.MaxHealth);
+            var (shownHp, shownMaxHp) = ShownHealthPair(stats.CurrentHealth, stats.MaxHealth);
             _hpBar.Set(stats.CurrentHealth / maxHp, stats.Shield >= 1f
-                ? Loc.F("{0:0} / {1:0}  <color=#9FD8FF>+보호막 {2:0}</color>", ShownHealth(stats.CurrentHealth), stats.MaxHealth, stats.Shield)
-                : $"{ShownHealth(stats.CurrentHealth):0} / {stats.MaxHealth:0}");
+                ? Loc.F("{0:0} / {1:0}  <color=#9FD8FF>+보호막 {2:0}</color>", shownHp, shownMaxHp, stats.Shield)
+                : $"{shownHp:0} / {shownMaxHp:0}");
             _hpBar.SetOverlay(stats.CurrentHealth / maxHp, stats.Shield / maxHp); // 체력 끝에 이어 흰 보호막
             var expRatio = levels.IsMaxLevel ? 1f : levels.Exp / (float)Mathf.Max(1, levels.ExpToNext);
             _expBar.Set(expRatio, levels.IsMaxLevel
@@ -556,7 +557,7 @@ namespace LoopRogue
             var title = Achievements.EquippedTitle;
             sb.AppendLine(title != null ? Loc.F("칭호  「{0}」  ({1})", title.Title, title.EffectText) : Loc.T("칭호  없음 (로비 업적 창에서 장착)"));
             sb.AppendLine(levels.IsMaxLevel ? Loc.F("레벨  Lv.{0}  (MAX)", levels.Level) : Loc.F("레벨  Lv.{0}  (EXP {1}/{2})", levels.Level, levels.Exp, levels.ExpToNext));
-            sb.AppendLine(Loc.F("체력  {0:0} / {1:0}  (장비·영약 {2:0})", ShownHealth(s.CurrentHealth), s.MaxHealth, s.FixedMaxHealth));
+            sb.AppendLine(Loc.F("체력  {0:0} / {1:0}  (장비·영약 {2:0})", ShownHealthPair(s.CurrentHealth, s.MaxHealth).shown, ShownHealthPair(s.CurrentHealth, s.MaxHealth).max, s.FixedMaxHealth)); // 11-20 체력 1 높게 보이던 버그와 같은 원인
             sb.AppendLine(Loc.F("공격력  {0:0.#}  (장비·영약 {1:0.#})", s.AttackPower, s.FixedAttack));
             sb.AppendLine(Loc.F("치명타  {0:0.#}%  (피해 {1:0.#}%)", s.EffectiveCriticalChance * 100f, s.CriticalDamageMultiplier * 100f));
             if (s.CriticalChanceRate > CharacterStats.MaxCriticalChance)
@@ -613,7 +614,7 @@ namespace LoopRogue
             var ratio = stats.MaxHealth > 0f ? Mathf.Clamp01(stats.CurrentHealth / stats.MaxHealth) : 0f;
             _targetFill.anchorMax = new Vector2(ratio, 1f);
             _targetFillImage.color = _target.IsBoss ? new Color(0.85f, 0.35f, 0.1f) : new Color(0.75f, 0.15f, 0.15f);
-            _targetText.text = $"{_target.DisplayName}  HP {ShownHealth(stats.CurrentHealth):0}/{stats.MaxHealth:0}  (ATK {stats.AttackPower:0})";
+            _targetText.text = $"{_target.DisplayName}  HP {ShownHealthPair(stats.CurrentHealth, stats.MaxHealth).shown:0}/{ShownHealthPair(stats.CurrentHealth, stats.MaxHealth).max:0}  (ATK {stats.AttackPower:0})";
         }
 
         private void RefreshGimmickGauges()
@@ -652,12 +653,13 @@ namespace LoopRogue
             // 시도 횟수는 이 스테이지 누적(로비 왕복 포함) - 반복 보상 감소가 이 숫자로 정해진다.
             if (TutorialStage.Active)
             {
-                _progressText.text = Loc.F("튜토리얼   Room {0}/{1}", roomNumber, roomCount);
+                _progressText.text = Loc.F("튜토리얼   방 {0}/{1}", roomNumber, roomCount);
                 return;
             }
             var reward = StageProgress.RepeatRewardMultiplier;
             var rewardText = reward < 0.999f ? Loc.F("   보상 {0:0}%", reward * 100f) : string.Empty;
-            _progressText.text = Loc.F("Stage {0}/{1}   Room {2}/{3}   시도 {4}{5}", stage, StageProgress.MaxStage, roomNumber, roomCount, StageProgress.AttemptsThisStage, rewardText);
+            // 11-20 UI 개선: "Stage 10/10 Room 1/11" 영어·한국어 섞임 → 한국어("층"·"방"). 다른 언어 번역은 그대로
+            _progressText.text = Loc.F("{0}/{1}층   방 {2}/{3}   시도 {4}{5}", stage, StageProgress.MaxStage, roomNumber, roomCount, StageProgress.AttemptsThisStage, rewardText);
         }
 
         /// <summary>화면 위쪽 배너로 짧은 안내(방 이벤트 결과, 보스 소환 등).</summary>
@@ -665,6 +667,14 @@ namespace LoopRogue
 
         /// <summary>화면에 보일 체력 - 올림(0.4 남았는데 반올림으로 "0"이 떠서 살아 있는데 죽은 것처럼 보이던 문제). 살아 있으면 최소 1.</summary>
         private static float ShownHealth(float health) => health > 0f ? Mathf.Max(1f, Mathf.Ceil(health - 0.001f)) : 0f;
+
+        /// <summary>11-20 버그(사용자 "체력 1 높은 버그"): 현재 체력은 올림(ShownHealth), 최대 체력은 반올림({0:0})이라 체력이 꽉 찬 듯 소수점이
+        /// 남으면 "2205 / 2204"처럼 현재가 최대보다 1 크게 보였다. 최대도 같은 올림으로 맞추고, 현재는 최대를 넘지 않게.</summary>
+        private static (float shown, float max) ShownHealthPair(float health, float maxHealth)
+        {
+            var max = ShownHealth(maxHealth);
+            return (Mathf.Min(ShownHealth(health), max), max);
+        }
 
         public void ShowLoopResetBanner(int startRoom) => ShowBanner(Loc.F("스탯은 그대로! {0}부터 다시.", RoomMapView.RoomLabel(startRoom, _roomCount)));
 
@@ -703,8 +713,8 @@ namespace LoopRogue
             _onStageClearContinue = onContinue;
 
             _victoryText.text = stage >= StageProgress.MaxStage
-                ? Loc.F("스테이지 {0} 클리어! 마지막 벽까지 뚫었다!\n[Enter] 로비로 이동", stage)
-                : Loc.F("스테이지 {0} 클리어!\n[Enter] 로비로 이동 (다음 스테이지 도전 가능)", stage);
+                ? Loc.F("{0}층 클리어! 마지막 벽까지 뚫었다!\n[Enter] 로비로 이동", stage)
+                : Loc.F("{0}층 클리어!\n[Enter] 로비로 이동 (다음 층 도전 가능)", stage);
 
             _victoryPanel.SetActive(true);
         }
@@ -1125,7 +1135,7 @@ namespace LoopRogue
                 rect.anchorMin = new Vector2(0.5f, 0.5f);
                 rect.anchorMax = new Vector2(0.5f, 0.5f);
                 rect.pivot = new Vector2(0.5f, 0.5f);
-                rect.sizeDelta = new Vector2(400f, 70f);
+                rect.sizeDelta = new Vector2(540f, 70f); // 11-20: 400 → 540(긴 설명이 세 줄로 넘쳤다)
                 rect.anchoredPosition = new Vector2(0f, 100f - i * 90f);
 
                 var cardImage = cardGo.AddComponent<Image>();
@@ -1148,7 +1158,10 @@ namespace LoopRogue
                 text.alignment = TextAnchor.MiddleCenter;
                 text.fontSize = 15;
                 text.color = Color.white;
-                text.text = $"[{i + 1}] {option.Title}\n{option.Description}";
+                // 11-20 UI 개선: 이름은 굵고 크게, 설명은 한 단계 작고 연하게(두 줄이 같은 크기·색이라 한눈에 안 들어왔다)
+                text.supportRichText = true;
+                text.lineSpacing = 1.1f;
+                text.text = $"<size=17><b>[{i + 1}] {option.Title}</b></size>\n<color=#D8DCE6>{option.Description}</color>";
 
                 // 왼쪽에 카드 그림(16x16 도트 3배, 유물 창과 같게) - 그림이 있으면 글자를 오른쪽으로 민다.
                 var sprite = option.Icon != null ? PixelUi.Get($"UI/Cards/Card_{option.Icon}") : null;
@@ -1186,7 +1199,7 @@ namespace LoopRogue
             BuildActionBar(canvasGo.transform);
             BuildTargetPanel(canvasGo.transform);
             BuildStatPanel(canvasGo.transform);
-            _upgradePanel = BuildOverlayPanel(canvasGo.transform, "UpgradePanel", new Vector2(440f, 320f), active: false);
+            _upgradePanel = BuildOverlayPanel(canvasGo.transform, "UpgradePanel", new Vector2(580f, 320f), active: false);
             BuildBanner(canvasGo.transform);
             BuildVictoryPanel(canvasGo.transform);
             BuildDeathPanel(canvasGo.transform);
@@ -1260,14 +1273,15 @@ namespace LoopRogue
             rect.offsetMin = new Vector2(0f, -ActionBarLayout.TopBarHeight);
             rect.offsetMax = Vector2.zero;
 
-            _levelText = CreateBandText(band.transform, "Level", 15, 14f, 180f, TextAnchor.MiddleLeft);
+            // 11-20 UI 개선: 위 띠 글자 키움(15·14·12 → 17·16·14), 조작 안내는 짧게 + 밝게(깨알 글씨라 안 읽혔음)
+            _levelText = CreateBandText(band.transform, "Level", 17, 14f, 190f, TextAnchor.MiddleLeft);
             _levelText.fontStyle = FontStyle.Bold;
-            _progressText = CreateBandText(band.transform, "Progress", 14, 200f, 440f, TextAnchor.MiddleLeft);
+            _progressText = CreateBandText(band.transform, "Progress", 16, 210f, 460f, TextAnchor.MiddleLeft);
 
             // 조작 안내 - 대기 키(스페이스바)를 모르고 지나치지 않게. 오른쪽 [Tab] 스탯 버튼 바로 왼쪽.
-            var controls = CreateBandText(band.transform, "Controls", 12, -560f - 130f, 560f, TextAnchor.MiddleRight);
-            controls.text = Loc.T("이동/공격: 방향키·WASD   대기: Space   대화: NPC에게 부딪히기   스탯: Tab   인벤토리: I   메뉴: Esc");
-            controls.color = new Color(0.62f, 0.64f, 0.7f);
+            var controls = CreateBandText(band.transform, "Controls", 14, -500f - 130f, 500f, TextAnchor.MiddleRight);
+            controls.text = Loc.T("이동 방향키·WASD   대기 Space   가방 I   메뉴 Esc");
+            controls.color = new Color(0.78f, 0.8f, 0.86f);
             var controlsRect = controls.rectTransform;
             controlsRect.anchorMin = controlsRect.anchorMax = new Vector2(1f, 0.5f);
             controlsRect.pivot = new Vector2(0f, 0.5f);

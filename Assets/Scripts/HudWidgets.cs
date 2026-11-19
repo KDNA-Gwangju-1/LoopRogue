@@ -105,10 +105,13 @@ namespace LoopRogue
             _cooldownText.fontStyle = FontStyle.Bold;
             HudUi.Stretch(_cooldownText.rectTransform, 0f);
 
-            Key = HudUi.CreateText(go.transform, "Key", 11, TextAnchor.UpperLeft);
+            // 11-20 UI 개선: 단축키(Q·E·1~3)가 밝은 하늘색 쇠테 위 연한 글자(11)라 안 보였다 → 굵게 13 + 검은 외곽선
+            Key = HudUi.CreateText(go.transform, "Key", 13, TextAnchor.UpperLeft);
             Key.text = key;
-            Key.color = new Color(0.85f, 0.88f, 0.95f);
-            HudUi.Stretch(Key.rectTransform, 3f);
+            Key.fontStyle = FontStyle.Bold;
+            Key.color = Color.white;
+            Key.gameObject.AddComponent<Outline>().effectColor = new Color(0f, 0f, 0f, 1f);
+            HudUi.Stretch(Key.rectTransform, 4f);
 
             SetCooldown(0, 1);
         }
