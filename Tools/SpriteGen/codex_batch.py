@@ -58,11 +58,26 @@ def log(msg):
         f.write(line + "\n")
 
 
+def session_files():
+    """Codex 가 옛 기록을 .zst 로 압축하며 파일이 사라질 수 있다(11-20) - 사라진 건 건너뜀."""
+    out = []
+    for f in glob.glob(os.path.join(SESS, "**", "*.jsonl"), recursive=True):
+        try:
+            out.append((os.path.getmtime(f), f))
+        except OSError:
+            pass
+    return [f for _, f in sorted(out)]
+
+
 def rate_limits():
-    files = sorted(glob.glob(os.path.join(SESS, "**", "*.jsonl"), recursive=True), key=os.path.getmtime)
+    files = session_files()
     for f in reversed(files[-5:]):
         rl = None
-        for ln in open(f, encoding="utf-8", errors="ignore"):
+        try:
+            lines = open(f, encoding="utf-8", errors="ignore").readlines()
+        except OSError:
+            continue
+        for ln in lines:
             if '"rate_limits"' in ln:
                 try:
                     j = json.loads(ln)
@@ -96,10 +111,13 @@ def wait_quota():
 
 def image_limit_until():
     """그림 생성 한도(usage_limit_reached - 5시간·주간 %와 따로 걸린다, 11-05 10:35)에 걸렸으면 풀리는 시각."""
-    files = sorted(glob.glob(os.path.join(SESS, "**", "*.jsonl"), recursive=True), key=os.path.getmtime)
+    files = session_files()
     if not files:
         return None
-    txt = open(files[-1], encoding="utf-8", errors="ignore").read()
+    try:
+        txt = open(files[-1], encoding="utf-8", errors="ignore").read()
+    except OSError:
+        return None
     i = txt.rfind("usage_limit_reached")
     if i < 0:
         return None
@@ -376,7 +394,8 @@ ELITE_LOOK = ("This is the ELITE version: it must look clearly stronger and DIFF
               "clear contrast so details stay readable.")
 # 보스: 층 순서(Boss1~10). 64칸 스프라이트.
 BOSSES = [
-    ("Boss1", "01_멧돼지", "a huge armored boar brute with tusks and spiked iron armor"),
+    # 11-20 사용자 "4발로 기는 멧돼지" - 처음 디자인이 두 발로 선 수인(brute)으로 나왔다. 옛 그림처럼 네 발 짐승으로
+    ("Boss1", "01_멧돼지", "a huge armored wild boar beast that walks on ALL FOUR LEGS like a real boar (a four-legged animal, NOT standing upright, NOT a humanoid, no arms, no hands, no belt, no loincloth), with big curved tusks, a bristly mane and spiked iron armor plates on its back and head"),
     ("Boss2", "02_오크대장", "a green orc warlord with a spiked iron mace, leather straps and a topknot"),
     ("Boss3", "03_골렘", "a stone golem with a glowing blue crystal core and blue crystal spikes on its shoulders"),
     ("Boss4", "04_킹슬라임", "a giant red king slime wearing a golden crown"),
