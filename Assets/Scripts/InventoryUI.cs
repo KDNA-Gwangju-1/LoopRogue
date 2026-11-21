@@ -224,7 +224,7 @@ namespace LoopRogue
 
         private void BuildPanel(Transform canvas)
         {
-            const float cellW = 120f, cellH = 64f, gap = 8f, side = 24f, header = 52f, footer = 92f;
+            const float cellW = 136f, cellH = 64f, /* 11-20: 120 → 136, "반사 부적"·"약점 표식"이 두 줄로 꺾였다 */ gap = 8f, side = 24f, header = 52f, footer = 92f;
             var rows = (ItemInfo.Count + Columns - 1) / Columns;
             var panelW = Columns * cellW + (Columns - 1) * gap + side * 2f;
             var panelH = header + rows * cellH + (rows - 1) * gap + footer;
@@ -299,7 +299,7 @@ namespace LoopRogue
             nameRect.offsetMin = new Vector2(side, footer - 34f);
             nameRect.offsetMax = new Vector2(-side, footer - 12f);
 
-            _detail = HudUi.CreateText(_panel.transform, "Detail", 13, TextAnchor.UpperLeft);
+            _detail = HudUi.CreateText(_panel.transform, "Detail", 14, TextAnchor.UpperLeft);
             _detail.supportRichText = true;
             _detail.lineSpacing = 1.2f;
             var detailRect = _detail.rectTransform;

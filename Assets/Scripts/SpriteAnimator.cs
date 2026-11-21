@@ -41,6 +41,8 @@ namespace LoopRogue
         /// <summary>연출 클립을 재생 중인지.</summary>
         public bool IsPlayingClip => _clip != null && Time.time < _clipUntil;
 
+        /// <summary>마지막으로 튼 연출 클립 이름(spin, dash 등) - 겹 앞뒤 표가 클립마다 다를 때(고퀄 용사 HeroLook).</summary>
+        public string ClipName { get; private set; }
         /// <summary>클립을 seconds초에 걸쳐 한 번 재생하고 마지막 장을 hold초 보여 준다. 그림이 없으면 false.</summary>
         public bool PlayClip(string name, float seconds, float hold = 0.2f)
         {
@@ -50,8 +52,40 @@ namespace LoopRogue
             if (frames.Length == 0)
                 return false;
             _clip = frames;
+            ClipName = name;
             _overlayClip = string.IsNullOrEmpty(_overlayName) ? null : LoadSequence($"Sprites/{_overlayName}/{name}_south_");
             _attackUntil = -1f; // 클립이 공격 모션을 덮는다(끝난 뒤 남은 공격 장면이 이어 나오지 않게)
+            _clipStart = Time.time;
+            _clipSeconds = seconds;
+            _clipUntil = Time.time + seconds + hold;
+            return true;
+        }
+
+        /// <summary>방향별 연출 클립({이름}_{south|east|west|north}_{번호}) - 그 방향 그림이 없으면 남쪽, 그것도 없으면 false.
+        /// 11-04 GPT 용사 대쉬(dash_*)용. 바라보는 방향도 그쪽으로 돌린다.</summary>
+        public bool PlayDirClip(string name, Vector2Int direction, float seconds, float hold = 0.02f)
+        {
+            if (_set == null || DamagePopup.Suppressed)
+                return false;
+            var d = DirIndex(direction, _dir);
+            var frames = LoadSequence($"Sprites/{_setName}/{name}_{DirNames[d]}_");
+            if (frames.Length == 0)
+                frames = LoadSequence($"Sprites/{_setName}/{name}_south_");
+            if (frames.Length == 0)
+                return false;
+            if (!LockedToFacing)
+                _dir = d;
+            _clip = frames;
+            ClipName = name;
+            // 11-05 고퀄 용사: 겹(무기)도 같은 방향 클립이 있으면 같은 번호로(없으면 겹 없이 - 클래식 무기엔 대쉬 그림이 없다)
+            _overlayClip = null;
+            if (!string.IsNullOrEmpty(_overlayName))
+            {
+                _overlayClip = LoadSequence($"Sprites/{_overlayName}/{name}_{DirNames[d]}_");
+                if (_overlayClip.Length == 0)
+                    _overlayClip = LoadSequence($"Sprites/{_overlayName}/{name}_south_");
+            }
+            _attackUntil = -1f;
             _clipStart = Time.time;
             _clipSeconds = seconds;
             _clipUntil = Time.time + seconds + hold;
@@ -89,6 +123,19 @@ namespace LoopRogue
 
         private static readonly Dictionary<string, FrameSet> Cache = new Dictionary<string, FrameSet>();
 
+        /// <summary>11-19 사용자 "고퀄은 고퀄만, 일반은 일반만"(몹·엘몹·보스) - 고퀄 그림체이고 Sprites/{세트}HQ 가 있으면 그 폴더, 아니면 원래 폴더(클래식 = 옛 그림).
+        /// 캐시는 실제 폴더 이름으로 잡아서 그림체를 바꾸면 새로 읽는다.</summary>
+        private static readonly Dictionary<string, bool> HasHq = new Dictionary<string, bool>();
+
+        private static string Folder(string setName)
+        {
+            if (GameSettings.Art != GameSettings.ArtStyle.HighQuality)
+                return setName;
+            if (!HasHq.TryGetValue(setName, out var has))
+                HasHq[setName] = has = Resources.Load<Sprite>($"Sprites/{setName}HQ/idle_south_0") != null;
+            return has ? setName + "HQ" : setName;
+        }
+
         /// <summary>처치 파편 색 - 스프라이트는 틴트가 흰색이라 렌더러 색 대신 이걸 쓴다(ActorJuice.BaseColorOf).</summary>
         public Color DebrisColor = Color.white;
 
@@ -119,6 +166,12 @@ namespace LoopRogue
         /// 10-14에 새로 그려 다른 몹과 같은 규칙(예전 외부 그림의 8장 대기만 예외였음).</summary>
         private bool _smooth = true;
 
+        /// <summary>대기 프레임 시간 배율(11-04 GPT 용사 - 망토가 크게 펄럭여서 같은 박자도 슬라임보다 빨라 보임). 기본 1.</summary>
+        public float IdleSlow { get; set; } = 1f;
+        /// <summary>11-06 한 칸 걷는 시간 배율(고퀄 용사는 걷기 모션이 빨라 보여 조금 느리게). 칸 이동 판정과는 무관, 그림·미끄러짐만.</summary>
+        public float StepSlow { get; set; } = 1f;
+        private float StepTime => StepSeconds * StepSlow;
+
         private float FrameTime(float baseSeconds, int length) =>
             _smooth && length >= 8 ? baseSeconds * 4f / length : baseSeconds;
 
@@ -130,6 +183,7 @@ namespace LoopRogue
         /// 도중에 누가 Load로 먼저 읽었으면 그쪽을 그대로 쓴다.</summary>
         public static IEnumerator WarmupAsync(string setName)
         {
+            setName = Folder(setName);
             if (Cache.ContainsKey(setName))
                 yield break;
             var set = new FrameSet();
@@ -183,9 +237,20 @@ namespace LoopRogue
         }
 
         /// <summary>몸 그림을 바꾸고 겹도 같은 프레임으로 맞춘다. kind -1 = 겹 없는 그림(연출 클립·점프 등).</summary>
+        /// <summary>지금 보이는 그림(종류 0 대기·1 걷기·2 공격·3 클립·-1 겹 없음, 번호, 방향) - 11-05 고퀄 용사 칼은
+        /// 이걸 보고 몸 세트의 손 위치 표에서 칼을 골라 붙인다(HeroLook.UpdateHqSword). Shown은 그림을 바꿀 때마다 불린다.</summary>
+        public int ShownKind { get; private set; } = -1;
+        public int ShownIndex { get; private set; }
+        public int ShownDir { get; private set; }
+        public System.Action Shown;
+
         private void Show(Sprite sprite, int kind, int index)
         {
             _renderer.sprite = sprite;
+            ShownKind = kind;
+            ShownIndex = index;
+            ShownDir = kind == 3 || byDirHasOwn(kind) ? _dir : 0;
+            Shown?.Invoke();
             if (_overlayRenderer == null)
                 return;
             Sprite over = null;
@@ -205,7 +270,7 @@ namespace LoopRogue
             _overlayRenderer.color = _renderer.color;
             _overlayRenderer.flipX = _renderer.flipX;
             _overlayRenderer.enabled = _renderer.enabled;
-            var dir = byDirHasOwn(kind) ? _dir : 0;
+            var dir = ShownDir; // 클립은 지금 방향(클래식 회전 표는 방향을 안 본다)
             _overlayRenderer.sortingLayerID = _renderer.sortingLayerID;
             _overlayRenderer.sortingOrder = _renderer.sortingOrder + (_overlayBehind != null && _overlayBehind(kind, dir, index) ? -1 : 1);
         }
@@ -279,10 +344,10 @@ namespace LoopRogue
                 _lastPos = _actor.GridPos;
             }
 
-            var stepping = _stepStart >= 0f && Time.time < _stepStart + StepSeconds;
+            var stepping = _stepStart >= 0f && Time.time < _stepStart + StepTime;
             if (_stepStart >= 0f)
             {
-                var t = stepping ? (Time.time - _stepStart) / StepSeconds : 1f;
+                var t = stepping ? (Time.time - _stepStart) / StepTime : 1f;
                 transform.position = Vector3.Lerp(_stepFrom, _actor.GridWorldPosition, t);
                 if (!stepping)
                     _stepStart = -1f;
@@ -337,7 +402,7 @@ namespace LoopRogue
                 {
                     // 한 칸 = 반 바퀴(한쪽 발) - 걸음마다 번갈아 앞·뒤 절반을 한 칸 걷는 시간에 맞춰 돌린다
                     var half = walk.Length / 2;
-                    var k = Mathf.Min(half - 1, (int)((Time.time - _stepStart) / (StepSeconds / half)));
+                    var k = Mathf.Min(half - 1, (int)((Time.time - _stepStart) / (StepTime / half)));
                     Show(walk[_stepParity * half + k], 1, _stepParity * half + k);
                 }
                 else
@@ -358,7 +423,7 @@ namespace LoopRogue
             var idle = Frames(_set.Idle);
             if (idle.Length > 0)
             {
-                var ii = (int)(_time / FrameTime(IdleFrameSeconds, idle.Length)) % idle.Length;
+                var ii = (int)(_time / (FrameTime(IdleFrameSeconds, idle.Length) * IdleSlow)) % idle.Length;
                 Show(idle[ii], 0, ii);
             }
         }
@@ -377,6 +442,7 @@ namespace LoopRogue
 
         private static FrameSet Load(string setName)
         {
+            setName = Folder(setName);
             if (Cache.TryGetValue(setName, out var set))
                 return set;
             set = new FrameSet();

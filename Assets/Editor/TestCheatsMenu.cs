@@ -50,38 +50,38 @@ namespace LoopRogue.EditorTools
         [MenuItem(RelicMenu + "보스 유물/1층 돌진의 뿔")] private static void RelicChargeHorn() => ToggleRelic(RelicType.ChargeHorn);
         [MenuItem(RelicMenu + "보스 유물/2층 대지의 망치")] private static void RelicEarthHammer() => ToggleRelic(RelicType.EarthHammer);
         [MenuItem(RelicMenu + "보스 유물/3층 십자 문장")] private static void RelicCrossCrest() => ToggleRelic(RelicType.CrossCrest);
-        [MenuItem(RelicMenu + "보스 유물/4층 망령의 깃발")] private static void RelicPhantomBanner() => ToggleRelic(RelicType.PhantomBanner);
+        [MenuItem(RelicMenu + "보스 유물/4층 미끼 허수아비")] private static void RelicPhantomBanner() => ToggleRelic(RelicType.PhantomBanner);
         [MenuItem(RelicMenu + "보스 유물/5층 파동의 핵")] private static void RelicPulseCore() => ToggleRelic(RelicType.PulseCore);
-        [MenuItem(RelicMenu + "보스 유물/6층 저격수의 눈")] private static void RelicSniperEye() => ToggleRelic(RelicType.SniperEye);
-        [MenuItem(RelicMenu + "보스 유물/7층 관통의 인장")] private static void RelicPiercingSeal() => ToggleRelic(RelicType.PiercingSeal);
-        [MenuItem(RelicMenu + "보스 유물/8층 폭군의 갑주")] private static void RelicTyrantPlate() => ToggleRelic(RelicType.TyrantPlate);
-        [MenuItem(RelicMenu + "보스 유물/9층 사형 집행자")] private static void RelicExecutioner() => ToggleRelic(RelicType.Executioner);
-        [MenuItem(RelicMenu + "보스 유물/10층 끝의 왕관")] private static void RelicCrownOfEnd() => ToggleRelic(RelicType.CrownOfEnd);
-        [MenuItem(RelicMenu + "일반 유물/피의 계약")] private static void RelicBloodPact() => ToggleRelic(RelicType.BloodPact);
-        [MenuItem(RelicMenu + "일반 유물/연쇄 폭발")] private static void RelicChainBlast() => ToggleRelic(RelicType.ChainBlast);
-        [MenuItem(RelicMenu + "일반 유물/두 번째 숨")] private static void RelicSecondWind() => ToggleRelic(RelicType.SecondWind);
+        [MenuItem(RelicMenu + "보스 유물/6층 저격수의 조준경")] private static void RelicSniperEye() => ToggleRelic(RelicType.SniperEye);
+        [MenuItem(RelicMenu + "보스 유물/7층 관통의 창날")] private static void RelicPiercingSeal() => ToggleRelic(RelicType.PiercingSeal);
+        [MenuItem(RelicMenu + "보스 유물/8층 폭군의 쇠군화")] private static void RelicTyrantPlate() => ToggleRelic(RelicType.TyrantPlate);
+        [MenuItem(RelicMenu + "보스 유물/9층 추수의 낫")] private static void RelicExecutioner() => ToggleRelic(RelicType.Executioner);
+        [MenuItem(RelicMenu + "보스 유물/10층 종언의 왕관")] private static void RelicCrownOfEnd() => ToggleRelic(RelicType.CrownOfEnd);
+        [MenuItem(RelicMenu + "일반 유물/피의 계약서")] private static void RelicBloodPact() => ToggleRelic(RelicType.BloodPact);
+        [MenuItem(RelicMenu + "일반 유물/연쇄 뇌관")] private static void RelicChainBlast() => ToggleRelic(RelicType.ChainBlast);
+        [MenuItem(RelicMenu + "일반 유물/불사조 깃털")] private static void RelicSecondWind() => ToggleRelic(RelicType.SecondWind);
         [MenuItem(RelicMenu + "일반 유물/오래된 보물지도")] private static void RelicTreasureHunter() => ToggleRelic(RelicType.TreasureHunter);
         [MenuItem(RelicMenu + "일반 유물/회전 칼날")] private static void RelicSpinningBlade() => ToggleRelic(RelicType.SpinningBlade);
-        [MenuItem(RelicMenu + "일반 유물/사냥꾼의 눈")] private static void RelicHunterEye() => ToggleRelic(RelicType.HunterEye);
-        [MenuItem(RelicMenu + "일반 유물/탐욕")] private static void RelicGreed() => ToggleRelic(RelicType.Greed);
-        [MenuItem(RelicMenu + "일반 유물/질풍")] private static void RelicGale() => ToggleRelic(RelicType.Gale);
+        [MenuItem(RelicMenu + "일반 유물/길잡이 등불")] private static void RelicHunterEye() => ToggleRelic(RelicType.HunterEye);
+        [MenuItem(RelicMenu + "일반 유물/저주받은 금화")] private static void RelicGreed() => ToggleRelic(RelicType.Greed);
+        [MenuItem(RelicMenu + "일반 유물/질풍 장화")] private static void RelicGale() => ToggleRelic(RelicType.Gale);
         [MenuItem(RelicMenu + "일반 유물/재생의 이끼")] private static void RelicRegenMoss() => ToggleRelic(RelicType.RegenMoss);
         [MenuItem(RelicMenu + "일반 유물/철의 피부")] private static void RelicIronSkin() => ToggleRelic(RelicType.IronSkin);
-        [MenuItem(RelicMenu + "일반 유물/광전사")] private static void RelicBerserker() => ToggleRelic(RelicType.Berserker);
-        [MenuItem(RelicMenu + "일반 유물/첫 일격")] private static void RelicFirstStrike() => ToggleRelic(RelicType.FirstStrike);
-        [MenuItem(RelicMenu + "일반 유물/그림자 걸음")] private static void RelicShadowStep() => ToggleRelic(RelicType.ShadowStep);
-        [MenuItem(RelicMenu + "일반 유물/소용돌이")] private static void RelicWhirlwind() => ToggleRelic(RelicType.Whirlwind);
+        [MenuItem(RelicMenu + "일반 유물/광전사의 가면")] private static void RelicBerserker() => ToggleRelic(RelicType.Berserker);
+        [MenuItem(RelicMenu + "일반 유물/기습 단검")] private static void RelicFirstStrike() => ToggleRelic(RelicType.FirstStrike);
+        [MenuItem(RelicMenu + "일반 유물/그림자 망토")] private static void RelicShadowStep() => ToggleRelic(RelicType.ShadowStep);
+        [MenuItem(RelicMenu + "일반 유물/돌풍 부채")] private static void RelicWhirlwind() => ToggleRelic(RelicType.Whirlwind);
         [MenuItem(RelicMenu + "일반 유물/멈춘 회중시계")] private static void RelicStoppedWatch() => ToggleRelic(RelicType.StoppedWatch);
-        [MenuItem(RelicMenu + "일반 유물/되풀이의 각인")] private static void RelicRecurrenceMark() => ToggleRelic(RelicType.RecurrenceMark);
-        [MenuItem(RelicMenu + "일반 유물/퍼즐 장인의 장갑")] private static void RelicPuzzleGlove() => ToggleRelic(RelicType.PuzzleGlove);
-        [MenuItem(RelicMenu + "일반 유물/상인의 인장")] private static void RelicMerchantSeal() => ToggleRelic(RelicType.MerchantSeal);
-        [MenuItem(RelicMenu + "일반 유물/계약자의 낙인")] private static void RelicContractBrand() => ToggleRelic(RelicType.ContractBrand);
-        [MenuItem(RelicMenu + "일반 유물/피의 사냥꾼")] private static void RelicBloodHunter() => ToggleRelic(RelicType.BloodHunter);
-        [MenuItem(RelicMenu + "일반 유물/정예 사냥꾼")] private static void RelicEliteHunter() => ToggleRelic(RelicType.EliteHunter);
-        [MenuItem(RelicMenu + "일반 유물/메아리 칼날")] private static void RelicEchoBlade() => ToggleRelic(RelicType.EchoBlade);
+        [MenuItem(RelicMenu + "일반 유물/윤회의 염주")] private static void RelicRecurrenceMark() => ToggleRelic(RelicType.RecurrenceMark);
+        [MenuItem(RelicMenu + "일반 유물/수수께끼 장갑")] private static void RelicPuzzleGlove() => ToggleRelic(RelicType.PuzzleGlove);
+        [MenuItem(RelicMenu + "일반 유물/단골 증표")] private static void RelicMerchantSeal() => ToggleRelic(RelicType.MerchantSeal);
+        [MenuItem(RelicMenu + "일반 유물/거래자의 낙인")] private static void RelicContractBrand() => ToggleRelic(RelicType.ContractBrand);
+        [MenuItem(RelicMenu + "일반 유물/흡혈귀의 송곳니")] private static void RelicBloodHunter() => ToggleRelic(RelicType.BloodHunter);
+        [MenuItem(RelicMenu + "일반 유물/현상금 수배서")] private static void RelicEliteHunter() => ToggleRelic(RelicType.EliteHunter);
+        [MenuItem(RelicMenu + "일반 유물/메아리 방울")] private static void RelicEchoBlade() => ToggleRelic(RelicType.EchoBlade);
         [MenuItem(RelicMenu + "일반 유물/연금술사의 주머니")] private static void RelicAlchemistPouch() => ToggleRelic(RelicType.AlchemistPouch);
-        [MenuItem(RelicMenu + "일반 유물/화약 장인")] private static void RelicPowderMaster() => ToggleRelic(RelicType.PowderMaster);
-        [MenuItem(RelicMenu + "일반 유물/사냥꾼의 올가미")] private static void RelicSnareHunter() => ToggleRelic(RelicType.SnareHunter);
+        [MenuItem(RelicMenu + "일반 유물/장인의 화약통")] private static void RelicPowderMaster() => ToggleRelic(RelicType.PowderMaster);
+        [MenuItem(RelicMenu + "일반 유물/덫꾼의 올가미")] private static void RelicSnareHunter() => ToggleRelic(RelicType.SnareHunter);
         [MenuItem(RelicMenu + "히든 유물/기사의 기억")] private static void RelicKnightMemory() => ToggleRelic(RelicType.KnightMemory);
 
         private static System.Collections.Generic.IEnumerable<RelicType> AllRelics => (RelicType[])System.Enum.GetValues(typeof(RelicType));
@@ -186,7 +186,7 @@ namespace LoopRogue.EditorTools
 
         /// <summary>그림자 걸음 이펙트를 실제 게임 화면에서 재생하며 프레임마다 PNG로 찍는다(11-02 - 이펙트 확인용). 던전에서 Play 중에만.
         /// 가장 가까운 몹(없으면 플레이어 오른쪽 칸)에 벤 순간 → 잠시 뒤 다시 베기. 저장 위치: 프로젝트/Screenshots/shadowstep_00.png…</summary>
-        [MenuItem("LoopRogue/테스트: 그림자 걸음 이펙트 캡처 (던전 Play 중)")]
+        [MenuItem("LoopRogue/테스트: 그림자 망토 이펙트 캡처 (던전 Play 중)")]
         private static void CaptureShadowStep()
         {
             var player = Object.FindFirstObjectByType<PlayerActor>();
@@ -215,8 +215,20 @@ namespace LoopRogue.EditorTools
                 () => player.PreviewShadowStrike(pos, target));
         }
 
-        [MenuItem("LoopRogue/테스트: 그림자 걸음 이펙트 캡처 (던전 Play 중)", true)]
+        [MenuItem("LoopRogue/테스트: 그림자 망토 이펙트 캡처 (던전 Play 중)", true)]
         private static bool CaptureShadowStepValid() => EditorApplication.isPlaying;
+
+        /// <summary>유물 이펙트 확인용(11-09) - 플레이어에서 3칸 떨어진 곳에 3x3 허수아비. 가운데만 체력 1, 나머지 체력 무한·행동 안 함.</summary>
+        [MenuItem("LoopRogue/테스트: 무한 허수아비 3x3 소환 (던전 Play 중)")]
+        private static void SpawnTestDummies()
+        {
+            var room = Object.FindFirstObjectByType<RoomController>();
+            var n = room != null ? room.SpawnTestDummies() : 0;
+            Debug.Log(n > 0 ? $"[테스트] 허수아비 {n}마리 (가운데 체력 1, 나머지 무한)" : "[테스트] 허수아비를 놓을 자리가 없음(보스방이거나 3칸 앞 3x3이 막힘) - 넓은 곳에서 다시");
+        }
+
+        [MenuItem("LoopRogue/테스트: 무한 허수아비 3x3 소환 (던전 Play 중)", true)]
+        private static bool SpawnTestDummiesValid() => EditorApplication.isPlaying;
 
         /// <summary>특성 "노다지" 연출을 실제 화면에서 재생하며 PNG로 찍는다(골드는 안 준다). 프로젝트/Screenshots/bonanza_00.png…</summary>
         [MenuItem("LoopRogue/테스트: 노다지 연출 캡처 (던전 Play 중)")]
@@ -275,7 +287,7 @@ namespace LoopRogue.EditorTools
             Debug.Log($"[테스트] 골드 +10000 → {GoldWallet.Gold}");
         }
 
-        [MenuItem("LoopRogue/테스트: 이 층 사망 수 +1 (되풀이의 각인 확인)")]
+        [MenuItem("LoopRogue/테스트: 이 층 사망 수 +1 (윤회의 염주 확인)")]
         private static void AddStageDeath()
         {
             StageProgress.AddStageDeath();
