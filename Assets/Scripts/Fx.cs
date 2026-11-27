@@ -44,34 +44,49 @@ namespace LoopRogue
         /// <summary>Frames의 나눠 읽기판(AssetWarmup) - 한 장씩 Resources.LoadAsync.</summary>
         public static System.Collections.IEnumerator WarmupAsync(string name)
         {
-            if (Cache.ContainsKey(name))
+            var folder = Folder(name);
+            if (Cache.ContainsKey(folder))
                 yield break;
             var list = new List<Sprite>();
             for (var i = 0; ; i++)
             {
-                var req = Resources.LoadAsync<Sprite>($"Effects/{name}/{i}");
+                var req = Resources.LoadAsync<Sprite>($"{folder}/{i}");
                 yield return req;
                 if (!(req.asset is Sprite sprite))
                     break;
                 list.Add(sprite);
             }
-            if (!Cache.ContainsKey(name))
-                Cache[name] = list.ToArray();
+            if (!Cache.ContainsKey(folder))
+                Cache[folder] = list.ToArray();
+        }
+
+        private static readonly Dictionary<string, bool> HasHq = new Dictionary<string, bool>();
+
+        /// <summary>11-28 고퀄 몹·이벤트 이펙트 - 고퀄 그림체이고 Resources/EffectsHQ/{이름} 이 있으면 그 폴더, 아니면 Effects/{이름}(클래식 = 옛 그림).
+        /// 캐시는 폴더 경로로 잡아서 그림체를 바꾸면 새로 읽는다. 용사 무기 이펙트(hq_*)는 원래 이름이 따로라 여기 안 걸린다.</summary>
+        private static string Folder(string name)
+        {
+            if (GameSettings.Art != GameSettings.ArtStyle.HighQuality)
+                return "Effects/" + name;
+            if (!HasHq.TryGetValue(name, out var has))
+                HasHq[name] = has = Resources.Load<Sprite>($"EffectsHQ/{name}/0") != null;
+            return (has ? "EffectsHQ/" : "Effects/") + name;
         }
 
         public static Sprite[] Frames(string name)
         {
-            if (Cache.TryGetValue(name, out var frames))
+            var folder = Folder(name);
+            if (Cache.TryGetValue(folder, out var frames))
                 return frames;
             var list = new List<Sprite>();
             for (var i = 0; ; i++)
             {
-                var sprite = Resources.Load<Sprite>($"Effects/{name}/{i}");
+                var sprite = Resources.Load<Sprite>($"{folder}/{i}");
                 if (sprite == null)
                     break;
                 list.Add(sprite);
             }
-            return Cache[name] = list.ToArray();
+            return Cache[folder] = list.ToArray();
         }
 
         /// <summary>Unknown(9등급) 무기 이펙트 재생 배속.</summary>

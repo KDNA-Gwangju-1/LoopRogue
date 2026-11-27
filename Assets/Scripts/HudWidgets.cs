@@ -449,15 +449,23 @@ namespace LoopRogue
         private static readonly System.Collections.Generic.Dictionary<string, Sprite> Cache =
             new System.Collections.Generic.Dictionary<string, Sprite>();
 
+        /// <summary>11-28 고퀄 그림체면 UI 아이콘은 Resources/UIHQ/(같은 하위 경로, 2배 도트·PPU 200)를 먼저 찾고, 없으면 옛 UI(틀 그림 등).</summary>
         public static Sprite Get(string path)
         {
-            if (!Cache.TryGetValue(path, out var sprite) || sprite == null)
+            var hq = GameSettings.Art == GameSettings.ArtStyle.HighQuality && path.StartsWith("UI/");
+            var key = hq ? "HQ:" + path : path;
+            if (!Cache.TryGetValue(key, out var sprite) || sprite == null)
             {
-                sprite = Resources.Load<Sprite>(path);
-                Cache[path] = sprite;
+                sprite = hq ? Resources.Load<Sprite>("UIHQ/" + path.Substring(3)) : null;
+                if (sprite == null)
+                    sprite = Resources.Load<Sprite>(path);
+                Cache[key] = sprite;
             }
             return sprite;
         }
+
+        /// <summary>도트 크기(옛 UI 픽셀 단위) - 고퀄 아이콘은 픽셀이 2배라 rect 대신 이걸로 화면 크기를 잡아야 같은 크기로 보인다.</summary>
+        public static Vector2 PxSize(Sprite sprite) => sprite.rect.size * (100f / sprite.pixelsPerUnit);
 
         public static Sprite Icon(string name) => Get($"UI/Icons/{name}");
 

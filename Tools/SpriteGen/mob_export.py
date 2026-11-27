@@ -11,8 +11,9 @@ import os, sys, glob
 import numpy as np
 from PIL import Image
 import hq_export as H
-from codex_batch import MOBS, ELITES, BOSSES
-LABELS = {**{f"몹_{n}": s for s, n, _ in MOBS}, **{f"엘몹_{n}": s for s, n, _ in ELITES}, **{f"보스_{n}": s for s, n, _ in BOSSES}}
+from codex_batch import MOBS, ELITES, BOSSES, SPECIALS, NPCS
+LABELS = {**{f"몹_{n}": s for s, n, _ in MOBS}, **{f"엘몹_{n}": s for s, n, _ in ELITES}, **{f"보스_{n}": s for s, n, _ in BOSSES},
+          **{f"특수_{n}": s for s, n, _ in SPECIALS}, **{f"NPC_{n}": s for s, n, _ in NPCS}}
 
 SPR = os.path.join(H.ROOT, "Assets", "Resources", "Sprites")
 OUT = os.environ.get("HQ_RES") or SPR
@@ -724,6 +725,8 @@ _BOSS_FX = {
     "Boss9": ("spell", {"core": (240, 255, 235), "hi": (140, 255, 150), "mid": (60, 200, 110), "key": (60, 200, 90)}, 4),
     "Boss10": ("arc", {"core": (245, 252, 255), "hi": (170, 225, 255), "mid": (110, 170, 240)}, 3),
 }
+# 11-28 사용자 "기사 검기 넣자": 기억하는 기사 공격 - 옛 그림의 청록 검기가 새 몸에 붙어 사라짐 -> 청록 반달 검 궤적(옛 검기 가장 센 장 4~5)
+_BOSS_FX["MemoryKnight"] = ("arc", {"core": (235, 255, 252), "hi": (120, 240, 225), "mid": (40, 170, 165)}, 4)
 for _s, (_k, _p, _t) in _BOSS_FX.items():
     POST[_s] = (lambda prev, fx: (lambda *x: fx(x[0], prev(*x), *x[2:]) if prev else fx(*x)))(POST.get(_s), _efx(_k, _p, _t))
 

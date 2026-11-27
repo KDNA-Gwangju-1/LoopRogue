@@ -1184,7 +1184,7 @@ namespace LoopRogue
             iconImage = go.AddComponent<Image>();
             iconImage.sprite = sprite;
             var iconRect = go.GetComponent<RectTransform>();
-            iconRect.sizeDelta = new Vector2(sprite.rect.width, sprite.rect.height) * 2f;
+            iconRect.sizeDelta = PixelUi.PxSize(sprite) * 2f;
             iconRect.anchoredPosition = new Vector2(-width / 2f + 44f, 0f);
             label.rectTransform.sizeDelta = new Vector2(width - 110f, height - 8f);
             label.rectTransform.anchoredPosition = new Vector2(36f, 0f);
@@ -1220,7 +1220,7 @@ namespace LoopRogue
                 var icon = go.AddComponent<Image>();
                 icon.sprite = sprite;
                 var iconRect = go.GetComponent<RectTransform>();
-                iconRect.sizeDelta = new Vector2(sprite.rect.width, sprite.rect.height) * 2f;
+                iconRect.sizeDelta = PixelUi.PxSize(sprite) * 2f;
                 iconRect.anchoredPosition = new Vector2(-width / 2f + 26f, 0f);
             }
             CreateBackButton(view);
@@ -1310,7 +1310,7 @@ namespace LoopRogue
             var complete = _slotFrameSprite != null && _slotFrameWinSprite != null;
             for (var i = 0; i < _symbolSprites.Length; i++)
             {
-                _symbolSprites[i] = Resources.Load<Sprite>($"UI/Casino/Symbol_{i}");
+                _symbolSprites[i] = PixelUi.Get($"UI/Casino/Symbol_{i}");
                 complete &= _symbolSprites[i] != null;
             }
 
@@ -1336,7 +1336,7 @@ namespace LoopRogue
             image.sprite = sprite;
             var rect = go.GetComponent<RectTransform>();
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(sprite.rect.width, sprite.rect.height) * PixelScale;
+            rect.sizeDelta = PixelUi.PxSize(sprite) * PixelScale;
             rect.anchoredPosition = position;
             return image;
         }

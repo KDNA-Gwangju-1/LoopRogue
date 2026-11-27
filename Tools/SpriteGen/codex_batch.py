@@ -408,6 +408,29 @@ BOSSES = [
 ]
 
 
+# 11-28 사용자 "나머지 고퀄작업없는것도 싹다 진행해": 특수 몹 3종 + NPC(던전 5 · 로비 9). 보스처럼 4장 묶음 시트.
+SPECIALS = [
+    ("Mimic", "01_미믹", "a mimic: a wooden treasure chest with iron bands and a gold lock that is secretly a monster (when it attacks the lid opens into a toothy mouth)"),
+    ("GoldGoblin", "02_황금고블린", "a small yellow goblin with a red bandana, carrying a big sack of gold coins"),
+    ("MemoryKnight", "03_기억하는기사", "a battered grey steel knight in full plate armor with glowing cyan eyes and a sword"),
+]
+NPCS = [
+    ("Blacksmith", "01_대장장이", "a stout bearded dwarf blacksmith holding up a big hammer"),
+    ("Merchant", "02_상인", "an old travelling merchant with a white beard, a brown wide-brimmed hat, green clothes and a lantern"),
+    ("Wanderer", "03_떠돌이", "a young wanderer with a headband, a blue coat and a tall walking staff"),
+    ("Curse", "04_저주", "a small floating purple hooded ghost with a gold chain necklace"),
+    ("RelicDealer", "05_유물상", "a tall dark-red hooded figure with glowing red eyes holding up a red crystal"),
+    ("LobbyGacha", "06_보물상인", "a treasure merchant with a red turban and a purple robe standing next to a small treasure chest"),
+    ("LobbyAlchemist", "07_연금술사", "an alchemist with goggles on the head and a teal robe holding a green potion flask"),
+    ("LobbyGambler", "08_도박꾼", "a gambler with a black top hat, a moustache and a red jacket"),
+    ("LobbyTimeKeeper", "09_시간지기", "an old wizard with a long white beard, a blue pointed hat and robe, holding a staff topped with an hourglass"),
+    ("LobbyChronicler", "10_기록관", "a bald old chronicler with glasses holding a long scroll and a quill"),
+    ("LobbyScholar", "11_도감학자", "a scholar with a red cap holding an open book, with a small owl on the shoulder"),
+    ("LobbyGrocer", "12_잡화상", "a grocer with a green apron carrying a big backpack frame of goods"),
+    ("LobbySkillHelper", "13_스킬도우미", "an old martial master with a red headband, a navy uniform and a long staff, with small floating gems beside him"),
+    ("LobbyTailor", "14_재봉사", "a tailor with a hair bun with a needle in it, round glasses and a purple coat with gold buttons"),
+]
+
 # 11-27 사용자 "그림자 보스랑 리치왕 거울기사 attack_north 좀 이상해" - 다시 그릴 때 덧붙이는 말
 SHEET_EXTRA = {
     ("Boss7", "attack_뒤"): " This is the BACK view: the hood covers the whole head from behind, no face, mask or eyes visible.",
@@ -452,6 +475,8 @@ def mob_jobs(lst=None, prefix="몹"):
         set_dir = os.path.join(OUT, f"{prefix}_{name}")
         look = {}
         for en, d, view in MOB_DIRS:
+            if not os.path.exists(os.path.join(SPR, set_name, f"idle_{en}_0.png")):
+                continue                        # 앞모습만 있는 세트(로비 NPC 등)
             out = os.path.join(set_dir, "_디자인", f"{d}.png")
             look[d] = out
             prompt = (f"Image 1 = STYLE reference (a high-quality pixel-art hero - copy only its art style: pixel size, outline thickness, shading, "
@@ -487,7 +512,7 @@ def mob_jobs(lst=None, prefix="몹"):
     return jobs
 
 
-SHEET_MOB_PREFIX = ("보스_",)   # 11-27 사용자 "4장씩 겹쳐서 그리라고해" - 보스는 4장 묶음 시트(mob_sheet.py 가 낱장으로 자름)
+SHEET_MOB_PREFIX = ("보스_", "특수_", "NPC_")   # 11-27 사용자 "4장씩 겹쳐서 그리라고해" - 보스는 4장 묶음 시트(mob_sheet.py 가 낱장으로 자름)
 
 
 def mob_sheet_jobs(set_name, set_dir, look, desc):
@@ -568,6 +593,10 @@ def main():
         jobs = elite_jobs()
     elif mode == "bosses":
         jobs = mob_jobs(BOSSES, "보스")
+    elif mode == "specials":
+        jobs = mob_jobs(SPECIALS, "특수")
+    elif mode == "npcs":
+        jobs = mob_jobs(NPCS, "NPC")
     elif mode == "walkside":
         jobs = walkside_jobs()
     else:

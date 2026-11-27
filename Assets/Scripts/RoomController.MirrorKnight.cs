@@ -454,7 +454,7 @@ namespace LoopRogue
             // 거울 면 - 그림(Props/Light_Mirror_Face, "/" 방향, 10-23)이 있으면 받침대 위에 얹어 "\"는 좌우 반전, 없으면 얇은 막대를 /·\ 방향으로 눕힌다
             var bar = new GameObject("MirrorFace");
             bar.transform.SetParent(go.transform, false);
-            var faceSprite = Resources.Load<Sprite>("Sprites/Props/Light_Mirror_Face");
+            var faceSprite = VisualUtil.PropSprite("Light_Mirror_Face");
             if (faceSprite != null)
                 VisualUtil.CreateSpriteVisual(bar, faceSprite, 1f, sortingOrder: -5);
             else
