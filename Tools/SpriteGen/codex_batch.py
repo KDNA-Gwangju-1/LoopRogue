@@ -408,6 +408,20 @@ BOSSES = [
 ]
 
 
+# 11-27 사용자 "그림자 보스랑 리치왕 거울기사 attack_north 좀 이상해" - 다시 그릴 때 덧붙이는 말
+SHEET_EXTRA = {
+    ("Boss7", "attack_뒤"): " This is the BACK view: the hood covers the whole head from behind, no face, mask or eyes visible.",
+    ("Boss9", "attack_뒤"): (" This is the BACK view. The staff stays in the same hand at the side of the body the whole time - when raised it goes "
+                            "straight up beside the head, never crossing in front of or behind the head, and the crown stays clearly visible on the head."),
+}
+# 11-27 사용자 "버섯마녀 중앙다리 있는 것들 제거" - 옛 그림을 따라 다리(뿌리)가 3개로 나옴 -> 지금 디자인 그대로 두고 다리만 2개로 다시 그림(1차는 _work/old_frames)
+FIX_DESIGN = {"Boss5": "it must have exactly TWO root legs (one left, one right) with a clear gap between them - remove the third, middle leg/root completely."}
+SET_EXTRA = {"Boss5": " The pose strip's monster has a third, middle root leg: IGNORE it - draw exactly two legs (left and right), no middle leg."}
+# 11-27 사용자 "그림자닌자는 gpt한테 처음부터 디자인 맡겨" - 옛 그림 생김새 안 따르고 새로 디자인(동작 자세만 옛 장에서)
+FREE_DESIGN = {"Boss7": "a shadow ninja assassin boss who fights with twin blades",
+               "Boss10": "the final boss: a mirror knight in gleaming silver-white armor with a reflective mirror visor, wielding a sword"}  # 11-27 "10층 거울기사도"
+
+
 def elite_jobs():
     jobs = []
     for set_name, name, up in ELITES:
@@ -445,14 +459,80 @@ def mob_jobs(lst=None, prefix="몹"):
                       f"as high-quality pixel art in the style of image 1: same identity, silhouette, colors and pose as image 2, {view}, but with "
                       f"the detail and quality of image 1. {MOB_COMMON}")
             refs = [DESIGN["앞"], mob_ref(set_name, f"idle_{en}_0")] + ([look["앞"]] if d != "앞" else [])
-            if d != "앞":
+            if set_name in FREE_DESIGN:
+                prompt = (f"Image 1 = STYLE reference (a high-quality pixel-art hero - copy only its art style: pixel size, outline thickness, "
+                          f"shading, color richness). Design a brand-new, original, cool-looking dungeon BOSS monster: {FREE_DESIGN[set_name]}. "
+                          f"You are free to invent the costume, colors, silhouette and details - make it look like a strong, memorable boss, "
+                          f"not a plain enemy. Draw it {view}, full body, standing, about the same size as image 1 in a square canvas, "
+                          f"feet near the bottom. Plain solid white background. No effects, no motion trails, no shadow, no text, only one "
+                          f"character. Use your image generation tool, do not write code.")
+                refs = [DESIGN["앞"]] + ([look["앞"]] if d != "앞" else [])
+                if d != "앞":
+                    prompt += " Image 2 = the same boss from the front (already designed); match its design exactly."
+                if d == "뒤":
+                    prompt += (" From behind, only the back of the hood, cloak and armor are visible - no face, mask, eyes or face-colored "
+                               "cloth at the head or neck, so it can never be mistaken for a front view.")
+            elif set_name in FIX_DESIGN:
+                prev = os.path.join(WORK, "old_frames", f"{prefix}_{name}_1차", "_디자인", f"{d}.png")
+                prompt = (f"Image 1 = this boss's current pixel-art design, {view}. Redraw it exactly the same - same art style, palette, outline, "
+                          f"pixel size, scale and framing - with ONE change: {FIX_DESIGN[set_name]} Plain solid white background. No effects, no "
+                          f"shadow, no text, only one character. Use your image generation tool, do not write code.")
+                refs = [prev] + ([look["앞"]] if d != "앞" else [])
+                if d != "앞":
+                    prompt += " Image 2 = the corrected boss from the front; match it exactly."
+            elif d != "앞":
                 prompt += " Image 3 = the same redrawn monster from the front; match its design exactly."
             jobs.append((out, prompt, refs))
         jobs.append(("__mob_set__", set_name, set_dir, look, desc))
     return jobs
 
 
+SHEET_MOB_PREFIX = ("보스_",)   # 11-27 사용자 "4장씩 겹쳐서 그리라고해" - 보스는 4장 묶음 시트(mob_sheet.py 가 낱장으로 자름)
+
+
+def mob_sheet_jobs(set_name, set_dir, look, desc):
+    """동작마다 4장씩 한 그림(sheet_K.png) -> 그린 뒤 바로 NN.png 로 자름. 그 묶음 낱장이 다 있으면 건너뜀(예전 낱장 그림 살림)."""
+    import mob_sheet
+    jobs = []
+    keys = sorted({f.rsplit("_", 1)[0] for f in os.listdir(os.path.join(SPR, set_name)) if f.endswith(".png") and not f.rsplit("_", 1)[0].endswith("west")})
+    for anim in keys:
+        kind, en = anim.rsplit("_", 1)
+        d, view = next((d, v) for e, d, v in MOB_DIRS if e == en)
+        n = len([f for f in os.listdir(os.path.join(SPR, set_name)) if f.startswith(anim + "_") and f.endswith(".png")])
+        folder = os.path.join(set_dir, f"{kind}_{d}")
+        made1 = False
+        for k, a in enumerate(range(0, n, 4)):
+            idx = list(range(a, min(n, a + 4))); c = len(idx)
+            if all(os.path.exists(os.path.join(folder, f"{i + 1:02d}.png")) for i in idx):
+                continue
+            pose = mob_sheet.strip([mob_ref(set_name, f"{anim}_{i}") for i in idx], os.path.join(WORK, "mobpose", set_name, f"{anim}_strip_{k + 1}.png"))
+            first = os.path.join(folder, "sheet_1.png")
+            prompt = (f"Image 1 = MONSTER DESIGN reference ({desc}, {view}) - keep its exact design, palette, outline and pixel size. Image 2 = POSE "
+                      f"strip: {c} frames of an old low-resolution sprite of the same monster - copy only the body pose, limb positions, weapon angle "
+                      f"and facing of each frame. Draw a SPRITE SHEET: ONE wide landscape image with exactly {c} frames side by side in a single "
+                      f"horizontal row (frames {a + 1}-{a + c} of the {n}-frame '{kind}' animation), each frame in the pose of the matching frame of "
+                      f"the pose strip. Equal-width cells, the same monster size in every frame, all feet on the same ground line, clear white space "
+                      f"between frames (frames must not touch), no borders, no grid lines, no frame numbers. VERY IMPORTANT: the head, face, horns, "
+                      f"armor, weapon design, colors and monster size are IDENTICAL in all {c} frames and identical to the design reference - only "
+                      f"the pose changes. Plain solid white background. No effects, no motion trails, no shadow, no text, no numbers, exactly {c} "
+                      f"copies of the monster, one per frame. Use your image generation tool, do not write code.")
+            if set_name in FREE_DESIGN:
+                prompt += (" The pose strip shows an OLD, differently designed version of this monster: ignore its scarf, colors, clothes and "
+                           "effects completely - draw only what is in the design reference.")
+            prompt += SHEET_EXTRA.get((set_name, f"{kind}_{d}"), "") + SET_EXTRA.get(set_name, "")
+            refs = [look[d], pose]
+            if k and (made1 or os.path.exists(first)):
+                prompt += " Image 3 = frames 1-4 of this same animation (sheet 1); its design, colors and monster size must match exactly."
+                refs.append(first)
+            out = os.path.join(folder, f"sheet_{k + 1}.png")
+            made1 = made1 or k == 0
+            jobs.append((out, prompt, refs, (lambda o=out, f=a + 1, c=c: mob_sheet.split(o, f, c))))
+    return jobs
+
+
 def mob_set_jobs(set_name, set_dir, look, desc):
+    if os.path.basename(set_dir).startswith(SHEET_MOB_PREFIX):
+        return mob_sheet_jobs(set_name, set_dir, look, desc)
     jobs = []
     keys = sorted({f.rsplit("_", 1)[0] for f in os.listdir(os.path.join(SPR, set_name)) if f.endswith(".png") and not f.rsplit("_", 1)[0].endswith("west")})
     for anim in keys:
@@ -498,11 +578,14 @@ def main():
             _, set_name, set_dir, look, desc = job
             if not all(os.path.exists(p) for p in look.values()):
                 continue
-            for out, prompt, images in mob_set_jobs(set_name, set_dir, look, desc):
+            for out, prompt, images, *post in mob_set_jobs(set_name, set_dir, look, desc):
                 r = run(out, prompt, images)
                 if r is None:
                     log("끝(한도)"); return
                 fails += r is False
+                if r and post:
+                    try: post[0]()
+                    except Exception as e: log(f"시트 자르기 실패 {out}: {e}")
             continue
         if job[0] == "__armor_set__":
             _, set_dir, look = job

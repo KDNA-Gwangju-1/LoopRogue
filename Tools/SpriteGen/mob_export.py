@@ -252,12 +252,315 @@ POST = {"SkeletonArcher": _archer, "OrcCharger": _orc, "Sentinel": _sentinel, "S
 POST["EliteSentinel"] = lambda *x: _elite(x[0], _sentinel(*x), *x[2:])
 POST["EliteShaman"] = lambda *x: _elite(x[0], _shaman(*x), *x[2:])
 POST["EliteOrcCharger"] = lambda *x: _elite(x[0], _orc(*x), *x[2:])
+def _ninja_back(anim, a, *_):
+    """11-27 사용자 "그림자 보스 attack_north 이상해": 뒷모습 목·두건 아래 초록 천이 얼굴처럼 보여 앞을 보는 것 같음
+    (GPT에 빼라고 해도 계속 그림) -> 북쪽 장에서 몸 위쪽 45% 안 초록을 같은 밝기 순서의 보라로."""
+    if not anim.endswith("north"): return a
+    a = a.copy(); al = a[..., 3] > 0
+    if not al.any(): return a
+    rgb = a[..., :3].astype(int); r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    ys = np.nonzero(al.any(1))[0]; top, h = ys[0], ys[-1] - ys[0] + 1
+    xs = np.nonzero(al.any(0))[0]; cx = (xs[0] + xs[-1]) / 2
+    yy, xx = np.mgrid[:a.shape[0], :a.shape[1]]
+    green = al & (g > r + 12) & (g > b + 4) & (yy < top + .45 * h) & (abs(xx - cx) < .22 * (xs[-1] - xs[0] + 1))
+    purple = al & (r > g + 15) & (b > g + 15)
+    if not green.any() or not purple.any(): return a
+    lum = rgb @ np.array([.299, .587, .114])
+    pc = rgb[purple]; pl = lum[purple]; order = np.argsort(pl); pc, pl = pc[order], pl[order]
+    gl = lum[green]; q = (gl - gl.min()) / max(1e-6, gl.max() - gl.min())
+    idx = np.clip((q * .6 * (len(pc) - 1)).astype(int), 0, len(pc) - 1)   # 어두운 쪽 60% 보라(두건 그늘처럼)
+    a[..., :3][green] = pc[idx]
+    return a
+
+
+for _s in ("EliteShieldSoldier", "EliteJelly"):
+    POST[_s] = _elite   # 장마다 덧손질(동쪽 고친 뒤 서쪽은 뒤집기)
+# 11-27 사용자 "엘리트몹중에 공격 이펙트 없는것들 체크해서 만들어줘": 옛 엘몹은 공격 효과가 몸에 붙어 있어 새 그림에 안 옮겨짐
+# (방패병·반격병·주술사·오크돌격병·젤리·거미·궁수). 그림자도적·주문술사는 이미 보정 있음. 새 몸에 맞춰 직접 그림(보라·자홍 엘몹 색).
+_EFX_COL = {"core": (255, 246, 255), "hi": (245, 170, 255), "mid": (220, 110, 250), "deep": (150, 70, 220), "dust": (120, 100, 130)}
+
+
+class _Fx:
+    def __init__(self, a, anim, i, pal=None):
+        self.C = {**_EFX_COL, **(pal or {})}
+        self.o = a.astype(float); self.H, self.W = a.shape[:2]; self.i = i
+        body = a[..., 3] == 255; self.body = body
+        ys, xs = np.nonzero(body) if body.any() else (np.array([0]), np.array([0]))
+        self.top, self.bot, self.lft, self.rgt = ys.min(), ys.max(), xs.min(), xs.max()
+        self.cx = int(round(xs.mean())); self.side = anim.endswith(("east", "west")); self.north = anim.endswith("north")
+        self.rng = np.random.default_rng(97 + i * 13 + len(anim))
+        self.S = max(1.0, (self.bot - self.top) / 30)   # 보스(64칸)는 크게
+
+    def row(self, f): return int(self.top + (self.bot - self.top) * f)
+
+    def front(self, f, pad=1):
+        """옆모습: f 높이 줄의 몸 오른쪽 끝(+pad)."""
+        y = self.row(f); r = np.nonzero(self.body[y])[0]
+        return y, (r.max() if len(r) else self.rgt) + pad
+
+    def put(self, y, x, col, al, over=True):
+        y, x = int(round(y)), int(round(x))
+        if not (0 <= y < self.H and 0 <= x < self.W): return
+        if not over and self.o[y, x, 3] > 0: return
+        k = al / 255.0
+        if self.o[y, x, 3] == 0: self.o[y, x, :3] = col; self.o[y, x, 3] = al
+        else: self.o[y, x, :3] = self.o[y, x, :3] * (1 - k) + np.array(col) * k; self.o[y, x, 3] = max(self.o[y, x, 3], al)
+
+    def star(self, y, x, L, D=0, core=255):
+        C = self.C; self.put(y, x, C["core"], core)
+        for s in range(1, L + 1):
+            f = 1 - s / (L + 1); col = C["core"] if s <= L // 2 else C["hi"]
+            for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)): self.put(y + dy * s, x + dx * s, col, int(100 + 155 * f))
+        for s in range(1, D + 1):
+            for dy, dx in ((1, 1), (1, -1), (-1, 1), (-1, -1)): self.put(y + dy * s, x + dx * s, C["mid"], int(80 + 120 * (1 - s / (D + 1))))
+
+    def ring(self, y, x, r, al=220, dotted=False, sy=1.0, arc=None):
+        n = max(8, int(2 * np.pi * r * 1.3))
+        for t in range(n):
+            a = t / n * 2 * np.pi
+            if arc and not (arc[0] <= a <= arc[1] or arc[0] <= a - 2 * np.pi <= arc[1]): continue
+            if dotted and t % 2: continue
+            self.put(y + np.sin(a) * r * sy, x + np.cos(a) * r, self.C["hi"] if t % 3 else self.C["core"], al)
+
+    def glow(self, y, x, r, al):
+        for dy in range(-r, r + 1):
+            for dx in range(-r, r + 1):
+                d = (dy * dy + dx * dx) ** .5
+                if d <= r: self.put(y + dy, x + dx, self.C["mid"], int(al * (1 - d / (r + 1))), over=False)
+
+    def sparks(self, y, x, n, r0, r1, al=210, up=0.0):
+        for t in range(n):
+            a = self.rng.random() * 2 * np.pi; r = self.rng.uniform(r0, r1)
+            self.put(y + np.sin(a) * r - up, x + np.cos(a) * r, self.C["core"] if t % 3 == 0 else self.C["hi"], al)
+
+    def dust(self, y, x, n, spread, al=150):
+        for t in range(n):
+            dx = self.rng.uniform(-spread, spread); dy = -abs(self.rng.normal(0, 1.2))
+            for ox, oy in ((0, 0), (1, 0), (0, -1)): self.put(y + dy + oy, x + dx + ox, self.C["dust"], al, over=False)
+
+    def streak(self, y, x0, x1, al=230, w=1):
+        n = max(1, abs(x1 - x0))
+        for s in range(n + 1):
+            x = x0 + (x1 - x0) * s / n; f = s / n
+            self.put(y, x, self.C["core"] if f > .7 else self.C["hi"] if f > .35 else self.C["mid"], int(70 + 185 * f))
+            for o in range(1, w):
+                for sg in (1, -1): self.put(y + sg * o, x, self.C["mid"], int((40 + 120 * f) / o), over=False)
+
+    def out(self): return np.clip(self.o.round(), 0, 255).astype(np.uint8)
+
+
+def _efx(kind, pal=None, t0=None):
+    def f(anim, a, i, oldpng):
+        if not anim.startswith("attack"): return a
+        F = _Fx(a, anim, i, pal); S = F.S * (1.5 if t0 is not None else 1)   # 보스 효과는 1.5배(처음 시안이 몸에 비해 작았음)
+        T = i - (t0 if t0 is not None else 0)   # 보스: 때리는 장 기준
+        if not F.body.any(): return a
+        if kind == "shield":                    # 방패 밀치기: 4~6장 충격파 + 발밑 먼지
+            if F.side:
+                y, x = F.front(.55, 2)
+                if i == 4: F.star(y, x, 3, 2); F.ring(y, x, 4, 230, arc=(-1.2, 1.2))
+                if i == 5: F.ring(y, x + 1, 6, 200, arc=(-1.1, 1.1)); F.ring(y, x + 1, 3, 150, dotted=True, arc=(-1.2, 1.2))
+                if i == 6: F.ring(y, x + 3, 8, 110, dotted=True, arc=(-1.0, 1.0))
+            elif not F.north:
+                y, x = F.row(.6), F.cx - 2
+                if i == 4: F.star(y, x, 4, 2)
+                if i == 5: F.ring(y, x, 5, 210); F.star(y, x, 1)
+                if i == 6: F.ring(y, x, 8, 110, dotted=True)
+            else:
+                if i == 5: F.ring(F.top + 3, F.cx, 6, 160, dotted=True, sy=.5)
+            if i in (5, 6): F.dust(F.bot, F.cx, 7 if i == 5 else 4, (F.rgt - F.lft) * .6, 150 if i == 5 else 90)
+        elif kind == "spear":                   # 창 찌르기: 2~5장 창끝 섬광
+            if F.side:
+                rows = np.nonzero(F.body[:, F.rgt])[0]; y = int(rows.mean()) if len(rows) else F.row(.5); x = F.rgt + 1
+                if i == 2: F.star(y, x, 1)
+                if i == 3: F.star(y, x + 1, 4, 2); F.streak(y, x - 8, x - 2, 160)
+                if i == 4: F.ring(y, x + 1, 4, 200, dotted=True); F.star(y, x + 1, 2)
+                if i == 5: F.sparks(y, x + 2, 6, 2, 6, 130)
+            elif not F.north:
+                y, x = F.bot - 3, F.cx + (F.rgt - F.cx) // 2
+                if i == 2: F.star(y, x, 1)
+                if i == 3: F.star(y, x, 4, 2)
+                if i == 4: F.ring(y, x, 4, 190, dotted=True); F.star(y, x, 2)
+                if i == 5: F.sparks(y, x, 6, 2, 6, 130)
+            else:
+                if i == 3: F.star(F.top - 2, F.cx, 3, 1)
+                if i == 4: F.sparks(F.top - 2, F.cx, 6, 1, 5, 140)
+        elif kind == "orb":                     # 주술: 1~5장 구슬이 차올라 터짐 + 발밑 문양 고리
+            c = a[..., :3].astype(int); up = np.zeros_like(F.body); up[:F.row(.5)] = True
+            m = F.body & up & (c[..., 0] >= 180) & (c[..., 2] >= 180) & (c[..., 1] <= 150)
+            if m.any():                         # 가장 밝은 자홍 칸 둘레(머리털·옷 보라에 끌려가지 않게)
+                ys_, xs_ = np.nonzero(m); k_ = np.argmax(c[ys_, xs_, 0] + c[ys_, xs_, 2] - (ys_ - F.top) * 6)
+                near = (abs(ys_ - ys_[k_]) <= 3) & (abs(xs_ - xs_[k_]) <= 3)
+                oy, ox = int(round(ys_[near].mean())), int(round(xs_[near].mean()))
+            else: oy, ox = F.top + 2, F.rgt - 2
+            if 1 <= i <= 5: F.glow(oy, ox, 2 + min(i, 3), [150, 190, 225, 245, 170][i - 1])
+            if 2 <= i <= 4:                     # 구슬 자체도 하얗게 달아오름(옛 장처럼)
+                for dy in range(-2, 3):
+                    for dx in range(-2, 3):
+                        if dy * dy + dx * dx <= 4 + (i == 4) * 2: F.put(oy + dy, ox + dx, F.C["core"], [0, 0, 150, 200, 230][i])
+            if i in (2, 3): F.sparks(oy, ox, 4 + i * 2, 3, 6, 200)
+            if i == 4: F.star(oy, ox, 4, 2); F.sparks(oy, ox, 10, 4, 8, 190)
+            if i == 5: F.sparks(oy, ox, 8, 5, 10, 120, up=2)
+            if not F.north and 2 <= i <= 5:
+                F.ring(F.bot - 1, F.cx, 7 + (i > 3), [0, 0, 140, 200, 200, 110][i], dotted=True, sy=.3)
+        elif kind == "charge":                  # 돌진: 1~5장 발밑 먼지, 3~4장 머리 앞 충격
+            if F.side:
+                if 1 <= i <= 5: F.dust(F.bot, F.lft - 1, 4, 3, 140 - i * 15)
+                y, x = F.front(.3, 2)
+                if i == 3: F.star(y, x, 4, 2); F.ring(y, x, 4, 220, arc=(-1.3, 1.3))
+                if i == 4: F.ring(y, x + 1, 6, 150, dotted=True, arc=(-1.2, 1.2)); F.sparks(y, x + 2, 5, 3, 7, 140)
+            elif not F.north:
+                y, x = F.row(.4), F.cx
+                if i == 3: F.star(y, x, 4, 2)
+                if i == 4: F.ring(y, x, 6, 160, dotted=True)
+                if 1 <= i <= 5: F.dust(F.bot, F.cx, 5, (F.rgt - F.lft) * .5, 130 - i * 12)
+            else:
+                if 1 <= i <= 5: F.dust(F.bot, F.cx, 4, (F.rgt - F.lft) * .5, 110)
+        elif kind == "jelly":                   # 젤리 침 뱉기: 3~5장 보라 방울
+            if F.side:
+                y, x = F.front(.55, 1)
+                x = min(x, F.W - 8)                     # 판(48칸) 밖으로 나가면 안 보임 -> 몸 앞 좁은 자리 안에서
+                for k, d in enumerate({3: (0, 2), 4: (1, 3, 5), 5: (3, 6)}.get(i, ())):
+                    F.glow(y - k % 2, x + d, 1, 240); F.put(y - k % 2, x + d, F.C["core"] if k == 0 else F.C["hi"], 255)
+                if i == 4: F.sparks(y, x + 3, 5, 2, 4, 200)
+            elif not F.north:
+                y, x = F.row(.75), F.cx
+                if i == 3: F.star(y, x, 2); F.sparks(y, x, 6, 2, 5, 220)
+                if i == 4: F.ring(y, x, 5, 210, dotted=True); F.sparks(y, x, 8, 3, 7, 190)
+                if i == 5: F.sparks(y, x, 6, 5, 9, 120)
+        elif kind == "web":                     # 거미줄 쏘기: 3~6장 흰 거미줄 덩이가 날아가 퍼짐
+            W_ = (235, 230, 245)
+            def web(y, x, r, al):
+                for k in range(6):
+                    t = k / 6 * 2 * np.pi
+                    for s in range(1, r + 1): F.put(y + np.sin(t) * s, x + np.cos(t) * s, W_, al)
+                F.ring(y, x, max(1, r - 1), al - 40, dotted=True); F.put(y, x, (255, 255, 255), 255)
+            if F.side:
+                y, x = F.front(.7, 1)
+                if i == 3: F.streak(y, x, x + 3, 200)
+                if i == 4: F.streak(y, x, x + 6, 150); web(y, x + 8, 1, 230)
+                if i == 5: web(y, x + 11, 3, 220)
+                if i == 6: web(y, x + 12, 4, 130)
+            elif not F.north:
+                y, x = F.bot - 1, F.cx
+                if i == 4: web(y, x, 2, 230)
+                if i == 5: web(y, x, 4, 210)
+                if i == 6: web(y, x, 5, 120)
+        elif kind == "arrow":                   # 화살: 4~6장 보라 빛 화살이 날아감
+            if F.side:
+                y, x = F.front(.45, 0)
+                if i == 4: F.star(y, x, 2, 1)
+                if i == 5: F.streak(y, x - 2, x + 9, 230); F.star(y, x + 9, 1)
+                if i == 6: F.streak(y, x + 8, x + 16, 160)
+            elif not F.north:
+                y, x = F.row(.45), F.cx
+                if i == 4: F.star(y, x, 3, 1)
+                if i == 5: F.ring(y, x, 3, 180, dotted=True)
+        elif kind == "slam":                    # 내려찍기: T0 섬광, T1 바닥 충격 고리+먼지, T2 퍼지는 고리
+            if F.side: y, x = F.bot - 1, F.front(.85, int(3 * S))[1]
+            elif not F.north: y, x = F.bot, F.cx
+            else: y, x = F.bot, F.cx
+            if T == 0: F.star(y - 2 * S, x, int(4 * S), int(2 * S))
+            if T == 1: F.ring(y, x, 6 * S, 230, sy=.35); F.star(y - S, x, int(2 * S)); F.dust(y, x, int(10 * S), 6 * S, 170)
+            if T == 2: F.ring(y, x, 10 * S, 130, dotted=True, sy=.35); F.dust(y, x, int(6 * S), 9 * S, 110)
+        elif kind == "charge2":                 # 돌진(멧돼지): T-2~T2 발밑 먼지, T0 머리 앞 충격
+            if F.side:
+                if -2 <= T <= 2: F.dust(F.bot, F.lft - 1, int(5 * S), 3 * S, 150 - abs(T) * 20)
+                y, x = F.front(.45, int(2 * S))
+            else:
+                if -2 <= T <= 2: F.dust(F.bot, F.cx, int(5 * S), (F.rgt - F.lft) * .5, 140)
+                y, x = F.row(.4), F.cx
+            if not F.north:
+                if T == 0: F.star(y, x, int(4 * S), int(2 * S)); F.ring(y, x, 4 * S, 220, arc=(-1.3, 1.3) if F.side else None)
+                if T == 1: F.ring(y, x + (S if F.side else 0), 7 * S, 140, dotted=True, arc=(-1.2, 1.2) if F.side else None); F.sparks(y, x, int(6 * S), 3 * S, 8 * S, 150)
+        elif kind == "xslash":                  # X자 베기: T0 첫 사선, T1 X 섬광, T2 흐려짐
+            if F.side: y, x = F.front(.45, int(4 * S))
+            elif not F.north: y, x = F.row(.5), F.cx
+            else: y, x = F.row(.3), F.cx
+            L = int(8 * S)
+            def diag(sgn, al, dotted=False):
+                for s_ in range(-L, L + 1):
+                    if dotted and s_ % 2: continue
+                    f_ = 1 - abs(s_) / (L + 1)
+                    F.put(y + s_, x + sgn * s_, F.C["core"] if f_ > .55 else F.C["hi"], int(al * (.4 + .6 * f_)))
+                    for o_ in (1, -1):              # 굵게(3칸): 가운데 흰빛, 양옆 보라
+                        F.put(y + s_, x + sgn * s_ + o_, F.C["hi"] if f_ > .4 else F.C["mid"], int(al * .8 * (.3 + .7 * f_)))
+            if T == 0: diag(1, 240)
+            if T == 1: diag(1, 230); diag(-1, 250); F.star(y, x, int(3 * S), int(S)); F.glow(y, x, int(2 * S), 200)
+            if T == 2: diag(1, 120, True); diag(-1, 130, True); F.sparks(y, x, int(8 * S), 2 * S, 7 * S, 130)
+        elif kind == "arc":                     # 검 궤적: T0 진한 반달, T1 옅은 반달
+            r = (F.bot - F.top) * .5; cy = F.row(.45)
+            if F.side: cx, arc = F.cx, (-1.35, 1.35)
+            elif not F.north: cx, arc = F.cx, (np.pi + .25, 2 * np.pi - .25)
+            else: cx, arc = F.cx, (np.pi + .25, 2 * np.pi - .25)
+            if T == 0: F.ring(cy, cx, r, 240, arc=arc); F.ring(cy, cx, r - 1, 200, arc=arc); F.ring(cy, cx, r - 2, 120, arc=arc)
+            if T == 1: F.ring(cy, cx, r + 1, 150, dotted=True, arc=arc); F.ring(cy, cx, r, 110, arc=arc)
+        elif kind == "spell":                   # 지팡이 주문: T-2~T1 구슬 빛이 차오름, T1 터짐, T2 가루
+            c = a[..., :3].astype(int); up = np.zeros_like(F.body); up[:F.row(.55)] = True
+            key = np.array(F.C["key"]); d_ = np.abs(c - key).sum(-1)
+            m = F.body & up & (d_ < 120)
+            if m.any():                         # 지팡이 구슬 = 몸 가운데서 가장 먼 쪽(버섯 갓·옷 색에 끌려가지 않게)
+                ys_, xs_ = np.nonzero(m); k_ = np.argmax(np.abs(xs_ - F.cx) * 3 - d_[ys_, xs_] * .05)
+                near = (abs(ys_ - ys_[k_]) <= 3) & (abs(xs_ - xs_[k_]) <= 3)
+                oy, ox = int(round(ys_[near].mean())), int(round(xs_[near].mean()))
+            else: oy, ox = F.top + 2, F.rgt - 2
+            if -2 <= T <= 1: F.glow(oy, ox, int((3 + T) * S), [100, 150, 190, 220][T + 2])
+            if T in (-1, 0): F.sparks(oy, ox, int(6 * S), 3 * S, 7 * S, 200)
+            if T == 1: F.star(oy, ox, int(5 * S), int(2 * S)); F.sparks(oy, ox, int(12 * S), 4 * S, 10 * S, 190)
+            if T == 2: F.sparks(oy, ox, int(9 * S), 5 * S, 12 * S, 120, up=2 * S)
+            if not F.north and -1 <= T <= 2: F.ring(F.bot - 1, F.cx, 8 * S, [150, 210, 200, 110][T + 1], dotted=True, sy=.3)
+        elif kind == "arrow2":                  # 보스 화살: T0 시위 섬광, T1~T2 빛 화살이 날아감
+            if F.side:
+                y, x = F.front(.42, 0)
+                if T == 0: F.star(y, x, int(3 * S), int(S))
+                if T == 1: F.streak(y, x - int(3 * S), x + int(12 * S), 240, 2); F.star(y, x + int(12 * S), int(2 * S)); F.glow(y, x + int(12 * S), int(S), 200)
+                if T == 2: F.streak(y, x + int(10 * S), x + int(22 * S), 160, 2)
+            elif not F.north:
+                y, x = F.row(.5), F.cx
+                if T == 0: F.star(y, x, int(4 * S), int(S))
+                if T == 1: F.ring(y, x, 4 * S, 190, dotted=True); F.star(y, x, int(2 * S))
+        return F.out()
+    return f
+
+
+for _s, _k in (("EliteShieldSoldier", "shield"), ("EliteSentinel", "spear"), ("EliteShaman", "orb"), ("EliteOrcCharger", "charge"),
+               ("EliteJelly", "jelly"), ("EliteSpider", "web"), ("EliteSkeletonArcher", "arrow")):
+    POST[_s] = (lambda prev, fx: (lambda *x: fx(x[0], prev(*x), *x[2:])))(POST.get(_s, _elite), _efx(_k))
+
+
+def _reaper_string(rgb):
+    """11-27 사용자 "사신궁수 활줄 색 튀는 것(흰색이었다가 검은색)": 원본 시위가 1~2px 하늘색이라 줄이면 흰 바탕과 섞여 흰색·검은 테두리로 바뀜,
+    끊긴 시위 틈으로 활 안쪽 흰 바탕이 이어져 흰 삼각형이 남음 -> 줄이기 전에 하늘색 시위를 한 칸 굵기(원본 ~9px)로 두껍게."""
+    import cv2
+    c = rgb.astype(int)
+    cyan = (c[..., 2] >= 190) & (c[..., 1] >= 170) & (c[..., 0] <= 140)
+    big = cv2.dilate(cyan.astype(np.uint8), np.ones((9, 9), np.uint8)) > 0
+    white = c.min(-1) >= 215
+    put = big & (white | cyan)                     # 흰 바탕(시위 옆)만 칠함 - 몸·활대는 그대로
+    out = rgb.copy(); out[put] = (60, 225, 235)
+    return out
+
+
+def _reaper_white(anim, a, *_):
+    """활 안쪽 흰 바탕이 남은 덩어리(아주 밝은 무채색 3칸+)를 투명하게."""
+    import cv2
+    c = a[..., :3].astype(int); w = (a[..., 3] > 0) & (c.min(-1) >= 228) & (c.max(-1) - c.min(-1) < 30)
+    n, lab, st, _ = cv2.connectedComponentsWithStats(w.astype(np.uint8), connectivity=4)
+    a = a.copy()
+    for k in range(1, n):
+        if st[k, cv2.CC_STAT_AREA] >= 3: a[lab == k] = 0
+    return a
+
+
+PRE = {"Boss6": _reaper_string}
+POST["Boss6"] = _reaper_white
+
+
+POST["Boss7"] = _ninja_back
 POST["Chanter"] = _chanter
 POST["Rogue"] = _rogue
 POST["EliteRogue"] = lambda *x: _rogue(x[0], _elite(*x), *x[2:])
 POST["EliteChanter"] = lambda *x: _elite(x[0], _chanter(*x), *x[2:])
-for _s in ("EliteShieldSoldier", "EliteJelly"):
-    POST[_s] = _elite   # 장마다 덧손질(동쪽 고친 뒤 서쪽은 뒤집기)
 KEEP_EXTRA = {"Spider", "EliteSpider", "Shaman", "EliteShaman", "OrcCharger", "EliteOrcCharger"}   # 11-13 옛 효과 조각(거미줄 덩이)이 새 몸 상자 안에 있어도 버리지 않음(새 몸이 안 가리는 칸에만 붙음)
 OLDKEEP = os.path.join(H.AUTO, "_work", "mobold")   # 옛 스프라이트 보관(게임 폴더에 새 그림을 넣은 뒤에도 위치·그림자 기준은 옛 그림)
 
@@ -344,7 +647,9 @@ def run(label):
     for anim, fs in groups.items():
         pre[anim] = []
         for i, p in enumerate(fs):
-            rgb = H.load_rgb(p); bg = H.background(rgb); iw = inner_white(rgb) & ~bg
+            rgb = H.load_rgb(p)
+            if spr in PRE: rgb = PRE[spr](rgb)
+            bg = H.background(rgb); iw = inner_white(rgb) & ~bg
             cls = np.where(bg, 0, np.where(iw, 2, 1)).astype(np.int8)     # 2 = 안쪽 흰 바탕(메우지 않음)
             orgba = np.asarray(Image.open(os.path.join(old, f"{anim}_{i}.png")).convert("RGBA"))
             ob, ox_ = split_old(orgba)
@@ -359,9 +664,14 @@ def run(label):
     for anim, fl in pre.items():
         d = anim.rsplit("_", 1)[1]
         out = []
-        for rgb, cls, b, o, shp in fl:
-            r = (b[1] - b[0] + 1) / (o[1] - o[0] + 1)
-            pt = float(np.clip(r, base[d] * .88, base[d] * 1.12))
+        rs = [(b[1] - b[0] + 1) / (o[1] - o[0] + 1) for _, _, b, o, _ in fl]
+        sheet = os.path.exists(os.path.join(os.path.dirname(groups[anim][0]), "sheet_1.png"))
+        for j, (rgb, cls, b, o, shp) in enumerate(fl):
+            r = rs[j]; c = base[d]
+            if sheet:   # 11-27 4장 묶음: 묶음마다 GPT가 그린 크기·해상도가 달라(거울기사 뒤 공격 7~8장 작아짐, 리치왕 낱장+묶음 섞임) -> 묶음 가운데값 기준
+                c = float(np.median(rs[j // 4 * 4: j // 4 * 4 + 4]))
+            t = 0 if sheet else .12   # 묶음은 GPT가 한 그림에 같은 크기로 그림 -> 묶음 하나에 한 배율(옛 장 키는 깃털·조각 빠짐 등으로 들쭉날쭉해 장마다 나누면 거울기사 7장만 작아짐)
+            pt = float(np.clip(r, c * (1 - t), c * (1 + t)))
             ox, oy = best_phase(rgb, cls, pt)
             col, fb, fm = H.cells(rgb, cls, pt, ox, oy, 2)
             op = fb >= .5
@@ -400,6 +710,22 @@ def run(label):
             if anim.endswith("_east"):
                 H.save_png(can[:, ::-1].copy(), os.path.join(dst, f"{anim[:-5]}_west_{i}.png")); n += 1
     print(label, "->", spr, f"{n}장", "칸 크기", {d: round(v, 1) for d, v in base.items()})
+
+
+# 11-27 사용자 "보스공격들 이펙트들 추가": 보스 공격 동작에 직접 그린 효과(때리는 장 t0 기준). 킹슬라임은 옛 그림 유지라 뺌.
+_BOSS_FX = {
+    "Boss1": ("charge2", {"core": (255, 245, 225), "hi": (255, 200, 120), "mid": (235, 140, 60), "dust": (130, 105, 80)}, 4),
+    "Boss2": ("slam", {"core": (255, 250, 220), "hi": (255, 215, 110), "mid": (230, 150, 50), "dust": (120, 100, 75)}, 4),
+    "Boss3": ("slam", {"core": (235, 250, 255), "hi": (140, 215, 255), "mid": (70, 150, 230), "dust": (125, 120, 120)}, 4),
+    "Boss5": ("spell", {"core": (250, 255, 220), "hi": (200, 255, 120), "mid": (200, 90, 230), "key": (220, 90, 230)}, 3),
+    "Boss6": ("arrow2", {"core": (235, 255, 255), "hi": (120, 240, 245), "mid": (40, 180, 200)}, 3),
+    "Boss7": ("xslash", {"core": (255, 245, 255), "hi": (225, 170, 255), "mid": (150, 90, 230)}, 3),
+    "Boss8": ("slam", {"core": (255, 250, 225), "hi": (255, 190, 90), "mid": (230, 110, 40), "dust": (125, 95, 75)}, 4),
+    "Boss9": ("spell", {"core": (240, 255, 235), "hi": (140, 255, 150), "mid": (60, 200, 110), "key": (60, 200, 90)}, 4),
+    "Boss10": ("arc", {"core": (245, 252, 255), "hi": (170, 225, 255), "mid": (110, 170, 240)}, 3),
+}
+for _s, (_k, _p, _t) in _BOSS_FX.items():
+    POST[_s] = (lambda prev, fx: (lambda *x: fx(x[0], prev(*x), *x[2:]) if prev else fx(*x)))(POST.get(_s), _efx(_k, _p, _t))
 
 
 if __name__ == "__main__":
