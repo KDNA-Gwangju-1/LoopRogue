@@ -209,7 +209,7 @@ namespace LoopRogue
             var door = new GameObject("Door");
             door.transform.SetParent(transform, false);
             door.transform.position = CellWorld(DoorCell);
-            var doorSprite = Resources.Load<Sprite>("Tiles/ExitDoor") ?? Resources.Load<Sprite>("Tiles/Stairs");
+            var doorSprite = DungeonTiles.Load("ExitDoor") ?? DungeonTiles.Load("Stairs");
             if (doorSprite != null)
                 VisualUtil.CreateSpriteVisual(door, doorSprite, GridConstants.CellSize, -7);
             else

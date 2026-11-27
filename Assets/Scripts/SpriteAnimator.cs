@@ -504,10 +504,12 @@ namespace LoopRogue
         {
             yield return new WaitForSecondsRealtime(1f); // 타이틀이 다 뜬 다음부터
             var jobs = new List<IEnumerator>();
+            // 11-28 고퀄 그림체면 고퀄 타일(TilesHQ)을 미리 읽음 - DungeonTiles 와 같은 폴더
+            var tiles = GameSettings.Art == GameSettings.ArtStyle.HighQuality ? "TilesHQ/" : "Tiles/";
             foreach (var path in TileSingles)
-                jobs.Add(Single(path));
+                jobs.Add(Single(path.StartsWith("Tiles/") ? tiles + path.Substring(6) : path));
             foreach (var prefix in TilePrefixes)
-                jobs.Add(Sequence(prefix));
+                jobs.Add(Sequence(tiles + prefix.Substring(6)));
             foreach (var set in Sets)
                 jobs.Add(SpriteAnimator.WarmupAsync(set));
             foreach (var fx in Effects)

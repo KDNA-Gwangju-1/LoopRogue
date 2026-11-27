@@ -17,6 +17,7 @@ namespace LoopRogue
         public static bool Glitch;
 
         private static bool _loaded;
+        private static GameSettings.ArtStyle _loadedArt;
         private static Sprite[] _floor, _decor, _wallTop, _wallFace, _glitchFloor, _glitchTop, _glitchFace;
         private static Sprite _torch;
 
@@ -54,19 +55,34 @@ namespace LoopRogue
 
         private static Sprite Pick(Sprite[] sprites, System.Random rng) => sprites[rng.Next(sprites.Length)];
 
+        /// <summary>11-28 고퀄 타일(Resources/TilesHQ, 52칸 = 한 칸, 용사와 같은 도트 크기) - 고퀄 그림체이고 그 폴더가 있으면 거기서,
+        /// 아니면 클래식(Resources/Tiles, 32칸). 이름은 두 폴더가 같다.</summary>
+        private static string Folder => GameSettings.Art == GameSettings.ArtStyle.HighQuality && Resources.Load<Sprite>("TilesHQ/Floor_0") != null
+            ? "TilesHQ/" : "Tiles/";
+
+        /// <summary>타일 한 장(Shadow_Top, ExitDoor, WallCracked 등) - 그림체에 맞는 폴더에서, 고퀄에 없으면 클래식으로.</summary>
+        public static Sprite Load(string name)
+        {
+            var folder = Folder;
+            var sprite = Resources.Load<Sprite>(folder + name);
+            return sprite != null || folder == "Tiles/" ? sprite : Resources.Load<Sprite>("Tiles/" + name);
+        }
+
         private static void Load()
         {
-            if (_loaded)
+            if (_loaded && _loadedArt == GameSettings.Art)
                 return;
             _loaded = true;
-            _floor = Sequence("Tiles/Floor_");
-            _decor = Sequence("Tiles/FloorDecor_");
-            _wallTop = Sequence("Tiles/WallTop_");
-            _wallFace = Sequence("Tiles/WallFace_");
-            _torch = Resources.Load<Sprite>("Tiles/WallFace_Torch");
-            _glitchFloor = Sequence("Tiles/GlitchFloor_");
-            _glitchTop = Sequence("Tiles/GlitchWallTop_");
-            _glitchFace = Sequence("Tiles/GlitchWallFace_");
+            _loadedArt = GameSettings.Art; // 옵션에서 그림체를 바꾸면 다음 방부터 다시 읽음
+            var f = Folder;
+            _floor = Sequence(f + "Floor_");
+            _decor = Sequence(f + "FloorDecor_");
+            _wallTop = Sequence(f + "WallTop_");
+            _wallFace = Sequence(f + "WallFace_");
+            _torch = Resources.Load<Sprite>(f + "WallFace_Torch");
+            _glitchFloor = Sequence(f + "GlitchFloor_");
+            _glitchTop = Sequence(f + "GlitchWallTop_");
+            _glitchFace = Sequence(f + "GlitchWallFace_");
         }
 
         private static Sprite[] Sequence(string prefix)

@@ -1518,7 +1518,7 @@ namespace LoopRogue
                 return;
             var cell = chosen.Value;
             Map.AddWall(cell);
-            var sprite = Resources.Load<Sprite>("Tiles/WallCracked");
+            var sprite = DungeonTiles.Load("WallCracked");
             GameObject go;
             if (_tiledRoom && sprite != null)
                 go = CreateTile(transform, cell, sprite, -8, Color.white).gameObject;
@@ -2790,7 +2790,7 @@ namespace LoopRogue
             var go = new GameObject("Exit");
             go.transform.SetParent(transform, false);
             // 다음 방으로 가는 문 도트(Resources/Tiles/ExitDoor, 사용자 요청 10-13 계단 → 문) - 없으면 예전 계단, 그것도 없으면 파란 칸
-            var stairs = Resources.Load<Sprite>("Tiles/ExitDoor") ?? Resources.Load<Sprite>("Tiles/Stairs");
+            var stairs = DungeonTiles.Load("ExitDoor") ?? DungeonTiles.Load("Stairs");
             ExitRenderer = stairs != null
                 ? VisualUtil.CreateSpriteVisual(go, stairs, GridConstants.CellSize, sortingOrder: -6)
                 : VisualUtil.CreateSquareVisual(go, ExitColor, GridConstants.CellSize * 0.85f, sortingOrder: -6);
