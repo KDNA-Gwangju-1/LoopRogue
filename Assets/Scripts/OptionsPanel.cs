@@ -19,7 +19,7 @@ namespace LoopRogue
         private static OptionsPanel _instance;
         private static int _closedFrame = -1;
 
-        private const float RowHeight = 44f;
+        private const float RowHeight = 40f; // 11-20: 44 → 40, 12줄이면 창이 화면(720)보다 컸다
         private const float PanelWidth = 640f;
         private static readonly Color RowNormal = new Color(0.14f, 0.15f, 0.2f, 0.92f);
         private static readonly Color RowCursor = new Color(0.3f, 0.42f, 0.62f, 1f);
@@ -120,6 +120,8 @@ namespace LoopRogue
             AddRow(Loc.T("화면 흔들림"), () => OnOff(GameSettings.ScreenShake), _ => GameSettings.SetScreenShake(!GameSettings.ScreenShake));
             AddRow(Loc.T("피해 숫자 표시"), () => OnOff(GameSettings.DamageNumbers), _ => GameSettings.SetDamageNumbers(!GameSettings.DamageNumbers));
             AddRow(Loc.T("뽑기 연출"), () => OnOff(GameSettings.GachaAnimation), _ => GameSettings.SetGachaAnimation(!GameSettings.GachaAnimation));
+            AddRow(Loc.T("그림체"), () => GameSettings.Art == GameSettings.ArtStyle.HighQuality ? Loc.T("고퀄") : Loc.T("클래식"),
+                _ => GameSettings.SetArtStyle(GameSettings.Art == GameSettings.ArtStyle.HighQuality ? GameSettings.ArtStyle.Classic : GameSettings.ArtStyle.HighQuality));
             // 첫 판 안내 - ←→로 처음부터 다시(다음 판 1층부터 다시 뜬다)
             AddRow(Loc.T("튜토리얼"), () => Tutorial.BasicsDone ? Loc.T("<color=#9A9AA2>끝남</color>  (←→ 다시 보기)") : Loc.T("<color=#8CE08C>진행 중</color>"),
                 _ => Tutorial.ResetAll());
@@ -422,17 +424,17 @@ namespace LoopRogue
             var dim = HudUi.CreateImage(canvasGo.transform, "Dim", new Color(0f, 0f, 0f, 0.65f));
             HudUi.Stretch(dim.rectTransform, 0f);
 
-            var height = 120f + _rows.Count * RowHeight + 80f;
+            var height = 112f + _rows.Count * RowHeight + 80f;
             var board = HudUi.CreateImage(canvasGo.transform, "Board", new Color(0.08f, 0.08f, 0.11f, 0.97f));
             PixelUi.Slice(board, "Panel");
             board.rectTransform.sizeDelta = new Vector2(PanelWidth, height);
 
             var top = height * 0.5f;
             Label(board.transform, Loc.T("설정"), 30, new Vector2(0f, top - 45f), 300f, TextAnchor.MiddleCenter).fontStyle = FontStyle.Bold;
-            Label(board.transform, Loc.T("↑↓ 고르기   ←→ 바꾸기   Esc 닫기"), 14, new Vector2(0f, top - 78f), 500f, TextAnchor.MiddleCenter)
-                .color = new Color(0.65f, 0.68f, 0.75f);
+            Label(board.transform, Loc.T("↑↓ 고르기   ←→ 바꾸기   Esc 닫기"), 15, new Vector2(0f, top - 76f), 500f, TextAnchor.MiddleCenter)
+                .color = new Color(0.8f, 0.83f, 0.9f); // 11-20: 14·흐린 회색 → 15·밝게
 
-            var y = top - 120f;
+            var y = top - 112f;
             var listRowY = 0f;
             foreach (var row in _rows)
             {

@@ -84,11 +84,24 @@ namespace LoopRogue
             return renderer;
         }
 
+        /// <summary>11-28 소품 그림 - 고퀄 그림체이고 Sprites/PropsHQ/{name}(52칸 = 한 칸, 용사와 같은 도트 크기)이 있으면 그것, 아니면 클래식(Sprites/Props).
+        /// 벽화·빛줄기처럼 고퀄이 없는 건 클래식 그대로.</summary>
+        public static Sprite PropSprite(string name)
+        {
+            if (GameSettings.Art == GameSettings.ArtStyle.HighQuality)
+            {
+                var hq = Resources.Load<Sprite>($"Sprites/PropsHQ/{name}");
+                if (hq != null)
+                    return hq;
+            }
+            return Resources.Load<Sprite>($"Sprites/Props/{name}");
+        }
+
         /// <summary>맵 소품 도트(Resources/Sprites/Props/{name}, 32x32 = 한 칸)를 한 칸 크기로 - 그림이 없으면 null을 돌려줘
         /// 호출부가 예전 단색 도형을 그린다.</summary>
         public static SpriteRenderer TryCreateProp(GameObject owner, string name, int sortingOrder)
         {
-            var sprite = Resources.Load<Sprite>($"Sprites/Props/{name}");
+            var sprite = PropSprite(name);
             return sprite != null ? CreateSpriteVisual(owner, sprite, GridConstants.CellSize, sortingOrder) : null;
         }
     }

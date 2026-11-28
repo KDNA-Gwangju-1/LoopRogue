@@ -47,7 +47,7 @@ namespace LoopRogue
         /// <summary>흡혈 상한(사용자 결정 50%) - 봇 100판에서 흡혈 카드가 판당 중앙 11장(88%), 최대 20장(160%)까지 쌓였다.
         /// 상한에 닿으면 흡혈 카드는 더 이상 안 나온다(LevelSystem). 상한 도입 전 저장된 판도 적용은 이 값까지만.</summary>
         public const float MaxLifeSteal = 0.5f;
-        public float EffectiveLifeSteal => Mathf.Clamp(LifeStealRate, 0f, Relics.LifeStealCap); // 유물 "피의 계약"이면 70%
+        public float EffectiveLifeSteal => Mathf.Clamp(LifeStealRate, 0f, Relics.LifeStealCap); // 유물 "피의 계약서"이면 70%
         /// <summary>수호막 카드 - 방에 들어갈 때마다 최대체력 대비 이만큼 보호막(PlayerActor.OnRoomEntered, 갑옷 보호막에 더함).
         /// 10-14에 "재생"(매 턴 1.5% 회복)을 대신함 - 대기만 해도 차서 "공짜 회복이 사기"라는 테스트 피드백.</summary>
         public float RoomShieldCardRate;
@@ -63,7 +63,7 @@ namespace LoopRogue
         public const float MinBonusRate = -0.5f;
         public float EffectiveExpBonus => Mathf.Max(MinBonusRate, ExpBonusRate);
         /// <summary>레벨업 카드로 쌓는 골드 보너스 상한(10-23 사용자 - 테스터가 "수집"·"황금 욕심"을 몰아 +200%로 영약 파밍을 너무 빨리 끝냄).
-        /// 반지 "행운"·유물 "탐욕"·칭호·저주 계약은 따로 더해진다(RoomController.GoldBonus). 이미 넘긴 저장도 여기서 잘린다.</summary>
+        /// 반지 "행운"·유물 "저주받은 금화"·칭호·저주 계약은 따로 더해진다(RoomController.GoldBonus). 이미 넘긴 저장도 여기서 잘린다.</summary>
         public const float MaxGoldBonusCard = 1f;
         public float EffectiveGoldBonus => Mathf.Clamp(GoldBonusRate, MinBonusRate, MaxGoldBonusCard);
 
@@ -114,13 +114,13 @@ namespace LoopRogue
         public bool UndyingReady;
         /// <summary>응급 처치 - 이번 시도에서 아직 안 썼으면 true.</summary>
         public bool EmergencyHealReady;
-        /// <summary>유물 "두 번째 숨" - 이번 시도에서 아직 안 썼으면 true(죽으면 체력 30%로 부활).</summary>
+        /// <summary>유물 "불사조 깃털" - 이번 시도에서 아직 안 썼으면 true(죽으면 체력 30%로 부활).</summary>
         public bool ReviveReady;
         /// <summary>퍼즐·미니게임 방 안 - 체력이 0이 되면 죽는 대신 퍼즐 실패(체력 복구)라, 두 번째 숨·모래시계를 쓰지 않는다(RoomController.Puzzle이 켜고 끈다).</summary>
         public static bool RevivesSuspended;
         /// <summary>불굴/응급 처치가 발동했을 때 알림(메시지 표시용).</summary>
         public System.Action<string> OnArmorEffect;
-        /// <summary>유물 "두 번째 숨"으로 되살아난 직후 - 플레이어를 안전한 칸으로 옮긴다(PlayerActor).</summary>
+        /// <summary>유물 "불사조 깃털"으로 되살아난 직후 - 플레이어를 안전한 칸으로 옮긴다(PlayerActor).</summary>
         public System.Action OnRevived;
 
         private static readonly System.Random ReadRng = new System.Random();
@@ -152,7 +152,7 @@ namespace LoopRogue
                 Relics.Mark(RelicType.IronSkin);
                 damage *= Relics.IronSkinDamageFactor;
             }
-            damage *= Relics.RecurrenceMultiplier; // 유물 "되풀이의 각인"
+            damage *= Relics.RecurrenceMultiplier; // 유물 "윤회의 염주"
             damage *= Curses.DamageTakenMultiplier; // 저주 계약(분노·무모) - 플레이어만 이 함수로 맞는다
             damage *= RunBuffs.DamageTakenMultiplier; // 방 이벤트 "모루"
             damage *= GuardDamageFactor; // 특성 "칼날 방패" - 이번 턴에 돌았으면(PlayerActor가 켜고 끈다)
@@ -183,7 +183,7 @@ namespace LoopRogue
                 ReviveReady = false;
                 Relics.Mark(RelicType.SecondWind);
                 CurrentHealth = MaxHealth * Relics.SecondWindHealRate;
-                OnArmorEffect?.Invoke(Loc.T("두 번째 숨! 다시 일어섰다"));
+                OnArmorEffect?.Invoke(Loc.T("불사조 깃털! 다시 일어섰다"));
                 OnRevived?.Invoke();
             }
             if (IsDead && !RevivesSuspended && RunBuffs.ConsumeRevive()) // 방 이벤트 "시간의 모래시계"

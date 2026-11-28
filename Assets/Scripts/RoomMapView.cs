@@ -115,7 +115,7 @@ namespace LoopRogue
             var info = CreateBox(_root, "Info", new Vector2(0f, -30f), new Vector2(200f, 50f));
             if (!PixelUi.Slice(info.Image, "Panel", 2f))
                 info.Image.color = new Color(0.1f, 0.1f, 0.13f, 0.95f);
-            info.Text.fontSize = 14;
+            info.Text.fontSize = 16; // 11-20 UI 개선: 14 → 16(방 정보가 깨알 같았음), 상자도 같이 키움(아래 sizeDelta)
             _info = info.Text;
             _infoRect = info.Image.rectTransform;
         }
@@ -210,7 +210,7 @@ namespace LoopRogue
 
             // 정보 상자를 고른 칸 바로 아래로
             _infoRect.anchoredPosition = new Vector2(_cellRects[Selected].anchoredPosition.x, lockedHint ? -38f : -30f);
-            _infoRect.sizeDelta = new Vector2(room.IsBossRoom ? 180f : 230f, lockedHint ? 66f : 50f);
+            _infoRect.sizeDelta = new Vector2(room.IsBossRoom ? 205f : 262f, lockedHint ? 74f : 56f);
         }
 
         /// <summary>고른 문 위 화살표 - 1도트(4)씩 위아래로 까딱인다.</summary>

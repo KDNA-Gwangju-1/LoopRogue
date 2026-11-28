@@ -114,9 +114,10 @@ namespace LoopRogue
 
         /// <summary>지금 슬롯만 지운다(설정은 GameSettings.Preserve로 감싸서 부른다). 1번 슬롯은 예전 키(목록에 없는 것도 있다)라 PlayerPrefs를 통째로 지우고
         /// 다른 슬롯·공용 키만 다시 써 넣는다.</summary>
-        public static void DeleteAll()
+        public static void DeleteAll() => DeleteSlotKeys(Slot);
+
+        private static void DeleteSlotKeys(int slot)
         {
-            var slot = Slot;
             if (slot != 1)
             {
                 foreach (var key in IndexOf(slot).Keys)
@@ -152,6 +153,41 @@ namespace LoopRogue
                     PlayerPrefs.SetString(key, (string)value);
             }
             IndexOf(1).Clear();
+        }
+
+        /// <summary>11-14 사용자 "원하는 슬롯에 각각 저장해서 1분기·2분기 선택을 모두 볼 수 있게" - 지금 슬롯(from)을 통째로 to 슬롯에 복사한다.
+        /// to 슬롯의 예전 저장은 먼저 지운다. 지금 플레이하던 슬롯은 그대로(복사본은 나중에 타이틀에서 골라 이어 한다).
+        /// 1번 슬롯의 아주 예전 키(슬롯이 생기기 전 쓰고 그 뒤로 한 번도 다시 안 쓴 키)는 목록에 없어 안 따라간다 - 새 빌드는 처음에 다 지우고 시작하니 빌드에선 문제없다.</summary>
+        public static void CopySlot(int from, int to)
+        {
+            from = Mathf.Clamp(from, 1, SlotCount);
+            to = Mathf.Clamp(to, 1, SlotCount);
+            if (from == to)
+                return;
+            if (from == Slot)
+                Playtest.FlushPlayTime();
+            if (to == 1)
+                GameSettings.Preserve(() => DeleteSlotKeys(1));
+            else
+                DeleteSlotKeys(to);
+
+            var target = IndexOf(to);
+            foreach (var pair in IndexOf(from))
+            {
+                var src = Map(pair.Key, from);
+                if (!PlayerPrefs.HasKey(src))
+                    continue;
+                var dst = Map(pair.Key, to);
+                if (pair.Value == 'i')
+                    PlayerPrefs.SetInt(dst, PlayerPrefs.GetInt(src));
+                else if (pair.Value == 'f')
+                    PlayerPrefs.SetFloat(dst, PlayerPrefs.GetFloat(src));
+                else
+                    PlayerPrefs.SetString(dst, PlayerPrefs.GetString(src));
+                target[pair.Key] = pair.Value;
+            }
+            SaveIndex(to);
+            PlayerPrefs.Save();
         }
 
         /// <summary>새 빌드 - 모든 슬롯을 지운다(설정·빌드 표시는 호출부가 살린다).</summary>

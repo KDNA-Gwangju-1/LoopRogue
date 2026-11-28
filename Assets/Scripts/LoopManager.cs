@@ -48,6 +48,7 @@ namespace LoopRogue
                 StageProgress.BeginAttempt(); // 튜토리얼은 그 층 시도 횟수(반복 보상 감소)에 안 센다
             Curses.Reset(); // 저주 계약은 시도 단위
             RunBuffs.Reset(); // 방 이벤트 효과(숫돌·피의 제단·모래시계)도
+            HitFeedback.ResetSpinClock(); // 영원 회전 베기 시침도 1시부터
             Codex.SyncOwned();    // 도감이 생기기 전 저장으로 이미 가진 유물/아이템
             Achievements.Check(); // 업적이 생기기 전 저장으로 이미 조건을 채운 것들
 
@@ -92,7 +93,7 @@ namespace LoopRogue
                       && !NpcDialogUI.BlocksInput // 대화창을 Esc로 닫은 그 프레임에 메뉴가 바로 열리지 않게
                       && !GachaReveal.BlocksInput, // Unknown 벼리기 연출을 Esc로 닫은 프레임도
                 lobbyLabel: Loc.F("로비로 이동 (이번 시도 골드 {0:0}% 손실)", Relics.DeathPenaltyRate * 100f),
-                goToTitle: RetreatToTitle);
+                goToTitle: RetreatToTitle, showLockedSave: true);
 
             Tutorial.Attach(_roomController, _player, _hud); // 첫 판 안내(봇·테스트 맵에선 안 만든다)
         }
@@ -215,7 +216,7 @@ namespace LoopRogue
             _roomController.IsInputLocked = true;
             LoopRecord.AddDeath(); // 누적 회차 - NPC 대사가 바뀐다
             PlayLog.Note($"사망 원인: {DeathCause.Line}");
-            StageProgress.AddStageDeath(); // 유물 "되풀이의 각인"
+            StageProgress.AddStageDeath(); // 유물 "윤회의 염주"
             var penalty = ApplyDeathGoldPenalty();
             PlayLog.Death(_player, _roomController, penalty); // 잃는 아이템까지 적으려고 LoseAll 전에
             Inventory.LoseAll(); // 죽으면 들고 있던 아이템 전부 잃음(사용자 결정)
@@ -227,7 +228,7 @@ namespace LoopRogue
         private int ApplyDeathGoldPenalty()
         {
             var earned = Mathf.Max(0, GoldWallet.Gold - _attemptStartGold);
-            var penalty = Mathf.RoundToInt(earned * Relics.DeathPenaltyRate); // 유물 "탐욕"이면 60%
+            var penalty = Mathf.RoundToInt(earned * Relics.DeathPenaltyRate); // 유물 "저주받은 금화"이면 60%
             GoldWallet.TrySpend(penalty);
             _attemptStartGold = GoldWallet.Gold;
             return penalty;
@@ -262,6 +263,7 @@ namespace LoopRogue
             PlayLog.AttemptStarted(_stage, _player, "사망 후 계속하기");
             Curses.Reset(); // 죽으면 저주도 풀린다
             RunBuffs.Reset();
+            HitFeedback.ResetSpinClock();
             _player.Stats.FullHeal();
             EnterRoom(); // IsInputLocked를 다시 false로 풀어준다.
             _attemptStartGold = GoldWallet.Gold;

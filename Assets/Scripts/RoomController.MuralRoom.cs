@@ -90,7 +90,7 @@ namespace LoopRogue
                 yield return new WaitForSeconds(delay);
             if (altar.HasValue && _wallObjects.TryGetValue(altar.Value, out var go) && go != null && go.TryGetComponent<SpriteRenderer>(out var r))
             {
-                var lit = Resources.Load<Sprite>("Sprites/Props/Altar_Lit");
+                var lit = VisualUtil.PropSprite("Altar_Lit");
                 if (lit != null)
                     r.sprite = lit;
                 AddCoolLight(altar.Value); // 불 붙은 제단의 푸른빛이 둘레를 밝힌다

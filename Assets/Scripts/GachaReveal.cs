@@ -57,7 +57,7 @@ namespace LoopRogue
 
         private static GachaReveal Create()
         {
-            var closed = Resources.Load<Sprite>("UI/Gacha/Chest_Closed");
+            var closed = PixelUi.Get("UI/Gacha/Chest_Closed");
             if (closed == null)
                 return null;
             var go = new GameObject("GachaReveal", typeof(RectTransform));
@@ -70,8 +70,8 @@ namespace LoopRogue
             scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
             var r = go.AddComponent<GachaReveal>();
             r._closed = closed;
-            r._open = Resources.Load<Sprite>("UI/Gacha/Chest_Open");
-            r._glow = Resources.Load<Sprite>("UI/Gacha/Chest_Glow");
+            r._open = PixelUi.Get("UI/Gacha/Chest_Open");
+            r._glow = PixelUi.Get("UI/Gacha/Chest_Glow");
             r._rays = Resources.Load<Sprite>("UI/Gacha/Rays");
             r._sparkle = Resources.Load<Sprite>("UI/Gacha/Sparkle");
             r._panel = Resources.Load<Sprite>("UI/Common/Panel");
@@ -613,7 +613,7 @@ namespace LoopRogue
             var center = new Vector2(0f, 40f);
 
             // 1) 어두워지고 마석이 떠오른다(16px 도트 8배)
-            var stoneSprite = Resources.Load<Sprite>("UI/Icons/ManaStone");
+            var stoneSprite = PixelUi.Get("UI/Icons/ManaStone");
             var stone = MakeImage(_shakeRoot, "Stone", stoneSprite, center);
             stone.rectTransform.sizeDelta *= 2f;
             SfxPlayer.Play(Sfx.Appear);
@@ -660,7 +660,7 @@ namespace LoopRogue
             }
             var icon = MakeImage(_shakeRoot, "Relic", PixelUi.Get($"UI/Relics/Relic_{relic}"), center);
             if (icon.sprite != null) // 16px·24px 유물 그림 모두 약 144px로 - 정수 배율이라 도트가 고르게
-                icon.rectTransform.sizeDelta = icon.sprite.rect.size * Mathf.Max(1f, Mathf.Round(144f / icon.sprite.rect.width));
+                icon.rectTransform.sizeDelta = PixelUi.PxSize(icon.sprite) * Mathf.Max(1f, Mathf.Round(144f / PixelUi.PxSize(icon.sprite).x));
             icon.enabled = icon.sprite != null;
             yield return Tween(0.35f, t => icon.rectTransform.localScale = Vector3.one * Mathf.LerpUnclamped(0.2f, 1f, EaseOutBack(t)));
             SfxPlayer.Play(Sfx.Fanfare);
@@ -699,7 +699,7 @@ namespace LoopRogue
         // ------------------------------------------------------------ 도우미
         /// <summary>등급별 장비 그림(Equip_{부위}_{등급}, 24x24) - 없으면 부위 공용 그림.</summary>
         public static Sprite EquipIcon(ItemSlot slot, ItemGrade grade) =>
-            Resources.Load<Sprite>($"UI/Gacha/Equip_{slot}_{grade}") ?? Resources.Load<Sprite>($"UI/Gacha/Equip_{slot}");
+            PixelUi.Get($"UI/Gacha/Equip_{slot}_{grade}") ?? PixelUi.Get($"UI/Gacha/Equip_{slot}");
 
         /// <summary>건너뛰기 버튼·클릭·Space - 한 번 누르면 남은 연출 전부 생략(_skipAll).</summary>
         private bool CheckSkip()
@@ -803,7 +803,7 @@ namespace LoopRogue
             img.raycastTarget = false;
             var rect = go.GetComponent<RectTransform>();
             if (sprite != null)
-                rect.sizeDelta = new Vector2(sprite.rect.width, sprite.rect.height) * Px;
+                rect.sizeDelta = PixelUi.PxSize(sprite) * Px;
             rect.anchoredPosition = position;
             return img;
         }

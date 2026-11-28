@@ -44,40 +44,77 @@ namespace LoopRogue
         /// <summary>Frames의 나눠 읽기판(AssetWarmup) - 한 장씩 Resources.LoadAsync.</summary>
         public static System.Collections.IEnumerator WarmupAsync(string name)
         {
-            if (Cache.ContainsKey(name))
+            var folder = Folder(name);
+            if (Cache.ContainsKey(folder))
                 yield break;
             var list = new List<Sprite>();
             for (var i = 0; ; i++)
             {
-                var req = Resources.LoadAsync<Sprite>($"Effects/{name}/{i}");
+                var req = Resources.LoadAsync<Sprite>($"{folder}/{i}");
                 yield return req;
                 if (!(req.asset is Sprite sprite))
                     break;
                 list.Add(sprite);
             }
-            if (!Cache.ContainsKey(name))
-                Cache[name] = list.ToArray();
+            if (!Cache.ContainsKey(folder))
+                Cache[folder] = list.ToArray();
+        }
+
+        private static readonly Dictionary<string, bool> HasHq = new Dictionary<string, bool>();
+
+        /// <summary>11-28 고퀄 몹·이벤트 이펙트 - 고퀄 그림체이고 Resources/EffectsHQ/{이름} 이 있으면 그 폴더, 아니면 Effects/{이름}(클래식 = 옛 그림).
+        /// 캐시는 폴더 경로로 잡아서 그림체를 바꾸면 새로 읽는다. 용사 무기 이펙트(hq_*)는 원래 이름이 따로라 여기 안 걸린다.</summary>
+        private static string Folder(string name)
+        {
+            if (GameSettings.Art != GameSettings.ArtStyle.HighQuality)
+                return "Effects/" + name;
+            if (!HasHq.TryGetValue(name, out var has))
+                HasHq[name] = has = Resources.Load<Sprite>($"EffectsHQ/{name}/0") != null;
+            return (has ? "EffectsHQ/" : "Effects/") + name;
         }
 
         public static Sprite[] Frames(string name)
         {
-            if (Cache.TryGetValue(name, out var frames))
+            var folder = Folder(name);
+            if (Cache.TryGetValue(folder, out var frames))
                 return frames;
             var list = new List<Sprite>();
             for (var i = 0; ; i++)
             {
-                var sprite = Resources.Load<Sprite>($"Effects/{name}/{i}");
+                var sprite = Resources.Load<Sprite>($"{folder}/{i}");
                 if (sprite == null)
                     break;
                 list.Add(sprite);
             }
-            return Cache[name] = list.ToArray();
+            return Cache[folder] = list.ToArray();
+        }
+
+        /// <summary>Unknown(9등급) 무기 이펙트 재생 배속.</summary>
+        public const float UnknownSpeed = 1.5f;
+
+        /// <summary>이름에 등급 꼬리 "_g9"가 있으면(끝이거나 뒤에 "_") Unknown 등급 그림.</summary>
+        private static bool IsUnknownGrade(string name)
+        {
+            var i = name.IndexOf("_g9", System.StringComparison.Ordinal);
+            return i >= 0 && (i + 3 == name.Length || name[i + 3] == '_');
+        }
+
+        /// <summary>11-09 이 그림을 fps로 틀 때 쓸 배속 - Unknown이면 UnknownSpeed, 그래도 maxSeconds보다 길면 딱 maxSeconds에 끝나게 더 빠르게.
+        /// 같이 맞물려 나오는 그림(아래 겹·발톱·바닥 문장)은 본 그림의 이 값을 Play(speed:)로 똑같이 넘긴다.</summary>
+        public static float Speed(string name, float fps, float maxSeconds)
+        {
+            var speed = IsUnknownGrade(name) ? UnknownSpeed : 1f;
+            var frames = Frames(name).Length;
+            if (maxSeconds > 0f && frames > 0 && frames / (fps * speed) > maxSeconds)
+                speed = frames / (fps * maxSeconds);
+            return speed;
         }
 
         /// <param name="sizeCells">그림 가로 길이(칸 단위)</param>
+        /// <param name="speed">0보다 크면 이 배속으로(fps×, 지연÷) - Unknown 자동 배속 대신. Speed()로 구한 값.</param>
         /// <param name="riseCells">초당 위로 떠오르는 거리(칸 단위)</param>
         public static Fx Play(string name, Vector3 position, float sizeCells, float angle = 0f, Color? tint = null,
-            float fps = DefaultFps, bool loop = false, int sortingOrder = DefaultSortingOrder, Transform parent = null, float riseCells = 0f)
+            float fps = DefaultFps, bool loop = false, int sortingOrder = DefaultSortingOrder, Transform parent = null, float riseCells = 0f, float delay = 0f, float speed = 0f)
         {
             if (DamagePopup.Suppressed)
                 return null;
@@ -103,11 +140,16 @@ namespace LoopRogue
                 scale /= parent.lossyScale.x; // 부모 크기와 상관없이 같은 크기로
             go.transform.localScale = new Vector3(scale, scale, 1f);
 
+            if (speed <= 0f) // 11-09 사용자 "언노운 등급 모든 이펙트 좀 더 빨리" - 지연도 같은 비율로 줄여 맞물린 타이밍 유지
+                speed = IsUnknownGrade(name) ? UnknownSpeed : 1f;
+            fps *= speed;
+            delay /= speed;
             fx._frames = frames;
             fx._fps = fps;
             fx._loop = loop;
             fx._rise = Vector3.up * riseCells * GridConstants.CellSize;
-            fx._time = 0f;
+            fx._time = -Mathf.Max(0f, delay); // delay초 뒤에 나타남(그동안 안 보임)
+            renderer.enabled = delay <= 0f;
             fx._moving = false;
             fx._onArrive = null;
             fx.KeepAlive = null;
@@ -196,6 +238,10 @@ namespace LoopRogue
         private void Update()
         {
             _time += Time.deltaTime;
+            if (_time < 0f)
+                return; // 아직 delay 중
+            if (!_renderer.enabled)
+                _renderer.enabled = true;
 
             if (_moving)
             {

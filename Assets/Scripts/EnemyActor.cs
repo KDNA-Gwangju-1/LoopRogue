@@ -114,6 +114,16 @@ namespace LoopRogue
         public bool IsPuzzleMob { get; private set; }
         public void MarkAsPuzzleMob() => IsPuzzleMob = true;
 
+        /// <summary>테스트 메뉴 "무한 허수아비"(11-09) - 아무 행동도 안 하고 보상 없음. refill 이면 턴마다 체력이 다시 가득 찬다.</summary>
+        public bool IsTestDummy { get; private set; }
+        private bool _dummyRefill;
+        public void MarkAsTestDummy(bool refill)
+        {
+            IsTestDummy = true;
+            IsPuzzleMob = true;
+            _dummyRefill = refill;
+        }
+
         /// <summary>골드·경험치·아이템을 안 주는 몹(보스 졸개, 분열 조각, 퍼즐 몹).</summary>
         public bool NoReward => IsMinion || IsSplitChild || IsPuzzleMob || IsGlitchRevived || IsTutorialMob;
 
@@ -142,7 +152,7 @@ namespace LoopRogue
         /// <summary>10층 발악 시작 - 남은 기절을 없앤다(발악은 바로 시작).</summary>
         public void ClearStun() => StunTurns = 0;
 
-        /// <summary>덫에 걸려 기절 - 유물 "사냥꾼의 올가미"가 그 기절 동안 피해를 늘린다.</summary>
+        /// <summary>덫에 걸려 기절 - 유물 "덫꾼의 올가미"가 그 기절 동안 피해를 늘린다.</summary>
         public void Snare(int turns)
         {
             Stun(turns);
@@ -855,6 +865,12 @@ namespace LoopRogue
         {
             if (Stats.IsDead)
                 return;
+            if (IsTestDummy)
+            {
+                if (_dummyRefill)
+                    Stats.CurrentHealth = Stats.MaxHealth;
+                return; // 테스트 허수아비 - 가만히 맞기만
+            }
             _turnRoom = room;
             TickEliteAffix(); // 재생·광분 - 기절·연막 중에도
             // 반격 자세는 한 몹 턴만 - 기절·연막으로 이번 턴을 못 움직여도 자세는 풀린다(봇 100판: 연막 속에서 자세를 영영 안 풀어

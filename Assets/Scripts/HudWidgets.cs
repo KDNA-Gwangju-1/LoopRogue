@@ -105,10 +105,13 @@ namespace LoopRogue
             _cooldownText.fontStyle = FontStyle.Bold;
             HudUi.Stretch(_cooldownText.rectTransform, 0f);
 
-            Key = HudUi.CreateText(go.transform, "Key", 11, TextAnchor.UpperLeft);
+            // 11-20 UI 개선: 단축키(Q·E·1~3)가 밝은 하늘색 쇠테 위 연한 글자(11)라 안 보였다 → 굵게 13 + 검은 외곽선
+            Key = HudUi.CreateText(go.transform, "Key", 13, TextAnchor.UpperLeft);
             Key.text = key;
-            Key.color = new Color(0.85f, 0.88f, 0.95f);
-            HudUi.Stretch(Key.rectTransform, 3f);
+            Key.fontStyle = FontStyle.Bold;
+            Key.color = Color.white;
+            Key.gameObject.AddComponent<Outline>().effectColor = new Color(0f, 0f, 0f, 1f);
+            HudUi.Stretch(Key.rectTransform, 4f);
 
             SetCooldown(0, 1);
         }
@@ -446,15 +449,23 @@ namespace LoopRogue
         private static readonly System.Collections.Generic.Dictionary<string, Sprite> Cache =
             new System.Collections.Generic.Dictionary<string, Sprite>();
 
+        /// <summary>11-28 고퀄 그림체면 UI 아이콘은 Resources/UIHQ/(같은 하위 경로, 2배 도트·PPU 200)를 먼저 찾고, 없으면 옛 UI(틀 그림 등).</summary>
         public static Sprite Get(string path)
         {
-            if (!Cache.TryGetValue(path, out var sprite) || sprite == null)
+            var hq = GameSettings.Art == GameSettings.ArtStyle.HighQuality && path.StartsWith("UI/");
+            var key = hq ? "HQ:" + path : path;
+            if (!Cache.TryGetValue(key, out var sprite) || sprite == null)
             {
-                sprite = Resources.Load<Sprite>(path);
-                Cache[path] = sprite;
+                sprite = hq ? Resources.Load<Sprite>("UIHQ/" + path.Substring(3)) : null;
+                if (sprite == null)
+                    sprite = Resources.Load<Sprite>(path);
+                Cache[key] = sprite;
             }
             return sprite;
         }
+
+        /// <summary>도트 크기(옛 UI 픽셀 단위) - 고퀄 아이콘은 픽셀이 2배라 rect 대신 이걸로 화면 크기를 잡아야 같은 크기로 보인다.</summary>
+        public static Vector2 PxSize(Sprite sprite) => sprite.rect.size * (100f / sprite.pixelsPerUnit);
 
         public static Sprite Icon(string name) => Get($"UI/Icons/{name}");
 

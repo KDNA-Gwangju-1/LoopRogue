@@ -258,7 +258,7 @@ namespace LoopRogue
 
         private const string StageDeathsKey = "LoopRogue_StageDeaths";
 
-        /// <summary>지금 층에서 죽은 횟수(유물 "되풀이의 각인") - 다음 층으로 가면 0.</summary>
+        /// <summary>지금 층에서 죽은 횟수(유물 "윤회의 염주") - 다음 층으로 가면 0.</summary>
         public static int DeathsThisStage => Prefs.GetInt(StageDeathsKey, 0);
 
         public static void AddStageDeath() => Prefs.SetInt(StageDeathsKey, DeathsThisStage + 1);

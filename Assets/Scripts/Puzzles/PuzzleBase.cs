@@ -318,7 +318,7 @@ namespace LoopRogue
 
         /// <summary>그림 한 장을 가로 sizeCells칸 크기로(그림 해상도와 상관없이).</summary>
         /// <summary>퍼즐 소품 그림(Sprites/Props/Puzzle_{art}) - 없으면 null(호출부가 예전 색 칸으로).</summary>
-        protected static Sprite PuzzleArt(string art) => Resources.Load<Sprite>("Sprites/Props/Puzzle_" + art);
+        protected static Sprite PuzzleArt(string art) => VisualUtil.PropSprite("Puzzle_" + art); // 11-28 고퀄이면 PropsHQ
 
         /// <summary>그림 칸 - Puzzle_{art} 그림이 있으면 그 그림(artSize칸, 색은 tint), 없으면 예전 색 칸(fallback 색, fallbackSize칸).
         /// 룬·상자처럼 나중에 renderer.color로 색을 바꾸는 것도 그대로 된다(그림은 밝은 회백색이라 색이 입혀진다).</summary>

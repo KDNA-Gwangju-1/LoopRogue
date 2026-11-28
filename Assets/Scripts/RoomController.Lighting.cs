@@ -14,6 +14,7 @@ namespace LoopRogue
         private readonly Dictionary<Vector2Int, GameObject> _wallShadows = new Dictionary<Vector2Int, GameObject>();
         private readonly List<Vector2Int> _torchWalls = new List<Vector2Int>(); // 벽돌 횃불 그림(WallFace_Torch)이 깔린 벽
         private static Sprite[] _shadowSprites;
+        private static GameSettings.ArtStyle _shadowArt;
         private RoomLighting _lighting; // 지금 방의 빛(없으면 null - 퍼즐 방·봇)
 
         /// <summary>푸른 빛을 하나 더 켠다 - 제단에 불이 붙는 순간(LightAltar).</summary>
@@ -25,12 +26,15 @@ namespace LoopRogue
 
         private static Sprite ShadowSprite(int i)
         {
-            if (_shadowSprites == null)
+            if (_shadowSprites == null || _shadowArt != GameSettings.Art) // 그림체(클래식/고퀄)가 바뀌면 다시 읽음
+            {
+                _shadowArt = GameSettings.Art;
                 _shadowSprites = new[]
                 {
-                    Resources.Load<Sprite>("Tiles/Shadow_Top"), Resources.Load<Sprite>("Tiles/Shadow_Left"),
-                    Resources.Load<Sprite>("Tiles/Shadow_TopLeft"), Resources.Load<Sprite>("Tiles/Shadow_Corner"),
+                    DungeonTiles.Load("Shadow_Top"), DungeonTiles.Load("Shadow_Left"),
+                    DungeonTiles.Load("Shadow_TopLeft"), DungeonTiles.Load("Shadow_Corner"),
                 };
+            }
             return _shadowSprites[i];
         }
 
