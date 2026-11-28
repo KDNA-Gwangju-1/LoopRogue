@@ -49,8 +49,10 @@ def compare(name, res, path):
     S = 120; o = Image.new("RGBA", (4 * S * 2, ((len(res) + 3) // 4) * (S + 18)), (40, 40, 52, 255)); d = ImageDraw.Draw(o)
     for k, (rel, im) in enumerate(res.items()):
         x, y = (k % 4) * S * 2, (k // 4) * (S + 18); d.text((x + 4, y + 1), rel.split("/")[-1], fill="white", font=FONT)
-        for j, t in enumerate((UB.load(rel), im)):
-            z = (S - 10) // max(t.size); o.alpha_composite(t.resize((t.width * z, t.height * z), Image.NEAREST), (x + j * S + 4, y + 18))
+        old = UB.load(rel); z = (S - 10) // max(old.size)          # 같은 화면 크기로(새 그림은 Z배라 z/Z배)
+        for j, t in enumerate((old, im)):
+            w, h = old.width * z, old.height * z
+            o.alpha_composite(t.resize((w, h), Image.NEAREST if j == 0 or z % Z == 0 else Image.BOX), (x + j * S + 4, y + 18))
     o.save(path); return path
 
 
