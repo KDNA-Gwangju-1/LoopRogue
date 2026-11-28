@@ -425,7 +425,7 @@ NPCS = [
     ("LobbyGambler", "08_도박꾼", "a gambler with a black top hat, a moustache and a red jacket"),
     ("LobbyTimeKeeper", "09_시간지기", "an old wizard with a long white beard, a blue pointed hat and robe, holding a staff topped with an hourglass"),
     ("LobbyChronicler", "10_기록관", "a bald old chronicler with glasses holding a long scroll and a quill"),
-    ("LobbyScholar", "11_도감학자", "a scholar with a red cap holding an open book, with a small owl on the shoulder"),
+    ("LobbyScholar", "11_도감학자", "a scholar with a red cap holding a BIG open book in front of the chest (the book is as wide as the body, clearly readable), with a BIG brown owl sitting on the shoulder (the owl's head is almost as big as the scholar's head)"),
     ("LobbyGrocer", "12_잡화상", "a grocer with a green apron carrying a big backpack frame of goods"),
     ("LobbySkillHelper", "13_스킬도우미", "an old martial master with a red headband, a navy uniform and a long staff, with small floating gems beside him"),
     ("LobbyTailor", "14_재봉사", "a tailor with a hair bun with a needle in it, round glasses and a purple coat with gold buttons"),

@@ -886,11 +886,11 @@ namespace LoopRogue
 
         private void LoadArt()
         {
-            _buttonSprite = Resources.Load<Sprite>("UI/Common/Button");
-            _buttonHoverSprite = Resources.Load<Sprite>("UI/Common/Button_Hover");
-            _panelSprite = Resources.Load<Sprite>("UI/Common/Panel");
+            _buttonSprite = PixelUi.Get("UI/Common/Button");
+            _buttonHoverSprite = PixelUi.Get("UI/Common/Button_Hover");
+            _panelSprite = PixelUi.Get("UI/Common/Panel");
             foreach (LobbyView view in Enum.GetValues(typeof(LobbyView)))
-                _backgrounds[view] = Resources.Load<Sprite>($"Backgrounds/Lobby_{view}");
+                _backgrounds[view] = PixelUi.Get($"Backgrounds/Lobby_{view}");
         }
 
         /// <summary>화면 비율이 16:9가 아니어도 빈틈 없이 덮게(넘치는 쪽은 잘림) + 위에 어둠 한 겹(ShowView가 화면마다 진하기 조절).</summary>

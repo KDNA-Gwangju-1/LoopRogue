@@ -74,7 +74,7 @@ namespace LoopRogue
             r._glow = PixelUi.Get("UI/Gacha/Chest_Glow");
             r._rays = Resources.Load<Sprite>("UI/Gacha/Rays");
             r._sparkle = Resources.Load<Sprite>("UI/Gacha/Sparkle");
-            r._panel = Resources.Load<Sprite>("UI/Common/Panel");
+            r._panel = PixelUi.Get("UI/Common/Panel");
             r._root = go.GetComponent<RectTransform>();
             r._dim = r.FullScreen("Dim", new Color(0f, 0f, 0f, 0f));
             var shake = new GameObject("Shake", typeof(RectTransform));

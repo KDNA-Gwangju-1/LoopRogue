@@ -18,7 +18,7 @@ namespace LoopRogue
 
         public static void Show(int stage)
         {
-            var sprite = Resources.Load<Sprite>($"Murals/Mural{Mathf.Clamp(stage, 1, 10)}");
+            var sprite = PixelUi.Get($"Murals/Mural{Mathf.Clamp(stage, 1, 10)}");
             if (sprite == null)
                 return;
             if (_instance == null)
@@ -98,8 +98,9 @@ namespace LoopRogue
             var canvas = _rootRect.rect.size;
             var top = canvas.y - ActionBarLayout.TopBarHeight - Margin;
             var bottom = NpcDialogUI.PanelTop + Margin;
-            var w = sprite.rect.width;
-            var h = sprite.rect.height;
+            var px = PixelUi.PxSize(sprite); // 고퀄 벽화는 픽셀이 2배 - 옛 그림과 같은 화면 크기로
+            var w = px.x;
+            var h = px.y;
             var scale = Mathf.Clamp(Mathf.Min((top - bottom - FramePad * 2f) / h, (canvas.x - Margin * 2f - FramePad * 2f) / w), MinScale, MaxScale);
             var picture = new Vector2(Mathf.Round(w * scale), Mathf.Round(h * scale));
             _pictureRect.sizeDelta = picture;

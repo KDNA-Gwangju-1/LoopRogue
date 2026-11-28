@@ -80,5 +80,5 @@ if __name__ == "__main__":
         for rel, im in res.items():
             p = os.path.join(PREV, rel + ".png"); os.makedirs(os.path.dirname(p), exist_ok=True); im.save(p)
             if game: install(rel, im)
-        print(compare(name, res, os.path.join(CMP, f"UI_비교_{name}.png"))); n += len(res)
+        print(compare(name, res, os.path.join(CMP, f"UI_{'던전' if UB.DUNGEON else ''}비교_{name}.png"))); n += len(res)
     print(n, "장", "(게임 폴더에도)" if game else "")

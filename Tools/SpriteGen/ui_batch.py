@@ -6,7 +6,16 @@ from PIL import Image
 import codex_batch as cb, fx_batch as FB
 
 UI = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "Assets", "Resources", "UI")
-OUT = os.path.join(cb.OUT, "UI")
+# 11-28 사용자 "고퀄모드는 좀 더 던전에 어울리게 새로그리게": UI_STYLE=dungeon 이면 어두운 던전 판타지 화풍으로 UI_던전 폴더에
+DUNGEON = os.environ.get("UI_STYLE") == "dungeon"
+OUT = os.path.join(cb.OUT, "UI_던전" if DUNGEON else "UI")
+FLOOR = os.path.join(cb.OUT, "타일", "floor.png")
+DSTYLE = (" STYLE CHANGE: the old icons look too bright, cute and generic. Redraw every icon so it clearly belongs in a DARK FANTASY "
+          "DUNGEON game like image 3 (the game's dungeon floor): weathered, worn and aged materials - tarnished iron and bronze, "
+          "chipped stone, old bone, cracked leather, yellowed parchment, smoky glass, dull gems; deeper and more muted, slightly "
+          "desaturated colours with darker shadows, scratches and grime, lit from the top-left like a torch. No glossy cartoon look, "
+          "no pastel, no clean modern UI style. Keep the main colour of each icon (red stays red, gold stays gold) but darker and "
+          "grittier, and keep each icon instantly readable at a small size with a strong silhouette and a dark outline.")
 REF = os.path.join(cb.WORK, "ui_ref")
 HERO = os.path.join(cb.HQ, "대기_앞", "01.png")
 GROUPS = {"Cards": "skill/upgrade CARD icons", "Icons": "game item, skill, trait and gimmick ICONS", "Relics": "magic RELIC item icons",
@@ -65,7 +74,10 @@ def jobs(sel):
                   f"more detailed and polished. Empty cells stay empty. The background of the whole image must be flat solid {bgname} "
                   f"everywhere outside the icons (no gradient, no texture, no grid lines, no borders, no text, no numbers), and the "
                   f"icons must not use that colour. Use your image generation tool, do not write code.")
-        yield os.path.join(OUT, n + ".png"), prompt, [ref_sheet(n, items, bg), HERO]
+        imgs = [ref_sheet(n, items, bg), HERO]
+        if DUNGEON:
+            prompt += DSTYLE; imgs.append(FLOOR)
+        yield os.path.join(OUT, n + ".png"), prompt, imgs
 
 
 if __name__ == "__main__":

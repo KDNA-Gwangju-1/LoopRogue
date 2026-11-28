@@ -452,11 +452,13 @@ namespace LoopRogue
         /// <summary>11-28 고퀄 그림체면 UI 아이콘은 Resources/UIHQ/(같은 하위 경로, 2배 도트·PPU 200)를 먼저 찾고, 없으면 옛 UI(틀 그림 등).</summary>
         public static Sprite Get(string path)
         {
-            var hq = GameSettings.Art == GameSettings.ArtStyle.HighQuality && path.StartsWith("UI/");
+            // 고퀄이면 맨 앞 폴더 뒤에 HQ: UI/x -> UIHQ/x, Backgrounds/x -> BackgroundsHQ/x, Murals/x -> MuralsHQ/x (없으면 옛 그림)
+            var slash = path.IndexOf('/');
+            var hq = GameSettings.Art == GameSettings.ArtStyle.HighQuality && slash > 0;
             var key = hq ? "HQ:" + path : path;
             if (!Cache.TryGetValue(key, out var sprite) || sprite == null)
             {
-                sprite = hq ? Resources.Load<Sprite>("UIHQ/" + path.Substring(3)) : null;
+                sprite = hq ? Resources.Load<Sprite>(path.Substring(0, slash) + "HQ" + path.Substring(slash)) : null;
                 if (sprite == null)
                     sprite = Resources.Load<Sprite>(path);
                 Cache[key] = sprite;

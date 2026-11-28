@@ -232,7 +232,7 @@ namespace LoopRogue
         /// 비율 유지 + 넘치는 쪽은 잘림. 그림이 없으면 예전 단색. 위에 얇은 어둠을 깔아 제목·버튼이 묻히지 않게.</summary>
         private static void BuildBackground(Transform parent)
         {
-            var sprite = Resources.Load<Sprite>("Backgrounds/TitleDungeon");
+            var sprite = PixelUi.Get("Backgrounds/TitleDungeon");
 
             var background = new GameObject("Background", typeof(RectTransform));
             background.transform.SetParent(parent, false);
@@ -272,7 +272,7 @@ namespace LoopRogue
         private static void BuildLogo(Transform parent)
         {
             const float pixelScale = 4f;
-            var sprite = Resources.Load<Sprite>("UI/Title/Logo");
+            var sprite = PixelUi.Get("UI/Title/Logo");
             if (sprite == null)
             {
                 var title = CreateLabel(parent, "Title", "LoopRogue", 72, FontStyle.Bold, Color.white, 150f, 800f, 90f);
@@ -285,7 +285,7 @@ namespace LoopRogue
             go.AddComponent<Image>().sprite = sprite;
             var rect = go.GetComponent<RectTransform>();
             rect.anchorMin = rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.sizeDelta = new Vector2(sprite.rect.width, sprite.rect.height) * pixelScale;
+            rect.sizeDelta = PixelUi.PxSize(sprite) * pixelScale;
             rect.anchoredPosition = new Vector2(0f, 150f);
         }
 
@@ -324,8 +324,8 @@ namespace LoopRogue
             var go = new GameObject(goName, typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var image = go.AddComponent<Image>();
-            var normal = spriteName != null ? Resources.Load<Sprite>($"UI/Title/{spriteName}") : null;
-            var hover = spriteName != null ? Resources.Load<Sprite>($"UI/Title/{spriteName}_Hover") : null;
+            var normal = spriteName != null ? PixelUi.Get($"UI/Title/{spriteName}") : null;
+            var hover = spriteName != null ? PixelUi.Get($"UI/Title/{spriteName}_Hover") : null;
             if (normal != null)
                 image.sprite = normal;
             else

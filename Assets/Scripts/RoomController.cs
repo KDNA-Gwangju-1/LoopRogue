@@ -1439,7 +1439,7 @@ namespace LoopRogue
         {
             if (DamagePopup.Suppressed)
                 return;
-            var sprite = Resources.Load<Sprite>("Backgrounds/Dungeon");
+            var sprite = PixelUi.Get("Backgrounds/Dungeon");
             if (sprite == null)
                 return;
             var go = new GameObject("Backdrop");
